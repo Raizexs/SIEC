@@ -11,13 +11,13 @@
 
 ---
 
-## � Sobre el Proyecto
+## 🎯 Sobre el Proyecto
 
 **SIEC** es un sistema inteligente desarrollado para empresas constructoras que automatiza el desglose y cálculo de los insumos requeridos para la edificación de viviendas.
 
-> �🎓 **Contexto Académico:** Este proyecto está siendo desarrollado para la asignatura de **Ingeniería de Software II**.
+> 🎓 **Contexto Académico:** Este proyecto está siendo desarrollado para la asignatura de **Ingeniería de Software II**.
 
-### � El Problema
+### 🔍 El Problema
 
 La estimación de costos y materiales en proyectos de construcción residencial a menudo implica:
 - Procesos manuales propensos a errores en el cálculo de insumos.
@@ -139,13 +139,13 @@ SIEC/
 <a href="mailto:g.jaravrsalovic@uandresbello.edu">📧 Email</a>
 </td>
 <td align="center" width="25%">
-<img src="https://avatars.githubusercontent.com/u/128172560?v=4" width="100" height="100" style="border-radius:50%" alt="Andres Tapia" /><br>
+<img src="https://avatars.githubusercontent.com/u/105559567?v=4" width="100" height="100" style="border-radius:50%" alt="Andres Tapia" /><br>
 <b>Andres Tapia</b><br>
 <sub>Dev Líder</sub><br>
 <a href="mailto:a.tapialpez@uandresbello.edu">📧 Email</a>
 </td>
 <td align="center" width="25%">
-<img src="https://avatars.githubusercontent.com/u/128172530?v=4" width="100" height="100" style="border-radius:50%" alt="Felipe Figueroa" /><br>
+<img src="https://avatars.githubusercontent.com/u/128172645?v=4" width="100" height="100" style="border-radius:50%" alt="Felipe Figueroa" /><br>
 <b>Felipe Figueroa</b><br>
 <sub>Developer</sub><br>
 <a href="mailto:f.figueroadaz2@uandresbello.edu">📧 Email</a>
@@ -153,7 +153,7 @@ SIEC/
 </tr>
 <tr>
 <td align="center" width="25%">
-<img src="https://avatars.githubusercontent.com/u/236717677?v=4" width="100" height="100" style="border-radius:50%" alt="Fernando Arancibia" /><br>
+<img src="https://avatars.githubusercontent.com/u/185566076?v=4" width="100" height="100" style="border-radius:50%" alt="Fernando Salazar" /><br>
 <b>Fernando Salazar</b><br>
 <sub>Developer</sub><br>
 <a href="mailto:f.salazarcartes@uandresbello.edu">📧 Email</a>
