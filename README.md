@@ -6,6 +6,7 @@
 ![C#](https://img.shields.io/badge/C%23-239120?style=for-the-badge&logo=c-sharp&logoColor=white)
 ![Status](https://img.shields.io/badge/Status-In%20Development-warning?style=for-the-badge)
 ![Scrum](https://img.shields.io/badge/Methodology-Scrum-blue?style=for-the-badge&logo=scrumalliance&logoColor=white)
+![Jira Tracking](https://img.shields.io/badge/Tracked_by-Jira-0052CC?style=for-the-badge&logo=jira&logoColor=white)
 
 **Sistema orientado a la estimación automática de costos de construcción de viviendas basado en métricas por metro cuadrado y configuración estructural.**
 
