@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SIEC — POC Motor 3D</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #1a1612;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      color: #e8d5b0;
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+    }
+
+    #panel {
+      width: 300px;
+      min-width: 300px;
+      background: linear-gradient(180deg, #21190f 0%, #1a1208 100%);
+      border-right: 1px solid #3d2e1a;
+      display: flex;
+      flex-direction: column;
+      z-index: 10;
+      overflow-y: auto;
+    }
+
+    #panel-header {
+      padding: 20px 20px 16px;
+      border-bottom: 1px solid #3d2e1a;
+      background: linear-gradient(135deg, #2a1f0e 0%, #1e1509 100%);
+    }
+
+    #panel-header h1 {
+      font-size: 18px;
+      font-weight: 700;
+      color: #f5c87a;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    #panel-header p {
+      font-size: 11px;
+      color: #8a7355;
+      margin-top: 3px;
+    }
+
+    .section {
+      padding: 16px 20px;
+      border-bottom: 1px solid #2a1f0e;
+    }
+
+    .section-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #c49a3c;
+      margin-bottom: 12px;
+    }
+
+    .param-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .param-label {
+      font-size: 13px;
+      color: #c8b088;
+    }
+
+    .param-value {
+      font-size: 14px;
+      font-weight: 700;
+      color: #f5c87a;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      margin: 6px 0 10px;
+      -webkit-appearance: none;
+      height: 4px;
+      background: #3d2e1a;
+      border-radius: 2px;
+      outline: none;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      background: #c49a3c;
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 0 6px rgba(196, 154, 60, 0.5);
+    }
+
+    .counter-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .counter-label {
+      font-size: 13px;
+      color: #c8b088;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .counter-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .counter-controls {
+      display: flex;
+      align-items: center;
+    }
+
+    .counter-btn {
+      width: 28px;
+      height: 28px;
+      background: #2a1f0e;
+      border: 1px solid #3d2e1a;
+      color: #c49a3c;
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s;
+    }
+
+    .counter-btn:first-child {
+      border-radius: 4px 0 0 4px;
+    }
+
+    .counter-btn:last-child {
+      border-radius: 0 4px 4px 0;
+    }
+
+    .counter-btn:hover:not(:disabled) {
+      background: #3d2e1a;
+    }
+
+    .counter-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    .counter-num {
+      width: 36px;
+      height: 28px;
+      background: #1a1208;
+      border-top: 1px solid #3d2e1a;
+      border-bottom: 1px solid #3d2e1a;
+      color: #f5c87a;
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #token-section {
+      padding: 14px 20px;
+      border-bottom: 1px solid #2a1f0e;
+      background: #1c1309;
+    }
+
+    .token-label-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 6px;
+      font-size: 12px;
+    }
+
+    .token-used {
+      color: #e88a40;
+      font-weight: 700;
+    }
+
+    .token-free {
+      color: #7ab87a;
+      font-weight: 700;
+    }
+
+    .token-bar-bg {
+      height: 8px;
+      background: #2a1f0e;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .token-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.3s ease, background 0.3s;
+    }
+
+    #token-warning {
+      font-size: 11px;
+      color: #e84040;
+      margin-top: 5px;
+      min-height: 16px;
+    }
+
+    .material-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    .mat-btn {
+      padding: 7px 8px;
+      background: #2a1f0e;
+      border: 1px solid #3d2e1a;
+      color: #c8b088;
+      font-size: 11px;
+      border-radius: 4px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.15s;
+    }
+
+    .mat-btn:hover {
+      background: #3d2e1a;
+      color: #f5c87a;
+    }
+
+    .mat-btn.active {
+      background: #4a3010;
+      border-color: #c49a3c;
+      color: #f5c87a;
+    }
+
+    #generate-btn {
+      margin: 16px 20px;
+      padding: 12px;
+      background: linear-gradient(135deg, #c49a3c 0%, #a07c28 100%);
+      border: none;
+      border-radius: 6px;
+      color: #1a1208;
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      width: calc(100% - 40px);
+      transition: all 0.2s;
+    }
+
+    #generate-btn:hover {
+      filter: brightness(1.1);
+      transform: translateY(-1px);
+    }
+
+    #generate-btn:active {
+      transform: translateY(0);
+    }
+
+    #stats-section {
+      padding: 12px 20px;
+      font-size: 11px;
+      color: #6a5535;
+      margin-top: auto;
+      border-top: 1px solid #2a1f0e;
+    }
+
+    #stats-section div {
+      margin-bottom: 3px;
+    }
+
+    .stat-val {
+      color: #998050;
+    }
+
+    .legend {
+      padding: 14px 20px;
+      border-bottom: 1px solid #2a1f0e;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+      font-size: 12px;
+      color: #a09070;
+    }
+
+    .legend-swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 2px;
+    }
+
+    #canvas-wrapper {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #loading-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(26, 18, 8, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      color: #c49a3c;
+      letter-spacing: 0.1em;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s;
+      z-index: 5;
+    }
+
+    #loading-overlay.visible {
+      opacity: 1;
+    }
+
+    #tooltip {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      background: rgba(26, 18, 8, 0.85);
+      border: 1px solid #3d2e1a;
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-size: 11px;
+      color: #8a7355;
+      pointer-events: none;
+      backdrop-filter: blur(4px);
+      z-index: 4;
+    }
+
+    #tooltip strong {
+      color: #c49a3c;
+      display: block;
+      margin-bottom: 2px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="panel">
+    <div id="panel-header">
+      <h1>SIEC</h1>
+      <p>Motor 3D · POC v0.1 · Generación Parametrizada</p>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Superficie Total</div>
+      <div class="param-row">
+        <span class="param-label">Metros cuadrados</span>
+        <span class="param-value" id="m2-val">80 m²</span>
+      </div>
+      <input type="range" id="m2-slider" min="20" max="200" value="80" step="5" />
+    </div>
+
+    <div id="token-section">
+      <div class="section-title" style="margin-bottom:8px;">Presupuesto de Tokens</div>
+      <div class="token-label-row">
+        <span>Usados: <span class="token-used" id="tok-used">34</span></span>
+        <span>Libres: <span class="token-free" id="tok-free">46</span></span>
+        <span style="color:#6a5535">Total: <span id="tok-total">80</span></span>
+      </div>
+      <div class="token-bar-bg">
+        <div class="token-bar-fill" id="tok-bar" style="width:43%; background:#7ab87a;"></div>
+      </div>
+      <div id="token-warning"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Recintos</div>
+      <div class="counter-row">
+        <span class="counter-label">
+          <span class="counter-dot" style="background:#c8845a;"></span>
+          Habitaciones <span style="color:#6a5535;font-size:11px;">(9 tok)</span>
+        </span>
+        <div class="counter-controls">
+          <button class="counter-btn" id="hab-minus">−</button>
+          <div class="counter-num" id="hab-num">2</div>
+          <button class="counter-btn" id="hab-plus">+</button>
+        </div>
+      </div>
+      <div class="counter-row">
+        <span class="counter-label">
+          <span class="counter-dot" style="background:#5a8ab8;"></span>
+          Baños <span style="color:#6a5535;font-size:11px;">(4 tok)</span>
+        </span>
+        <div class="counter-controls">
+          <button class="counter-btn" id="ban-minus">−</button>
+          <div class="counter-num" id="ban-num">1</div>
+          <button class="counter-btn" id="ban-plus">+</button>
+        </div>
+      </div>
+      <div class="counter-row">
+        <span class="counter-label">
+          <span class="counter-dot" style="background:#7aaa5a;"></span>
+          Áreas Comunes <span style="color:#6a5535;font-size:11px;">(12 tok)</span>
+        </span>
+        <div class="counter-controls">
+          <button class="counter-btn" id="com-minus">−</button>
+          <div class="counter-num" id="com-num">1</div>
+          <button class="counter-btn" id="com-plus">+</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Material Estructural</div>
+      <div class="material-grid">
+        <button class="mat-btn active" data-mat="madera">🪵 Madera</button>
+        <button class="mat-btn" data-mat="metalcom">🔩 Metalcom</button>
+        <button class="mat-btn" data-mat="albanileria">🧱 Albañilería</button>
+        <button class="mat-btn" data-mat="hormigon">🏗️ Hormigón</button>
+      </div>
+    </div>
+
+    <button id="generate-btn">⟳ Generar Modelo 3D</button>
+
+    <div class="legend">
+      <div class="section-title">Leyenda</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:#c8845a;"></span> Habitación</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:#5a8ab8;"></span> Baño</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:#7aaa5a;"></span> Área Común</div>
+    </div>
+
+    <div id="stats-section">
+      <div>Recintos: <span class="stat-val" id="stat-rooms">—</span></div>
+      <div>Segmentos de pared: <span class="stat-val" id="stat-walls">—</span></div>
+      <div>Tiempo generación: <span class="stat-val" id="stat-time">—</span></div>
+    </div>
+  </div>
+
+  <div id="canvas-wrapper">
+    <div id="loading-overlay">GENERANDO MODELO…</div>
+    <div id="tooltip">
+      <strong>SIEC Motor 3D</strong>
+      Arrastrar: rotar · Rueda: zoom · Botón der: pan
+    </div>
+  </div>
+
+  <script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // ════════════════════════════════════
+    // CONSTANTES
+    // ════════════════════════════════════
+    const COSTS = { hab: 9, ban: 4, com: 12 };
+
+    const COLORS = {
+      hab: { wall: 0xc87850, floor: 0xb06838 },
+      ban: { wall: 0x4a78aa, floor: 0x3a6898 },
+      com: { wall: 0x68a048, floor: 0x589038 },
+    };
+
+    const ROUGHNESS_MAP = {
+      madera: 0.90,
+      metalcom: 0.30,
+      albanileria: 0.95,
+      hormigon: 0.75,
+    };
+
+    const WALL_H = 2.8;
+    const WALL_T = 0.20;
+    const MIN_DIM = 2.2;
+
+    // ════════════════════════════════════
+    // ESTADO (valores iniciales)
+    // ════════════════════════════════════
+    const S = { m2: 80, hab: 2, ban: 1, com: 1, material: 'madera' };
+
+    // ════════════════════════════════════
+    // THREE.JS RENDERER
+    // ════════════════════════════════════
+    const wrap = document.getElementById('canvas-wrapper');
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.2;
+    wrap.appendChild(renderer.domElement);
+
+    // Forzar canvas a ocupar todo el contenedor
+    renderer.domElement.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;';
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x14100a);
+    scene.fog = new THREE.FogExp2(0x14100a, 0.015);
+
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 300);
+    camera.position.set(15, 12, 15);
+    camera.lookAt(0, 0, 0);
+
+    const orbit = new OrbitControls(camera, renderer.domElement);
+    orbit.enableDamping = true;
+    orbit.dampingFactor = 0.07;
+    orbit.minDistance = 2;
+    orbit.maxDistance = 80;
+    orbit.maxPolarAngle = Math.PI * 0.48;
+    orbit.target.set(0, 1, 0);
+    orbit.update();
+
+    // ─── Luces Foundation-style ───
+    scene.add(new THREE.AmbientLight(0xffd080, 0.55));
+
+    const sun = new THREE.DirectionalLight(0xfff5d8, 1.6);
+    sun.position.set(20, 35, 15);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.camera.near = 1;
+    sun.shadow.camera.far = 100;
+    sun.shadow.camera.left = sun.shadow.camera.bottom = -30;
+    sun.shadow.camera.right = sun.shadow.camera.top = 30;
+    sun.shadow.bias = -0.001;
+    scene.add(sun);
+
+    const fillLight = new THREE.DirectionalLight(0x80a8c8, 0.35);
+    fillLight.position.set(-15, 10, -8);
+    scene.add(fillLight);
+
+    scene.add(new THREE.HemisphereLight(0xc8a060, 0x3a2810, 0.6));
+
+    // Grid
+    const grid = new THREE.GridHelper(80, 80, 0x2a2010, 0x201808);
+    grid.position.y = -0.005;
+    scene.add(grid);
+
+    // ─── Resize ───
+    function onResize() {
+      const w = wrap.clientWidth;
+      const h = wrap.clientHeight;
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+    }
+    onResize();
+    window.addEventListener('resize', onResize);
+
+    // ─── Render loop ───
+    (function loop() {
+      requestAnimationFrame(loop);
+      orbit.update();
+      renderer.render(scene, camera);
+    })();
+
+    // ════════════════════════════════════
+    // AUTO-ENCUADRE
+    // ════════════════════════════════════
+    function autoFrame(group) {
+      const box = new THREE.Box3().setFromObject(group);
+      const center = box.getCenter(new THREE.Vector3());
+      const size = box.getSize(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.z, 1);
+      // Distancia para que el modelo quepa con un factor de holgura
+      const dist = (maxDim / (2 * Math.tan(camera.fov * Math.PI / 360))) * 1.5 + size.y;
+      orbit.target.set(center.x, center.y * 0.5, center.z);
+      camera.position.set(
+        center.x + dist * 0.65,
+        center.y + dist * 0.55,
+        center.z + dist * 0.65
+      );
+      orbit.update();
+    }
+
+    // ════════════════════════════════════
+    // LAYOUT ALGORITHM
+    // ════════════════════════════════════
+    function buildLayout(m2, hab, ban, com) {
+      const totalCost = hab * COSTS.hab + ban * COSTS.ban + com * COSTS.com;
+      if (totalCost === 0) return [];
+
+      const rooms = [];
+
+      function push(type, count, cost) {
+        for (let i = 0; i < count; i++) {
+          const area = (cost / totalCost) * m2;
+          // Aspect ratio por tipo de recinto
+          const asp = type === 'ban' ? 0.6 : type === 'com' ? 1.6 : 1.15;
+          const w = Math.max(Math.sqrt(area / asp), MIN_DIM);
+          const d = Math.max(area / w, MIN_DIM);
+          rooms.push({ type, area, w, d, x: 0, z: 0 });
+        }
+      }
+
+      // Orden: áreas comunes primero (sala), luego habitaciones, luego baños
+      push('com', com, COSTS.com);
+      push('hab', hab, COSTS.hab);
+      push('ban', ban, COSTS.ban);
+
+      // Empaquetar en filas horizontales
+      const maxRowW = Math.sqrt(m2) * 2.0;
+      let cx = 0, cz = 0, rowH = 0;
+
+      rooms.forEach((r, i) => {
+        if (i > 0 && cx + r.w > maxRowW) {
+          cz += rowH;
+          cx = 0;
+          rowH = 0;
+        }
+        r.x = cx;
+        r.z = cz;
+        cx += r.w;
+        rowH = Math.max(rowH, r.d);
+      });
+
+      // Centrar
+      const totalW = Math.max(...rooms.map(r => r.x + r.w));
+      const totalD = Math.max(...rooms.map(r => r.z + r.d));
+      rooms.forEach(r => {
+        r.x -= totalW / 2;
+        r.z -= totalD / 2;
+      });
+
+      return rooms;
+    }
+
+    // ════════════════════════════════════
+    // GENERADOR 3D
+    // ════════════════════════════════════
+    let houseGroup = null;
+
+    // Caché de materiales para no recrear duplicados
+    const matCache = new Map();
+    function getMat(color, roughness) {
+      const key = `${color}_${roughness.toFixed(2)}`;
+      if (!matCache.has(key)) {
+        matCache.set(key, new THREE.MeshStandardMaterial({ color, roughness, metalness: 0.0 }));
+      }
+      return matCache.get(key);
+    }
+
+    function addBox(parent, x, y, z, w, h, d, mat) {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+      mesh.position.set(x + w / 2, y + h / 2, z + d / 2);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      parent.add(mesh);
+      return mesh;
+    }
+
+    function generateHouse() {
+      const t0 = performance.now();
+      document.getElementById('loading-overlay').classList.add('visible');
+
+      // Limpiar escena anterior
+      if (houseGroup) {
+        houseGroup.traverse(obj => {
+          if (obj.isMesh) obj.geometry.dispose();
+        });
+        scene.remove(houseGroup);
+      }
+      houseGroup = new THREE.Group();
+      scene.add(houseGroup);
+
+      const rooms = buildLayout(S.m2, S.hab, S.ban, S.com);
+      const rough = ROUGHNESS_MAP[S.material] ?? 0.85;
+      let wallCnt = 0;
+
+      // Suelo base oscuro
+      const groundMesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(100, 100),
+        getMat(0x1e1608, 0.99)
+      );
+      groundMesh.rotation.x = -Math.PI / 2;
+      groundMesh.position.y = -0.005;
+      groundMesh.receiveShadow = true;
+      houseGroup.add(groundMesh);
+
+      rooms.forEach(r => {
+        const col = COLORS[r.type];
+        const wallMat = getMat(col.wall, rough);
+        const floorMat = getMat(col.floor, 0.96);
+        const { x, z, w, d } = r;
+        const t = WALL_T;
+
+        // Piso del recinto
+        const floor = new THREE.Mesh(
+          new THREE.PlaneGeometry(w - t, d - t),
+          floorMat
+        );
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.set(x + w / 2, 0.001, z + d / 2);
+        floor.receiveShadow = true;
+        houseGroup.add(floor);
+
+        // ─── 4 Paredes con grosor real ───
+        // Norte (z mínimo)
+        addBox(houseGroup, x, 0, z, w, WALL_H, t, wallMat); wallCnt++;
+        // Sur  (z máximo)
+        addBox(houseGroup, x, 0, z + d - t, w, WALL_H, t, wallMat); wallCnt++;
+        // Oeste (x mínimo) — descontado las esquinas N/S
+        addBox(houseGroup, x, 0, z + t, t, WALL_H, d - 2 * t, wallMat); wallCnt++;
+        // Este (x máximo)
+        addBox(houseGroup, x + w - t, 0, z + t, t, WALL_H, d - 2 * t, wallMat); wallCnt++;
+      });
+
+      // Auto-encuadre tras un tick para que el renderer actualice
+      requestAnimationFrame(() => autoFrame(houseGroup));
+
+      // Stats
+      const ms = (performance.now() - t0).toFixed(1);
+      document.getElementById('stat-rooms').textContent = rooms.length;
+      document.getElementById('stat-walls').textContent = wallCnt;
+      document.getElementById('stat-time').textContent = ms + ' ms';
+
+      document.getElementById('loading-overlay').classList.remove('visible');
+    }
+
+    // ════════════════════════════════════
+    // TOKEN UI
+    // ════════════════════════════════════
+    function tokenUsed() { return S.hab * COSTS.hab + S.ban * COSTS.ban + S.com * COSTS.com; }
+    function tokenFree() { return S.m2 - tokenUsed(); }
+
+    function refreshUI() {
+      const used = tokenUsed();
+      const total = S.m2;
+      const free = tokenFree();
+      const pct = Math.min(used / total * 100, 100);
+
+      document.getElementById('tok-used').textContent = used;
+      document.getElementById('tok-free').textContent = Math.max(free, 0);
+      document.getElementById('tok-total').textContent = total;
+
+      const bar = document.getElementById('tok-bar');
+      bar.style.width = pct + '%';
+      bar.style.background = pct > 95 ? '#e84040' : pct > 72 ? '#e88a40' : '#7ab87a';
+
+      document.getElementById('token-warning').textContent =
+        used > total ? `⚠ Exceso de ${used - total} tokens` : '';
+
+      // Botones + disable si no alcanzan tokens
+      document.getElementById('hab-plus').disabled = free < COSTS.hab;
+      document.getElementById('ban-plus').disabled = free < COSTS.ban;
+      document.getElementById('com-plus').disabled = free < COSTS.com;
+      // Botones − disable si ya están en 0
+      document.getElementById('hab-minus').disabled = S.hab <= 0;
+      document.getElementById('ban-minus').disabled = S.ban <= 0;
+      document.getElementById('com-minus').disabled = S.com <= 0;
+    }
+
+    // ════════════════════════════════════
+    // BINDINGS
+    // ════════════════════════════════════
+
+    // Slider m²
+    document.getElementById('m2-slider').addEventListener('input', function () {
+      S.m2 = +this.value;
+      document.getElementById('m2-val').textContent = S.m2 + ' m²';
+      refreshUI();
+    });
+
+    // Función para crear un par de botones ± para cada tipo de recinto
+    function bindCounter(minusId, plusId, numId, key, cost) {
+      document.getElementById(minusId).addEventListener('click', function () {
+        if (S[key] > 0) {
+          S[key]--;
+          document.getElementById(numId).textContent = S[key];
+          refreshUI();
+        }
+      });
+      document.getElementById(plusId).addEventListener('click', function () {
+        if (tokenFree() >= cost) {
+          S[key]++;
+          document.getElementById(numId).textContent = S[key];
+          refreshUI();
+        }
+      });
+    }
+    bindCounter('hab-minus', 'hab-plus', 'hab-num', 'hab', COSTS.hab);
+    bindCounter('ban-minus', 'ban-plus', 'ban-num', 'ban', COSTS.ban);
+    bindCounter('com-minus', 'com-plus', 'com-num', 'com', COSTS.com);
+
+    // Botones de material
+    document.querySelectorAll('.mat-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        document.querySelectorAll('.mat-btn').forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        S.material = btn.dataset.mat;
+      });
+    });
+
+    // Botón generar
+    document.getElementById('generate-btn').addEventListener('click', generateHouse);
+
+    // ════════════════════════════════════
+    // ARRANQUE
+    // ════════════════════════════════════
+    refreshUI();
+    generateHouse();
+  </script>
+</body>
+
+</html>
