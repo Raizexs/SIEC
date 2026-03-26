@@ -300,6 +300,35 @@
       margin-left: 4px;
     }
 
+    .numeric-input {
+      width: 100%;
+      margin-top: 6px;
+      padding: 8px 10px;
+      border: 1px solid #3d2e1a;
+      border-radius: 6px;
+      background: #1a1208;
+      color: #f5c87a;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .numeric-input:focus {
+      border-color: #c49a3c;
+      box-shadow: 0 0 0 2px rgba(196, 154, 60, 0.2);
+    }
+
+    .error-msg {
+      font-size: 11px;
+      color: #e84040;
+      min-height: 16px;
+      margin-top: 4px;
+      display: none;
+    }
+
+    .error-msg.visible {
+      display: block;
+    }
+
     #stats-section {
       padding: 12px 20px;
       font-size: 11px;
@@ -399,7 +428,19 @@
         <span class="param-label">Metros cuadrados</span>
         <span class="param-value" id="m2-val">80 m²</span>
       </div>
-      <input type="range" id="m2-slider" min="20" max="200" value="80" step="5" />
+      <input
+        type="number"
+        id="m2-input"
+        class="numeric-input"
+        min="15"
+        max="200"
+        step="1"
+        placeholder="Ej: 80"
+        value="80"
+        aria-label="Metros cuadrados totales"
+      />
+      <div id="m2-error" class="error-msg" role="alert"></div>
+      <input type="range" id="m2-slider" min="15" max="200" value="80" step="1" />
     </div>
 
     <div id="token-section">
@@ -520,6 +561,8 @@
     const WALL_H = 2.8;
     const WALL_T = 0.20;
     const MIN_DIM = 2.2;
+    const MIN_M2 = 15;
+    const MAX_M2 = 200;
 
     // ════════════════════════════════════
     // ESTADO (valores iniciales)
@@ -768,12 +811,28 @@
     // ════════════════════════════════════
     // VALIDACIÓN (SCRUM-24)
     // ════════════════════════════════════
+    function validarM2() {
+      const errorEl = document.getElementById('m2-error');
+      if (!Number.isInteger(S.m2) || S.m2 < MIN_M2 || S.m2 > MAX_M2) {
+        errorEl.textContent = `Ingrese un valor entero entre ${MIN_M2} y ${MAX_M2} m².`;
+        errorEl.classList.add('visible');
+        return false;
+      }
+      errorEl.textContent = '';
+      errorEl.classList.remove('visible');
+      return true;
+    }
+
     function validarFormulario() {
+      const m2Valido = validarM2();
       const used = tokenUsed();
       const total = S.m2;
-      const isValid = used <= total;
-      document.getElementById('generate-btn').disabled = !isValid;
-      return isValid;
+      const budgetOk = used <= total;
+      if (!budgetOk) {
+        document.getElementById('token-warning').textContent = `⚠ Exceso de ${used - total} tokens`;
+      }
+      document.getElementById('generate-btn').disabled = !(m2Valido && budgetOk);
+      return m2Valido && budgetOk;
     }
 
     // ════════════════════════════════════
@@ -816,10 +875,44 @@
     // ════════════════════════════════════
 
     // Slider m²
-    document.getElementById('m2-slider').addEventListener('input', function () {
-      S.m2 = +this.value;
-      document.getElementById('m2-val').textContent = S.m2 + ' m²';
+    const m2SliderEl = document.getElementById('m2-slider');
+    const m2InputEl = document.getElementById('m2-input');
+    const m2ValorEl = document.getElementById('m2-val');
+
+    function setM2Value(value) {
+      const valor = Number(value);
+      if (!Number.isInteger(valor) || valor < MIN_M2 || valor > MAX_M2) {
+        m2InputEl.classList.add('error');
+        S.m2 = valor;
+        validarFormulario();
+        return;
+      }
+      S.m2 = valor;
+      m2SliderEl.value = valor;
+      m2InputEl.value = valor;
+      m2ValorEl.textContent = `${valor} m²`;
       refreshUI();
+    }
+
+    m2SliderEl.addEventListener('input', function () {
+      setM2Value(this.value);
+    });
+
+    m2InputEl.addEventListener('input', function () {
+      const parsed = parseInt(this.value, 10);
+      if (Number.isNaN(parsed)) {
+        document.getElementById('m2-error').textContent = `Ingrese un número entero entre ${MIN_M2} y ${MAX_M2} m².`;
+        document.getElementById('m2-error').classList.add('visible');
+        document.getElementById('generate-btn').disabled = true;
+        return;
+      }
+      setM2Value(parsed);
+    });
+
+    m2InputEl.addEventListener('blur', function () {
+      if (this.value === '' || this.value === null) {
+        this.value = S.m2;
+      }
     });
 
     // Función para crear un par de botones ± para cada tipo de recinto
