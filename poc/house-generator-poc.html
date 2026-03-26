@@ -19,6 +19,8 @@
       overflow: hidden;
       height: 100vh;
       display: flex;
+      user-select: none;
+      -webkit-user-select: none;
     }
 
     #panel {
@@ -269,8 +271,33 @@
       transform: translateY(-1px);
     }
 
-    #generate-btn:active {
+    #generate-btn:active:not(:disabled) {
       transform: translateY(0);
+    }
+    
+    #generate-btn:disabled {
+      background: #3d2e1a;
+      color: #8a7355;
+      cursor: not-allowed;
+      filter: none;
+      transform: none;
+    }
+
+    .error-msg {
+      font-size: 11px;
+      color: #e84040;
+      min-height: 16px;
+      margin-top: 4px;
+      display: none;
+    }
+    
+    .error-msg.visible {
+      display: block;
+    }
+    .param-value-unit {
+      color: #8a7355;
+      font-size: 12px;
+      margin-left: 4px;
     }
 
     #stats-section {
@@ -462,8 +489,8 @@
   <script type="importmap">
 {
   "imports": {
-    "three": "./vendor/three/three.module.js",
-    "three/addons/": "./vendor/three/addons/"
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
   }
 }
 </script>
@@ -739,6 +766,17 @@
     }
 
     // ════════════════════════════════════
+    // VALIDACIÓN (SCRUM-24)
+    // ════════════════════════════════════
+    function validarFormulario() {
+      const used = tokenUsed();
+      const total = S.m2;
+      const isValid = used <= total;
+      document.getElementById('generate-btn').disabled = !isValid;
+      return isValid;
+    }
+
+    // ════════════════════════════════════
     // TOKEN UI
     // ════════════════════════════════════
     function tokenUsed() { return S.hab * COSTS.hab + S.ban * COSTS.ban + S.com * COSTS.com; }
@@ -769,6 +807,8 @@
       document.getElementById('hab-minus').disabled = S.hab <= 0;
       document.getElementById('ban-minus').disabled = S.ban <= 0;
       document.getElementById('com-minus').disabled = S.com <= 0;
+      
+      validarFormulario();
     }
 
     // ════════════════════════════════════

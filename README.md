@@ -2,8 +2,9 @@
 
 </div>
 
-![Unity](https://img.shields.io/badge/Unity-100000?style=for-the-badge&logo=unity&logoColor=white)
-![C#](https://img.shields.io/badge/C%23-239120?style=for-the-badge&logo=c-sharp&logoColor=white)
+![Three.js](https://img.shields.io/badge/Three.js-000000?style=for-the-badge&logo=three.js&logoColor=white)
+![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
 ![Status](https://img.shields.io/badge/Status-In%20Development-warning?style=for-the-badge)
 ![Scrum](https://img.shields.io/badge/Methodology-Scrum-blue?style=for-the-badge&logo=scrumalliance&logoColor=white)
 ![Jira Tracking](https://img.shields.io/badge/Tracked_by-Jira-0052CC?style=for-the-badge&logo=jira&logoColor=white)
@@ -30,8 +31,9 @@ La estimación de costos y materiales en proyectos de construcción residencial 
 Un **sistema interactivo** que permite:
 - ✅ **Configuración dinámica:** Ajuste de metros cuadrados totales, número de habitaciones (simples, dobles, triples), baños, áreas comunes y tipo de material estructural.
 - ✅ **Cálculo automático:** Determinación precisa de los insumos base como **Fierro, Cemento, Agua, Cableado, Tuberías y Mano de Obra**.
-- ✅ **Visualización 3D/Web:** Una interfaz interactiva (frontend web dinámico creado con Unity) que mejora y facilita la experiencia de pre-visualización.
+- ✅ **Visualización 3D Web:** Una interfaz interactiva basada en **Three.js** (WebGL nativo) que permite pre-visualización instantánea sin necesidad de plugins externos.
 - ✅ **Reglas de negocio robustas:** Motor de cálculo paramétrico y validación de reglas constructivas en el backend.
+- ✅ **Optimización de Recursos:** Sistema de validación espacial por tokens para asegurar la viabilidad del diseño.
 
 ---
 
@@ -39,11 +41,29 @@ Un **sistema interactivo** que permite:
 
 El sistema está planteado con una arquitectura moderna que separa la interfaz de los robustos motores de reglas:
 
-* **Frontend:** Interfaz web dinámica e interactiva desarrollada con **Unity**, orientada a brindar una experiencia de usuario fluida.
+* **Frontend:** Interfaz web SPA (Single Page Application) desarrollada con **JavaScript/TypeScript** y **Three.js**, optimizada para visualización 3D procedimental en tiempo real.
 * **Backend (Aplicación):** 
   * Motor de cálculo paramétrico encargado de las matemáticas del proyecto.
   * Motor de reglas constructivas que valida las coherencias estructurales.
 * **Base de Datos:** Estructura relacional preparada para manejar métricas base y precios actualizables.
+
+---
+
+## ⚙️ Mecánicas Core
+
+El sistema implementa lógicas avanzadas para garantizar una estimación precisa y una experiencia interactiva:
+
+*   **Sistema de Tokens:** Cada m² equivale a 1 token. Los recintos (baños, habitaciones) consumen tokens, validando que el diseño sea viable en el espacio total.
+*   **Matriz de Rendimiento:** El motor de cálculo utiliza factores dinámicos desde la base de datos (ej. sacos de cemento por m² de albañilería) para evitar valores fijos en el código.
+*   **Web Scraping de Precios:** Un proceso automatizado extrae precios reales cada 24 horas de tiendas retail (Sodimac, Easy, Construmart) centradas en la Región de Valparaíso.
+
+---
+
+## ⚡ Desempeño y RNF
+
+*   **Renderizado 3D:** Actualización del modelo en Three.js en **< 20 segundos**.
+*   **Velocidad de Respuesta:** Cálculos y desgloses de la API en **< 2.5 segundos**.
+*   **Caché Local:** Historial de simulaciones (máximo 3) accesible en **< 500ms**.
 
 ---
 
@@ -62,10 +82,10 @@ Con miras a convertir la aplicación en una solución de nivel empresarial, se p
 ```text
 SIEC/
 │
-├── 📁 frontend/                # Proyecto Unity (Interfaz y visualización)
-│   ├── Assets/                 # Modelos, Scripts C# (UI), Escenas
-│   ├── Packages/
-│   └── ProjectSettings/
+├── 📁 frontend/                # SPA Web (Interfaz y visualización 3D)
+│   ├── src/                    # Código fuente (React/Vue/JS)
+│   ├── assets/                 # Modelos 3D, Texturas, Estilos
+│   └── public/                 # Archivos estáticos
 │
 ├── 📁 backend/                 # Motor de cálculo y Reglas constructivas
 │   ├── src/
@@ -96,18 +116,18 @@ SIEC/
 <table>
 <tr>
 <td align="center" width="20%">
-<img src="https://upload.wikimedia.org/wikipedia/commons/c/c4/Unity_2021.svg" width="48" height="48" alt="Unity" /><br>
-<b>Unity</b><br>
-<sub>Frontend Interactivo</sub>
+<img src="https://raw.githubusercontent.com/mrdoob/three.js/master/files/icon.svg" width="48" height="48" alt="Three.js" /><br>
+<b>Three.js</b><br>
+<sub>Motor 3D WebGL</sub>
 </td>
 <td align="center" width="20%">
-<img src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/bd/Logo_C_sharp.svg/960px-Logo_C_sharp.svg.png" width="48" height="48" alt="C#" /><br>
-<b>C# / .NET</b><br>
-<sub>Scripts & Backend</sub>
+<img src="https://upload.wikimedia.org/wikipedia/commons/6/6a/JavaScript-logo.png" width="48" height="48" alt="JavaScript" /><br>
+<b>JavaScript / TS</b><br>
+<sub>Lógica Frontend</sub>
 </td>
 <td align="center" width="20%">
 <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/Postgresql_elephant.svg/960px-Postgresql_elephant.svg.png" width="48" height="48" alt="DB" /><br>
-<b>Base de Datos</b><br>
+<b>Postgres / MySQL</b><br>
 <sub>Almacenamiento Relacional</sub>
 </td>
 <td align="center" width="20%">
@@ -179,12 +199,6 @@ SIEC/
 
 ---
 
-## 📜 Licencia
-
-Este proyecto está licenciado bajo la **Licencia MIT** - ver el archivo [LICENSE](LICENSE) para más detalles.
-
----
-
 ## 🙏 Agradecimientos
 
 - **Universidad:** Por el apoyo y recursos para desarrollar este proyecto dentro de la malla académica.
@@ -197,7 +211,7 @@ Este proyecto está licenciado bajo la **Licencia MIT** - ver el archivo [LICENS
 
 Hecho con ❤️ por el equipo de SIEC
 
-![Made with Unity](https://img.shields.io/badge/Made%20with-Unity-100000?style=flat-square&logo=unity)
+![Made with Three.js](https://img.shields.io/badge/Made%20with-Three.js-000000?style=flat-square&logo=three.js)
 ![Scrum](https://img.shields.io/badge/Powered%20by-Scrum-blue?style=flat-square&logo=scrumalliance)
 
 </div>
