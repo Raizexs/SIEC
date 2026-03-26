@@ -461,7 +461,7 @@
       <div class="counter-row">
         <span class="counter-label">
           <span class="counter-dot" style="background:#c8845a;"></span>
-          Habitaciones <span style="color:#6a5535;font-size:11px;">(9 tok)</span>
+          Habitaciones <span style="color:#6a5535;font-size:11px;" id="hab-cost">(9 tok)</span>
         </span>
         <div class="counter-controls">
           <button class="counter-btn" id="hab-minus">−</button>
@@ -472,7 +472,7 @@
       <div class="counter-row">
         <span class="counter-label">
           <span class="counter-dot" style="background:#5a8ab8;"></span>
-          Baños <span style="color:#6a5535;font-size:11px;">(4 tok)</span>
+          Baños <span style="color:#6a5535;font-size:11px;" id="ban-cost">(4 tok)</span>
         </span>
         <div class="counter-controls">
           <button class="counter-btn" id="ban-minus">−</button>
@@ -483,13 +483,29 @@
       <div class="counter-row">
         <span class="counter-label">
           <span class="counter-dot" style="background:#7aaa5a;"></span>
-          Áreas Comunes <span style="color:#6a5535;font-size:11px;">(12 tok)</span>
+          Áreas Comunes <span style="color:#6a5535;font-size:11px;" id="com-cost">(12 tok)</span>
         </span>
         <div class="counter-controls">
           <button class="counter-btn" id="com-minus">−</button>
           <div class="counter-num" id="com-num">1</div>
           <button class="counter-btn" id="com-plus">+</button>
         </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Costos en Tokens</div>
+      <div class="param-row">
+        <span class="param-label">Habitaciones</span>
+        <input type="number" id="cost-hab" class="numeric-input" min="1" max="50" step="1" value="9" />
+      </div>
+      <div class="param-row">
+        <span class="param-label">Baños</span>
+        <input type="number" id="cost-ban" class="numeric-input" min="1" max="50" step="1" value="4" />
+      </div>
+      <div class="param-row">
+        <span class="param-label">Áreas Comunes</span>
+        <input type="number" id="cost-com" class="numeric-input" min="1" max="50" step="1" value="12" />
       </div>
     </div>
 
@@ -567,7 +583,7 @@
     // ════════════════════════════════════
     // ESTADO (valores iniciales)
     // ════════════════════════════════════
-    const S = { m2: 80, hab: 2, ban: 1, com: 1, material: 'madera' };
+    const S = { m2: 80, hab: 2, ban: 1, com: 1, material: 'madera', costHab: 9, costBan: 4, costCom: 12 };
 
     // ════════════════════════════════════
     // THREE.JS RENDERER
@@ -668,7 +684,7 @@
     // LAYOUT ALGORITHM
     // ════════════════════════════════════
     function buildLayout(m2, hab, ban, com) {
-      const totalCost = hab * COSTS.hab + ban * COSTS.ban + com * COSTS.com;
+      const totalCost = hab * S.costHab + ban * S.costBan + com * S.costCom;
       if (totalCost === 0) return [];
 
       const rooms = [];
@@ -685,9 +701,9 @@
       }
 
       // Orden: áreas comunes primero (sala), luego habitaciones, luego baños
-      push('com', com, COSTS.com);
-      push('hab', hab, COSTS.hab);
-      push('ban', ban, COSTS.ban);
+      push('com', com, S.costCom);
+      push('hab', hab, S.costHab);
+      push('ban', ban, S.costBan);
 
       // Empaquetar en filas horizontales
       const maxRowW = Math.sqrt(m2) * 2.0;
@@ -838,7 +854,7 @@
     // ════════════════════════════════════
     // TOKEN UI
     // ════════════════════════════════════
-    function tokenUsed() { return S.hab * COSTS.hab + S.ban * COSTS.ban + S.com * COSTS.com; }
+    function tokenUsed() { return S.hab * S.costHab + S.ban * S.costBan + S.com * S.costCom; }
     function tokenFree() { return S.m2 - tokenUsed(); }
 
     function refreshUI() {
@@ -859,13 +875,18 @@
         used > total ? `⚠ Exceso de ${used - total} tokens` : '';
 
       // Botones + disable si no alcanzan tokens
-      document.getElementById('hab-plus').disabled = free < COSTS.hab;
-      document.getElementById('ban-plus').disabled = free < COSTS.ban;
-      document.getElementById('com-plus').disabled = free < COSTS.com;
+      document.getElementById('hab-plus').disabled = free < S.costHab;
+      document.getElementById('ban-plus').disabled = free < S.costBan;
+      document.getElementById('com-plus').disabled = free < S.costCom;
       // Botones − disable si ya están en 0
       document.getElementById('hab-minus').disabled = S.hab <= 0;
       document.getElementById('ban-minus').disabled = S.ban <= 0;
       document.getElementById('com-minus').disabled = S.com <= 0;
+
+      // Actualizar etiquetas de costos
+      document.getElementById('hab-cost').textContent = `(${S.costHab} tok)`;
+      document.getElementById('ban-cost').textContent = `(${S.costBan} tok)`;
+      document.getElementById('com-cost').textContent = `(${S.costCom} tok)`;
       
       validarFormulario();
     }
@@ -916,7 +937,7 @@
     });
 
     // Función para crear un par de botones ± para cada tipo de recinto
-    function bindCounter(minusId, plusId, numId, key, cost) {
+    function bindCounter(minusId, plusId, numId, key, costKey) {
       document.getElementById(minusId).addEventListener('click', function () {
         if (S[key] > 0) {
           S[key]--;
@@ -925,16 +946,39 @@
         }
       });
       document.getElementById(plusId).addEventListener('click', function () {
-        if (tokenFree() >= cost) {
+        if (tokenFree() >= S[costKey]) {
           S[key]++;
           document.getElementById(numId).textContent = S[key];
           refreshUI();
         }
       });
     }
-    bindCounter('hab-minus', 'hab-plus', 'hab-num', 'hab', COSTS.hab);
-    bindCounter('ban-minus', 'ban-plus', 'ban-num', 'ban', COSTS.ban);
-    bindCounter('com-minus', 'com-plus', 'com-num', 'com', COSTS.com);
+    bindCounter('hab-minus', 'hab-plus', 'hab-num', 'hab', 'costHab');
+    bindCounter('ban-minus', 'ban-plus', 'ban-num', 'ban', 'costBan');
+    bindCounter('com-minus', 'com-plus', 'com-num', 'com', 'costCom');
+
+    // Inputs de costos
+    document.getElementById('cost-hab').addEventListener('input', function () {
+      const val = parseInt(this.value, 10);
+      if (val >= 1 && val <= 50) {
+        S.costHab = val;
+        refreshUI();
+      }
+    });
+    document.getElementById('cost-ban').addEventListener('input', function () {
+      const val = parseInt(this.value, 10);
+      if (val >= 1 && val <= 50) {
+        S.costBan = val;
+        refreshUI();
+      }
+    });
+    document.getElementById('cost-com').addEventListener('input', function () {
+      const val = parseInt(this.value, 10);
+      if (val >= 1 && val <= 50) {
+        S.costCom = val;
+        refreshUI();
+      }
+    });
 
     // Botones de material
     document.querySelectorAll('.mat-btn').forEach(function (btn) {
