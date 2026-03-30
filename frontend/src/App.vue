@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import MaterialSelector from './components/MaterialSelector.vue'
 
 // Estado del formulario basado en el trabajo previo de los compañeros (HU01, SCRUM-21, 24, 34)
@@ -25,22 +25,59 @@ const materialName = computed(() => {
   return materials[formData.value.materialEstructuralId] || 'No seleccionado'
 })
 
+// --- LÓGICA DE GONZALO (SCRUM-32) Y PIPE (SCRUM-22) ADAPTADA A VUE ---
+// SCRUM-22: Configuración dinámica de costos de tokens (Felipe/Pipe)
+const ROOM_COSTS = ref({
+  habitacion: 9,
+  banio: 4,
+  areaComun: 12
+});
+
+const usedTokens = computed(() => {
+  return (formData.value.habitaciones * ROOM_COSTS.value.habitacion) +
+         (formData.value.banios * ROOM_COSTS.value.banio) +
+         (formData.value.areasComunes * ROOM_COSTS.value.areaComun);
+});
+
+const availableTokens = computed(() => Math.max(0, formData.value.m2Totales - usedTokens.value));
+
+const maxHabitaciones = computed(() => formData.value.habitaciones + Math.floor(availableTokens.value / ROOM_COSTS.value.habitacion));
+const maxBanios = computed(() => formData.value.banios + Math.floor(availableTokens.value / ROOM_COSTS.value.banio));
+const maxAreasComunes = computed(() => formData.value.areasComunes + Math.floor(availableTokens.value / ROOM_COSTS.value.areaComun));
+
+watch(formData, (newVal, oldVal) => {
+  if ((newVal.habitaciones * ROOM_COSTS.value.habitacion + newVal.banios * ROOM_COSTS.value.banio + newVal.areasComunes * ROOM_COSTS.value.areaComun) > newVal.m2Totales) {
+    alert(`⚠️ ADVERTENCIA: Saldo Insuficiente.\nTokens requeridos exceden la superficie total de ${newVal.m2Totales}m².`);
+  }
+}, { deep: true });
+// --- FIN LÓGICA DE GONZALO Y PIPE ---
+
 const submitForm = async () => {
   isSubmitting.ref = true
   statusMessage.value = 'Guardando parámetros...'
   statusType.value = 'loading'
   
   try {
-    // Simulación de envío al backend (FastAPI)
-    console.log('Enviando datos:', JSON.stringify(formData.value))
+    // LÓGICA DE API RECUPERADA (ADAPTADA A FASTAPI POST)
+    const response = await fetch('http://localhost:8000/api/simulacion/parametros', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(formData.value)
+    });
+
+    if (!response.ok) {
+      throw new Error('No se pudo guardar la simulacion en el backend.');
+    }
     
-    // Mock de retraso
-    await new Promise(resolve => setTimeout(resolve, 800))
-    
+    const data = await response.json();
+    localStorage.setItem('siec_last_simulation_id', String(data.idSimulacion || ''));
+
     statusMessage.value = 'Parámetros guardados exitosamente'
     statusType.value = 'success'
   } catch (error) {
-    statusMessage.value = 'Error al conectar con el servidor'
+    statusMessage.value = `Error: ${error.message || 'Fallo de conexión'}`
     statusType.value = 'error'
   } finally {
     isSubmitting.value = false
@@ -60,7 +97,7 @@ const submitForm = async () => {
       
       <form @submit.prevent="submitForm" class="siec-form">
         <div class="form-grid">
-          <!-- Campo m2 (SCRUM-21) -->
+          <!-- Campo m2 (SCRUM-21 de Pipe validación) -->
           <div class="form-group">
             <label for="m2Totales" class="field-label">m² Totales</label>
             <input 
@@ -68,7 +105,7 @@ const submitForm = async () => {
               v-model.number="formData.m2Totales" 
               type="number" 
               min="15" 
-              max="1000" 
+              max="200" 
               class="form-input" 
               required
             />
@@ -79,43 +116,67 @@ const submitForm = async () => {
             <MaterialSelector v-model="formData.materialEstructuralId" />
           </div>
 
-          <!-- Habitaciones (SCRUM-34) -->
+          <!-- Habitaciones (SCRUM-34 & SCRUM-32) -->
           <div class="form-group">
-            <label for="habitaciones" class="field-label">Habitaciones</label>
+            <label for="habitaciones" class="field-label">Habitaciones ({{ ROOM_COSTS.habitacion }} tkns)</label>
             <input 
               id="habitaciones" 
               v-model.number="formData.habitaciones" 
               type="number" 
               min="0" 
+              :max="maxHabitaciones"
               class="form-input" 
               required
             />
           </div>
 
-          <!-- Baños (SCRUM-34) -->
+          <!-- Baños (SCRUM-34 & SCRUM-32) -->
           <div class="form-group">
-            <label for="banios" class="field-label">Baños</label>
+            <label for="banios" class="field-label">Baños ({{ ROOM_COSTS.banio }} tkns)</label>
             <input 
               id="banios" 
               v-model.number="formData.banios" 
               type="number" 
               min="0" 
+              :max="maxBanios"
               class="form-input" 
               required
             />
           </div>
 
-          <!-- Áreas Comunes (SCRUM-34) -->
+          <!-- Áreas Comunes (SCRUM-34 & SCRUM-32) -->
           <div class="form-group full-width">
-            <label for="areasComunes" class="field-label">Áreas Comunes</label>
+            <label for="areasComunes" class="field-label">Áreas Comunes ({{ ROOM_COSTS.areaComun }} tkns)</label>
             <input 
               id="areasComunes" 
               v-model.number="formData.areasComunes" 
               type="number" 
               min="0" 
+              :max="maxAreasComunes"
               class="form-input" 
               required
             />
+          </div>
+
+          <!-- Configuración de Costos (SCRUM-22 de Pipe) -->
+          <div class="form-group full-width" style="border-top: 1px dashed #475569; padding-top: 1rem; margin-top: 0.5rem;">
+            <h3 style="font-size: 1rem; margin: 0 0 0.75rem 0; color: #cbd5e1; display: flex; align-items: center; gap: 0.5rem;">
+              ⚙️ Configurar Costos de Tokens
+            </h3>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+              <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                <label class="field-label" style="font-size: 0.8rem;">Habitación</label>
+                <input v-model.number="ROOM_COSTS.habitacion" type="number" min="1" max="50" class="form-input" required/>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                <label class="field-label" style="font-size: 0.8rem;">Baño</label>
+                <input v-model.number="ROOM_COSTS.banio" type="number" min="1" max="50" class="form-input" required/>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                <label class="field-label" style="font-size: 0.8rem;">Área Común</label>
+                <input v-model.number="ROOM_COSTS.areaComun" type="number" min="1" max="50" class="form-input" required/>
+              </div>
+            </div>
           </div>
         </div>
         
@@ -124,8 +185,16 @@ const submitForm = async () => {
         </div>
 
         <div class="summary-badge">
-          <span class="summary-label">Configuración actual:</span>
-          <span class="summary-value">{{ formData.m2Totales }}m² - {{ materialName }}</span>
+          <div>
+            <span class="summary-label">Configuración actual:</span><br/>
+            <span class="summary-value">{{ formData.m2Totales }}m² - {{ materialName }}</span>
+          </div>
+          <div style="text-align: right;">
+            <span class="summary-label">Tokens disp.:</span><br/>
+            <span class="summary-value" :style="availableTokens === 0 ? 'color: #fca5a5;' : ''">
+              {{ availableTokens }} / {{ formData.m2Totales }}
+            </span>
+          </div>
         </div>
 
         <button :disabled="isSubmitting" type="submit" class="btn-primary">
@@ -167,6 +236,7 @@ const submitForm = async () => {
   letter-spacing: -2px;
   background: linear-gradient(to right, #60a5fa, #a855f7);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   margin: 0;
 }
