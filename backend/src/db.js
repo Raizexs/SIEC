@@ -64,7 +64,38 @@ async function getSimulationById(db, id) {
   );
 }
 
+async function materialExists(db, materialId) {
+  const row = await db.get(
+    'SELECT ID FROM Material_Estructural WHERE ID = ?',
+    [materialId]
+  );
+  return Boolean(row);
+}
+
+async function insertSimulation(db, payload) {
+  const result = await db.run(
+    `INSERT INTO Configuracion_Simulacion (
+      M2_Totales,
+      Material_Estructural_ID,
+      Habitaciones,
+      Banios,
+      Areas_Comunes
+    ) VALUES (?, ?, ?, ?, ?)`,
+    [
+      payload.m2Totales,
+      payload.materialEstructuralId,
+      payload.habitaciones,
+      payload.banios,
+      payload.areasComunes
+    ]
+  );
+
+  return result.lastID;
+}
+
 module.exports = {
   initDb,
-  getSimulationById
+  getSimulationById,
+  materialExists,
+  insertSimulation
 };
