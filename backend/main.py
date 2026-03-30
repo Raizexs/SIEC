@@ -1,14 +1,49 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from pydantic import BaseModel
 from typing import List
+from sqlalchemy.orm import Session
+from sqlalchemy import text
+
+# Importar configuración de BD y Modelos
+from database import engine, get_db, SessionLocal
+import models
+
+# Crear tablas
+models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="SIEC API", version="1.0.0")
+
+# Seeding de datos iniciales
+@app.on_event("startup")
+def startup_event():
+    db = SessionLocal()
+    try:
+        # Verificar si ya existen tipos de recinto
+        if db.query(models.TipoRecinto).count() == 0:
+            print("Poblando Base de Datos con Tipos de Recinto...")
+            tipos_iniciales = [
+                models.TipoRecinto(nombre="Habitación", costo_tokens=9),
+                models.TipoRecinto(nombre="Baño", costo_tokens=4),
+                models.TipoRecinto(nombre="Área Común", costo_tokens=12),
+            ]
+            db.add_all(tipos_iniciales)
+            db.commit()
+    finally:
+        db.close()
 
 # Materiales permitidos según requerimientos
 ALLOWED_MATERIALS = ["Madera", "Metalcom", "Albañilería", "Hormigón Armado"]
 
 class ProjectConfig(BaseModel):
     material_estructural: str
+
+class TipoRecintoResponse(BaseModel):
+    id: int
+    nombre: str
+    costo_tokens: int
+
+    class Config:
+        from_attributes = True
 
 @app.get("/")
 def read_root():
@@ -18,6 +53,11 @@ def read_root():
 def get_materials():
     """Retorna la lista oficial de materiales estructurales."""
     return {"materials": ALLOWED_MATERIALS}
+
+@app.get("/api/tipos-recinto", response_model=List[TipoRecintoResponse])
+def get_tipos_recinto(db: Session = Depends(get_db)):
+    """Retorna los tipos de recinto y su costo en tokens (Catálogo para motor de estimación)."""
+    return db.query(models.TipoRecinto).all()
 
 @app.post("/config")
 def save_config(config: ProjectConfig):
