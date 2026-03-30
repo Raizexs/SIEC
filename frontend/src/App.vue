@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import MaterialSelector from './components/MaterialSelector.vue'
 import { useRecintosStore } from './stores/recintos'
 import RoomEditor2D from './components/RoomEditor2D.vue'
+import Scene3D from './components/Scene3D.vue'
 
 const recintosStore = useRecintosStore()
 
@@ -157,6 +158,7 @@ const submitForm = async () => {
     </div>
 
     <RoomEditor2D v-if="hasRecintos" class="editor-block" />
+    <Scene3D v-if="hasRecintos" class="scene-block" />
 
     <footer class="app-footer">
       SIEC v1.0.0 | Sprint 1
@@ -304,6 +306,12 @@ const submitForm = async () => {
 
 .editor-block {
   margin-top: 1.5rem;
+  width: 100%;
+  max-width: 860px;
+}
+
+.scene-block {
+  margin-top: 1.25rem;
   width: 100%;
   max-width: 860px;
 }
