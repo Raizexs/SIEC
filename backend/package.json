@@ -1,7 +1,7 @@
 {
   "name": "siec-backend",
   "version": "0.1.0",
-  "description": "Backend SIEC - SCRUM-40 conexion formulario-backend",
+  "description": "Backend SIEC - SCRUM-39 endpoint lectura de parametros",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
