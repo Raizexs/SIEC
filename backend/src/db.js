@@ -45,6 +45,25 @@ async function initDb() {
   return db;
 }
 
+async function getSimulationById(db, id) {
+  return db.get(
+    `SELECT
+      cs.ID AS simulacion_id,
+      cs.M2_Totales,
+      cs.Habitaciones,
+      cs.Banios,
+      cs.Areas_Comunes,
+      cs.Fecha_Creacion,
+      me.ID AS material_id,
+      me.Nombre AS material_nombre
+    FROM Configuracion_Simulacion cs
+    INNER JOIN Material_Estructural me
+      ON me.ID = cs.Material_Estructural_ID
+    WHERE cs.ID = ?`,
+    [id]
+  );
+}
+
 async function materialExists(db, materialId) {
   const row = await db.get(
     'SELECT ID FROM Material_Estructural WHERE ID = ?',
@@ -76,6 +95,7 @@ async function insertSimulation(db, payload) {
 
 module.exports = {
   initDb,
+  getSimulationById,
   materialExists,
   insertSimulation
 };
