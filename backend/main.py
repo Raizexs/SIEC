@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException, status
 from pydantic import BaseModel
 from typing import List
 from sqlalchemy.orm import Session
@@ -45,6 +45,13 @@ class TipoRecintoResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class SimulacionCreate(BaseModel):
+    m2Totales: int
+    materialEstructuralId: int
+    habitaciones: int
+    banios: int
+    areasComunes: int
+
 @app.get("/")
 def read_root():
     return {"message": "SIEC API is running", "stack": "FastAPI + PostgreSQL"}
@@ -59,18 +66,38 @@ def get_tipos_recinto(db: Session = Depends(get_db)):
     """Retorna los tipos de recinto y su costo en tokens (Catálogo para motor de estimación)."""
     return db.query(models.TipoRecinto).all()
 
-@app.post("/config")
-def save_config(config: ProjectConfig):
-    """Guarda la configuración del proyecto (Simulación)."""
-    if config.material_estructural not in ALLOWED_MATERIALS:
-        return {"error": "Material no permitido", "status": 400}
+@app.post("/api/simulacion/parametros", status_code=status.HTTP_201_CREATED)
+def crear_simulacion(sim: SimulacionCreate, db: Session = Depends(get_db)):
+    """Guarda los parámetros de configuración de la vivienda y crea una nueva simulación."""
     
-    # Aquí iría el guardado en PostgreSQL en el futuro
-    return {
-        "message": "Configuración guardada correctamente",
-        "saved_value": config.material_estructural,
-        "status": 200
-    }
+    # Validaciones obligatorias
+    if sim.m2Totales < 15 or sim.m2Totales > 200:
+        raise HTTPException(status_code=400, detail="Superficie total debe estar entre 15 y 200 m².")
+    
+    if sim.habitaciones < 0 or sim.banios < 0 or sim.areasComunes < 0:
+        raise HTTPException(status_code=400, detail="La cantidad de recintos no puede ser negativa.")
+        
+    if sim.materialEstructuralId not in [1, 2, 3, 4]:
+        raise HTTPException(status_code=400, detail="Material estructural ID no válido.")
+        
+    # Crear modelo
+    db_simulacion = models.ConfiguracionSimulacion(
+        m2_totales=sim.m2Totales,
+        material_estructural_id=sim.materialEstructuralId,
+        habitaciones=sim.habitaciones,
+        banios=sim.banios,
+        areas_comunes=sim.areasComunes
+    )
+    
+    try:
+        db.add(db_simulacion)
+        db.commit()
+        db.refresh(db_simulacion)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Error al guardar en la base de datos.")
+        
+    return {"idSimulacion": db_simulacion.id, "message": "Simulación guardada correctamente"}
 
 if __name__ == "__main__":
     import uvicorn
