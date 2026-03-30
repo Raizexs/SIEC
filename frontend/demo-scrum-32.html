@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SCRUM-32: Bloqueo de Adición de Recintos</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #e0e0e0;
+            padding: 2rem;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: rgba(30, 30, 60, 0.8);
+            border: 1px solid rgba(100, 150, 200, 0.3);
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        h1 {
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 1.8rem;
+        }
+
+        .badge {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            margin-bottom: 1rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        label {
+            font-weight: 600;
+            color: #a0a0ff;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+        }
+
+        input[type="number"],
+        select {
+            padding: 0.75rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(100, 150, 200, 0.3);
+            border-radius: 6px;
+            color: #e0e0e0;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        input[type="number"]:focus,
+        select:focus {
+            outline: none;
+            background: rgba(100, 150, 200, 0.1);
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        button {
+            flex: 1;
+            padding: 0.875rem 1.5rem;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 0.9rem;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-primary:disabled {
+            background: linear-gradient(135deg, #444 0%, #333 100%);
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        .btn-secondary {
+            background: transparent;
+            border: 1px solid rgba(100, 150, 200, 0.5);
+            color: #a0a0ff;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(100, 150, 200, 0.1);
+        }
+
+        .status-display {
+            margin-top: 2rem;
+            padding: 1rem;
+            background: rgba(100, 150, 200, 0.1);
+            border-left: 4px solid #667eea;
+            border-radius: 6px;
+        }
+
+        .status-display h3 {
+            color: #a0a0ff;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+            letter-spacing: 0.5px;
+        }
+
+        .tokens-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .token-stat {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 1rem;
+            background: rgba(50, 50, 80, 0.5);
+            border-radius: 6px;
+        }
+
+        .token-stat-label {
+            font-size: 0.75rem;
+            color: #808080;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
+        }
+
+        .token-stat-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #667eea;
+        }
+
+        .token-stat.danger .token-stat-value {
+            color: #ff6b6b;
+        }
+
+        .room-allowed {
+            border-color: rgba(76, 175, 80, 0.5);
+        }
+
+        .room-blocked {
+            border-color: rgba(255, 107, 107, 0.5);
+            background: rgba(255, 107, 107, 0.05) !important;
+        }
+
+        .warning-message {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background: rgba(255, 107, 107, 0.1);
+            border: 1px solid rgba(255, 107, 107, 0.3);
+            border-radius: 6px;
+            color: #ff8a8a;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            display: none;
+        }
+
+        .warning-message.show {
+            display: block;
+        }
+
+        code {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 0.2rem 0.4rem;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚫 SCRUM-32</h1>
+        <span class="badge">Bloqueo de Adición por Saldo Insuficiente</span>
+
+        <p style="margin-bottom: 1.5rem; color: #a0a0ff; font-size: 0.95rem;">
+            Implementa la validación que impide al usuario agregar nuevos recintos cuando el saldo de tokens sea insuficiente.
+        </p>
+
+        <form id="simulatorForm">
+            <div class="form-group">
+                <label for="totalM2">Superficie Total (m²)</label>
+                <input 
+                    type="number" 
+                    id="totalM2" 
+                    min="20" 
+                    max="500" 
+                    value="100"
+                    required
+                />
+            </div>
+
+            <div class="form-group">
+                <label for="habitaciones">Habitaciones (1-10)</label>
+                <input 
+                    type="number" 
+                    id="habitaciones" 
+                    min="1" 
+                    max="10" 
+                    value="3"
+                    required
+                />
+            </div>
+
+            <div class="form-group">
+                <label for="banios">Baños (1-5)</label>
+                <input 
+                    type="number" 
+                    id="banios" 
+                    min="1" 
+                    max="5" 
+                    value="2"
+                    required
+                />
+            </div>
+
+            <div class="form-group">
+                <label for="areasComunes">Áreas Comunes (0-3)</label>
+                <input 
+                    type="number" 
+                    id="areasComunes" 
+                    min="0" 
+                    max="3" 
+                    value="1"
+                    required
+                />
+            </div>
+
+            <div class="button-group">
+                <button type="button" id="btnAddHabitacion" class="btn-primary">
+                    ➕ Agregar Habitación (9 tokens)
+                </button>
+                <button type="button" id="btnAddBanio" class="btn-primary">
+                    ➕ Agregar Baño (4 tokens)
+                </button>
+            </div>
+
+            <button type="button" id="btnAddAreaComun" class="btn-primary" style="width: 100%; margin-top: 0.5rem;">
+                ➕ Agregar Área Común (12 tokens)
+            </button>
+
+            <button type="reset" class="btn-secondary" style="width: 100%; margin-top: 0.5rem;">
+                🔄 Reiniciar
+            </button>
+        </form>
+
+        <div class="status-display">
+            <h3>Estado de Tokens</h3>
+            <div class="tokens-info">
+                <div class="token-stat">
+                    <span class="token-stat-label">Disponibles</span>
+                    <span class="token-stat-value" id="availableTokens">?</span>
+                </div>
+                <div class="token-stat">
+                    <span class="token-stat-label">Usados</span>
+                    <span class="token-stat-value" id="usedTokens">?</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="warning-message" id="warningMessage"></div>
+    </div>
+
+    <!-- Cargar módulo de bloqueo -->
+    <script src="js/room-blocker.js"></script>
+
+    <script>
+        /**
+         * SCRUM-32: Demostración del bloqueo de adición de recintos
+         */
+
+        const form = document.getElementById('simulatorForm');
+        const inputM2 = document.getElementById('totalM2');
+        const inputHab = document.getElementById('habitaciones');
+        const inputBan = document.getElementById('banios');
+        const inputCom = document.getElementById('areasComunes');
+        const btnAddHab = document.getElementById('btnAddHabitacion');
+        const btnAddBan = document.getElementById('btnAddBanio');
+        const btnAddCom = document.getElementById('btnAddAreaComun');
+        const warningMsg = document.getElementById('warningMessage');
+
+        /**
+         * Actualiza el estado visual de los botones y displays
+         */
+        function updateUI() {
+            const state = {
+                totalM2: parseInt(inputM2.value, 10),
+                habitaciones: parseInt(inputHab.value, 10),
+                banios: parseInt(inputBan.value, 10),
+                areasComunes: parseInt(inputCom.value, 10)
+            };
+
+            // Actualizar displays de tokens
+            const usedTokens = calculateUsedTokens(state.habitaciones, state.banios, state.areasComunes);
+            const availableTokens = calculateAvailableTokens(state.totalM2, state.habitaciones, state.banios, state.areasComunes);
+
+            document.getElementById('usedTokens').textContent = usedTokens;
+            document.getElementById('availableTokens').textContent = availableTokens;
+
+            // Actualizar estado de botones
+            updateButtonState(btnAddHab, state, 'habitacion');
+            updateButtonState(btnAddBan, state, 'banio');
+            updateButtonState(btnAddCom, state, 'area_comun');
+
+            // Cambiar color si hay advertencia
+            const tokenStat = document.querySelector('.token-stat');
+            const parent = document.querySelector('.tokens-info');
+            
+            if (availableTokens <= 0) {
+                parent.querySelector(':nth-child(1)').classList.add('danger');
+            } else {
+                parent.querySelector(':nth-child(1)').classList.remove('danger');
+            }
+        }
+
+        /**
+         * Actualiza el estado visual de un botón según validación
+         */
+        function updateButtonState(button, state, roomType) {
+            const blockState = getRoomAdditionBlockState(
+                state.totalM2,
+                state.habitaciones,
+                state.banios,
+                state.areasComunes,
+                roomType
+            );
+
+            applyRoomBlockUI(button, !blockState.enabled, blockState.reason);
+        }
+
+        /**
+         * Handlers de click para agregar recintos
+         */
+        btnAddHab.addEventListener('click', (e) => {
+            e.preventDefault();
+            attemptAddRoom('habitacion');
+        });
+
+        btnAddBan.addEventListener('click', (e) => {
+            e.preventDefault();
+            attemptAddRoom('banio');
+        });
+
+        btnAddCom.addEventListener('click', (e) => {
+            e.preventDefault();
+            attemptAddRoom('area_comun');
+        });
+
+        /**
+         * Intenta agregar un recinto con validación
+         */
+        function attemptAddRoom(roomType) {
+            const state = {
+                totalM2: parseInt(inputM2.value, 10),
+                habitaciones: parseInt(inputHab.value, 10),
+                banios: parseInt(inputBan.value, 10),
+                areasComunes: parseInt(inputCom.value, 10)
+            };
+
+            const validation = validateRoomAddition(
+                state.totalM2,
+                state.habitaciones,
+                state.banios,
+                state.areasComunes,
+                roomType
+            );
+
+            if (!validation.canAdd) {
+                // ❌ Bloquear y mostrar advertencia
+                showWarning(validation.message);
+                showInsufficientBalanceWarning(roomType, validation);
+                return;
+            }
+
+            // ✅ Permitir agregar
+            const roomTypeMap = {
+                'habitacion': 'habitaciones',
+                'banio': 'banios',
+                'area_comun': 'areasComunes'
+            };
+
+            const fieldName = roomTypeMap[roomType];
+            const currentValue = parseInt(document.getElementById(fieldName).value, 10);
+            document.getElementById(fieldName).value = currentValue + 1;
+
+            warningMsg.classList.remove('show');
+            updateUI();
+        }
+
+        /**
+         * Muestra mensaje de advertencia en la UI
+         */
+        function showWarning(message) {
+            warningMsg.innerHTML = `
+                <strong>⚠️ Advertencia:</strong><br/>
+                ${message.replace(/\n/g, '<br/>')}
+            `;
+            warningMsg.classList.add('show');
+        }
+
+        /**
+         * Iniciar UI
+         */
+        form.addEventListener('input', updateUI);
+        form.addEventListener('reset', () => {
+            setTimeout(updateUI, 0);
+        });
+
+        // Inicializar
+        updateUI();
+    </script>
+</body>
+</html>
