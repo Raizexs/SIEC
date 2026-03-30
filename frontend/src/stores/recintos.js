@@ -38,12 +38,14 @@ export const useRecintosStore = defineStore('recintos', () => {
    * Estrategia: distribuir en una cuadrícula simple sin colisiones iniciales
    */
   const calculateInitialDimensions = (tipo, index, totalRecintos) => {
-    const costInM2 = TOKEN_COSTS[tipo]
-    
-    // Aproximación cuadrada (w ≈ l) para distribución uniforme
-    const sideLength = Math.sqrt(costInM2)
-    const w = Math.ceil(sideLength)
-    const l = Math.ceil(costInM2 / w)
+    const baseDimensions = {
+      habitacion: { w: 3, l: 3 },
+      banio: { w: 2, l: 2 },
+      areaComun: { w: 4, l: 3 }
+    }
+
+    // Cada tipo mantiene area exacta segun costo de tokens.
+    const { w, l } = baseDimensions[tipo] || { w: TOKEN_COSTS[tipo], l: 1 }
 
     // Distribución en fila (grid sencilla sin overlap)
     const cols = Math.ceil(Math.sqrt(totalRecintos))
