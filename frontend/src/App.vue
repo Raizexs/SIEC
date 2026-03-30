@@ -82,9 +82,17 @@ const submitForm = async () => {
   } finally {
     isSubmitting.value = false
   }
-}
-</script>
+      // SCRUM-45: Inicializar layout de recintos basado en parámetros guardados
+      recintosStore.initializeLayout(
+        formData.value.m2Totales,
+        formData.value.habitaciones,
+        formData.value.banios,
+        formData.value.areasComunes,
+        formData.value.materialEstructuralId
+      );
 
+      statusMessage.value = 'Parámetros guardados exitosamente - Recintos inicializados ✓'
+      statusType.value = 'success'
 <template>
   <main class="app-container">
     <header class="app-header">
@@ -360,3 +368,7 @@ const submitForm = async () => {
   color: #475569;
 }
 </style>
+import { useRecintosStore } from './stores/recintos'
+
+// SCRUM-45: Inicializar el store de recintos
+const recintosStore = useRecintosStore()
