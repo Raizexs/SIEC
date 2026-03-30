@@ -1,0 +1,34 @@
+{
+  "name": "siec-scrum-32",
+  "version": "0.1.0",
+  "description": "SCRUM-32: Bloqueo de Adición de Recintos por Saldo Insuficiente de Tokens",
+  "main": "frontend/js/room-blocker.js",
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "start": "python -m http.server 5000 --directory frontend",
+    "dev": "npm start"
+  },
+  "keywords": [
+    "SCRUM-32",
+    "bloqueo",
+    "tokens",
+    "validación",
+    "recintos"
+  ],
+  "author": "Gonzalo Jara",
+  "license": "MIT",
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/__tests__/**/*.test.js"
+    ],
+    "collectCoverageFrom": [
+      "js/room-blocker.js"
+    ]
+  }
+}
