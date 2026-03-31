@@ -8,7 +8,7 @@
 -- ════════════════════════════════════════════════════════════════════════════════
 
 CREATE TABLE IF NOT EXISTS Configuracion_Simulacion (
-  ID INTEGER PRIMARY KEY AUTOINCREMENT,
+  ID SERIAL PRIMARY KEY,
   M2_Totales INTEGER NOT NULL CHECK (M2_Totales >= 15 AND M2_Totales <= 1000),
   Material_Estructural_ID INTEGER NOT NULL,
   Habitaciones INTEGER NOT NULL DEFAULT 0 CHECK (Habitaciones >= 0),
