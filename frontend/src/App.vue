@@ -1,346 +1,210 @@
 <script setup>
-import { ref, computed, watch, watchEffect } from 'vue'
-import MaterialSelector from './components/MaterialSelector.vue'
-import { useRecintosStore } from './stores/recintos'
-import RoomEditor2D from './components/RoomEditor2D.vue'
-import Scene3D from './components/Scene3D.vue'
-import { useTokenCounter } from './composables/useTokenCounter'
+import { ref, computed, watchEffect } from "vue";
+import Sidebar from "./components/Sidebar.vue";
+import TopNavBar from "./components/TopNavBar.vue";
+import ConfigurationPanel from "./components/ConfigurationPanel.vue";
+import MetricsPanel from "./components/MetricsPanel.vue";
+import SaveLayoutDialog from "./components/SaveLayoutDialog.vue";
+import RoomEditor2D from "./components/RoomEditor2D.vue";
+import Scene3D from "./components/Scene3D.vue";
+import MaterialsPanel from "./components/MaterialsPanel.vue";
+import { useRecintosStore } from "./stores/recintos";
+import { useTokenCounter } from "./composables/useTokenCounter";
+import { useLayoutManager } from "./composables/useLayoutManager";
+import { useI18n } from "./composables/useI18n";
 
-const recintosStore = useRecintosStore()
+const recintosStore = useRecintosStore();
+const { saveLayout } = useLayoutManager();
+const { t, currentLanguage } = useI18n();
+
+// Key reactiva para forzar re-render cuando cambia idioma
+const appKey = computed(() => `app-${currentLanguage.value}`);
 
 const formData = ref({
-  m2Totales: 120,
-  materialEstructuralId: 1,
-  habitaciones: 2,
+  m2Totales: 150,
+  materialEstructuralId: 4,
+  habitacionesSimples: 2,
+  habitacionesDobles: 0,
+  habitacionesTriples: 0,
   banios: 1,
-  areasComunes: 1
-})
+  areasComunes: 1,
+});
 
 const {
   m2Totales,
-  habitaciones,
+  habitacionesSimples,
+  habitacionesDobles,
+  habitacionesTriples,
   banios,
   areasComunes,
   costs,
   tokensUsados,
+  tokensTotales,
   tokensDisponibles,
   estado,
-  descripcionEstado
-} = useTokenCounter()
+  descripcionEstado,
+} = useTokenCounter();
 
 // Sync form data with composable
 watchEffect(() => {
-  m2Totales.value = formData.value.m2Totales
-  habitaciones.value = formData.value.habitaciones
-  banios.value = formData.value.banios
-  areasComunes.value = formData.value.areasComunes
-})
+  m2Totales.value = formData.value.m2Totales;
+  habitacionesSimples.value = formData.value.habitacionesSimples;
+  habitacionesDobles.value = formData.value.habitacionesDobles;
+  habitacionesTriples.value = formData.value.habitacionesTriples;
+  banios.value = formData.value.banios;
+  areasComunes.value = formData.value.areasComunes;
+});
 
-const isSubmitting = ref(false)
-const statusMessage = ref('')
-const statusType = ref('')
+const isSubmitting = ref(false);
+const activeTab = ref("generalSpecs");
+const showSaveDialog = ref(false);
 
-const materialName = computed(() => {
-  const materials = {
-    1: 'Madera',
-    2: 'Metalcom',
-    3: 'Albanileria',
-    4: 'Hormigon Armado'
-  }
-  return materials[formData.value.materialEstructuralId] || 'No seleccionado'
-})
+const handleTabChange = (tab) => {
+  activeTab.value = tab;
+};
 
-const maxHabitaciones = computed(() => formData.value.habitaciones + Math.floor(tokensDisponibles.value / costs.value.habitacion))
-const maxBanios = computed(() => formData.value.banios + Math.floor(tokensDisponibles.value / costs.value.banio))
-const maxAreasComunes = computed(() => formData.value.areasComunes + Math.floor(tokensDisponibles.value / costs.value.area_comun))
+const hasRecintos = computed(() => recintosStore.recintos.length > 0);
 
-const hasRecintos = computed(() => recintosStore.recintos.length > 0)
+const updateFormData = (newData) => {
+  formData.value = newData;
+};
 
-watch(formData, (newVal) => {
-  if (estado.value === 'danger') {
-    statusMessage.value = `Saldo insuficiente. Exceso de tokens.`
-    statusType.value = 'error'
-  } else {
-    statusMessage.value = ''
-    statusType.value = ''
-  }
-}, { deep: true })
+// Cargar preset desde sidebar
+const loadPreset = (preset) => {
+  formData.value = {
+    m2Totales: preset.m2Totales,
+    materialEstructuralId: preset.materialEstructuralId,
+    habitacionesSimples: preset.habitacionesSimples || 0,
+    habitacionesDobles: preset.habitacionesDobles || 0,
+    habitacionesTriples: preset.habitacionesTriples || 0,
+    banios: preset.banios,
+    areasComunes: preset.areasComunes,
+  };
+  
+  const totalHabitaciones = formData.value.habitacionesSimples + formData.value.habitacionesDobles + formData.value.habitacionesTriples;
+  
+  recintosStore.initializeLayout(
+    formData.value.m2Totales,
+    totalHabitaciones,
+    formData.value.banios,
+    formData.value.areasComunes,
+    formData.value.materialEstructuralId
+  );
+};
+
+// Cargar layout guardado
+const loadLayout = (layout) => {
+  formData.value = {
+    m2Totales: layout.m2Totales,
+    materialEstructuralId: layout.materialEstructuralId,
+    habitacionesSimples: layout.habitacionesSimples || 0,
+    habitacionesDobles: layout.habitacionesDobles || 0,
+    habitacionesTriples: layout.habitacionesTriples || 0,
+    banios: layout.banios,
+    areasComunes: layout.areasComunes,
+  };
+  
+  const totalHabitaciones = formData.value.habitacionesSimples + formData.value.habitacionesDobles + formData.value.habitacionesTriples;
+  
+  recintosStore.initializeLayout(
+    formData.value.m2Totales,
+    totalHabitaciones,
+    formData.value.banios,
+    formData.value.areasComunes,
+    formData.value.materialEstructuralId
+  );
+};
 
 const submitForm = async () => {
-  isSubmitting.value = true
-  statusMessage.value = 'Guardando parametros...'
-  statusType.value = 'loading'
+  if (estado.value === "danger") {
+    alert("No puedes generar el layout. Excedes el límite de tokens disponibles.");
+    return;
+  }
+
+  isSubmitting.value = true;
 
   try {
-    // MOCK: Saltando el backend temporalmente porque el docker-compose falló.
-    // Solo queremos activar la generación 3D local.
-    const data = { idSimulacion: 9999 }
-    /*
-    const response = await fetch('http://localhost:8001/api/simulacion/parametros', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData.value)
-    })
-
-    if (!response.ok) {
-      throw new Error('No se pudo guardar la simulacion en el backend.')
-    }
-
-    const data = await response.json()
-    */
-    localStorage.setItem('siec_last_simulation_id', String(data.idSimulacion || ''))
+    const totalHabitaciones = formData.value.habitacionesSimples + formData.value.habitacionesDobles + formData.value.habitacionesTriples;
 
     recintosStore.initializeLayout(
       formData.value.m2Totales,
-      formData.value.habitaciones,
+      totalHabitaciones,
       formData.value.banios,
       formData.value.areasComunes,
-      formData.value.materialEstructuralId
-    )
+      formData.value.materialEstructuralId,
+    );
 
-    statusMessage.value = 'Parametros guardados y layout inicial generado.'
-    statusType.value = 'success'
+    showSaveDialog.value = true;
   } catch (error) {
-    statusMessage.value = `Error: ${error.message || 'Fallo de conexion'}`
-    statusType.value = 'error'
+    console.error("Error:", error);
   } finally {
-    isSubmitting.value = false
+    isSubmitting.value = false;
   }
-}
+};
+
+const handleSaveLayout = (name) => {
+  saveLayout(name, formData.value);
+  showSaveDialog.value = false;
+};
 </script>
 
 <template>
-  <main class="app-container">
-    <header class="app-header">
-      <h1 class="app-title">SIEC</h1>
-      <p class="app-description">Sistema Integral de Estimacion de Costos</p>
-    </header>
+  <div :key="appKey" class="min-h-screen bg-background font-body text-on-surface antialiased">
+    <Sidebar @loadPreset="loadPreset" @loadLayout="loadLayout" />
 
-    <div class="card">
-      <h2 class="card-title">Simulacion: Parametros Base</h2>
+    <main class="ml-64 min-h-screen">
+      <TopNavBar :activeTab="activeTab" @tab-change="handleTabChange" />
 
-      <form @submit.prevent="submitForm" class="siec-form">
-        <div class="form-grid">
-          <div class="form-group">
-            <label for="m2Totales" class="field-label">m2 Totales</label>
-            <input id="m2Totales" v-model.number="formData.m2Totales" type="number" min="15" max="200" class="form-input" required />
+      <div class="p-10 max-w-7xl mx-auto grid grid-cols-12 gap-10">
+        <ConfigurationPanel
+          v-show="activeTab === 'generalSpecs'"
+          :formData="formData"
+          :costs="costs"
+          :tokensDisponibles="tokensDisponibles"
+          :isSubmitting="isSubmitting"
+          @update:formData="updateFormData"
+          @submit="submitForm"
+        />
+        <MaterialsPanel
+          v-show="activeTab === 'materials'"
+          :selectedMaterialId="formData.materialEstructuralId"
+          :totalM2="formData.m2Totales"
+          @material-selected="(id) => formData.materialEstructuralId = id"
+          class="col-span-7"
+        />
+
+        <MetricsPanel
+          :formData="formData"
+          :tokensUsados="tokensUsados"
+          :tokensTotales="tokensTotales"
+          :tokensDisponibles="tokensDisponibles"
+          :descripcionEstado="descripcionEstado"
+        />
+      </div>
+
+      <div v-if="hasRecintos" class="p-10 pt-0 max-w-7xl mx-auto space-y-6">
+        <RoomEditor2D />
+        <Scene3D />
+      </div>
+
+      <footer class="p-10 pt-0 text-slate-400 text-[10px] font-bold uppercase tracking-widest flex justify-between items-center">
+        <div>{{ t('footer') }}</div>
+        <div class="flex gap-6">
+          <div class="flex items-center gap-2 mr-4 text-emerald-500/70">
+            <span class="material-symbols-outlined text-[14px]">cloud_done</span>
+            <span>{{ t('draftsSynced') }}</span>
           </div>
-
-          <div class="form-group">
-            <MaterialSelector v-model="formData.materialEstructuralId" />
-          </div>
-
-          <div class="form-group">
-            <label for="habitaciones" class="field-label">Habitaciones ({{ costs.habitacion }} tkns)</label>
-            <input id="habitaciones" v-model.number="formData.habitaciones" type="number" min="0" :max="maxHabitaciones" class="form-input" required />
-          </div>
-
-          <div class="form-group">
-            <label for="banios" class="field-label">Banios ({{ costs.banio }} tkns)</label>
-            <input id="banios" v-model.number="formData.banios" type="number" min="0" :max="maxBanios" class="form-input" required />
-          </div>
-
-          <div class="form-group full-width">
-            <label for="areasComunes" class="field-label">Areas Comunes ({{ costs.area_comun }} tkns)</label>
-            <input id="areasComunes" v-model.number="formData.areasComunes" type="number" min="0" :max="maxAreasComunes" class="form-input" required />
-          </div>
+          <a class="hover:text-primary transition-colors" href="#">{{ t('privacyPolicy') }}</a>
+          <a class="hover:text-primary transition-colors" href="#">{{ t('termsOfService') }}</a>
+          <a class="hover:text-primary transition-colors" href="#">{{ t('supportPortal') }}</a>
         </div>
+      </footer>
+    </main>
 
-        <div v-if="statusMessage" :class="['status-box', statusType]">
-          {{ statusMessage }}
-        </div>
-
-        <div class="summary-badge" :style="{ borderColor: descripcionEstado.color }">
-          <div>
-            <span class="summary-label">Configuracion actual:</span><br />
-            <span class="summary-value">{{ formData.m2Totales }}m2 - {{ materialName }}</span>
-            <div style="margin-top: 5px; font-size: 0.8rem; opacity: 0.8">
-              {{ descripcionEstado.message }}
-            </div>
-          </div>
-          <div style="text-align: right;">
-            <span class="summary-label">Tokens disp.:</span><br />
-            <span class="summary-value" :style="{ color: descripcionEstado.color }">
-              {{ tokensDisponibles }} / {{ formData.m2Totales }}
-            </span>
-            <div style="margin-top: 5px; font-size: 0.8rem; opacity: 0.8">
-              Usados: {{ tokensUsados }}
-            </div>
-          </div>
-        </div>
-
-        <button :disabled="isSubmitting" type="submit" class="btn-primary">
-          {{ isSubmitting ? 'Guardando...' : 'Guardar Parametros' }}
-        </button>
-      </form>
-    </div>
-
-    <RoomEditor2D v-if="hasRecintos" class="editor-block" />
-    <Scene3D v-if="hasRecintos" class="scene-block" />
-
-    <footer class="app-footer">
-      SIEC v1.0.0 | Sprint 1
-    </footer>
-  </main>
+    <SaveLayoutDialog 
+      :show="showSaveDialog"
+      @close="showSaveDialog = false"
+      @save="handleSaveLayout"
+    />
+  </div>
 </template>
-
-<style>
-:root {
-  background-color: #0f172a;
-  color: #f8fafc;
-  font-family: 'Inter', system-ui, sans-serif;
-}
-
-.app-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-  padding: 2rem;
-}
-
-.app-header {
-  text-align: center;
-  margin-bottom: 2.5rem;
-}
-
-.app-title {
-  font-size: 3.2rem;
-  font-weight: 900;
-  letter-spacing: -2px;
-  background: linear-gradient(to right, #60a5fa, #a855f7);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  margin: 0;
-}
-
-.app-description {
-  color: #94a3b8;
-  font-size: 1.1rem;
-  margin-top: 0.5rem;
-}
-
-.card {
-  width: 100%;
-  max-width: 680px;
-  background-color: #1e293b;
-  padding: 2rem;
-  border-radius: 24px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-  border: 1px solid #334155;
-}
-
-.card-title {
-  font-size: 1.4rem;
-  font-weight: 700;
-  margin-bottom: 1.5rem;
-  color: #f1f5f9;
-  border-left: 4px solid #3b82f6;
-  padding-left: 1rem;
-}
-
-.form-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  margin-bottom: 1.25rem;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.full-width {
-  grid-column: 1 / -1;
-}
-
-.field-label {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #94a3b8;
-}
-
-.form-input {
-  background-color: #0f172a;
-  border: 1px solid #334155;
-  border-radius: 12px;
-  padding: 0.75rem 1rem;
-  color: #f1f5f9;
-  font-size: 1rem;
-}
-
-.form-input:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
-}
-
-.status-box {
-  padding: 1rem;
-  border-radius: 12px;
-  font-size: 0.9rem;
-  margin-bottom: 1rem;
-  text-align: center;
-  font-weight: 600;
-}
-
-.status-box.loading { background: #1e3a8a; color: #93c5fd; }
-.status-box.success { background: #064e3b; color: #6ee7b7; border: 1px solid #059669; }
-.status-box.error { background: #7f1d1d; color: #fca5a5; }
-
-.summary-badge {
-  background-color: #334155;
-  padding: 0.9rem;
-  border-radius: 16px;
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 1rem;
-  border: 1px dashed #475569;
-}
-
-.summary-label { color: #94a3b8; font-size: 0.85rem; }
-.summary-value { font-weight: 700; color: #3b82f6; }
-
-.btn-primary {
-  width: 100%;
-  padding: 1rem;
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-  color: white;
-  border: none;
-  border-radius: 14px;
-  font-weight: 700;
-  font-size: 1rem;
-  cursor: pointer;
-}
-
-.btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.editor-block {
-  margin-top: 1.5rem;
-  width: 100%;
-  max-width: 860px;
-}
-
-.scene-block {
-  margin-top: 1.25rem;
-  width: 100%;
-  max-width: 860px;
-}
-
-.app-footer {
-  margin-top: 2rem;
-  font-size: 0.85rem;
-  color: #475569;
-}
-
-@media (max-width: 760px) {
-  .form-grid { grid-template-columns: 1fr; }
-}
-</style>
