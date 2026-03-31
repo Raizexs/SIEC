@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest"
+    "test": "vitest",
+    "cy:open": "cypress open",
+    "cy:run": "cypress run",
+    "cy:stress-test": "cypress run --spec cypress/e2e/stress-test-3d-renderer.cy.js"
   },
   "dependencies": {
     "pinia": "^3.0.4",
@@ -15,8 +18,10 @@
     "vue": "^3.5.30"
   },
   "devDependencies": {
+    "@cypress/schematic": "^5.0.0",
     "@vitejs/plugin-vue": "^6.0.5",
     "autoprefixer": "^10.4.27",
+    "cypress": "^15.13.0",
     "postcss": "^8.5.8",
     "tailwindcss": "^3.4.19",
     "vite": "^8.0.1",
