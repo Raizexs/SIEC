@@ -93,9 +93,28 @@ async function insertSimulation(db, payload) {
   return result.lastID;
 }
 
+async function getAllConfigurations(db) {
+  return db.all(
+    `SELECT
+      cs.ID AS simulacion_id,
+      cs.M2_Totales,
+      cs.Habitaciones,
+      cs.Banios,
+      cs.Areas_Comunes,
+      cs.Fecha_Creacion,
+      me.ID AS material_id,
+      me.Nombre AS material_nombre
+    FROM Configuracion_Simulacion cs
+    LEFT JOIN Material_Estructural me
+      ON me.ID = cs.Material_Estructural_ID
+    ORDER BY cs.Fecha_Creacion DESC`
+  );
+}
+
 module.exports = {
   initDb,
   getSimulationById,
   materialExists,
-  insertSimulation
+  insertSimulation,
+  getAllConfigurations
 };

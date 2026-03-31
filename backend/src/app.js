@@ -1,5 +1,6 @@
 const express = require('express');
-const { getSimulationById, materialExists, insertSimulation } = require('./db');
+const path = require('path');
+const { getSimulationById, materialExists, insertSimulation, getAllConfigurations } = require('./db');
 
 function parseInteger(value) {
   const parsed = Number.parseInt(value, 10);
@@ -40,8 +41,50 @@ function createApp(db) {
   const app = express();
   app.use(express.json());
 
+  // CORS para permitir peticiones desde el frontend
+  app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
+  // Servir archivos estáticos del frontend
+  app.use(express.static(path.join(__dirname, '..', '..', 'frontend')));
+
   app.get('/health', (_req, res) => {
     res.status(200).json({ status: 'ok' });
+  });
+
+  app.get('/api/configuraciones', async (_req, res) => {
+    try {
+      const rows = await getAllConfigurations(db);
+      return res.status(200).json({
+        total: rows.length,
+        configuraciones: rows.map(row => ({
+          id: row.simulacion_id,
+          m2Totales: row.M2_Totales,
+          materialEstructural: {
+            id: row.material_id,
+            nombre: row.material_nombre
+          },
+          recintos: {
+            habitaciones: row.Habitaciones,
+            banios: row.Banios,
+            areasComunes: row.Areas_Comunes
+          },
+          fechaCreacion: row.Fecha_Creacion
+        }))
+      });
+    } catch (error) {
+      return res.status(500).json({
+        error: 'Error al obtener configuraciones.',
+        detail: error.message
+      });
+    }
   });
 
   app.get('/api/simulacion/:id/parametros', async (req, res) => {
