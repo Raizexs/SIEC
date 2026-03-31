@@ -1,99 +1,43 @@
 <script setup>
-import { ref } from 'vue'
-
 const props = defineProps({
   modelValue: {
     type: [String, Number],
-    required: true
-  }
-})
+    required: true,
+  },
+});
 
-const emit = defineEmits(['update:modelValue'])
+const emit = defineEmits(["update:modelValue"]);
 
 const materials = [
-  { id: 1, name: 'Madera' },
-  { id: 2, name: 'Metalcom' },
-  { id: 3, name: 'Albañilería' },
-  { id: 4, name: 'Hormigón Armado' }
-]
+  { id: 1, name: "Wood Frame Structure" },
+  { id: 2, name: "Structural Steel Framed" },
+  { id: 3, name: "Load-Bearing Masonry" },
+  { id: 4, name: "Reinforced Concrete (Grade 40)" },
+];
 
 const handleChange = (event) => {
-  emit('update:modelValue', event.target.value)
-}
+  emit("update:modelValue", Number(event.target.value));
+};
 </script>
 
 <template>
-  <div class="material-selector">
-    <label for="material-select" class="selector-label">Material Estructural Base</label>
-    <div class="select-wrapper">
-      <select 
-        id="material-select"
-        :value="modelValue"
-        @change="handleChange"
-        class="custom-select"
-        required
+  <div class="relative">
+    <select
+      :value="modelValue"
+      @change="handleChange"
+      class="w-full bg-surface-container-highest p-4 rounded-xl border-none text-primary font-manrope font-semibold appearance-none focus:ring-2 focus:ring-primary/20"
+      required
+    >
+      <option
+        v-for="material in materials"
+        :key="material.id"
+        :value="material.id"
       >
-        <option v-for="material in materials" :key="material.id" :value="material.id">
-          {{ material.name }}
-        </option>
-      </select>
-      <div class="select-arrow"></div>
+        {{ material.name }}
+      </option>
+    </select>
+    <div class="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+      <span class="material-symbols-outlined text-slate-400">unfold_more</span>
     </div>
   </div>
 </template>
-
-<style scoped>
-.material-selector {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  width: 100%;
-}
-
-.selector-label {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #64748b;
-}
-
-.select-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.custom-select {
-  width: 100%;
-  padding: 0.75rem 1rem;
-  font-size: 1rem;
-  color: #1e293b;
-  background-color: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  appearance: none;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.custom-select:hover {
-  border-color: #cbd5e1;
-  background-color: #ffffff;
-}
-
-.custom-select:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
-  background-color: #ffffff;
-}
-
-.select-arrow {
-  position: absolute;
-  right: 1.25rem;
-  width: 10px;
-  height: 6px;
-  background-color: #64748b;
-  clip-path: polygon(100% 0%, 0 0%, 50% 100%);
-  pointer-events: none;
-}
-</style>

@@ -1,0 +1,236 @@
+<script setup>
+import { ref, computed, watch } from 'vue'
+import { useI18n } from '../composables/useI18n'
+import { useLayoutManager } from '../composables/useLayoutManager'
+
+const { t } = useI18n()
+const { MATERIAL_COSTS, calculateCost } = useLayoutManager()
+
+const props = defineProps({
+  formData: {
+    type: Object,
+    required: true
+  },
+  costs: {
+    type: Object,
+    required: true
+  },
+  tokensDisponibles: {
+    type: Number,
+    required: true
+  },
+  isSubmitting: {
+    type: Boolean,
+    default: false
+  }
+})
+
+const emit = defineEmits(['update:formData', 'submit'])
+
+const updateFormData = (field, value) => {
+  emit('update:formData', { ...props.formData, [field]: value })
+}
+
+const handleSubmit = () => {
+  emit('submit')
+}
+
+// Límites máximos
+const maxHabitacionesSimples = computed(() => 
+  props.formData.habitacionesSimples + Math.floor(props.tokensDisponibles / props.costs.habitacionSimple)
+)
+const maxHabitacionesDobles = computed(() => 
+  props.formData.habitacionesDobles + Math.floor(props.tokensDisponibles / props.costs.habitacionDoble)
+)
+const maxHabitacionesTriples = computed(() => 
+  props.formData.habitacionesTriples + Math.floor(props.tokensDisponibles / props.costs.habitacionTriple)
+)
+const maxBanios = computed(() => 
+  props.formData.banios + Math.floor(props.tokensDisponibles / props.costs.banio)
+)
+const maxAreasComunes = computed(() => 
+  props.formData.areasComunes + Math.floor(props.tokensDisponibles / props.costs.area_comun)
+)
+
+const increment = (field, max) => {
+  if (props.formData[field] < max) {
+    updateFormData(field, props.formData[field] + 1)
+  }
+}
+
+const decrement = (field) => {
+  if (props.formData[field] > 0) {
+    updateFormData(field, props.formData[field] - 1)
+  }
+}
+
+const formatNumber = (num) => {
+  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+}
+
+const estimatedCost = computed(() => {
+  return calculateCost(props.formData.m2Totales, props.formData.materialEstructuralId)
+})
+
+const materialName = computed(() => {
+  return MATERIAL_COSTS[props.formData.materialEstructuralId]?.name || 'Unknown'
+})
+</script>
+
+<template>
+  <section class="col-span-7 space-y-10 transition-all duration-500 ease-in-out">
+    <div class="animate-fade-in">
+      <span class="text-[11px] font-bold text-secondary uppercase tracking-[0.2em] block mb-2">{{ t('step01') }}</span>
+      <h3 class="text-4xl font-headline font-extrabold text-primary tracking-tight leading-none">{{ t('projectGeometry') }}</h3>
+    </div>
+
+    <div class="bg-surface-container-lowest p-6 rounded-xl border border-outline-variant/10 shadow-sm space-y-6 transform transition-all duration-300 hover:shadow-lg hover:scale-[1.01]">
+      <div class="flex justify-between items-end">
+        <label class="text-sm font-bold text-on-surface uppercase tracking-wider">{{ t('totalBuiltArea') }}</label>
+        <div class="flex items-center gap-2">
+          <input 
+            :value="formatNumber(formData.m2Totales)" 
+            @input="updateFormData('m2Totales', Number($event.target.value.replace(/,/g, '')))"
+            class="w-24 text-right font-headline font-bold text-2xl border-none p-0 focus:ring-0 text-primary bg-transparent" 
+            type="text"
+          />
+          <span class="text-slate-400 font-medium">m²</span>
+        </div>
+      </div>
+      <input 
+        :value="formData.m2Totales"
+        @input="updateFormData('m2Totales', Number($event.target.value))"
+        class="w-full h-1.5 bg-surface-container-highest rounded-lg appearance-none cursor-pointer" 
+        max="2500" 
+        min="15" 
+        step="10" 
+        type="range"
+      />
+      <div class="flex justify-between text-[10px] text-slate-400 font-bold uppercase">
+        <span>15 m²</span>
+        <span>1,250 m²</span>
+        <span>2,500 m²</span>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-3 gap-4">
+      <div class="bg-surface-container-low p-5 rounded-xl border border-transparent hover:border-outline-variant/30 transition-all">
+        <label class="text-[10px] font-bold text-slate-500 uppercase block mb-3">{{ t('simpleRooms') }}</label>
+        <div class="flex items-center justify-between">
+          <span class="material-symbols-outlined text-primary-container">single_bed</span>
+          <input 
+            :value="formData.habitacionesSimples || 0"
+            @input="updateFormData('habitacionesSimples', Number($event.target.value))"
+            :max="maxHabitacionesSimples"
+            class="w-12 text-center bg-transparent border-none font-headline font-bold text-xl text-primary focus:ring-0" 
+            type="number"
+            min="0"
+          />
+        </div>
+      </div>
+      
+      <div class="bg-surface-container-low p-5 rounded-xl border border-transparent hover:border-outline-variant/30 transition-all">
+        <label class="text-[10px] font-bold text-slate-500 uppercase block mb-3">{{ t('doubleRooms') }}</label>
+        <div class="flex items-center justify-between">
+          <span class="material-symbols-outlined text-primary-container">king_bed</span>
+          <input 
+            :value="formData.habitacionesDobles || 0"
+            @input="updateFormData('habitacionesDobles', Number($event.target.value))"
+            :max="maxHabitacionesDobles"
+            class="w-12 text-center bg-transparent border-none font-headline font-bold text-xl text-primary focus:ring-0" 
+            type="number"
+            min="0"
+          />
+        </div>
+      </div>
+      
+      <div class="bg-surface-container-low p-5 rounded-xl border border-transparent hover:border-outline-variant/30 transition-all">
+        <label class="text-[10px] font-bold text-slate-500 uppercase block mb-3">{{ t('tripleSuites') }}</label>
+        <div class="flex items-center justify-between">
+          <span class="material-symbols-outlined text-primary-container">meeting_room</span>
+          <input 
+            :value="formData.habitacionesTriples || 0"
+            @input="updateFormData('habitacionesTriples', Number($event.target.value))"
+            :max="maxHabitacionesTriples"
+            class="w-12 text-center bg-transparent border-none font-headline font-bold text-xl text-primary focus:ring-0" 
+            type="number"
+            min="0"
+          />
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-8">
+      <div class="space-y-4">
+        <label class="text-xs font-bold text-on-surface uppercase tracking-widest">{{ t('bathrooms') }}</label>
+        <div class="flex items-center gap-4 bg-surface-container-highest/30 p-2 rounded-full border border-outline-variant/10">
+          <button 
+            @click="decrement('banios')"
+            type="button"
+            class="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center hover:bg-slate-50"
+          >
+            <span class="material-symbols-outlined text-primary">remove</span>
+          </button>
+          <span class="flex-1 text-center font-headline font-extrabold text-xl">{{ formData.banios }}</span>
+          <button 
+            @click="increment('banios', maxBanios)"
+            type="button"
+            class="w-10 h-10 rounded-full bg-primary text-white shadow-sm flex items-center justify-center hover:opacity-90"
+          >
+            <span class="material-symbols-outlined">add</span>
+          </button>
+        </div>
+      </div>
+      
+      <div class="space-y-4">
+        <label class="text-xs font-bold text-on-surface uppercase tracking-widest">{{ t('commonAreas') }}</label>
+        <div class="flex items-center gap-4 bg-surface-container-highest/30 p-2 rounded-full border border-outline-variant/10">
+          <button 
+            @click="decrement('areasComunes')"
+            type="button"
+            class="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center hover:bg-slate-50"
+          >
+            <span class="material-symbols-outlined text-primary">remove</span>
+          </button>
+          <span class="flex-1 text-center font-headline font-extrabold text-xl">{{ formData.areasComunes }}</span>
+          <button 
+            @click="increment('areasComunes', maxAreasComunes)"
+            type="button"
+            class="w-10 h-10 rounded-full bg-primary text-white shadow-sm flex items-center justify-center hover:opacity-90"
+          >
+            <span class="material-symbols-outlined">add</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="space-y-4">
+      <label class="text-xs font-bold text-on-surface uppercase tracking-widest">{{ t('structuralMaterial') }}</label>
+      <div class="relative">
+        <select 
+          :value="formData.materialEstructuralId"
+          @change="updateFormData('materialEstructuralId', Number($event.target.value))"
+          class="w-full bg-surface-container-highest p-4 rounded-xl border-none text-primary font-manrope font-semibold appearance-none focus:ring-2 focus:ring-primary/20"
+          required
+        >
+          <option value="1">{{ t('woodFrame') }}</option>
+          <option value="2">{{ t('steelFramed') }}</option>
+          <option value="3">{{ t('masonry') }}</option>
+          <option value="4">{{ t('concrete') }}</option>
+        </select>
+        <div class="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+          <span class="material-symbols-outlined text-slate-400">unfold_more</span>
+        </div>
+      </div>
+      <p class="text-[11px] text-slate-500 px-1 italic">{{ t('materialNote') }}</p>
+    </div>
+
+    <button 
+      @click="handleSubmit"
+      :disabled="isSubmitting"
+      class="w-full bg-gradient-to-br from-primary to-primary-container text-white py-4 rounded-xl font-headline font-extrabold text-sm uppercase tracking-widest hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+    >
+      {{ isSubmitting ? t('saving') : t('saveGenerate') }}
+    </button>
+  </section>
+</template>
