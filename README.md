@@ -77,33 +77,52 @@ Con miras a convertir la aplicación en una solución de nivel empresarial, se p
 
 ---
 
-## 📂 Futura Estructura del Proyecto
+## 🚀 Cómo Ejecutar el Proyecto (Local)
+
+El proyecto actual se encuentra dockerizado para facilitar el despliegue de todos los servicios simultáneamente.
+
+### Prerrequisitos
+- [Docker](https://www.docker.com/) instalado y ejecutándose
+- Git
+
+### Pasos de Ejecución
+1. Clona este repositorio.
+2. Abre una terminal en la raíz del proyecto.
+3. Ejecuta el siguiente comando para levantar los servicios:
+   ```bash
+   docker-compose up --build
+   ```
+
+### 🔌 Puertos y Servicios
+Una vez levantado, los servicios estarán disponibles en los siguientes puertos locales configurables desde el archivo `docker-compose.yml`:
+- **Frontend (Vue 3 / Vite):** `http://localhost:5173`
+- **Backend (FastAPI):** `http://localhost:8000` (Swagger UI: `http://localhost:8000/docs`)
+- **Base de Datos (PostgreSQL):** Puerto `5432`
+
+---
+
+## 📂 Estructura del Proyecto Actual
 
 ```text
-SIEC/
+SIECres/
 │
-├── 📁 frontend/                # SPA Web (Interfaz y visualización 3D)
-│   ├── src/                    # Código fuente (React/Vue/JS)
-│   ├── assets/                 # Modelos 3D, Texturas, Estilos
-│   └── public/                 # Archivos estáticos
+├── 📁 frontend/                # SPA Web (Vue 3 + Vite)
+│   ├── src/                    # Código fuente (App.vue, Components, Composables)
+│   ├── __tests__/              # Pruebas Unitarias (Vitest / Jest)
+│   └── package.json            # Dependencias de npm
 │
-├── 📁 backend/                 # Motor de cálculo y Reglas constructivas
-│   ├── src/
-│   │   ├── controllers/        # Endpoints
-│   │   ├── services/           # Lógica paramétrica de cálculo
-│   │   └── models/             # Entidades de Base de Datos
-│   ├── tests/                  # Pruebas unitarias
-│   └── package.json (o .csproj)
+├── 📁 backend/                 # Motor FastAPI y Reglas constructivas
+│   ├── database.py             # Conexión SQLAlchemy a PostgreSQL
+│   ├── main.py                 # Endpoints de API REST
+│   ├── models.py               # Modelos de Base de Datos
+│   ├── requirements.txt        # Dependencias Python
+│   └── tests/                  # Pruebas backend
 │
-├── 📁 docs/                    # Documentación del proyecto
-│   ├── Manual_Usuario.md
-│   ├── Arquitectura.md
-│   └── Casos_de_Uso.md
+├── 📁 database/                # Scripts de Inicialización
+│   ├── migrations/             # Migraciones SQL (.sql)
+│   └── seeds/                  # Poblado de datos iniciales
 │
-├── 📁 database/                # Scripts SQL y esquemas
-│   ├── schema.sql
-│   └── metrics_seed.sql        # Precios base
-│
+├── docker-compose.yml          # Orquestador Docker
 ├── .gitignore
 ├── LICENSE
 └── README.md

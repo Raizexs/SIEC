@@ -1,9 +1,10 @@
-﻿<script setup>
-import { ref, computed, watch } from 'vue'
+<script setup>
+import { ref, computed, watch, watchEffect } from 'vue'
 import MaterialSelector from './components/MaterialSelector.vue'
 import { useRecintosStore } from './stores/recintos'
 import RoomEditor2D from './components/RoomEditor2D.vue'
 import Scene3D from './components/Scene3D.vue'
+import { useTokenCounter } from './composables/useTokenCounter'
 
 const recintosStore = useRecintosStore()
 
@@ -13,6 +14,26 @@ const formData = ref({
   habitaciones: 2,
   banios: 1,
   areasComunes: 1
+})
+
+const {
+  m2Totales,
+  habitaciones,
+  banios,
+  areasComunes,
+  costs,
+  tokensUsados,
+  tokensDisponibles,
+  estado,
+  descripcionEstado
+} = useTokenCounter()
+
+// Sync form data with composable
+watchEffect(() => {
+  m2Totales.value = formData.value.m2Totales
+  habitaciones.value = formData.value.habitaciones
+  banios.value = formData.value.banios
+  areasComunes.value = formData.value.areasComunes
 })
 
 const isSubmitting = ref(false)
@@ -29,33 +50,19 @@ const materialName = computed(() => {
   return materials[formData.value.materialEstructuralId] || 'No seleccionado'
 })
 
-const ROOM_COSTS = ref({
-  habitacion: 9,
-  banio: 4,
-  areaComun: 12
-})
-
-const usedTokens = computed(() => {
-  return (formData.value.habitaciones * ROOM_COSTS.value.habitacion) +
-    (formData.value.banios * ROOM_COSTS.value.banio) +
-    (formData.value.areasComunes * ROOM_COSTS.value.areaComun)
-})
-
-const availableTokens = computed(() => Math.max(0, formData.value.m2Totales - usedTokens.value))
-const maxHabitaciones = computed(() => formData.value.habitaciones + Math.floor(availableTokens.value / ROOM_COSTS.value.habitacion))
-const maxBanios = computed(() => formData.value.banios + Math.floor(availableTokens.value / ROOM_COSTS.value.banio))
-const maxAreasComunes = computed(() => formData.value.areasComunes + Math.floor(availableTokens.value / ROOM_COSTS.value.areaComun))
+const maxHabitaciones = computed(() => formData.value.habitaciones + Math.floor(tokensDisponibles.value / costs.value.habitacion))
+const maxBanios = computed(() => formData.value.banios + Math.floor(tokensDisponibles.value / costs.value.banio))
+const maxAreasComunes = computed(() => formData.value.areasComunes + Math.floor(tokensDisponibles.value / costs.value.area_comun))
 
 const hasRecintos = computed(() => recintosStore.recintos.length > 0)
 
 watch(formData, (newVal) => {
-  const required = (newVal.habitaciones * ROOM_COSTS.value.habitacion) +
-    (newVal.banios * ROOM_COSTS.value.banio) +
-    (newVal.areasComunes * ROOM_COSTS.value.areaComun)
-
-  if (required > newVal.m2Totales) {
-    statusMessage.value = `Saldo insuficiente: se requieren ${required} tokens y solo hay ${newVal.m2Totales} m2.`
+  if (estado.value === 'danger') {
+    statusMessage.value = `Saldo insuficiente. Exceso de tokens.`
     statusType.value = 'error'
+  } else {
+    statusMessage.value = ''
+    statusType.value = ''
   }
 }, { deep: true })
 
@@ -65,7 +72,11 @@ const submitForm = async () => {
   statusType.value = 'loading'
 
   try {
-    const response = await fetch('http://localhost:8000/api/simulacion/parametros', {
+    // MOCK: Saltando el backend temporalmente porque el docker-compose falló.
+    // Solo queremos activar la generación 3D local.
+    const data = { idSimulacion: 9999 }
+    /*
+    const response = await fetch('http://localhost:8001/api/simulacion/parametros', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(formData.value)
@@ -76,6 +87,7 @@ const submitForm = async () => {
     }
 
     const data = await response.json()
+    */
     localStorage.setItem('siec_last_simulation_id', String(data.idSimulacion || ''))
 
     recintosStore.initializeLayout(
@@ -119,17 +131,17 @@ const submitForm = async () => {
           </div>
 
           <div class="form-group">
-            <label for="habitaciones" class="field-label">Habitaciones ({{ ROOM_COSTS.habitacion }} tkns)</label>
+            <label for="habitaciones" class="field-label">Habitaciones ({{ costs.habitacion }} tkns)</label>
             <input id="habitaciones" v-model.number="formData.habitaciones" type="number" min="0" :max="maxHabitaciones" class="form-input" required />
           </div>
 
           <div class="form-group">
-            <label for="banios" class="field-label">Banios ({{ ROOM_COSTS.banio }} tkns)</label>
+            <label for="banios" class="field-label">Banios ({{ costs.banio }} tkns)</label>
             <input id="banios" v-model.number="formData.banios" type="number" min="0" :max="maxBanios" class="form-input" required />
           </div>
 
           <div class="form-group full-width">
-            <label for="areasComunes" class="field-label">Areas Comunes ({{ ROOM_COSTS.areaComun }} tkns)</label>
+            <label for="areasComunes" class="field-label">Areas Comunes ({{ costs.area_comun }} tkns)</label>
             <input id="areasComunes" v-model.number="formData.areasComunes" type="number" min="0" :max="maxAreasComunes" class="form-input" required />
           </div>
         </div>
@@ -138,16 +150,22 @@ const submitForm = async () => {
           {{ statusMessage }}
         </div>
 
-        <div class="summary-badge">
+        <div class="summary-badge" :style="{ borderColor: descripcionEstado.color }">
           <div>
             <span class="summary-label">Configuracion actual:</span><br />
             <span class="summary-value">{{ formData.m2Totales }}m2 - {{ materialName }}</span>
+            <div style="margin-top: 5px; font-size: 0.8rem; opacity: 0.8">
+              {{ descripcionEstado.message }}
+            </div>
           </div>
           <div style="text-align: right;">
             <span class="summary-label">Tokens disp.:</span><br />
-            <span class="summary-value" :style="availableTokens === 0 ? 'color: #fca5a5;' : ''">
-              {{ availableTokens }} / {{ formData.m2Totales }}
+            <span class="summary-value" :style="{ color: descripcionEstado.color }">
+              {{ tokensDisponibles }} / {{ formData.m2Totales }}
             </span>
+            <div style="margin-top: 5px; font-size: 0.8rem; opacity: 0.8">
+              Usados: {{ tokensUsados }}
+            </div>
           </div>
         </div>
 

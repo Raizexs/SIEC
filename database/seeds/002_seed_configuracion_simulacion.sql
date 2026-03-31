@@ -5,7 +5,7 @@
 -- Estos datos pueden usarse para testing y demostración.
 -- ════════════════════════════════════════════════════════════════════════════════
 
-INSERT OR IGNORE INTO Configuracion_Simulacion 
+INSERT INTO Configuracion_Simulacion 
   (M2_Totales, Material_Estructural_ID, Habitaciones, Banios, Areas_Comunes)
 VALUES
   -- Simulación 1: Casa pequeña en Madera

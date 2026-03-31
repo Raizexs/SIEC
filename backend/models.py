@@ -17,3 +17,4 @@ class ConfiguracionSimulacion(Base):
     habitaciones = Column(Integer, nullable=False)
     banios = Column(Integer, nullable=False)
     areas_comunes = Column(Integer, nullable=False)
+    fecha_creacion = Column(String, nullable=True)
