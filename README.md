@@ -97,7 +97,7 @@ El proyecto actual se encuentra dockerizado para facilitar el despliegue de todo
 Una vez levantado, los servicios estarán disponibles en los siguientes puertos locales configurables desde el archivo `docker-compose.yml`:
 - **Frontend (Vue 3 / Vite):** `http://localhost:5173`
 - **Backend (FastAPI):** `http://localhost:8000` (Swagger UI: `http://localhost:8000/docs`)
-- **Base de Datos (PostgreSQL):** Puerto `5432`
+- **Base de Datos (PostgreSQL):** Puerto `5433`
 
 ---
 
