@@ -1,2 +1,5 @@
 node_modules/
 dist_packaged/
+
+# Archivos SCRUM
+SCRUM-*.md
