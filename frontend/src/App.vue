@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watchEffect } from "vue";
+import { ref, computed, watchEffect, watch, nextTick } from "vue";
 import Sidebar from "./components/Sidebar.vue";
 import TopNavBar from "./components/TopNavBar.vue";
 import ConfigurationPanel from "./components/ConfigurationPanel.vue";
@@ -54,6 +54,27 @@ watchEffect(() => {
   banios.value = formData.value.banios;
   areasComunes.value = formData.value.areasComunes;
 });
+
+// Reactividad con el motor (HU03/HU11)
+watch(formData, async (newVal) => {
+  await nextTick(); // Esperamos que useTokenCounter actualice 'estado'
+  
+  if (estado.value === "danger") {
+    // Si excede el límite de tokens, abortar regeneración para no corromper el modelo 3D
+    return;
+  }
+  
+  if (hasRecintos.value) {
+    const totalHabitaciones = newVal.habitacionesSimples + newVal.habitacionesDobles + newVal.habitacionesTriples;
+    recintosStore.initializeLayout(
+      newVal.m2Totales,
+      totalHabitaciones,
+      newVal.banios,
+      newVal.areasComunes,
+      newVal.materialEstructuralId
+    );
+  }
+}, { deep: true });
 
 const isSubmitting = ref(false);
 const activeTab = ref("generalSpecs");
