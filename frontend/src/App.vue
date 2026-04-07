@@ -55,7 +55,8 @@ watchEffect(() => {
   areasComunes.value = formData.value.areasComunes;
 });
 
-// Reactividad con el motor (HU03/HU11)
+// Reactividad con el motor (HU03/HU11) - con debounce para rendimiento
+let debounceTimer = null;
 watch(formData, async (newVal) => {
   await nextTick(); // Esperamos que useTokenCounter actualice 'estado'
   
@@ -65,14 +66,18 @@ watch(formData, async (newVal) => {
   }
   
   if (hasRecintos.value) {
-    const totalHabitaciones = newVal.habitacionesSimples + newVal.habitacionesDobles + newVal.habitacionesTriples;
-    recintosStore.initializeLayout(
-      newVal.m2Totales,
-      totalHabitaciones,
-      newVal.banios,
-      newVal.areasComunes,
-      newVal.materialEstructuralId
-    );
+    if (debounceTimer) clearTimeout(debounceTimer);
+    
+    debounceTimer = setTimeout(() => {
+      const totalHabitaciones = newVal.habitacionesSimples + newVal.habitacionesDobles + newVal.habitacionesTriples;
+      recintosStore.initializeLayout(
+        newVal.m2Totales,
+        totalHabitaciones,
+        newVal.banios,
+        newVal.areasComunes,
+        newVal.materialEstructuralId
+      );
+    }, 400); // Debounce de 400ms para evitar congelamientos en cambios continuos (sliders/flechas)
   }
 }, { deep: true });
 
