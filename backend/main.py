@@ -1,8 +1,9 @@
 from fastapi import FastAPI, Depends, HTTPException, status
-from pydantic import BaseModel
-from typing import List
+from pydantic import BaseModel, Field
+from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+import unicodedata
 
 # Importar configuración de BD y Modelos
 from database import engine, get_db, SessionLocal
@@ -98,6 +99,75 @@ def crear_simulacion(sim: SimulacionCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Error al guardar en la base de datos.")
         
     return {"idSimulacion": db_simulacion.id, "message": "Simulación guardada correctamente"}
+
+def normalize_string(s: str) -> str:
+    """Remueve acentos y pasa a minúsculas para comparaciones robustas."""
+    return "".join(c for c in unicodedata.normalize('NFD', s.lower()) if unicodedata.category(c) != 'Mn')
+
+class RecintoGeometrico(BaseModel):
+    tipo: str = Field(..., description="Nombre del tipo de recinto (ej. 'Habitación', 'Baño')")
+    ancho: float = Field(..., description="Ancho geométrico del recinto en metros")
+    largo: float = Field(..., description="Largo geométrico del recinto en metros")
+
+class PayloadLayout3D(BaseModel):
+    recintos: List[RecintoGeometrico]
+
+@app.post("/api/simulacion/{simulacion_id}/layout", status_code=status.HTTP_201_CREATED)
+def asociar_y_validar_layout_estricto(simulacion_id: int, payload: PayloadLayout3D, db: Session = Depends(get_db)):
+    """
+    Validación estricta de la disposición 3D:
+    - Asegura que los m2 totales combinados <= m2 totales de la simulación.
+    - Asegura que el área de CADA recinto individual sea >= el costo nativo en tokens del mismo.
+    """
+    # 1. Recuperar simulación de la base de datos
+    simulacion = db.query(models.ConfiguracionSimulacion).filter(models.ConfiguracionSimulacion.id == simulacion_id).first()
+    if not simulacion:
+        raise HTTPException(status_code=404, detail="La simulación especificada no existe.")
+        
+    # 2. Precargar costos de tokens base para validación
+    cat_tipos = db.query(models.TipoRecinto).all()
+    # Mapeo relajado de strings (ej: 'Baño' -> 'bano')
+    costo_por_tipo = { normalize_string(t.nombre): t.costo_tokens for t in cat_tipos }
+    
+    # Agregamos alias por si el frontend usa sufijos
+    costo_por_tipo["habitacion simple"] = costo_por_tipo.get("habitacion", 9)
+    costo_por_tipo["habitacion doble"] = costo_por_tipo.get("habitacion", 9)
+    costo_por_tipo["habitacion triple"] = costo_por_tipo.get("habitacion", 9)
+    costo_por_tipo["area comun"] = costo_por_tipo.get("area comun", 12)
+
+    area_total_acumulada = 0.0
+    
+    # 3. Iterar cada recinto recibido
+    for recinto in payload.recintos:
+        area_recinto = recinto.ancho * recinto.largo
+        area_total_acumulada += area_recinto
+        
+        tipo_normalizado = normalize_string(recinto.tipo)
+        if tipo_normalizado in costo_por_tipo:
+            min_legal_area = float(costo_por_tipo[tipo_normalizado])
+            # Validación de Tamaño Mínimo (Tope Inferior Normativo)
+            if area_recinto < min_legal_area:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Validación estricta falló: El cuarto tipo '{recinto.tipo}' tiene un área geométrica de {area_recinto:.2f} m², lo cual es inferior al requerimiento mínimo por token de {min_legal_area} m²."
+                )
+
+    # 4. Validación de Capacidad Máxima (Tope Superior)
+    if area_total_acumulada > float(simulacion.m2_totales):
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Validación estricta falló: La suma total de áreas ingresadas ({area_total_acumulada:.2f} m²) excede los metros cuadrados disponibles en la simulación base ({simulacion.m2_totales} m²)."
+        )
+
+    # Si pasa todas las validaciones asocia el modelo de forma íntegra a DB
+    # Nota: Acá expandiríamos lógica de DB.commit() con los Recintos 3D hacia el modelo
+    return {
+        "status": "success",
+        "message": "Validaciones estrictas pasadas. Configuración del plano íntegro.",
+        "area_total_calculada": area_total_acumulada,
+        "limite_m2_disponibles": simulacion.m2_totales
+    }
+
 
 if __name__ == "__main__":
     import uvicorn
