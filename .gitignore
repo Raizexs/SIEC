@@ -13,3 +13,6 @@ __pycache__/
 
 # Archivos SCRUM
 SCRUM-*.md
+
+# Agentes
+.agent
