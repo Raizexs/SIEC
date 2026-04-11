@@ -34,12 +34,11 @@ STORES = {
             'pagination': {'css': 'a[rel="next"]', 'example': 'https://www.sodimac.cl/.../page=2'}
         },
         'product_urls': [
-            # Reemplaza estas entradas por las 5 URLs reales extraídas desde la consola DevTools
-            'https://www.sodimac.cl/producto/ejemplo-1',
-            'https://www.sodimac.cl/producto/ejemplo-2',
-            'https://www.sodimac.cl/producto/ejemplo-3',
-            'https://www.sodimac.cl/producto/ejemplo-4',
-            'https://www.sodimac.cl/producto/ejemplo-5'
+            'https://www.sodimac.cl/sodimac-cl/articulo/110277134/hormigon-preparado-para-radieres-sobrelosas-pilares-25-kg/110277137',
+            'https://www.sodimac.cl/sodimac-cl/articulo/110309884/cemento-polpaico-25-kilos/110309919',
+            'https://www.sodimac.cl/sodimac-cl/articulo/143739236/cemento-envasado-especial-25-kg-saco/143739237',
+            'https://www.sodimac.cl/sodimac-cl/articulo/110328558/plancha-fibrocemento-base-ceramico-6-mm-120x240-cm-blanco/110328570',
+            'https://www.sodimac.cl/sodimac-cl/articulo/110289962/perfil-rectangular-acero-30x20x2-mm-6-m/110289975'
         ],
         'notes': 'Si el sitio muestra modal de región/cookies, cerrar antes de ejecutar selectores.\nPaginación en algunos listados es por JS (botones sin href) — puede requerir emulación de clicks.'
     },
