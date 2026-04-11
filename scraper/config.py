@@ -55,6 +55,13 @@ STORES = {
             'category': {'css': 'PLACEHOLDER_SELECTOR', 'example': 'Revestimientos > Volcanita'},
             'pagination': {'css': 'PLACEHOLDER_SELECTOR', 'example': 'https://www.easy.cl/.../page=2'}
         },
+        'product_urls': [
+            'https://www.easy.cl/cemento-especial-25-kg-polpaico-1195183/p',
+            'https://www.easy.cl/perfil-rectangulo-30x20x2-mm-6-m-816-kg-119314/p',
+            'https://www.easy.cl/volcanita-acu-br-1-2x2-4-m-10-mm-1354955/p',
+            'https://www.easy.cl/cable-eva-2-5-mm-x-100-m-h07z1-k-823913/p',
+            'https://www.easy.cl/tuberia-hidrahulica-20-mm-x3-m-clase-16-pvc-235195/p'
+        ],
         'notes': 'Verificar si la tienda requiere cambiar región manualmente.'
     },
     'construmart': {
@@ -70,6 +77,13 @@ STORES = {
             'category': {'css': 'PLACEHOLDER_SELECTOR', 'example': 'Fierros > Acero'},
             'pagination': {'css': 'PLACEHOLDER_SELECTOR', 'example': 'https://www.construmart.cl/.../page=2'}
         },
+        'product_urls': [
+            'https://www.construmart.cl/cemento-especial-saco-25-kg-san-juan-245005',
+            'https://www.construmart.cl/barra-cuadrada-laminada-10-x-10-mm-47-30872',
+            'https://www.construmart.cl/yeso-carton-volcanita-rh-borde-rebaja-23602',
+            'https://www.construmart.cl/cable-evaflex-h07z1-k-c5-25-mm-50-m-219322',
+            'https://www.construmart.cl/tubo-ppr-pn-16-25-mm-3-m-213256'
+        ],
         'notes': 'Algunos listados cargan por JS (infinite scroll) — documentar paginación específica'
     }
 }
