@@ -35,10 +35,10 @@ STORES = {
         },
         'product_urls': [
             'https://www.sodimac.cl/sodimac-cl/articulo/110277134/hormigon-preparado-para-radieres-sobrelosas-pilares-25-kg/110277137',
-            'https://www.sodimac.cl/sodimac-cl/articulo/110309884/cemento-polpaico-25-kilos/110309919',
-            'https://www.sodimac.cl/sodimac-cl/articulo/143739236/cemento-envasado-especial-25-kg-saco/143739237',
-            'https://www.sodimac.cl/sodimac-cl/articulo/110328558/plancha-fibrocemento-base-ceramico-6-mm-120x240-cm-blanco/110328570',
-            'https://www.sodimac.cl/sodimac-cl/articulo/110289962/perfil-rectangular-acero-30x20x2-mm-6-m/110289975'
+            'https://www.sodimac.cl/sodimac-cl/articulo/110282820/fierro-liso-cuadrado-acero-10x10-5-mm-6-m/110282823',
+            'https://www.sodimac.cl/sodimac-cl/articulo/110288145/placa-fibrocemento-lisa-4-mm-120x240-cm-blanco/110288165',
+            'https://www.sodimac.cl/sodimac-cl/articulo/113214486/cable-libre-de-halogenos-h07z1-k-1x2-5-mm2-rojo-100-metros/113214489',
+            'https://www.sodimac.cl/sodimac-cl/articulo/135520693/tubo-gris-pvc-agua-110-mmx6-m/135520694'
         ],
         'notes': 'Si el sitio muestra modal de región/cookies, cerrar antes de ejecutar selectores.\nPaginación en algunos listados es por JS (botones sin href) — puede requerir emulación de clicks.'
     },
