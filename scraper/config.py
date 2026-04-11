@@ -12,26 +12,24 @@ STORES = {
             'https://www.sodimac.cl/sodimac-cl/browse?region=valparaiso'
         ],
         'selectors': {
-            'name': {'css': '.pdp-basic-info__product-name', 'example': 'Hormigón Preparado Para Radieres Sobrelosas Pilares 25 Kg'},
+            # Usar selectores alternativos combinados (coma) para mayor resiliencia
+            'name': {'css': 'h1[itemprop="name"], .pdp-basic-info__product-name', 'example': 'Hormigón Preparado Para Radieres Sobrelosas Pilares 25 Kg'},
 
-            # Precio principal (CLP)
-            # Ejemplo extraído: "$  2.590"
-            'price': {'css': '.copy12.primary.senary.normal', 'example': 'CLP 2.590'},
+            # Precio principal (CLP) - selector genérico que suele aplicar en PDP
+            'price': {'css': '[itemprop="price"], span.price, .price', 'example': 'CLP 2.590'},
 
             # Precio con descuento (si aplica)
-            # Ejemplo extraído: "$  2.512"
-            'price_discount': {'css': '.copy12.primary.senary.bold', 'example': 'CLP 2.512'},
+            'price_discount': {'css': '.price--discount, .price.discount, [data-discount-price]', 'example': 'CLP 2.512'},
 
             # Stock / disponibilidad
-            # Ejemplo extraído: "885 unidades disponibles"
-            'stock': {'css': 'p.store-availability.available', 'example': '885 unidades disponibles'},
+            'stock': {'css': 'p.store-availability.available, .stock, .availability', 'example': '885 unidades disponibles'},
 
-            # Categoría / breadcrumb (en este producto la clase específica fue incluida)
-            'category': {'css': 'a.Breadcrumbs-module_selected-bread-crumb__ZPj02', 'example': 'Cemento'},
+            # Categoría / breadcrumb
+            'category': {'css': 'nav.breadcrumbs a, .breadcrumbs a, .Breadcrumbs-module_selected-bread-crumb__ZPj02', 'example': 'Cemento'},
 
             # Paginación: suele encontrarse en páginas de listado. Recomendado verificar
             # en listados; selector común: 'a[rel="next"]' o '.pagination a.next'
-            'pagination': {'css': 'a[rel="next"]', 'example': 'https://www.sodimac.cl/.../page=2'}
+            'pagination': {'css': 'a[rel="next"], .pagination a.next, .pager a.next', 'example': 'https://www.sodimac.cl/.../page=2'}
         },
         'product_urls': [
             'https://www.sodimac.cl/sodimac-cl/articulo/110277134/hormigon-preparado-para-radieres-sobrelosas-pilares-25-kg/110277137',
@@ -48,12 +46,15 @@ STORES = {
             'https://www.easy.cl/tienda/browse?region=valparaiso'
         ],
         'selectors': {
-            'name': {'css': '#__next > main > main > div:nth-child(3) > div > section > div.sc-8e800ca6-5.ia-dcNO > div > h1', 'example': 'Cemento Especial 25 kg Polpaico'},
-            'price': {'css': '#__next > main > main > div:nth-child(3) > div > section > div.sc-8e800ca6-5.ia-dcNO > div > span.sc-11b00991-5.dEKQBo > div.sc-1f784e80-0.bZLqYQ > div', 'example': '$ 42.100'},
-            'price_discount': {'css': '', 'example': 'N/A'},
-            'stock': {'css': '', 'example': 'Ingresa tu ubicación para ver opciones de entrega'},
-            'category': {'css': '#__next > main > main > div:nth-child(3) > main > div.sc-7ec5121f-3.iSxTWg > div:nth-child(4) > a', 'example': 'Cementos Especiales'},
-            'pagination': {'css': '', 'example': 'N/A'}
+            # El selector directo desde DevTools puede ser muy largo; usar alternativa más corta cuando sea posible
+            'name': {'css': '#__next h1, div.sc-8e800ca6-5 h1', 'example': 'Cemento Especial 25 kg Polpaico'},
+            # Precio observado en la página (ejemplo obtenido manualmente)
+            'price': {'css': 'span[data-testid*="price"], span.price, .sc-1f784e80-0', 'example': '$ 42.100'},
+            # Easy muestra precio/stock tras seleccionar ubicación; marcar como interacción requerida
+            'price_discount': {'css': '.price--discount, [data-discount-price]', 'example': 'N/A'},
+            'stock': {'css': '.stock, .availability, [data-store-stock]', 'example': 'Ingresa tu ubicación para ver opciones de entrega'},
+            'category': {'css': 'nav.breadcrumbs a, .sc-7ec5121f-3 a', 'example': 'Cementos Especiales'},
+            'pagination': {'css': 'a[rel="next"], .pagination a', 'example': 'N/A'}
         },
         'product_urls': [
             'https://www.easy.cl/cemento-especial-25-kg-polpaico-1195183/p',
@@ -62,7 +63,7 @@ STORES = {
             'https://www.easy.cl/cable-eva-2-5-mm-x-100-m-h07z1-k-823913/p',
             'https://www.easy.cl/tuberia-hidrahulica-20-mm-x3-m-clase-16-pvc-235195/p'
         ],
-        'notes': 'Verificar si la tienda requiere cambiar región manualmente.'
+        'notes': 'Easy requiere seleccionar ubicación/region para ver stock y precios por tienda. Usar Playwright/Puppeteer para emular esta interacción si se automatiza.'
     },
     'construmart': {
         'name': 'Construmart',
@@ -70,12 +71,13 @@ STORES = {
             'https://www.construmart.cl/browse?region=valparaiso'
         ],
         'selectors': {
-            'name': {'css': '#maincontent > div.columns > div > div.product-info-main > div.page-title-wrapper.product > h1 > span', 'example': 'Cemento Especial Saco 25 kg San Juan'},
-            'price': {'css': '#product-price-30449 > span', 'example': 'Consultar precio (seleccionar tienda/region)'},
-            'price_discount': {'css': '', 'example': 'N/A'},
-            'stock': {'css': '#maincontent > div.columns > div > div.product-info-main > div.stock-info-wrapper > div.stock-info > div > div > strong', 'example': 'Selecciona tienda/region para ver stock'},
-            'category': {'css': '#html-body > div.page-wrapper > div.breadcrumbs > ul > li.item.category137 > strong', 'example': 'Cementos'},
-            'pagination': {'css': '', 'example': 'N/A'}
+            'name': {'css': '#maincontent h1.page-title, #maincontent h1 span', 'example': 'Cemento Especial Saco 25 kg San Juan'},
+            # Magento/Hybris suelen exponer precio en span.price o [itemprop="price"]
+            'price': {'css': 'span.price, [itemprop="price"], .product-price', 'example': 'Consultar precio (seleccionar tienda/region)'},
+            'price_discount': {'css': '.price--discount, .special-price', 'example': 'N/A'},
+            'stock': {'css': '.stock, .stock-info strong, [data-stock-status]', 'example': 'Selecciona tienda/region para ver stock'},
+            'category': {'css': 'nav.breadcrumbs a, .breadcrumbs a, ul.breadcrumbs li > strong', 'example': 'Cementos'},
+            'pagination': {'css': 'a[rel="next"], .pagination a, .pager a.next', 'example': 'N/A'}
         },
         'product_urls': [
             'https://www.construmart.cl/cemento-especial-saco-25-kg-san-juan-245005',
@@ -84,7 +86,7 @@ STORES = {
             'https://www.construmart.cl/cable-evaflex-h07z1-k-c5-25-mm-50-m-219322',
             'https://www.construmart.cl/tubo-ppr-pn-16-25-mm-3-m-213256'
         ],
-        'notes': 'Algunos listados cargan por JS (infinite scroll) — documentar paginación específica'
+        'notes': 'Algunos listados cargan por JS (infinite scroll) — documentar paginación específica. Para stock/precio por tienda es necesario seleccionar la sucursal o región.'
     }
 }
 
