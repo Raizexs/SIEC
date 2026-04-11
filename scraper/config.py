@@ -49,11 +49,11 @@ STORES = {
         ],
         'selectors': {
             'name': {'css': '#__next > main > main > div:nth-child(3) > div > section > div.sc-8e800ca6-5.ia-dcNO > div > h1', 'example': 'Cemento Especial 25 kg Polpaico'},
-            'price': {'css': '#__next > main > main > div:nth-child(3) > div > section > div.sc-8e800ca6-5.ia-dcNO > div > span.sc-11b00991-5.dEKQBo > div.sc-1f784e80-0.bZLqYQ > div', 'example': ''},
-            'price_discount': {'css': '', 'example': ''},
-            'stock': {'css': '', 'example': ''},
-            'category': {'css': '#__next > main > main > div:nth-child(3) > main > div.sc-7ec5121f-3.iSxTWg > div:nth-child(4) > a', 'example': ''},
-            'pagination': {'css': '', 'example': ''}
+            'price': {'css': '#__next > main > main > div:nth-child(3) > div > section > div.sc-8e800ca6-5.ia-dcNO > div > span.sc-11b00991-5.dEKQBo > div.sc-1f784e80-0.bZLqYQ > div', 'example': '$ 42.100'},
+            'price_discount': {'css': '', 'example': 'N/A'},
+            'stock': {'css': '', 'example': 'Ingresa tu ubicación para ver opciones de entrega'},
+            'category': {'css': '#__next > main > main > div:nth-child(3) > main > div.sc-7ec5121f-3.iSxTWg > div:nth-child(4) > a', 'example': 'Cementos Especiales'},
+            'pagination': {'css': '', 'example': 'N/A'}
         },
         'product_urls': [
             'https://www.easy.cl/cemento-especial-25-kg-polpaico-1195183/p',
@@ -71,11 +71,11 @@ STORES = {
         ],
         'selectors': {
             'name': {'css': '#maincontent > div.columns > div > div.product-info-main > div.page-title-wrapper.product > h1 > span', 'example': 'Cemento Especial Saco 25 kg San Juan'},
-            'price': {'css': '#product-price-30449 > span', 'example': ''},
-            'price_discount': {'css': '', 'example': ''},
-            'stock': {'css': '#maincontent > div.columns > div > div.product-info-main > div.stock-info-wrapper > div.stock-info > div > div > strong', 'example': ''},
-            'category': {'css': '#html-body > div.page-wrapper > div.breadcrumbs > ul > li.item.category137 > strong', 'example': ''},
-            'pagination': {'css': '', 'example': ''}
+            'price': {'css': '#product-price-30449 > span', 'example': 'Consultar precio (seleccionar tienda/region)'},
+            'price_discount': {'css': '', 'example': 'N/A'},
+            'stock': {'css': '#maincontent > div.columns > div > div.product-info-main > div.stock-info-wrapper > div.stock-info > div > div > strong', 'example': 'Selecciona tienda/region para ver stock'},
+            'category': {'css': '#html-body > div.page-wrapper > div.breadcrumbs > ul > li.item.category137 > strong', 'example': 'Cementos'},
+            'pagination': {'css': '', 'example': 'N/A'}
         },
         'product_urls': [
             'https://www.construmart.cl/cemento-especial-saco-25-kg-san-juan-245005',
