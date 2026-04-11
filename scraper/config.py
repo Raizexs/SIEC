@@ -38,7 +38,7 @@ STORES = {
             'https://www.sodimac.cl/sodimac-cl/articulo/113214486/cable-libre-de-halogenos-h07z1-k-1x2-5-mm2-rojo-100-metros/113214489',
             'https://www.sodimac.cl/sodimac-cl/articulo/135520693/tubo-gris-pvc-agua-110-mmx6-m/135520694'
         ],
-        'notes': 'Si el sitio muestra modal de región/cookies, cerrar antes de ejecutar selectores.\nPaginación en algunos listados es por JS (botones sin href) — puede requerir emulación de clicks.'
+        'notes': 'Si el sitio muestra modal de región/cookies, cerrar antes de ejecutar selectores.\nImportante: Sodimac también requiere seleccionar región/tienda para obtener stock y precios locales; estos valores pueden variar por sucursal.\nPaginación en algunos listados es por JS (botones sin href) — puede requerir emulación de clicks o uso de Playwright/Puppeteer para interactuar.'
     },
     'easy': {
         'name': 'Easy',
