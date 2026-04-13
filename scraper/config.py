@@ -12,24 +12,12 @@ STORES = {
             'https://www.sodimac.cl/sodimac-cl/browse?region=valparaiso'
         ],
         'selectors': {
-            # Usar selectores alternativos combinados (coma) para mayor resiliencia
-            'name': {'css': 'h1[itemprop="name"], .pdp-basic-info__product-name', 'example': 'Hormigón Preparado Para Radieres Sobrelosas Pilares 25 Kg'},
-
-            # Precio principal (CLP) - selector genérico que suele aplicar en PDP
-            'price': {'css': '[itemprop="price"], span.price, .price', 'example': '$ 2.851'},
-
-            # Precio con descuento (si aplica)
-            'price_discount': {'css': '.price--discount, .price.discount, [data-discount-price]', 'example': 'N/A'},
-
-            # Stock / disponibilidad
-            'stock': {'css': 'p.store-availability.available, .stock, .availability', 'example': '89 unidades disponibles'},
-
-            # Categoría / breadcrumb
-            'category': {'css': 'nav.breadcrumbs a, .breadcrumbs a, .Breadcrumbs-module_selected-bread-crumb__ZPj02', 'example': 'Cemento'},
-
-            # Paginación: suele encontrarse en páginas de listado. Recomendado verificar
-            # en listados; selector común: 'a[rel="next"]' o '.pagination a.next'
-            'pagination': {'css': 'a[rel="next"], .pagination a.next, .pager a.next', 'example': 'N/A'}
+            'name': {'css': '.pdp-basic-info__product-name', 'example': 'Hormigón Preparado Para Radieres Sobrelosas Pilares 25 Kg'},
+            'price': {'css': '.copy12.primary.senary', 'example': '$ 2.851'},
+            'price_discount': {'css': '.copy12.primary.senary.bold', 'example': 'N/A (sin descuento)'},
+            'stock': {'css': 'p.store-availability.available', 'example': '89 unidades disponibles'},
+            'category': {'css': 'a.Breadcrumbs-module_selected-bread-crumb__ZPj02', 'example': 'Cemento'},
+            'pagination': {'css': 'a[rel="next"]', 'example': 'N/A (en PDPs no hay paginación)'}
         },
 
         'product_urls': [
@@ -47,15 +35,12 @@ STORES = {
             'https://www.easy.cl/tienda/browse?region=valparaiso'
         ],
         'selectors': {
-            # El selector directo desde DevTools puede ser muy largo; usar alternativa más corta cuando sea posible
-            'name': {'css': '#__next h1, div.sc-8e800ca6-5 h1', 'example': 'Cemento especial 25 kg Polpaico'},
-            # Precio observado en la página (ejemplo obtenido manualmente via Playwright)
-            'price': {'css': 'span[data-testid*="price"], span.price, .sc-1f784e80-0', 'example': 'ej. $ 5.510 (cemento), $ 42.100 (cable)'},
-            # Easy muestra precio/stock tras seleccionar ubicación; marcar como interacción requerida
-            'price_discount': {'css': '.price--discount, [data-discount-price]', 'example': 'N/A'},
-            'stock': {'css': '.stock, .availability, [data-store-stock]', 'example': 'Ingresar ubicación para ver stock/entrega'},
-            'category': {'css': 'nav.breadcrumbs a, .sc-7ec5121f-3 a', 'example': 'N/A (breadcrumb no encontrado en PDP en headless run)'},
-            'pagination': {'css': 'a[rel="next"], .pagination a', 'example': 'N/A'}
+            'name': {'css': '#__next > main > main > div:nth-child(3) > div > section > div.sc-8e800ca6-5.ia-dcNO > div > h1', 'example': 'Cemento especial 25 kg Polpaico'},
+            'price': {'css': '#__next > main > main > div:nth-child(3) > div > section > div.sc-8e800ca6-5.ia-dcNO > div > span.sc-11b00991-5.dEKQBo > div.sc-1f784e80-0.bZLqYQ > div', 'example': '$ 5.510'},
+            'price_discount': {'css': '#__next > main > main > div:nth-child(3) > div > section > div.sc-8e800ca6-5.ia-dcNO > div > span.sc-11b00991-5.dEKQBo', 'example': 'N/A'},
+            'stock': {'css': '#__next > main > main > div:nth-child(3) > div > section > div.sc-8e800ca6-5.ia-dcNO > div > div:nth-child(8) > dialog > div > div.sc-b9a1d677-3.kxmjzI > div > div > div > p', 'example': 'Requiere seleccionar ubicación'},
+            'category': {'css': '#__next > main > main > div:nth-child(3) > div > div.sc-eb8d352a-0.dTMHsi > div > div:nth-child(4) > a > span', 'example': 'Cementos Especiales'},
+            'pagination': {'css': '#__next > main > main > div:nth-child(3) > div > section > div.sc-8e800ca6-5.ia-dcNO > div > div.sc-1f784e80-0.bZLqYQ > div > a', 'example': 'N/A (en PDPs no hay)'}
         },
 
         'product_urls': [
@@ -73,13 +58,12 @@ STORES = {
             'https://www.construmart.cl/browse?region=valparaiso'
         ],
         'selectors': {
-            'name': {'css': '#maincontent h1.page-title, #maincontent h1 span', 'example': 'Cemento Especial Saco 25 kg San Juan'},
-            # Magento/Hybris suelen exponer precio en span.price o [itemprop="price"]
-            'price': {'css': 'span.price, [itemprop="price"], .product-price', 'example': 'Consultar precio (seleccionar tienda/region)'},
-            'price_discount': {'css': '.price--discount, .special-price', 'example': 'N/A'},
-            'stock': {'css': '.stock, .stock-info strong, [data-stock-status]', 'example': 'Sin Stock (headless check retornó "Sin Stock" en varios nodos)'},
-            'category': {'css': 'nav.breadcrumbs a, .breadcrumbs a, ul.breadcrumbs li > strong', 'example': 'Inicio / Cementos'},
-            'pagination': {'css': 'a[rel="next"], .pagination a, .pager a.next', 'example': 'N/A'}
+            'name': {'css': '.product-name, h1', 'example': 'Cemento Especial Saco 25 kg San Juan'},
+            'price': {'css': '.price-container .price, .product-price', 'example': 'Requiere seleccionar tienda/región'},
+            'price_discount': {'css': '.special-price .price', 'example': 'N/A'},
+            'stock': {'css': '.stock-info, .availability', 'example': 'Sin Stock (varía por tienda)'},
+            'category': {'css': '.breadcrumb-item, .breadcrumbs li', 'example': 'Cementos'},
+            'pagination': {'css': '.pagination .next, a[rel="next"]', 'example': 'N/A (en PDPs no hay)'}
         },
 
         'product_urls': [
