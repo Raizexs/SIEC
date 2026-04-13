@@ -1,60 +1,83 @@
-import json
+#!/usr/bin/env python3
+"""
+Playwright verification script: validates CSS selectors against live product URLs.
+Runs headless Chromium and extracts data using config.STORES selectors.
+"""
+
+import asyncio
 import sys
-import os
-import time
+from playwright.async_api import async_playwright
 
-# Load config
-sys.path.append(os.path.abspath('.'))
-try:
-    from scraper.config import STORES
-except Exception as e:
-    print(json.dumps({'error': 'failed to import STORES', 'exc': str(e)}))
-    raise
+# Quick inline config (normally imported from config.py)
+STORES = {
+    'sodimac': {
+        'product_urls': [
+            'https://www.sodimac.cl/sodimac-cl/articulo/110277134/hormigon-preparado-para-radieres-sobrelosas-pilares-25-kg/110277137',
+            'https://www.sodimac.cl/sodimac-cl/articulo/110282820/fierro-liso-cuadrado-acero-10x10-5-mm-6-m/110282823',
+        ],
+        'selectors': {
+            'name': '.pdp-basic-info__product-name',
+            'price': '.copy12.primary.senary',
+            'stock': 'p.store-availability.available',
+        }
+    },
+    'easy': {
+        'product_urls': [
+            'https://www.easy.cl/cemento-especial-25-kg-polpaico-1195183/p',
+            'https://www.easy.cl/perfil-rectangulo-30x20x2-mm-6-m-816-kg-119314/p',
+        ],
+        'selectors': {
+            'name': '#__next > main > main > div:nth-child(3) > div > section > div.sc-8e800ca6-5.ia-dcNO > div > h1',
+            'price': '#__next > main > main > div:nth-child(3) > div > section > div.sc-8e800ca6-5.ia-dcNO > div > span.sc-11b00991-5.dEKQBo > div.sc-1f784e80-0.bZLqYQ > div',
+        }
+    },
+    'construmart': {
+        'product_urls': [
+            'https://www.construmart.cl/cemento-especial-saco-25-kg-san-juan-245005',
+            'https://www.construmart.cl/barra-cuadrada-laminada-10-x-10-mm-47-30872',
+        ],
+        'selectors': {
+            'name': '.product-name, h1',
+            'price': '.price-container .price, .product-price',
+        }
+    }
+}
 
-from playwright.sync_api import sync_playwright
-
-OUTPUT_LIMIT = 5
-
-def sample_texts(nodes):
-    out = []
-    for n in nodes[:OUTPUT_LIMIT]:
-        try:
-            txt = n.inner_text().strip()
-        except Exception:
-            try:
-                txt = n.get_attribute('aria-label') or n.get_attribute('title') or n.inner_html()[:500]
-            except Exception:
-                txt = ''
-        out.append(txt)
-    return out
-
-with sync_playwright() as p:
-    browser = p.chromium.launch(headless=True)
-    page = browser.new_page()
-    results = []
-    for store_key, store in STORES.items():
-        selectors = store.get('selectors', {})
-        urls = store.get('product_urls', [])
-        for url in urls[:5]:
-            item = {'store': store_key, 'url': url, 'selectors': {}}
-            try:
-                page.goto(url, wait_until='networkidle', timeout=60000)
-                time.sleep(0.5)
-            except Exception as e:
-                item['error'] = f'goto_error: {e}'
-                results.append(item)
-                continue
-            for name, sel_obj in selectors.items():
-                css = sel_obj.get('css') if isinstance(sel_obj, dict) else sel_obj
-                if not css:
-                    item['selectors'][name] = {'matches': 0, 'samples': []}
-                    continue
+async def verify_selectors():
+    """Test selectors against live URLs."""
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        
+        for store_name, store_config in STORES.items():
+            print(f"\n📍 Testing {store_name.upper()}")
+            print("=" * 60)
+            
+            for url in store_config['product_urls']:
+                page = await browser.new_page()
+                page.set_default_timeout(30000)
+                
                 try:
-                    nodes = page.query_selector_all(css)
-                    samples = sample_texts(nodes) if nodes else []
-                    item['selectors'][name] = {'matches': len(nodes), 'samples': samples}
+                    await page.goto(url, wait_until='networkidle')
+                    print(f"\n✅ Loaded: {url[:60]}...")
+                    
+                    for field, selector in store_config['selectors'].items():
+                        try:
+                            element = await page.query_selector(selector)
+                            if element:
+                                text = await element.text_content()
+                                print(f"   ✅ {field}: {text.strip()[:80]}")
+                            else:
+                                print(f"   ❌ {field}: Not found")
+                        except Exception as e:
+                            print(f"   ⚠️  {field}: {str(e)[:50]}")
+                
                 except Exception as e:
-                    item['selectors'][name] = {'error': str(e)}
-            results.append(item)
-    browser.close()
-    print(json.dumps(results, ensure_ascii=False, indent=2))
+                    print(f"❌ Failed to load {url[:40]}...: {str(e)[:60]}")
+                
+                finally:
+                    await page.close()
+        
+        await browser.close()
+
+if __name__ == '__main__':
+    asyncio.run(verify_selectors())

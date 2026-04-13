@@ -27,7 +27,7 @@ STORES = {
             'https://www.sodimac.cl/sodimac-cl/articulo/113214486/cable-libre-de-halogenos-h07z1-k-1x2-5-mm2-rojo-100-metros/113214489',
             'https://www.sodimac.cl/sodimac-cl/articulo/135520693/tubo-gris-pvc-agua-110-mmx6-m/135520694'
         ],
-        'notes': 'Si el sitio muestra modal de región/cookies, cerrar antes de ejecutar selectores.\nImportante: Sodimac también requiere seleccionar región/tienda para obtener stock y precios locales; estos valores pueden variar por sucursal.\nPaginación en algunos listados es por JS (botones sin href) — puede requerir emulación de clicks o uso de Playwright/Puppeteer para interactuar.'
+        'notes': 'INTERACCIÓN REQUERIDA: 1) Cerrar modal de región/cookies (click X). 2) Seleccionar Región Valparaíso si se solicita. 3) Stock y precio varían por sucursal seleccionada. 4) En listados, paginación usa JS (requiere Playwright para automatizar). Ver DOCUMENTACION_SELECTORES.md para paso a paso en DevTools.'
     },
     'easy': {
         'name': 'Easy',
@@ -50,7 +50,7 @@ STORES = {
             'https://www.easy.cl/cable-eva-2-5-mm-x-100-m-h07z1-k-823913/p',
             'https://www.easy.cl/tuberia-hidrahulica-20-mm-x3-m-clase-16-pvc-235195/p'
         ],
-        'notes': 'Easy requiere seleccionar ubicación/region para ver stock y precios por tienda. Usar Playwright/Puppeteer para emular esta interacción si se automatiza.'
+        'notes': 'INTERACCIÓN REQUERIDA: 1) Seleccionar ubicación/región antes de ver precios y stock. 2) Los selectores con nth-child pueden cambiar (framework CSS-in-JS). 3) Sin ubicación seleccionada, price y stock retornan vacíos. 4) Modal de ubicación aparece en startup. Ver DOCUMENTACION_SELECTORES.md para paso a paso en DevTools.'
     },
     'construmart': {
         'name': 'Construmart',
@@ -73,7 +73,7 @@ STORES = {
             'https://www.construmart.cl/cable-evaflex-h07z1-k-c5-25-mm-50-m-219322',
             'https://www.construmart.cl/tubo-ppr-pn-16-25-mm-3-m-213256'
         ],
-        'notes': 'Algunos listados cargan por JS (infinite scroll) — documentar paginación específica. Para stock/precio por tienda es necesario seleccionar la sucursal o región.'
+        'notes': 'INTERACCIÓN REQUERIDA: 1) Seleccionar tienda/sucursal para ver precios y stock locales. 2) Selectores genéricos (.product-name, h1) son más estables. 3) Algunos listados usan infinite scroll (sin botón "Siguiente"). 4) Breadcrumb dinámico con path de categorías. Ver DOCUMENTACION_SELECTORES.md para paso a paso en DevTools.'
     }
 }
 
