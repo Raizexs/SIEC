@@ -1,8 +1,3 @@
-/*
-  Verificadores de selectores CSS para Sodimac, Easy y Construmart.
-  Uso: Pega el script completo en la consola de Chrome DevTools (F12) en cada página de producto.
-*/
-
 (function testSodimac() {
     const config = {
         name: 'Sodimac',
@@ -11,27 +6,32 @@
             price: '.copy12.primary.senary', 
             price_discount: '.copy12.primary.senary.bold',
             stock: 'p.store-availability.available',
-            category: 'a.Breadcrumbs-module_selected-bread-crumb__ZPj02'
-        }
+            category: 'a.Breadcrumbs-module_selected-bread-crumb__ZPj02',        }
     };
 
     console.log(`%c Testing: ${config.name} `, 'background: #ed1c24; color: white; font-weight: bold;');
+    
+    // Mostramos la URL del producto/página actual
     console.log(`%cURL ACTUAL: %c${window.location.href}`, 'font-weight: bold', 'color: #3498db');
     console.log('-----------------------------------');
 
     Object.entries(config.selectors).forEach(([key, selector]) => {
         const el = document.querySelector(selector);
+        
         if (el) {
+            // Si es paginación y es un enlace, tratamos de mostrar el href
             let value = el.textContent.trim();
             if (key === 'pagination' && el.href) {
                 value = `Link a siguiente página -> ${el.href}`;
             }
+            
             console.log(`✅ %c${key}:`, 'font-weight: bold', value);
         } else {
             console.warn(`❌ ${key}: No encontrado (Selector: ${selector})`);
         }
     });
 })();
+
 
 (function testEasy() {
     const config = {
@@ -52,6 +52,7 @@
 
     Object.entries(config.selectors).forEach(([key, selector]) => {
         const el = document.querySelector(selector);
+        
         if (el) {
             let value = el.textContent.trim();
             if (key === 'pagination' && (el.href || el.tagName === 'BUTTON')) {
@@ -59,6 +60,7 @@
             }
             console.log(`✅ %c${key}:`, 'font-weight: bold', value);
         } else {
+            // Manejo específico para stock y paginación cuando no existen
             if (key === 'stock' || key === 'pagination') {
                 console.log(`❌ %c${key}:`, 'font-weight: bold; color: #e74c3c', 'No se encuentra en la página');
             } else {
@@ -67,6 +69,7 @@
         }
     });
 })();
+
 
 (function testConstrumart() {
     const config = {

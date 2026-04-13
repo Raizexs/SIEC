@@ -77,36 +77,113 @@ Con miras a convertir la aplicación en una solución de nivel empresarial, se p
 
 ---
 
-## 📂 Futura Estructura del Proyecto
+## 🚀 Cómo Ejecutar el Proyecto (Local)
+
+El proyecto actual se encuentra dockerizado para facilitar el despliegue de todos los servicios simultáneamente.
+
+### Prerrequisitos
+- [Docker](https://www.docker.com/) instalado y ejecutándose
+- Git
+
+### Pasos de Ejecución
+1. Clona este repositorio.
+2. Abre una terminal en la raíz del proyecto.
+3. Ejecuta el siguiente comando para levantar los servicios:
+   ```bash
+   docker-compose up --build
+   ```
+
+### 🔌 Puertos y Servicios
+Una vez levantado, los servicios estarán disponibles en los siguientes puertos locales configurables desde el archivo `docker-compose.yml`:
+- **Frontend (Vue 3 / Vite):** `http://localhost:5173`
+- **Backend (FastAPI):** `http://localhost:8000` (Swagger UI: `http://localhost:8000/docs`)
+- **Base de Datos (PostgreSQL):** Puerto `5432`
+
+---
+
+## 📂 Estructura del Proyecto Actual
 
 ```text
-SIEC/
-│
-├── 📁 frontend/                # SPA Web (Interfaz y visualización 3D)
-│   ├── src/                    # Código fuente (React/Vue/JS)
-│   ├── assets/                 # Modelos 3D, Texturas, Estilos
-│   └── public/                 # Archivos estáticos
-│
-├── 📁 backend/                 # Motor de cálculo y Reglas constructivas
-│   ├── src/
-│   │   ├── controllers/        # Endpoints
-│   │   ├── services/           # Lógica paramétrica de cálculo
-│   │   └── models/             # Entidades de Base de Datos
-│   ├── tests/                  # Pruebas unitarias
-│   └── package.json (o .csproj)
-│
-├── 📁 docs/                    # Documentación del proyecto
-│   ├── Manual_Usuario.md
-│   ├── Arquitectura.md
-│   └── Casos_de_Uso.md
-│
-├── 📁 database/                # Scripts SQL y esquemas
-│   ├── schema.sql
-│   └── metrics_seed.sql        # Precios base
-│
-├── .gitignore
-├── LICENSE
-└── README.md
+├── 📁 backend
+│   ├── 🐍 database.py
+│   ├── 🐍 main.py
+│   ├── 🐍 models.py
+│   └── 📄 requirements.txt
+├── 📁 database
+│   ├── 📁 migrations
+│   │   ├── 📄 001_create_material_estructural.sql
+│   │   └── 📄 002_create_configuracion_simulacion.sql
+│   └── 📁 seeds
+│       ├── 📄 001_seed_material_estructural.sql
+│       ├── 📄 001_verify_material_estructural.sql
+│       ├── 📄 002_seed_configuracion_simulacion.sql
+│       └── 📄 002_verify_configuracion_simulacion.sql
+├── 📁 docs
+│   └── 📝 context.md
+├── 📁 frontend
+│   ├── 📁 cypress
+│   │   ├── 📁 e2e
+│   │   │   └── 📄 stress-test-3d-renderer.cy.js
+│   │   └── 📁 support
+│   │       ├── 📄 e2e.js
+│   │       └── 📄 performance-monitor.js
+│   ├── 📁 public
+│   │   ├── 🖼️ favicon.svg
+│   │   └── 🖼️ icons.svg
+│   ├── 📁 src
+│   │   ├── 📁 assets
+│   │   │   ├── 🖼️ hero.png
+│   │   │   ├── 🖼️ vite.svg
+│   │   │   └── 🖼️ vue.svg
+│   │   ├── 📁 components
+│   │   │   ├── 📄 ConfigurationPanel.vue
+│   │   │   ├── 📄 HelloWorld.vue
+│   │   │   ├── 📄 MaterialSelector.vue
+│   │   │   ├── 📄 MaterialsPanel.vue
+│   │   │   ├── 📄 MetricsPanel.vue
+│   │   │   ├── 📄 RoomEditor2D.vue
+│   │   │   ├── 📄 SaveLayoutDialog.vue
+│   │   │   ├── 📄 Scene3D.vue
+│   │   │   ├── 📄 Sidebar.vue
+│   │   │   └── 📄 TopNavBar.vue
+│   │   ├── 📁 composables
+│   │   │   ├── 📁 __tests__
+│   │   │   │   └── 📄 useTokenCounter.spec.js
+│   │   │   ├── 📄 useI18n.js
+│   │   │   ├── 📄 useInteractiveEditor.js
+│   │   │   ├── 📄 useLayoutManager.js
+│   │   │   ├── 📄 useTokenCounter.js
+│   │   │   ├── 📄 useTopologyComputed.js
+│   │   │   └── 📄 useTopologyExtractor.js
+│   │   ├── 📁 stores
+│   │   │   └── 📄 recintos.js
+│   │   ├── 📁 utils
+│   │   │   ├── 📁 __tests__
+│   │   │   │   └── 📄 tokenMath.spec.js
+│   │   │   └── 📄 tokenMath.js
+│   │   ├── 📄 App.vue
+│   │   ├── 📄 main.js
+│   │   └── 🎨 style.css
+│   ├── ⚙️ .gitignore
+│   ├── 📝 README.md
+│   ├── 📄 cypress.config.js
+│   ├── 🌐 index.html
+│   ├── ⚙️ package-lock.json
+│   ├── ⚙️ package.json
+│   ├── 📄 postcss.config.js
+│   ├── 📄 tailwind.config.js
+│   └── 📄 vite.config.js
+├── 📁 poc
+│   ├── 📁 __tests__
+│   │   └── 📄 poc-logic.test.js
+│   ├── 🌐 house-generator-poc.html
+│   ├── ⚙️ package-lock.json
+│   ├── ⚙️ package.json
+│   └── 📄 poc-logic.js
+├── ⚙️ .gitignore
+├── 📝 README.md
+├── ⚙️ docker-compose.yml
+└── ⚙️ package.json
 ```
 
 ---
@@ -147,39 +224,45 @@ SIEC/
 
 <table>
 <tr>
-<td align="center" width="25%">
-<img src="https://avatars.githubusercontent.com/u/128178198?v=4" width="100" height="100" style="border-radius:50%" alt="Lukas Flores" /><br>
-<b>Lukas Flores</b><br>
-<sub>Product Owner</sub><br>
-<a href="mailto:l.floreszuiga@uandresbello.edu">📧 Email</a>
-</td>
-<td align="center" width="25%">
-<img src="https://avatars.githubusercontent.com/u/190417123?v=4" width="100" height="100" style="border-radius:50%" alt="Gonzalo Jara" /><br>
-<b>Gonzalo Jara</b><br>
-<sub>Scrum Master</sub><br>
-<a href="mailto:g.jaravrsalovic@uandresbello.edu">📧 Email</a>
-</td>
-<td align="center" width="25%">
+
+<td align="center" width="20%">
 <img src="https://avatars.githubusercontent.com/u/105559567?v=4" width="100" height="100" style="border-radius:50%" alt="Andres Tapia" /><br>
 <b>Andres Tapia</b><br>
-<sub>Dev Líder</sub><br>
+<sub>Product Manager</sub><br>
 <a href="mailto:a.tapialpez@uandresbello.edu">📧 Email</a>
 </td>
-<td align="center" width="25%">
+
+<td align="center" width="20%">
+<img src="https://avatars.githubusercontent.com/u/128178198?v=4" width="100" height="100" style="border-radius:50%" alt="Lukas Flores" /><br>
+<b>Lukas Flores</b><br>
+<sub>Líder Técnico</sub><br>
+<a href="mailto:l.floreszuiga@uandresbello.edu">📧 Email</a>
+</td>
+
+<td align="center" width="20%">
+<img src="https://avatars.githubusercontent.com/u/190417123?v=4" width="100" height="100" style="border-radius:50%" alt="Gonzalo Jara" /><br>
+<b>Gonzalo Jara</b><br>
+<sub>Developer</sub><br>
+<a href="mailto:g.jaravrsalovic@uandresbello.edu">📧 Email</a>
+</td>
+
+<td align="center" width="20%">
 <img src="https://avatars.githubusercontent.com/u/128172645?v=4" width="100" height="100" style="border-radius:50%" alt="Felipe Figueroa" /><br>
 <b>Felipe Figueroa</b><br>
 <sub>Developer</sub><br>
 <a href="mailto:f.figueroadaz2@uandresbello.edu">📧 Email</a>
 </td>
-</tr>
-<tr>
-<td align="center" width="25%">
+
+<td align="center" width="20%">
 <img src="https://avatars.githubusercontent.com/u/185566076?v=4" width="100" height="100" style="border-radius:50%" alt="Fernando Salazar" /><br>
 <b>Fernando Salazar</b><br>
 <sub>Developer</sub><br>
 <a href="mailto:f.salazarcartes@uandresbello.edu">📧 Email</a>
 </td>
-<td colspan="3" align="center">
+</tr>
+
+<tr>
+<td colspan="5" align="center">
 <br>
 <b>Compromiso del equipo:</b> 6-8 hrs/semana por integrante<br>
 <b>Ceremonias:</b> Planning, Dailies, Review, Retro, Refinement<br>
@@ -190,14 +273,11 @@ SIEC/
 
 ### Roles y Responsabilidades
 
-| Rol                     | Responsabilidades                                                        |
-| ----------------------- | ------------------------------------------------------------------------ |
-| **Product Owner** | Definir prioridades, validar criterios de aceptación, gestionar backlog |
-| **Scrum Master**  | Facilitar ceremonias, remover impedimentos, velar por proceso Scrum      |
-| **Dev Líder**    | Arquitectura técnica, revisión de código, integración E2E            |
-| **Developers**    | Implementar HUs, pruebas unitarias, documentación técnica              |
-
----
+| Rol | Responsabilidades |
+|------|-------------------|
+| **Product Manager** | Definir visión y prioridades del producto, validar requerimientos, gestionar backlog y coordinar objetivos del equipo |
+| **Líder Técnico** | Definir arquitectura técnica, apoyar decisiones de implementación, revisar código y supervisar integración técnica |
+| **Developers** | Implementar historias de usuario, realizar pruebas, apoyar documentación técnica y colaborar en la entrega incremental del producto |
 
 ## 🙏 Agradecimientos
 
