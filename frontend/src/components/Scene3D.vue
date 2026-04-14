@@ -104,7 +104,7 @@ const syncWalls = (walls) => {
     if (!mesh) {
       const geometry = new THREE.BoxGeometry(1, WALL_HEIGHT, wall.thickness);
       const material = new THREE.MeshStandardMaterial({
-        color: wall.tipo === "interior" ? "#f59e0b" : "#60a5fa",
+        color: "#60a5fa",
         roughness: 0.55,
         metalness: 0.1,
       });

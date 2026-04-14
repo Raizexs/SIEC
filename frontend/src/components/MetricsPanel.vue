@@ -174,7 +174,7 @@ const materials = computed(() => [
         </div>
       </div>
 
-      <!-- Token Status Card -->
+      <!-- Espacio Disponible Card -->
       <div
         class="bg-white rounded-xl border border-outline-variant/20 shadow-sm p-6"
       >
@@ -185,6 +185,7 @@ const materials = computed(() => [
             {{ t('tokenBudget') }}
           </h4>
           <span
+            v-if="descripcionEstado.message !== 'Espacio OK' && descripcionEstado.message !== 'Space OK'"
             class="text-[10px] font-bold px-2 py-1 rounded uppercase"
             :style="{
               backgroundColor: descripcionEstado.color + '20',
@@ -200,16 +201,17 @@ const materials = computed(() => [
               >{{ t('available') }}</span
             >
             <div
-              class="text-3xl font-headline font-black"
+              class="text-3xl font-headline font-black flex items-end gap-1"
               :style="{ color: descripcionEstado.color }"
             >
-              {{ tokensDisponibles }}
+              <span>{{ tokensDisponibles * 10 }}</span>
+              <span class="text-base font-semibold mb-1 opacity-70">m²</span>
             </div>
           </div>
           <div class="text-right">
             <span class="text-xs text-slate-500 uppercase font-bold">{{ t('used') }}</span>
             <div class="text-2xl font-headline font-bold text-slate-600">
-              {{ tokensUsados }}
+              {{ tokensUsados * 10 }} <span class="text-sm font-medium">m²</span>
             </div>
           </div>
           <div class="text-right">
@@ -217,7 +219,7 @@ const materials = computed(() => [
               >{{ t('total') }}</span
             >
             <div class="text-2xl font-headline font-bold text-slate-600">
-              {{ tokensTotales }}
+              {{ tokensTotales * 10 }} <span class="text-sm font-medium">m²</span>
             </div>
           </div>
         </div>
@@ -282,50 +284,6 @@ const materials = computed(() => [
         </div>
       </div>
 
-      <!-- Final CTA -->
-      <button
-        class="group w-full bg-gradient-to-br from-primary to-primary-container text-white p-6 rounded-2xl shadow-lg flex items-center justify-between overflow-hidden relative transition-all active:scale-[0.98]"
-      >
-        <div class="relative z-10 flex items-center gap-4">
-          <div
-            class="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center group-hover:scale-110 transition-transform"
-          >
-            <span class="material-symbols-outlined">calculate</span>
-          </div>
-          <div class="text-left">
-            <span class="block text-sm font-bold"
-              >{{ t('generateFinal') }}</span
-            >
-            <span class="text-[10px] opacity-70 uppercase font-medium"
-              >{{ t('lockedFor24h') }}</span
-            >
-          </div>
-        </div>
-        <span
-          class="material-symbols-outlined group-hover:translate-x-2 transition-transform"
-          >arrow_forward</span
-        >
-        <div
-          class="absolute top-0 left-0 w-full h-full bg-white/5 translate-x-full group-hover:translate-x-0 transition-transform skew-x-12 origin-left"
-        ></div>
-      </button>
-
-      <!-- Glassmorphism Calculation Insight -->
-      <div
-        class="glass-panel p-6 rounded-2xl border border-white/40 shadow-xl flex items-start gap-4"
-      >
-        <div class="bg-secondary-container p-2 rounded-lg">
-          <span class="material-symbols-outlined text-on-secondary-container"
-            >lightbulb</span
-          >
-        </div>
-        <div>
-          <p class="text-sm font-semibold text-primary">{{ t('optimizerInsight') }}</p>
-          <p class="text-xs text-slate-600 mt-1 leading-relaxed">
-            {{ t('optimizationNote', { material: getMaterialName(formData.materialEstructuralId) }) }}
-          </p>
-        </div>
-      </div>
     </div>
   </section>
 </template>
