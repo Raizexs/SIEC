@@ -234,15 +234,6 @@ const handleSaveLayout = (name) => {
 
       <footer class="p-10 pt-0 text-slate-400 text-[10px] font-bold uppercase tracking-widest flex justify-between items-center">
         <div>{{ t('footer') }}</div>
-        <div class="flex gap-6">
-          <div class="flex items-center gap-2 mr-4 text-emerald-500/70">
-            <span class="material-symbols-outlined text-[14px]">cloud_done</span>
-            <span>{{ t('draftsSynced') }}</span>
-          </div>
-          <a class="hover:text-primary transition-colors" href="#">{{ t('privacyPolicy') }}</a>
-          <a class="hover:text-primary transition-colors" href="#">{{ t('termsOfService') }}</a>
-          <a class="hover:text-primary transition-colors" href="#">{{ t('supportPortal') }}</a>
-        </div>
       </footer>
     </main>
 
