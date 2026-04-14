@@ -173,3 +173,26 @@ SELECT 'INSUMO VERIFICATION', 'Mano de Obra' as categoria, COUNT(*) as cantidad 
 UNION ALL
 SELECT 'INSUMO VERIFICATION', 'TOTAL' as categoria, COUNT(*) as cantidad FROM "Insumo";
 
+-- ========== MIGRACIÓN 005: precio_mercado ==========
+-- Tabla destino del microservicio scraper (SCRUM-55)
+
+CREATE TABLE IF NOT EXISTS "precio_mercado" (
+  "ID"               SERIAL PRIMARY KEY,
+  "Insumo_ID"        INTEGER REFERENCES "Insumo"("ID") ON DELETE SET NULL,
+  "Tienda"           TEXT NOT NULL CHECK ("Tienda" IN ('sodimac', 'easy', 'construmart')),
+  "Nombre_Producto"  TEXT NOT NULL,
+  "Precio"           NUMERIC(12, 2),
+  "Precio_Descuento" NUMERIC(12, 2),
+  "Stock"            TEXT,
+  "Categoria"        TEXT,
+  "URL"              TEXT NOT NULL,
+  "Fecha_Scraping"   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "Exitoso"          BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+CREATE INDEX IF NOT EXISTS idx_pm_tienda       ON "precio_mercado"("Tienda");
+CREATE INDEX IF NOT EXISTS idx_pm_insumo       ON "precio_mercado"("Insumo_ID");
+CREATE INDEX IF NOT EXISTS idx_pm_fecha        ON "precio_mercado"("Fecha_Scraping" DESC);
+CREATE INDEX IF NOT EXISTS idx_pm_tienda_fecha ON "precio_mercado"("Tienda", "Fecha_Scraping" DESC);
+
+

@@ -51,5 +51,21 @@ services:
     depends_on:
       - backend
 
+  scraper:
+    build:
+      context: ./scraper
+      dockerfile: Dockerfile
+    container_name: siec_scraper
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/siec
+      - TZ=America/Santiago
+      # Cambia a "true" para ejecutar el scraping de inmediato (testing/demo)
+      # En PowerShell: $env:RUN_NOW="true"; docker compose up scraper --force-recreate
+      - RUN_NOW=${RUN_NOW:-false}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   postgres_data:
