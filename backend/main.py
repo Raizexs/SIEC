@@ -53,6 +53,29 @@ class SimulacionCreate(BaseModel):
     banios: int
     areasComunes: int
 
+class RendimientoConstructivoResponse(BaseModel):
+    id: int
+    material_estructural_id: int
+    factor_rendimiento: float
+    insumo_base: str
+    unidad: str
+    descripcion: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class EstimacionResponse(BaseModel):
+    m2_ingresados: int
+    material_estructural_id: int
+    factor_rendimiento: float
+    insumo_base: str
+    cantidad_insumos: float
+    unidad: str
+    descripcion: str
+
+    class Config:
+        from_attributes = True
+
 @app.get("/")
 def read_root():
     return {"message": "SIEC API is running", "stack": "FastAPI + PostgreSQL"}
@@ -67,9 +90,30 @@ def get_tipos_recinto(db: Session = Depends(get_db)):
     """Retorna los tipos de recinto y su costo en tokens (Catálogo para motor de estimación)."""
     return db.query(models.TipoRecinto).all()
 
+@app.get("/api/rendimientos", response_model=List[RendimientoConstructivoResponse])
+def get_rendimientos(db: Session = Depends(get_db)):
+    """Retorna la matriz de rendimientos constructivos con los factores dinámicos para cada material."""
+    return db.query(models.RendimientoConstructivo).all()
+
+@app.get("/api/rendimientos/{material_id}", response_model=RendimientoConstructivoResponse)
+def get_rendimiento_por_material(material_id: int, db: Session = Depends(get_db)):
+    """Retorna el factor de rendimiento para un material específico."""
+    rendimiento = db.query(models.RendimientoConstructivo).filter(
+        models.RendimientoConstructivo.material_estructural_id == material_id
+    ).first()
+    
+    if not rendimiento:
+        raise HTTPException(status_code=404, detail=f"No se encontró rendimiento para el material ID {material_id}.")
+    
+    return rendimiento
+
 @app.post("/api/simulacion/parametros", status_code=status.HTTP_201_CREATED)
 def crear_simulacion(sim: SimulacionCreate, db: Session = Depends(get_db)):
-    """Guarda los parámetros de configuración de la vivienda y crea una nueva simulación."""
+    """Guarda los parámetros de configuración de la vivienda y crea una nueva simulación.
+    
+    También calcula la estimación de insumos usando el factor de rendimiento dinámico
+    consultado de la base de datos.
+    """
     
     # Validaciones obligatorias
     if sim.m2Totales < 15 or sim.m2Totales > 200:
@@ -80,8 +124,22 @@ def crear_simulacion(sim: SimulacionCreate, db: Session = Depends(get_db)):
         
     if sim.materialEstructuralId not in [1, 2, 3, 4]:
         raise HTTPException(status_code=400, detail="Material estructural ID no válido.")
-        
-    # Crear modelo
+    
+    # Consultar el factor de rendimiento desde la BD
+    rendimiento = db.query(models.RendimientoConstructivo).filter(
+        models.RendimientoConstructivo.material_estructural_id == sim.materialEstructuralId
+    ).first()
+    
+    if not rendimiento:
+        raise HTTPException(
+            status_code=404, 
+            detail=f"No se encontró factor de rendimiento para el material ID {sim.materialEstructuralId}."
+        )
+    
+    # Calcular cantidad de insumos = m² * factor de rendimiento
+    cantidad_insumos = float(sim.m2Totales) * float(rendimiento.factor_rendimiento)
+    
+    # Crear modelo de simulación
     db_simulacion = models.ConfiguracionSimulacion(
         m2_totales=sim.m2Totales,
         material_estructural_id=sim.materialEstructuralId,
@@ -97,8 +155,21 @@ def crear_simulacion(sim: SimulacionCreate, db: Session = Depends(get_db)):
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=400, detail="Error al guardar en la base de datos.")
-        
-    return {"idSimulacion": db_simulacion.id, "message": "Simulación guardada correctamente"}
+    
+    # Retornar respuesta con estimación de insumos
+    return {
+        "idSimulacion": db_simulacion.id,
+        "message": "Simulación guardada correctamente",
+        "estimacion_insumos": {
+            "m2_ingresados": sim.m2Totales,
+            "material_estructural_id": sim.materialEstructuralId,
+            "factor_rendimiento": float(rendimiento.factor_rendimiento),
+            "insumo_base": rendimiento.insumo_base,
+            "cantidad_insumos": round(cantidad_insumos, 4),
+            "unidad": rendimiento.unidad,
+            "descripcion": rendimiento.descripcion
+        }
+    }
 
 def normalize_string(s: str) -> str:
     """Remueve acentos y pasa a minúsculas para comparaciones robustas."""
