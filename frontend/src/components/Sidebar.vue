@@ -76,41 +76,7 @@ const toggleLanguage = () => {
 
     <!-- Navigation -->
     <nav class="flex-1 space-y-1 overflow-y-auto">
-      <a class="flex items-center gap-3 px-3 py-2.5 transition-transform duration-200 hover:translate-x-1 text-slate-600 dark:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-[#21262d] rounded-md font-manrope text-sm font-medium" href="#">
-        <span class="material-symbols-outlined shrink-0">dashboard</span>
-        <span class="truncate">{{ t('dashboard') }}</span>
-      </a>
-      <a class="flex items-center gap-3 px-3 py-2.5 transition-transform duration-200 hover:translate-x-1 bg-white dark:bg-[#21262d] text-primary-container dark:text-white font-bold shadow-sm rounded-md font-manrope text-sm" href="#">
-        <span class="material-symbols-outlined shrink-0">architecture</span>
-        <span class="truncate">{{ t('projects') }}</span>
-      </a>
-      <a class="flex items-center gap-3 px-3 py-2.5 transition-transform duration-200 hover:translate-x-1 text-slate-600 dark:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-[#21262d] rounded-md font-manrope text-sm font-medium" href="#">
-        <span class="material-symbols-outlined shrink-0">analytics</span>
-        <span class="truncate">{{ t('metrics') }}</span>
-      </a>
-      <a class="flex items-center gap-3 px-3 py-2.5 transition-transform duration-200 hover:translate-x-1 text-slate-600 dark:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-[#21262d] rounded-md font-manrope text-sm font-medium" href="#">
-        <span class="material-symbols-outlined shrink-0">settings</span>
-        <span class="truncate">{{ t('settings') }}</span>
-      </a>
 
-      <!-- Recent Presets -->
-      <div class="pt-6 pb-2">
-        <h4 class="text-[10px] font-extrabold text-slate-400 dark:text-slate-400 uppercase tracking-widest px-3 mb-3">{{ t('recentPresets') }}</h4>
-        <div class="space-y-1">
-          <button
-            v-for="preset in presets"
-            :key="preset.id"
-            @click="loadPreset(preset)"
-            class="w-full text-left flex items-center justify-between px-3 py-2 rounded-md hover:bg-white/50 dark:hover:bg-[#21262d] transition-colors group"
-          >
-            <div class="overflow-hidden">
-              <span class="block text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{{ preset.name }}</span>
-              <span class="block text-[10px] text-slate-500 dark:text-slate-400 italic truncate">{{ preset.description }}</span>
-            </div>
-            <span class="material-symbols-outlined text-slate-400 text-xs opacity-0 group-hover:opacity-100 shrink-0">refresh</span>
-          </button>
-        </div>
-      </div>
 
       <!-- Saved Layouts -->
       <div v-if="savedLayouts.length > 0" class="pt-4 pb-2">
