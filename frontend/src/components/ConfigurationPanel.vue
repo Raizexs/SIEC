@@ -37,19 +37,19 @@ const handleSubmit = () => {
 
 // Límites máximos
 const maxHabitacionesSimples = computed(() => 
-  props.formData.habitacionesSimples + Math.floor(props.tokensDisponibles / props.costs.habitacionSimple)
+  Math.max(props.formData.habitacionesSimples, props.formData.habitacionesSimples + Math.floor(props.tokensDisponibles / props.costs.habitacionSimple))
 )
 const maxHabitacionesDobles = computed(() => 
-  props.formData.habitacionesDobles + Math.floor(props.tokensDisponibles / props.costs.habitacionDoble)
+  Math.max(props.formData.habitacionesDobles, props.formData.habitacionesDobles + Math.floor(props.tokensDisponibles / props.costs.habitacionDoble))
 )
 const maxHabitacionesTriples = computed(() => 
-  props.formData.habitacionesTriples + Math.floor(props.tokensDisponibles / props.costs.habitacionTriple)
+  Math.max(props.formData.habitacionesTriples, props.formData.habitacionesTriples + Math.floor(props.tokensDisponibles / props.costs.habitacionTriple))
 )
 const maxBanios = computed(() => 
-  props.formData.banios + Math.floor(props.tokensDisponibles / props.costs.banio)
+  Math.max(props.formData.banios, props.formData.banios + Math.floor(props.tokensDisponibles / props.costs.banio))
 )
 const maxAreasComunes = computed(() => 
-  props.formData.areasComunes + Math.floor(props.tokensDisponibles / props.costs.area_comun)
+  Math.max(props.formData.areasComunes, props.formData.areasComunes + Math.floor(props.tokensDisponibles / props.costs.area_comun))
 )
 
 const increment = (field, max) => {

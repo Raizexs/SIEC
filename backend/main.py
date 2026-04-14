@@ -29,11 +29,24 @@ def startup_event():
             ]
             db.add_all(tipos_iniciales)
             db.commit()
+        
+        # Verificar si ya existen materiales estructurales
+        if db.query(models.MaterialEstructural).count() == 0:
+            print("Poblando Base de Datos con Materiales Estructurales...")
+            materiales_iniciales = [
+                models.MaterialEstructural(nombre="Madera"),
+                models.MaterialEstructural(nombre="Metalcom"),
+                models.MaterialEstructural(nombre="Albañilería"),
+                models.MaterialEstructural(nombre="Hormigón Armado"),
+            ]
+            db.add_all(materiales_iniciales)
+            db.commit()
     finally:
         db.close()
 
-# Materiales permitidos según requerimientos
-ALLOWED_MATERIALS = ["Madera", "Metalcom", "Albañilería", "Hormigón Armado"]
+def get_allowed_materials(db: Session) -> List[str]:
+    """Consulta la tabla material_estructural para obtener materiales permitidos."""
+    return [m.nombre for m in db.query(models.MaterialEstructural).all()]
 
 class ProjectConfig(BaseModel):
     material_estructural: str
@@ -81,9 +94,10 @@ def read_root():
     return {"message": "SIEC API is running", "stack": "FastAPI + PostgreSQL"}
 
 @app.get("/materials")
-def get_materials():
-    """Retorna la lista oficial de materiales estructurales."""
-    return {"materials": ALLOWED_MATERIALS}
+def get_materials(db: Session = Depends(get_db)):
+    """Retorna la lista oficial de materiales estructurales desde la base de datos."""
+    materials = get_allowed_materials(db)
+    return {"materials": materials}
 
 @app.get("/api/tipos-recinto", response_model=List[TipoRecintoResponse])
 def get_tipos_recinto(db: Session = Depends(get_db)):
@@ -121,8 +135,13 @@ def crear_simulacion(sim: SimulacionCreate, db: Session = Depends(get_db)):
     
     if sim.habitaciones < 0 or sim.banios < 0 or sim.areasComunes < 0:
         raise HTTPException(status_code=400, detail="La cantidad de recintos no puede ser negativa.")
-        
-    if sim.materialEstructuralId not in [1, 2, 3, 4]:
+    
+    # Validar que el material existe en la tabla
+    material = db.query(models.MaterialEstructural).filter(
+        models.MaterialEstructural.id == sim.materialEstructuralId
+    ).first()
+    
+    if not material:
         raise HTTPException(status_code=400, detail="Material estructural ID no válido.")
     
     # Consultar el factor de rendimiento desde la BD

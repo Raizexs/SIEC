@@ -25,7 +25,7 @@ echo ""
 
 # 1. Crear tabla Material_Estructural
 echo "📌 Ejecutando: 001_create_material_estructural.sql..."
-psql -h localhost -U "$DB_USER" -d "$DB_NAME" << 'EOF'
+psql -U "$DB_USER" -d "$DB_NAME" << 'EOF'
 -- Crear tabla Material_Estructural
 CREATE TABLE IF NOT EXISTS Material_Estructural (
     ID SERIAL PRIMARY KEY,
@@ -46,7 +46,7 @@ EOF
 
 # 2. Crear tabla Configuracion_Simulacion
 echo "📌 Ejecutando: 002_create_configuracion_simulacion.sql..."
-psql -h localhost -U "$DB_USER" -d "$DB_NAME" << 'EOF'
+psql -U "$DB_USER" -d "$DB_NAME" << 'EOF'
 -- Crear tabla Configuracion_Simulacion
 CREATE TABLE IF NOT EXISTS Configuracion_Simulacion (
     ID SERIAL PRIMARY KEY,
@@ -71,7 +71,7 @@ EOF
 
 # 3. Crear tabla Rendimiento_Constructivo (HU10)
 echo "📌 Ejecutando: 003_create_rendimiento_constructivo.sql..."
-psql -h localhost -U "$DB_USER" -d "$DB_NAME" << 'EOF'
+psql -U "$DB_USER" -d "$DB_NAME" << 'EOF'
 -- Crear tabla Rendimiento_Constructivo (HU10)
 CREATE TABLE IF NOT EXISTS Rendimiento_Constructivo (
     ID SERIAL PRIMARY KEY,
@@ -91,9 +91,49 @@ CREATE INDEX IF NOT EXISTS idx_material_hu10 ON Rendimiento_Constructivo(Materia
 \echo '✅ Tabla Rendimiento_Constructivo creada'
 EOF
 
-# 4. Insertar datos en Material_Estructural
+# 4. Crear tablas de Motor de Costos (SCRUM-59)
+echo "📌 Ejecutando: 003_create_motor_costos.sql (SCRUM-59)..."
+psql -U "$DB_USER" -d "$DB_NAME" << 'EOF'
+-- Tabla: insumo
+CREATE TABLE IF NOT EXISTS insumo (
+  id SERIAL PRIMARY KEY,
+  nombre VARCHAR(100) UNIQUE NOT NULL,
+  categoria VARCHAR(50) NOT NULL CHECK (categoria IN ('Obra Gruesa', 'Terminaciones', 'Instalaciones', 'Mano de Obra')),
+  unidad_medida VARCHAR(30) NOT NULL
+);
+
+-- Tabla: matriz_rendimiento
+CREATE TABLE IF NOT EXISTS matriz_rendimiento (
+  id SERIAL PRIMARY KEY,
+  material_id INT NOT NULL REFERENCES material_estructural(id),
+  insumo_id INT NOT NULL REFERENCES insumo(id),
+  factor_multiplicador NUMERIC(10,4) NOT NULL CHECK (factor_multiplicador > 0),
+  UNIQUE(material_id, insumo_id)
+);
+
+-- Tabla: precio_mercado
+CREATE TABLE IF NOT EXISTS precio_mercado (
+  id SERIAL PRIMARY KEY,
+  insumo_id INT NOT NULL REFERENCES insumo(id),
+  precio_clp INT NOT NULL CHECK (precio_clp > 0),
+  tienda_origen VARCHAR(50) NOT NULL CHECK (tienda_origen IN ('Sodimac', 'Easy', 'Construmart')),
+  fecha_scraping TIMESTAMP NOT NULL DEFAULT NOW(),
+  region VARCHAR(50) NOT NULL DEFAULT 'Valparaíso'
+);
+
+-- Índices para optimización
+CREATE INDEX IF NOT EXISTS idx_matriz_material_id ON matriz_rendimiento(material_id);
+CREATE INDEX IF NOT EXISTS idx_matriz_insumo_id ON matriz_rendimiento(insumo_id);
+CREATE INDEX IF NOT EXISTS idx_precio_insumo_id ON precio_mercado(insumo_id);
+CREATE INDEX IF NOT EXISTS idx_precio_tienda_origen ON precio_mercado(tienda_origen);
+CREATE INDEX IF NOT EXISTS idx_precio_fecha_scraping ON precio_mercado(fecha_scraping DESC);
+
+\echo '✅ Tablas de Motor de Costos (SCRUM-59) creadas'
+EOF
+
+# 5. Insertar datos en Material_Estructural
 echo "📌 Ejecutando: 001_seed_material_estructural.sql..."
-psql -h localhost -U "$DB_USER" -d "$DB_NAME" << 'EOF'
+psql -U "$DB_USER" -d "$DB_NAME" << 'EOF'
 INSERT INTO Material_Estructural (ID, Nombre, Descripcion) VALUES
 (1, 'Madera', 'Estructura de madera tradicional para viviendas'),
 (2, 'Metalcom', 'Estructura de metal liviano para construcción rápida'),
@@ -106,9 +146,9 @@ SELECT setval('material_estructural_id_seq', (SELECT COALESCE(MAX(id), 0) + 1 FR
 \echo '✅ Datos de Material_Estructural insertados'
 EOF
 
-# 5. Insertar datos de ejemplo en Configuracion_Simulacion
+# 6. Insertar datos de ejemplo en Configuracion_Simulacion
 echo "📌 Ejecutando: 002_seed_configuracion_simulacion.sql..."
-psql -h localhost -U "$DB_USER" -d "$DB_NAME" << 'EOF'
+psql -U "$DB_USER" -d "$DB_NAME" << 'EOF'
 INSERT INTO Configuracion_Simulacion (Material_Estructural_ID, M2_Totales, Habitaciones, Banios, Areas_Comunes) VALUES
 (1, 100.00, 3, 2, 1),
 (2, 85.50, 2, 1, 1),
@@ -119,9 +159,9 @@ ON CONFLICT DO NOTHING;
 \echo '✅ Datos de Configuracion_Simulacion insertados'
 EOF
 
-# 6. Insertar factores de rendimiento (HU10)
+# 7. Insertar factores de rendimiento (HU10)
 echo "📌 Ejecutando: 003_seed_rendimiento_constructivo.sql..."
-psql -h localhost -U "$DB_USER" -d "$DB_NAME" << 'EOF'
+psql -U "$DB_USER" -d "$DB_NAME" << 'EOF'
 INSERT INTO Rendimiento_Constructivo (ID, Material_Estructural_ID, Factor_Rendimiento, Insumo_Base, Unidad, Descripcion) VALUES
 (1, 1, 0.5, 'Sacos de Cemento', 'sacos', 'Madera - Bajo consumo de insumos, construcción tradicional'),
 (2, 2, 0.7, 'Sacos de Cemento', 'sacos', 'Metalcom - Consumo moderado, construcción ligera'),
@@ -143,9 +183,11 @@ echo "📊 Datos disponibles:"
 echo "   - 4 Materiales Estructurales"
 echo "   - 4 Configuraciones de Simulación"
 echo "   - 4 Factores de Rendimiento (HU10)"
+echo "   - Tablas de Motor de Costos (SCRUM-59): insumo, matriz_rendimiento, precio_mercado"
 echo ""
 echo "🚀 FastAPI está listo en: http://localhost:8000"
 echo "   API Docs: http://localhost:8000/docs"
 echo ""
 echo "🌐 Frontend está listo en: http://localhost:5173"
 echo "=========================================="
+
