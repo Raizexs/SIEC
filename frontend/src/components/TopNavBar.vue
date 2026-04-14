@@ -24,9 +24,9 @@ const handleTabClick = (tabName) => {
 </script>
 
 <template>
-  <header class="sticky top-0 left-0 w-full flex justify-between items-center px-10 h-16 bg-white/80 backdrop-blur-md z-30 border-b border-slate-200/50">
+  <header class="sticky top-0 left-0 w-full flex justify-between items-center px-10 h-16 bg-white/80 dark:bg-[#0d1117]/90 backdrop-blur-md z-30 border-b border-slate-200/50 dark:border-[#30363d]">
     <div class="flex items-center gap-8">
-      <h2 class="text-xl font-black text-primary-container uppercase tracking-wider font-headline">{{ t('estimationConfigurator') }}</h2>
+      <h2 class="text-xl font-black text-primary-container dark:text-slate-200 uppercase tracking-wider font-headline">{{ t('estimationConfigurator') }}</h2>
       <div class="hidden md:flex items-center space-x-6 text-sm font-manrope font-semibold tracking-tight">
         <button 
           v-for="tab in tabs" 
