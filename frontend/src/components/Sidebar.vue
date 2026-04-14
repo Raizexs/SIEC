@@ -58,7 +58,7 @@ const toggleLanguage = () => {
 
   <!-- Sidebar -->
   <aside
-    class="h-screen fixed left-0 top-0 bg-surface-container-low dark:bg-slate-950 flex flex-col z-40 overflow-hidden transition-all duration-300 ease-in-out border-r border-slate-200/50 dark:border-slate-800"
+    class="h-screen fixed left-0 top-0 bg-surface-container-low dark:bg-[#0d1117] flex flex-col z-40 overflow-hidden transition-all duration-300 ease-in-out border-r border-slate-200/50 dark:border-[#21262d]"
     :class="collapsed ? 'w-0 opacity-0 pointer-events-none' : 'w-64 opacity-100 p-4 space-y-2'"
   >
     <!-- Logo -->
@@ -68,44 +68,44 @@ const toggleLanguage = () => {
           <span class="material-symbols-outlined text-white text-sm">architecture</span>
         </div>
         <div class="overflow-hidden">
-          <h1 class="text-lg font-bold text-primary-container font-headline tracking-tight truncate">{{ t('siec') }}</h1>
-          <p class="text-[10px] text-slate-500 font-medium uppercase tracking-[0.1em] truncate">{{ t('constructionIntelligence') }}</p>
+          <h1 class="text-lg font-bold text-primary-container dark:text-white font-headline tracking-tight truncate">{{ t('siec') }}</h1>
+          <p class="text-[10px] text-slate-500 dark:text-slate-300 font-medium uppercase tracking-[0.1em] truncate">{{ t('constructionIntelligence') }}</p>
         </div>
       </div>
     </div>
 
     <!-- Navigation -->
     <nav class="flex-1 space-y-1 overflow-y-auto">
-      <a class="flex items-center gap-3 px-3 py-2.5 transition-transform duration-200 hover:translate-x-1 text-slate-600 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 rounded-md font-manrope text-sm font-medium" href="#">
+      <a class="flex items-center gap-3 px-3 py-2.5 transition-transform duration-200 hover:translate-x-1 text-slate-600 dark:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-[#21262d] rounded-md font-manrope text-sm font-medium" href="#">
         <span class="material-symbols-outlined shrink-0">dashboard</span>
         <span class="truncate">{{ t('dashboard') }}</span>
       </a>
-      <a class="flex items-center gap-3 px-3 py-2.5 transition-transform duration-200 hover:translate-x-1 bg-white dark:bg-slate-800 text-primary-container font-bold shadow-sm rounded-md font-manrope text-sm" href="#">
+      <a class="flex items-center gap-3 px-3 py-2.5 transition-transform duration-200 hover:translate-x-1 bg-white dark:bg-[#21262d] text-primary-container dark:text-white font-bold shadow-sm rounded-md font-manrope text-sm" href="#">
         <span class="material-symbols-outlined shrink-0">architecture</span>
         <span class="truncate">{{ t('projects') }}</span>
       </a>
-      <a class="flex items-center gap-3 px-3 py-2.5 transition-transform duration-200 hover:translate-x-1 text-slate-600 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 rounded-md font-manrope text-sm font-medium" href="#">
+      <a class="flex items-center gap-3 px-3 py-2.5 transition-transform duration-200 hover:translate-x-1 text-slate-600 dark:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-[#21262d] rounded-md font-manrope text-sm font-medium" href="#">
         <span class="material-symbols-outlined shrink-0">analytics</span>
         <span class="truncate">{{ t('metrics') }}</span>
       </a>
-      <a class="flex items-center gap-3 px-3 py-2.5 transition-transform duration-200 hover:translate-x-1 text-slate-600 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 rounded-md font-manrope text-sm font-medium" href="#">
+      <a class="flex items-center gap-3 px-3 py-2.5 transition-transform duration-200 hover:translate-x-1 text-slate-600 dark:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-[#21262d] rounded-md font-manrope text-sm font-medium" href="#">
         <span class="material-symbols-outlined shrink-0">settings</span>
         <span class="truncate">{{ t('settings') }}</span>
       </a>
 
       <!-- Recent Presets -->
       <div class="pt-6 pb-2">
-        <h4 class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest px-3 mb-3">{{ t('recentPresets') }}</h4>
+        <h4 class="text-[10px] font-extrabold text-slate-400 dark:text-slate-400 uppercase tracking-widest px-3 mb-3">{{ t('recentPresets') }}</h4>
         <div class="space-y-1">
           <button
             v-for="preset in presets"
             :key="preset.id"
             @click="loadPreset(preset)"
-            class="w-full text-left flex items-center justify-between px-3 py-2 rounded-md hover:bg-white/50 dark:hover:bg-slate-800 transition-colors group"
+            class="w-full text-left flex items-center justify-between px-3 py-2 rounded-md hover:bg-white/50 dark:hover:bg-[#21262d] transition-colors group"
           >
             <div class="overflow-hidden">
-              <span class="block text-xs font-bold text-slate-700 dark:text-slate-300 truncate">{{ preset.name }}</span>
-              <span class="block text-[10px] text-slate-500 italic truncate">{{ preset.description }}</span>
+              <span class="block text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{{ preset.name }}</span>
+              <span class="block text-[10px] text-slate-500 dark:text-slate-400 italic truncate">{{ preset.description }}</span>
             </div>
             <span class="material-symbols-outlined text-slate-400 text-xs opacity-0 group-hover:opacity-100 shrink-0">refresh</span>
           </button>
@@ -123,8 +123,8 @@ const toggleLanguage = () => {
             class="w-full text-left flex items-center justify-between px-3 py-2 rounded-md hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors group"
           >
             <div class="overflow-hidden">
-              <span class="block text-xs font-bold text-slate-700 dark:text-slate-300 truncate">{{ layout.name }}</span>
-              <span class="block text-[10px] text-slate-500 italic">{{ layout.m2Totales }} m² • {{ new Date(layout.createdAt).toLocaleDateString() }}</span>
+              <span class="block text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{{ layout.name }}</span>
+              <span class="block text-[10px] text-slate-500 dark:text-slate-400 italic">{{ layout.m2Totales }} m² • {{ new Date(layout.createdAt).toLocaleDateString() }}</span>
             </div>
             <span class="material-symbols-outlined text-emerald-600 text-xs opacity-0 group-hover:opacity-100 shrink-0">folder_open</span>
           </button>
@@ -133,17 +133,17 @@ const toggleLanguage = () => {
     </nav>
 
     <!-- Bottom: toggles + CTA -->
-    <div class="mt-auto space-y-3 border-t border-slate-200 dark:border-slate-800 pt-4 shrink-0">
+    <div class="mt-auto space-y-3 border-t border-slate-200 dark:border-[#21262d] pt-4 shrink-0">
 
       <!-- Language + Dark mode row -->
       <div class="px-3 flex items-center justify-between gap-3">
         <!-- Language toggle -->
         <div class="flex items-center gap-2">
-          <span class="text-[10px] font-bold text-slate-500 uppercase">ES</span>
+          <span class="text-[10px] font-bold text-slate-500 dark:text-slate-300 uppercase">ES</span>
           <button
             @click="toggleLanguage"
             class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none"
-            :class="currentLanguage === 'en' ? 'bg-primary' : 'bg-slate-300'"
+            :class="currentLanguage === 'en' ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-600'"
             title="Cambiar idioma"
           >
             <span
@@ -151,16 +151,16 @@ const toggleLanguage = () => {
               :class="currentLanguage === 'en' ? 'translate-x-5' : 'translate-x-1'"
             />
           </button>
-          <span class="text-[10px] font-bold text-slate-500 uppercase">EN</span>
+          <span class="text-[10px] font-bold text-slate-500 dark:text-slate-300 uppercase">EN</span>
         </div>
 
         <!-- Dark mode toggle -->
         <div class="flex items-center gap-2">
-          <span class="material-symbols-outlined text-[14px] text-slate-400">light_mode</span>
+          <span class="material-symbols-outlined text-[14px] text-slate-400 dark:text-slate-300">light_mode</span>
           <button
             @click="toggleDark"
             class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none"
-            :class="isDark ? 'bg-slate-700' : 'bg-slate-300'"
+            :class="isDark ? 'bg-[#7aaddb]' : 'bg-slate-300'"
             title="Modo oscuro"
           >
             <span
@@ -168,12 +168,12 @@ const toggleLanguage = () => {
               :class="isDark ? 'translate-x-5' : 'translate-x-1'"
             />
           </button>
-          <span class="material-symbols-outlined text-[14px] text-slate-400">dark_mode</span>
+          <span class="material-symbols-outlined text-[14px] text-slate-400 dark:text-slate-300">dark_mode</span>
         </div>
       </div>
 
       <!-- Auto-save indicator -->
-      <div class="px-3 flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+      <div class="px-3 flex items-center gap-2 text-[10px] font-bold text-slate-400 dark:text-slate-300 uppercase tracking-tight">
         <span class="flex h-2 w-2 relative">
           <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
           <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>

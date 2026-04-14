@@ -84,7 +84,7 @@ const materialName = computed(() => {
       <h3 class="text-4xl font-headline font-extrabold text-primary tracking-tight leading-none">{{ t('projectGeometry') }}</h3>
     </div>
 
-    <div class="bg-surface-container-lowest p-6 rounded-xl border border-outline-variant/10 shadow-sm space-y-6 transform transition-all duration-300 hover:shadow-lg hover:scale-[1.01]">
+    <div class="bg-surface-container-lowest dark:bg-[#161b22] p-6 rounded-xl border border-outline-variant/10 dark:border-[#30363d] shadow-sm space-y-6 transform transition-all duration-300 hover:shadow-lg hover:scale-[1.01]">
       <div class="flex justify-between items-end">
         <label class="text-sm font-bold text-on-surface uppercase tracking-wider">{{ t('totalBuiltArea') }}</label>
         <div class="flex items-center gap-2">
@@ -167,7 +167,7 @@ const materialName = computed(() => {
           <button 
             @click="decrement('banios')"
             type="button"
-            class="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center hover:bg-slate-50"
+            class="w-10 h-10 rounded-full bg-white dark:bg-[#21262d] shadow-sm flex items-center justify-center hover:bg-slate-50 dark:hover:bg-[#30363d]"
           >
             <span class="material-symbols-outlined text-primary">remove</span>
           </button>
@@ -188,7 +188,7 @@ const materialName = computed(() => {
           <button 
             @click="decrement('areasComunes')"
             type="button"
-            class="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center hover:bg-slate-50"
+            class="w-10 h-10 rounded-full bg-white dark:bg-[#21262d] shadow-sm flex items-center justify-center hover:bg-slate-50 dark:hover:bg-[#30363d]"
           >
             <span class="material-symbols-outlined text-primary">remove</span>
           </button>

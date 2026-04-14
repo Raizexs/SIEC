@@ -177,7 +177,7 @@ const handleSaveLayout = (name) => {
 </script>
 
 <template>
-  <div :key="appKey" class="min-h-screen bg-background font-body text-on-surface antialiased">
+  <div :key="appKey" class="min-h-screen bg-background dark:bg-[#0d1117] font-body text-on-surface dark:text-slate-100 antialiased">
     <Sidebar @loadPreset="loadPreset" @loadLayout="loadLayout" @collapse-change="sidebarCollapsed = $event" />
 
     <main :class="sidebarCollapsed ? 'ml-0' : 'ml-64'" class="min-h-screen transition-all duration-300">
