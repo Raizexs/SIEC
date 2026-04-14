@@ -147,16 +147,19 @@ export function generateStatusDescription(
   let message = "";
   let subtitle = "";
 
+  // 1 token = 10 m², convertimos para mostrar al usuario
+  const availableM2 = availableTokens * 10;
+  const excessM2 = (usedTokens - totalTokens) * 10;
+
   if (status === "safe") {
-    message = "✅ Espacio disponible";
-    subtitle = `${availableTokens} tokens libres`;
+    message = "Espacio OK";
+    subtitle = `${availableM2} m² disponibles`;
   } else if (status === "warning") {
     message = "⚠️ Espacio limitado";
-    subtitle = `${availableTokens} tokens libres`;
+    subtitle = `${availableM2} m² disponibles`;
   } else {
-    message = "❌ Sin espacio disponible";
-    const excessTokens = usedTokens - totalTokens;
-    subtitle = `Exceso de ${excessTokens} tokens`;
+    message = "❌ Sin espacio";
+    subtitle = `${excessM2} m² en exceso`;
   }
 
   return {

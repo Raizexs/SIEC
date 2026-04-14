@@ -39,17 +39,7 @@ const handleTabClick = (tabName) => {
       </div>
     </div>
     <div class="flex items-center gap-4">
-      <div class="flex items-center gap-2 px-3 py-1.5 bg-surface-container rounded-full border border-outline-variant/10 mr-4">
-        <span class="material-symbols-outlined text-[14px] text-emerald-600">database</span>
-        <span class="text-[10px] font-bold uppercase text-slate-600">{{ t('localCache') }}: 2.4MB</span>
-      </div>
-      <button class="p-2 text-slate-500 hover:bg-slate-50 transition-colors rounded-full">
-        <span class="material-symbols-outlined">help</span>
-      </button>
-      <button class="p-2 text-slate-500 hover:bg-slate-50 transition-colors rounded-full relative">
-        <span class="material-symbols-outlined">notifications</span>
-        <span class="absolute top-2 right-2 w-2 h-2 bg-secondary rounded-full"></span>
-      </button>
+
       <div class="w-8 h-8 rounded-full overflow-hidden border border-outline-variant bg-surface-container">
         <div class="w-full h-full bg-gradient-to-br from-primary to-primary-container flex items-center justify-center text-white font-bold text-sm">U</div>
       </div>
