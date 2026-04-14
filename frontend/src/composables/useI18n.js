@@ -85,7 +85,7 @@ const translations = {
     load: "Cargar",
 
     // Footer
-    footer: "© 2026 SIEC INTELLIGENCE SYSTEMS - V1.0.0",
+    footer: "2026 SIEC - V0.3",
     draftsSynced: "Borradores Sincronizados",
     privacyPolicy: "Política de Privacidad",
     termsOfService: "Términos de Servicio",
@@ -195,7 +195,7 @@ const translations = {
     load: "Load",
 
     // Footer
-    footer: "© 2026 SIEC INTELLIGENCE SYSTEMS - V1.0.0",
+    footer: "2026 SIEC - V0.3",
     draftsSynced: "Drafts Synchronized",
     privacyPolicy: "Privacy Policy",
     termsOfService: "Terms of Service",
