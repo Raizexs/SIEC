@@ -1,41 +1,67 @@
--- Seed 004: Insertar factores de rendimiento en tabla Matriz_Rendimiento
--- Define cuánto insumo se gasta por m² para cada Material Estructural Base
--- Ejemplo: 0.5 sacos de cemento por m² de albañilería
+-- Seed 004: Poblar Matriz_Rendimiento desde respaldo CSV del SPIKE
+-- Fuente: database/seeds/data/004_seed_matriz_rendimiento.csv
+-- Requisito: 11 insumos x 4 materiales base = 44 registros
 
-INSERT INTO Matriz_Rendimiento (Material_Estructural_ID, Insumo_ID, Factor_Multiplicador, Descripcion, Activo) VALUES
-  -- MADERA (Material_ID = 1)
-  (1, 3, 0.08, 'Fierro A63 para refuerzo en estructura de madera', TRUE),
-  (1, 16, 0.02, 'Cable eléctrico 1x2.5mm para instalaciones', TRUE),
-  (1, 19, 0.015, 'Tubo PVC agua 75mm para tuberías de agua', TRUE),
-  
-  -- METALCOM (Material_ID = 2)
-  (2, 3, 0.15, 'Fierro A63 para estructura metalcom', TRUE),
-  (2, 16, 0.025, 'Cable para electricidad en metalcom', TRUE),
-  (2, 19, 0.02, 'Tubo PVC agua para instalaciones sanitarias', TRUE),
-  
-  -- ALBAÑILERÍA (Material_ID = 3)
-  (3, 1, 0.5, 'Cemento Portland: 0.5 sacos por m² de albañilería', TRUE),
-  (3, 3, 0.04, 'Fierro A63 de refuerzo: 0.04 kg por m²', TRUE),
-  (3, 8, 0.15, 'Volcanita RH Standard para revestimiento interior', TRUE),
-  (3, 16, 0.01, 'Cable para instalaciones eléctricas', TRUE),
-  (3, 19, 0.008, 'Tubo PVC agua para agua y desagüe', TRUE),
-  (3, 41, 0.05, 'Albañil: 0.05 HH por m² de albañilería', TRUE),
-  
-  -- HORMIGÓN ARMADO (Material_ID = 4)
-  (4, 2, 0.35, 'Cemento Especial: 0.35 sacos por m² de hormigón', TRUE),
-  (4, 3, 0.08, 'Fierro A63 de refuerzo principal: 0.08 kg por m²', TRUE),
-  (4, 16, 0.012, 'Cable para instalaciones eléctricas en hormigón', TRUE),
-  (4, 19, 0.01, 'Tubo PVC agua para instalaciones en hormigón', TRUE),
-  (4, 41, 0.08, 'Albañil: 0.08 HH por m² de hormigón armado', TRUE)
-ON CONFLICT (Material_Estructural_ID, Insumo_ID) DO NOTHING;
+CREATE TEMP TABLE seed_matriz_rendimiento (
+  material_nombre TEXT NOT NULL,
+  insumo_nombre TEXT NOT NULL,
+  factor_multiplicador NUMERIC(10,4) NOT NULL CHECK (factor_multiplicador > 0),
+  descripcion TEXT NOT NULL
+) ON COMMIT DROP;
+
+\copy seed_matriz_rendimiento (material_nombre, insumo_nombre, factor_multiplicador, descripcion) FROM '/seeds/data/004_seed_matriz_rendimiento.csv' WITH (FORMAT csv, HEADER true, ENCODING 'UTF8')
+
+DO $$
+DECLARE
+  expected_rows INTEGER;
+  matched_rows INTEGER;
+BEGIN
+  SELECT COUNT(*) INTO expected_rows FROM seed_matriz_rendimiento;
+  SELECT COUNT(*) INTO matched_rows
+  FROM seed_matriz_rendimiento s
+  JOIN "Material_Estructural" me ON me."Nombre" = s.material_nombre
+  JOIN "Insumo" i ON i."Nombre" = s.insumo_nombre;
+
+  IF matched_rows <> expected_rows THEN
+    RAISE EXCEPTION 'Seed 004 invalido: % de % registros coinciden con llaves existentes', matched_rows, expected_rows;
+  END IF;
+END $$;
+
+INSERT INTO "Matriz_Rendimiento" (
+  "Material_Estructural_ID",
+  "Insumo_ID",
+  "Factor_Multiplicador",
+  "Descripcion",
+  "Activo"
+)
+SELECT
+  me."ID",
+  i."ID",
+  s.factor_multiplicador,
+  s.descripcion,
+  TRUE
+FROM seed_matriz_rendimiento s
+JOIN "Material_Estructural" me ON me."Nombre" = s.material_nombre
+JOIN "Insumo" i ON i."Nombre" = s.insumo_nombre
+ON CONFLICT ("Material_Estructural_ID", "Insumo_ID") DO UPDATE
+SET
+  "Factor_Multiplicador" = EXCLUDED."Factor_Multiplicador",
+  "Descripcion" = EXCLUDED."Descripcion",
+  "Activo" = TRUE,
+  "Fecha_Actualizacion" = CURRENT_TIMESTAMP;
 
 -- Verificación: total de factores por material
-SELECT 
-  me.Nombre as Material,
-  COUNT(mr.ID) as total_insumos,
-  ROUND(AVG(mr.Factor_Multiplicador)::numeric, 4) as factor_promedio
-FROM Matriz_Rendimiento mr
-JOIN Material_Estructural me ON mr.Material_Estructural_ID = me.ID
-WHERE mr.Activo = TRUE
-GROUP BY me.ID, me.Nombre
-ORDER BY me.ID;
+SELECT
+  me."Nombre" AS material,
+  COUNT(mr."ID") AS total_insumos,
+  ROUND(AVG(mr."Factor_Multiplicador")::numeric, 4) AS factor_promedio
+FROM "Matriz_Rendimiento" mr
+JOIN "Material_Estructural" me ON mr."Material_Estructural_ID" = me."ID"
+WHERE mr."Activo" = TRUE
+GROUP BY me."ID", me."Nombre"
+ORDER BY me."ID";
+
+-- Verificación: total de registros en matriz
+SELECT COUNT(*) AS total_registros
+FROM "Matriz_Rendimiento"
+WHERE "Activo" = TRUE;

@@ -1,0 +1,45 @@
+material_nombre,insumo_nombre,factor_multiplicador,descripcion
+Madera,Cemento Portland,0.0800,Cemento Portland por m2 en estructura de madera
+Madera,Fierro A63-42H,0.1200,Fierro de refuerzo por m2 en estructura de madera
+Madera,Arena Gruesa,0.1800,Arena por m2 en estructura de madera
+Madera,Ripio,0.1000,Ripio por m2 en estructura de madera
+Madera,Agua,0.3500,Agua por m2 en estructura de madera
+Madera,Volcanita RH Standard,1.1000,Volcanita por m2 en estructura de madera
+Madera,Pintura Acrílica Blanca,0.1200,Pintura por m2 en estructura de madera
+Madera,Cerámica Piso,0.0500,Cerámica por m2 en estructura de madera
+Madera,Cable H07Z1-K 1x2.5mm,0.0600,Cableado por m2 en estructura de madera
+Madera,Tubo PVC Agua 110mm,0.0400,Tubería PVC por m2 en estructura de madera
+Madera,Albañil,0.1800,Mano de obra de albañil por m2 en estructura de madera
+Metalcom,Cemento Portland,0.0600,Cemento Portland por m2 en estructura metalcom
+Metalcom,Fierro A63-42H,0.1800,Fierro de refuerzo por m2 en estructura metalcom
+Metalcom,Arena Gruesa,0.1200,Arena por m2 en estructura metalcom
+Metalcom,Ripio,0.0800,Ripio por m2 en estructura metalcom
+Metalcom,Agua,0.2800,Agua por m2 en estructura metalcom
+Metalcom,Volcanita RH Standard,1.2500,Volcanita por m2 en estructura metalcom
+Metalcom,Pintura Acrílica Blanca,0.1000,Pintura por m2 en estructura metalcom
+Metalcom,Cerámica Piso,0.0600,Cerámica por m2 en estructura metalcom
+Metalcom,Cable H07Z1-K 1x2.5mm,0.0700,Cableado por m2 en estructura metalcom
+Metalcom,Tubo PVC Agua 110mm,0.0500,Tubería PVC por m2 en estructura metalcom
+Metalcom,Albañil,0.2000,Mano de obra de albañil por m2 en estructura metalcom
+Albañilería,Cemento Portland,0.4500,Cemento Portland por m2 en albañilería
+Albañilería,Fierro A63-42H,0.0600,Fierro de refuerzo por m2 en albañilería
+Albañilería,Arena Gruesa,0.9000,Arena por m2 en albañilería
+Albañilería,Ripio,0.7500,Ripio por m2 en albañilería
+Albañilería,Agua,0.2200,Agua por m2 en albañilería
+Albañilería,Volcanita RH Standard,0.1500,Volcanita por m2 en albañilería
+Albañilería,Pintura Acrílica Blanca,0.0800,Pintura por m2 en albañilería
+Albañilería,Cerámica Piso,0.1200,Cerámica por m2 en albañilería
+Albañilería,Cable H07Z1-K 1x2.5mm,0.0500,Cableado por m2 en albañilería
+Albañilería,Tubo PVC Agua 110mm,0.0400,Tubería PVC por m2 en albañilería
+Albañilería,Albañil,0.3500,Mano de obra de albañil por m2 en albañilería
+Hormigón Armado,Cemento Portland,0.5500,Cemento Portland por m2 en hormigón armado
+Hormigón Armado,Fierro A63-42H,0.3200,Fierro de refuerzo por m2 en hormigón armado
+Hormigón Armado,Arena Gruesa,0.8500,Arena por m2 en hormigón armado
+Hormigón Armado,Ripio,1.0000,Ripio por m2 en hormigón armado
+Hormigón Armado,Agua,0.3000,Agua por m2 en hormigón armado
+Hormigón Armado,Volcanita RH Standard,0.1000,Volcanita por m2 en hormigón armado
+Hormigón Armado,Pintura Acrílica Blanca,0.0700,Pintura por m2 en hormigón armado
+Hormigón Armado,Cerámica Piso,0.1000,Cerámica por m2 en hormigón armado
+Hormigón Armado,Cable H07Z1-K 1x2.5mm,0.0600,Cableado por m2 en hormigón armado
+Hormigón Armado,Tubo PVC Agua 110mm,0.0500,Tubería PVC por m2 en hormigón armado
+Hormigón Armado,Albañil,0.4000,Mano de obra de albañil por m2 en hormigón armado
