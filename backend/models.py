@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, Boolean, Numeric, ForeignKey
 from database import Base
 
 class TipoRecinto(Base):
@@ -18,3 +18,31 @@ class ConfiguracionSimulacion(Base):
     banios = Column(Integer, nullable=False)
     areas_comunes = Column(Integer, nullable=False)
     fecha_creacion = Column(String, nullable=True)
+
+class MaterialEstructural(Base):
+    __tablename__ = "Material_Estructural"
+
+    id = Column("ID", Integer, primary_key=True, index=True)
+    nombre = Column("Nombre", String, unique=True, index=True, nullable=False)
+    descripcion = Column("Descripcion", String)
+    activo = Column("Activo", Boolean, default=True)
+
+class Insumo(Base):
+    __tablename__ = "Insumo"
+
+    id = Column("ID", Integer, primary_key=True, index=True)
+    nombre = Column("Nombre", String, unique=True, nullable=False)
+    categoria = Column("Categoria", String, nullable=False)
+    unidad_medida = Column("Unidad_Medida", String, nullable=False)
+    descripcion = Column("Descripcion", String)
+    activo = Column("Activo", Boolean, default=True)
+
+class MatrizRendimiento(Base):
+    __tablename__ = "Matriz_Rendimiento"
+
+    id = Column("ID", Integer, primary_key=True, index=True)
+    material_estructural_id = Column("Material_Estructural_ID", Integer, ForeignKey("Material_Estructural.ID"), nullable=False)
+    insumo_id = Column("Insumo_ID", Integer, ForeignKey("Insumo.ID"), nullable=False)
+    factor_multiplicador = Column("Factor_Multiplicador", Numeric(10, 4), nullable=False)
+    unidad_factor = Column("Unidad_Factor", String, default='cantidad por m2')
+    activo = Column("Activo", Boolean, default=True)
