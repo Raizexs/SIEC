@@ -83,6 +83,9 @@ class BaseScraper(ABC):
                 # Intentar mapear insumo_id desde el nombre del producto
                 if result.get("nombre_producto"):
                     result["insumo_id"] = self._map_insumo_id(result["nombre_producto"])
+
+                # Normalizar precio a la unidad de consumo del insumo (kg/metro/saco 25kg)
+                self._normalize_prices_by_insumo_unit(result)
                 results.append(result)
 
             browser.close()
@@ -287,3 +290,89 @@ class BaseScraper(ABC):
             if any(kw in nombre_lower for kw in keywords):
                 return INSUMO_ID_BY_NAME.get(insumo_nombre)
         return None
+
+    @staticmethod
+    def _extract_kg_from_name(nombre_producto: str) -> Optional[float]:
+        matches = re.findall(r"(\d+(?:[\.,]\d+)?)\s*kg\b", nombre_producto.lower())
+        if not matches:
+            return None
+        values = []
+        for m in matches:
+            try:
+                values.append(float(m.replace(",", ".")))
+            except ValueError:
+                continue
+        return max(values) if values else None
+
+    @staticmethod
+    def _extract_meters_from_name(nombre_producto: str) -> Optional[float]:
+        # Captura "100 m", "50 metros", "6 m", evita confundir "mm"
+        matches = re.findall(r"(\d+(?:[\.,]\d+)?)\s*(?:metro\(s\)|metros|metro|m)\b", nombre_producto.lower())
+        if not matches:
+            return None
+        values = []
+        for m in matches:
+            try:
+                values.append(float(m.replace(",", ".")))
+            except ValueError:
+                continue
+        return max(values) if values else None
+
+    def _get_unit_factor(self, nombre_producto: str, insumo_id: Optional[int]) -> float:
+        """
+        Devuelve el factor para llevar el precio comercial a la unidad de insumo.
+        factor=1.0 significa sin cambio.
+        """
+        nombre_lower = nombre_producto.lower()
+
+        if insumo_id is None:
+            # Fallback cuando no hay mapeo: inferencia por texto del producto
+            meters_pack = self._extract_meters_from_name(nombre_producto)
+            kg_pack = self._extract_kg_from_name(nombre_producto)
+
+            if "cable" in nombre_lower and meters_pack and meters_pack > 0:
+                return 1.0 / meters_pack
+            if ("tubo" in nombre_lower or "tuber" in nombre_lower) and meters_pack and meters_pack > 0:
+                return 1.0 / meters_pack
+            if "cement" in nombre_lower and kg_pack and kg_pack > 0:
+                return 25.0 / kg_pack
+
+            return 1.0
+
+        # Cemento en DB está modelado como saco 25kg
+        if insumo_id in {1, 2}:
+            kg_pack = self._extract_kg_from_name(nombre_producto)
+            if kg_pack and kg_pack > 0:
+                return 25.0 / kg_pack
+            return 1.0
+
+        # Fierro modelado en kg
+        if insumo_id == 3:
+            kg_piece = self._extract_kg_from_name(nombre_producto)
+            if kg_piece and kg_piece > 0:
+                return 1.0 / kg_piece
+            return 1.0
+
+        # Cables y tubos modelados en metro lineal
+        if insumo_id in {16, 17, 18, 19, 20, 21}:
+            meters_pack = self._extract_meters_from_name(nombre_producto)
+            if meters_pack and meters_pack > 0:
+                return 1.0 / meters_pack
+            return 1.0
+
+        return 1.0
+
+    def _normalize_prices_by_insumo_unit(self, result: dict) -> None:
+        precio = result.get("precio")
+        nombre = result.get("nombre_producto")
+        insumo_id = result.get("insumo_id")
+        if precio is None or not nombre:
+            return
+
+        factor = self._get_unit_factor(nombre, insumo_id)
+        if factor == 1.0:
+            return
+
+        result["precio"] = round(precio * factor, 4)
+        if result.get("precio_descuento") is not None:
+            result["precio_descuento"] = round(result["precio_descuento"] * factor, 4)
