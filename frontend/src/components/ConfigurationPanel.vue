@@ -102,103 +102,119 @@ const materialName = computed(() => {
         @input="updateFormData('m2Totales', Number($event.target.value))"
         class="w-full h-1.5 bg-surface-container-highest rounded-lg appearance-none cursor-pointer" 
         max="2500" 
-        min="15" 
+        min="10" 
         step="10" 
         type="range"
       />
       <div class="flex justify-between text-[10px] text-slate-400 font-bold uppercase">
-        <span>15 m²</span>
+        <span>10 m²</span>
         <span>1,250 m²</span>
         <span>2,500 m²</span>
       </div>
     </div>
 
-    <div class="grid grid-cols-3 gap-4">
-      <div class="bg-surface-container-low p-5 rounded-xl border border-transparent hover:border-outline-variant/30 transition-all">
-        <label class="text-[10px] font-bold text-slate-500 uppercase block mb-3">{{ t('simpleRooms') }}</label>
-        <div class="flex items-center justify-between">
-          <span class="material-symbols-outlined text-primary-container">single_bed</span>
-          <input 
-            :value="formData.habitacionesSimples || 0"
-            @input="updateFormData('habitacionesSimples', Number($event.target.value))"
-            :max="maxHabitacionesSimples"
-            class="w-12 text-center bg-transparent border-none font-headline font-bold text-xl text-primary focus:ring-0" 
-            type="number"
-            min="0"
-          />
+    <div class="grid grid-cols-5 gap-3">
+      <div class="space-y-3">
+        <label class="text-[9px] font-bold text-on-surface uppercase tracking-widest text-center block truncate" title="Habitaciones Simples">{{ t('simpleRooms') }}</label>
+        <div class="flex items-center gap-1 bg-surface-container-highest/30 p-1.5 rounded-full border border-outline-variant/10">
+          <button 
+            @click="decrement('habitacionesSimples')"
+            type="button"
+            class="w-6 h-6 rounded-full bg-white dark:bg-[#21262d] shadow-sm flex items-center justify-center hover:bg-slate-50 dark:hover:bg-[#30363d]"
+          >
+            <span class="material-symbols-outlined text-primary text-[12px]">remove</span>
+          </button>
+          <span class="flex-1 text-center font-headline font-extrabold text-sm">{{ formData.habitacionesSimples || 0 }}</span>
+          <button 
+            @click="increment('habitacionesSimples', maxHabitacionesSimples)"
+            type="button"
+            class="w-6 h-6 rounded-full bg-primary text-white shadow-sm flex items-center justify-center hover:opacity-90"
+          >
+            <span class="material-symbols-outlined text-[12px]">add</span>
+          </button>
         </div>
       </div>
       
-      <div class="bg-surface-container-low p-5 rounded-xl border border-transparent hover:border-outline-variant/30 transition-all">
-        <label class="text-[10px] font-bold text-slate-500 uppercase block mb-3">{{ t('doubleRooms') }}</label>
-        <div class="flex items-center justify-between">
-          <span class="material-symbols-outlined text-primary-container">king_bed</span>
-          <input 
-            :value="formData.habitacionesDobles || 0"
-            @input="updateFormData('habitacionesDobles', Number($event.target.value))"
-            :max="maxHabitacionesDobles"
-            class="w-12 text-center bg-transparent border-none font-headline font-bold text-xl text-primary focus:ring-0" 
-            type="number"
-            min="0"
-          />
+      <div class="space-y-3">
+        <label class="text-[9px] font-bold text-on-surface uppercase tracking-widest text-center block truncate" title="Habitaciones Dobles">{{ t('doubleRooms') }}</label>
+        <div class="flex items-center gap-1 bg-surface-container-highest/30 p-1.5 rounded-full border border-outline-variant/10">
+          <button 
+            @click="decrement('habitacionesDobles')"
+            type="button"
+            class="w-6 h-6 rounded-full bg-white dark:bg-[#21262d] shadow-sm flex items-center justify-center hover:bg-slate-50 dark:hover:bg-[#30363d]"
+          >
+            <span class="material-symbols-outlined text-primary text-[12px]">remove</span>
+          </button>
+          <span class="flex-1 text-center font-headline font-extrabold text-sm">{{ formData.habitacionesDobles || 0 }}</span>
+          <button 
+            @click="increment('habitacionesDobles', maxHabitacionesDobles)"
+            type="button"
+            class="w-6 h-6 rounded-full bg-primary text-white shadow-sm flex items-center justify-center hover:opacity-90"
+          >
+            <span class="material-symbols-outlined text-[12px]">add</span>
+          </button>
         </div>
       </div>
       
-      <div class="bg-surface-container-low p-5 rounded-xl border border-transparent hover:border-outline-variant/30 transition-all">
-        <label class="text-[10px] font-bold text-slate-500 uppercase block mb-3">{{ t('tripleSuites') }}</label>
-        <div class="flex items-center justify-between">
-          <span class="material-symbols-outlined text-primary-container">meeting_room</span>
-          <input 
-            :value="formData.habitacionesTriples || 0"
-            @input="updateFormData('habitacionesTriples', Number($event.target.value))"
-            :max="maxHabitacionesTriples"
-            class="w-12 text-center bg-transparent border-none font-headline font-bold text-xl text-primary focus:ring-0" 
-            type="number"
-            min="0"
-          />
+      <div class="space-y-3">
+        <label class="text-[9px] font-bold text-on-surface uppercase tracking-widest text-center block truncate" title="Triples/Suites">{{ t('tripleSuites') }}</label>
+        <div class="flex items-center gap-1 bg-surface-container-highest/30 p-1.5 rounded-full border border-outline-variant/10">
+          <button 
+            @click="decrement('habitacionesTriples')"
+            type="button"
+            class="w-6 h-6 rounded-full bg-white dark:bg-[#21262d] shadow-sm flex items-center justify-center hover:bg-slate-50 dark:hover:bg-[#30363d]"
+          >
+            <span class="material-symbols-outlined text-primary text-[12px]">remove</span>
+          </button>
+          <span class="flex-1 text-center font-headline font-extrabold text-sm">{{ formData.habitacionesTriples || 0 }}</span>
+          <button 
+            @click="increment('habitacionesTriples', maxHabitacionesTriples)"
+            type="button"
+            class="w-6 h-6 rounded-full bg-primary text-white shadow-sm flex items-center justify-center hover:opacity-90"
+          >
+            <span class="material-symbols-outlined text-[12px]">add</span>
+          </button>
         </div>
       </div>
-    </div>
 
-    <div class="grid grid-cols-2 gap-8">
-      <div class="space-y-4">
-        <label class="text-xs font-bold text-on-surface uppercase tracking-widest">{{ t('bathrooms') }}</label>
-        <div class="flex items-center gap-4 bg-surface-container-highest/30 p-2 rounded-full border border-outline-variant/10">
+      <div class="space-y-3">
+        <label class="text-[9px] font-bold text-on-surface uppercase tracking-widest text-center block truncate" title="Baños">{{ t('bathrooms') }}</label>
+        <div class="flex items-center gap-1 bg-surface-container-highest/30 p-1.5 rounded-full border border-outline-variant/10">
           <button 
             @click="decrement('banios')"
             type="button"
-            class="w-10 h-10 rounded-full bg-white dark:bg-[#21262d] shadow-sm flex items-center justify-center hover:bg-slate-50 dark:hover:bg-[#30363d]"
+            class="w-6 h-6 rounded-full bg-white dark:bg-[#21262d] shadow-sm flex items-center justify-center hover:bg-slate-50 dark:hover:bg-[#30363d]"
           >
-            <span class="material-symbols-outlined text-primary">remove</span>
+            <span class="material-symbols-outlined text-primary text-[12px]">remove</span>
           </button>
-          <span class="flex-1 text-center font-headline font-extrabold text-xl">{{ formData.banios }}</span>
+          <span class="flex-1 text-center font-headline font-extrabold text-sm">{{ formData.banios }}</span>
           <button 
             @click="increment('banios', maxBanios)"
             type="button"
-            class="w-10 h-10 rounded-full bg-primary text-white shadow-sm flex items-center justify-center hover:opacity-90"
+            class="w-6 h-6 rounded-full bg-primary text-white shadow-sm flex items-center justify-center hover:opacity-90"
           >
-            <span class="material-symbols-outlined">add</span>
+            <span class="material-symbols-outlined text-[12px]">add</span>
           </button>
         </div>
       </div>
       
-      <div class="space-y-4">
-        <label class="text-xs font-bold text-on-surface uppercase tracking-widest">{{ t('commonAreas') }}</label>
-        <div class="flex items-center gap-4 bg-surface-container-highest/30 p-2 rounded-full border border-outline-variant/10">
+      <div class="space-y-3">
+        <label class="text-[9px] font-bold text-on-surface uppercase tracking-widest text-center block truncate" title="Áreas Comunes">{{ t('commonAreas') }}</label>
+        <div class="flex items-center gap-1 bg-surface-container-highest/30 p-1.5 rounded-full border border-outline-variant/10">
           <button 
             @click="decrement('areasComunes')"
             type="button"
-            class="w-10 h-10 rounded-full bg-white dark:bg-[#21262d] shadow-sm flex items-center justify-center hover:bg-slate-50 dark:hover:bg-[#30363d]"
+            class="w-6 h-6 rounded-full bg-white dark:bg-[#21262d] shadow-sm flex items-center justify-center hover:bg-slate-50 dark:hover:bg-[#30363d]"
           >
-            <span class="material-symbols-outlined text-primary">remove</span>
+            <span class="material-symbols-outlined text-primary text-[12px]">remove</span>
           </button>
-          <span class="flex-1 text-center font-headline font-extrabold text-xl">{{ formData.areasComunes }}</span>
+          <span class="flex-1 text-center font-headline font-extrabold text-sm">{{ formData.areasComunes }}</span>
           <button 
             @click="increment('areasComunes', maxAreasComunes)"
             type="button"
-            class="w-10 h-10 rounded-full bg-primary text-white shadow-sm flex items-center justify-center hover:opacity-90"
+            class="w-6 h-6 rounded-full bg-primary text-white shadow-sm flex items-center justify-center hover:opacity-90"
           >
-            <span class="material-symbols-outlined">add</span>
+            <span class="material-symbols-outlined text-[12px]">add</span>
           </button>
         </div>
       </div>

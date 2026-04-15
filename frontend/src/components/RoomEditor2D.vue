@@ -177,10 +177,36 @@ const roomColor = (tipo) => {
             class="cursor-nwse-resize"
             @pointerdown="(e) => startResize(e, recinto.id)"
           />
+
+          <g v-if="(editor.activeMode.value === 'resize' || editor.activeMode.value === 'drag') && editor.selectedRecintoId === recinto.id">
+            <!-- Ancho (Arriba) -->
+            <text
+              :x="toScreenX(recinto.coords.x) + (recinto.dimensions.w * PIXELS_PER_METER) / 2"
+              :y="toScreenZ(recinto.coords.z) - 8"
+              fill="#fbbf24"
+              font-size="12"
+              font-weight="bold"
+              text-anchor="middle"
+            >
+              {{ recinto.dimensions.w.toFixed(1) }}m
+            </text>
+            
+            <!-- Largo (Derecha) -->
+            <text
+              :x="toScreenX(recinto.coords.x) + (recinto.dimensions.w * PIXELS_PER_METER) + 8"
+              :y="toScreenZ(recinto.coords.z) + (recinto.dimensions.l * PIXELS_PER_METER) / 2"
+              fill="#fbbf24"
+              font-size="12"
+              font-weight="bold"
+              alignment-baseline="middle"
+            >
+              {{ recinto.dimensions.l.toFixed(1) }}m
+            </text>
+          </g>
         </g>
       </svg>
 
-      <div class="mt-4 grid grid-cols-4 gap-3 text-xs">
+      <div class="mt-4 grid grid-cols-2 gap-3 text-xs">
         <div class="bg-slate-800 rounded-lg p-3 text-center">
           <span class="block text-slate-400 font-medium">Recintos</span>
           <span class="block text-lg font-bold text-blue-400">{{
@@ -191,18 +217,6 @@ const roomColor = (tipo) => {
           <span class="block text-slate-400 font-medium">Área Total</span>
           <span class="block text-lg font-bold text-blue-400"
             >{{ store.totalArea.toFixed(1) }}m²</span
-          >
-        </div>
-        <div class="bg-slate-800 rounded-lg p-3 text-center">
-          <span class="block text-slate-400 font-medium">Muros</span>
-          <span class="block text-lg font-bold text-blue-400">{{
-            topology.topologyStats.totalWalls
-          }}</span>
-        </div>
-        <div class="bg-slate-800 rounded-lg p-3 text-center">
-          <span class="block text-slate-400 font-medium">Long. Total</span>
-          <span class="block text-lg font-bold text-blue-400"
-            >{{ topology.topologyStats.totalLength }}m</span
           >
         </div>
       </div>

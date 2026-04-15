@@ -105,16 +105,7 @@ export function useInteractiveEditor() {
       }
     }
 
-    // Tope maximo: suma areas no supera m2Totales.
-    const areaWithoutRoom = getTotalAreaExcept(room.id)
-    const allowedForRoom = store.configMetadata.m2Totales - areaWithoutRoom
-    if (nextW * nextL > allowedForRoom) {
-      const ratio = nextW / Math.max(nextL, GRID_STEP)
-      nextL = Math.sqrt(allowedForRoom / Math.max(ratio, EPS))
-      nextW = ratio * nextL
-      nextW = Math.max(GRID_STEP, snap(nextW))
-      nextL = Math.max(GRID_STEP, snap(nextL))
-    }
+
 
     const candidate = {
       x: room.coords.x,
