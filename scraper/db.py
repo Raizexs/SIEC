@@ -8,6 +8,7 @@ import logging
 import psycopg2
 from psycopg2.extras import execute_batch
 from datetime import datetime
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,12 @@ def insertar_precios(resultados: list[dict]) -> int:
     """
     Inserta una lista de resultados scrapeados en la tabla precio_mercado.
 
+    Protección anti-sobrescritura nula (Criterio 3):
+        Los registros sin precio son descartados ANTES de llegar a la DB.
+        Esta es una defensa en profundidad: main.py ya filtra por precio != None,
+        pero esta función garantiza que ningún path alternativo pueda corromper
+        datos historícos con valores nulos.
+
     Cada dict debe tener las claves:
         tienda, nombre_producto, precio, precio_descuento,
         stock, categoria, url, exitoso
@@ -40,6 +47,18 @@ def insertar_precios(resultados: list[dict]) -> int:
     """
     if not resultados:
         logger.warning("No hay resultados para insertar.")
+        return 0
+
+    # ── Guard anti-nulo: protección contra sobrescritura de datos históricos ──
+    validos = [r for r in resultados if r.get("precio") is not None]
+    descartados = len(resultados) - len(validos)
+    if descartados:
+        logger.warning(
+            f"[DB] {descartados} registro(s) descartados por precio nulo. "
+            "Los datos anteriores en precio_mercado se mantienen intactos."
+        )
+    if not validos:
+        logger.warning("[DB] Sin registros con precio válido. Inserción abortada — precio_mercado intacto.")
         return 0
 
     sql = """
@@ -54,7 +73,7 @@ def insertar_precios(resultados: list[dict]) -> int:
 
     # Aseguramos que todos los registros tengan Fecha_Scraping e Insumo_ID
     ahora = datetime.utcnow()
-    for r in resultados:
+    for r in validos:
         r.setdefault("fecha_scraping", ahora)
         r.setdefault("exitoso", True)
         r.setdefault("insumo_id", None)  # NULL si no se puede mapear al insumo
@@ -64,10 +83,54 @@ def insertar_precios(resultados: list[dict]) -> int:
         conn = get_connection()
         with conn:
             with conn.cursor() as cur:
-                execute_batch(cur, sql, resultados)
+                execute_batch(cur, sql, validos)
         conn.close()
-        logger.info(f"[DB] {len(resultados)} registros insertados en precio_mercado.")
-        return len(resultados)
+        logger.info(f"[DB] {len(validos)} registros insertados en precio_mercado.")
+        return len(validos)
     except Exception as e:
         logger.error(f"[DB] Error al insertar en precio_mercado: {e}")
         raise
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Consulta de último precio válido
+# ──────────────────────────────────────────────────────────────────────────────
+
+def get_ultimo_precio_valido(tienda: str, url: str) -> Optional[float]:
+    """
+    Consulta el último precio válido registrado para un par (tienda, URL).
+
+    Útil para enriquecer el mensaje de timeout con el precio histórico,
+    confirmando que el dato previo se mantiene intacto en precio_mercado.
+
+    Ejemplo de uso en un scraper:
+        ultimo = get_ultimo_precio_valido("sodimac", url)
+        if ultimo:
+            logger.info(f"[Sodimac] Último precio válido registrado: ${ultimo:,.0f} CLP")
+
+    Retorna:
+        float si existe registro previo, None si no hay historial o hay error de conexión.
+    """
+    try:
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT "Precio"
+                    FROM   precio_mercado
+                    WHERE  "Tienda" = %s
+                      AND  "URL"    = %s
+                      AND  "Precio" IS NOT NULL
+                    ORDER  BY "Fecha_Scraping" DESC
+                    LIMIT  1
+                    """,
+                    (tienda, url),
+                )
+                row = cur.fetchone()
+                return float(row[0]) if row else None
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.debug(f"[DB] No se pudo recuperar último precio ({tienda}): {e}")
+        return None

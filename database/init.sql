@@ -175,8 +175,10 @@ SELECT 'INSUMO VERIFICATION', 'TOTAL' as categoria, COUNT(*) as cantidad FROM "I
 
 -- ========== MIGRACIÓN 005: precio_mercado ==========
 -- Tabla destino del microservicio scraper (SCRUM-55)
+-- NOTA: sin comillas dobles en el nombre de tabla para que coincida
+-- con el INSERT sin comillas que genera db.py
 
-CREATE TABLE IF NOT EXISTS "precio_mercado" (
+CREATE TABLE IF NOT EXISTS precio_mercado (
   "ID"               SERIAL PRIMARY KEY,
   "Insumo_ID"        INTEGER REFERENCES "Insumo"("ID") ON DELETE SET NULL,
   "Tienda"           TEXT NOT NULL CHECK ("Tienda" IN ('sodimac', 'easy', 'construmart')),
@@ -190,9 +192,7 @@ CREATE TABLE IF NOT EXISTS "precio_mercado" (
   "Exitoso"          BOOLEAN NOT NULL DEFAULT TRUE
 );
 
-CREATE INDEX IF NOT EXISTS idx_pm_tienda       ON "precio_mercado"("Tienda");
-CREATE INDEX IF NOT EXISTS idx_pm_insumo       ON "precio_mercado"("Insumo_ID");
-CREATE INDEX IF NOT EXISTS idx_pm_fecha        ON "precio_mercado"("Fecha_Scraping" DESC);
-CREATE INDEX IF NOT EXISTS idx_pm_tienda_fecha ON "precio_mercado"("Tienda", "Fecha_Scraping" DESC);
-
-
+CREATE INDEX IF NOT EXISTS idx_pm_tienda       ON precio_mercado("Tienda");
+CREATE INDEX IF NOT EXISTS idx_pm_insumo       ON precio_mercado("Insumo_ID");
+CREATE INDEX IF NOT EXISTS idx_pm_fecha        ON precio_mercado("Fecha_Scraping" DESC);
+CREATE INDEX IF NOT EXISTS idx_pm_tienda_fecha ON precio_mercado("Tienda", "Fecha_Scraping" DESC);
