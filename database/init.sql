@@ -134,22 +134,33 @@ INSERT INTO "Insumo" ("Nombre", "Categoria", "Unidad_Medida", "Descripcion", "Ac
 ON CONFLICT ("Nombre") DO NOTHING;
 
 -- Seed 004: Poblar Matriz_Rendimiento (factores de rendimiento por material)
+-- IMPORTANTE: Usa SOLO insumos que el scraper cotiza (IDs 2,3,7,16,19)
+-- para que cada materialidad genere precios reales de mercado.
 INSERT INTO "Matriz_Rendimiento" ("Material_Estructural_ID", "Insumo_ID", "Factor_Multiplicador", "Unidad_Factor", "Activo") VALUES
-  (1, 1, 0.5, 'cantidad por m2', TRUE),   -- Madera + Cemento
-  (1, 3, 0.8, 'cantidad por m2', TRUE),   -- Madera + Fierro
-  (1, 6, 0.3, 'cantidad por m2', TRUE),   -- Madera + Agua
-  (2, 2, 0.4, 'cantidad por m2', TRUE),   -- Metalcom + Cemento Especial
-  (2, 9, 2.0, 'cantidad por m2', TRUE),   -- Metalcom + Volcanita
-  (3, 1, 0.7, 'cantidad por m2', TRUE),   -- Albañilería + Cemento Portland
-  (3, 4, 1.5, 'cantidad por m2', TRUE),   -- Albañilería + Arena
-  (3, 5, 1.2, 'cantidad por m2', TRUE),   -- Albañilería + Ripio
-  (4, 1, 0.8, 'cantidad por m2', TRUE),   -- Hormigón Armado + Cemento Portland
-  (4, 3, 1.5, 'cantidad por m2', TRUE),   -- Hormigón Armado + Fierro
-  (4, 4, 2.0, 'cantidad por m2', TRUE),   -- Hormigón Armado + Arena
-  (1, 20, 0.15, 'cantidad por m2', TRUE), -- Madera + Albañil (HH por m2)
-  (2, 20, 0.2, 'cantidad por m2', TRUE),  -- Metalcom + Albañil
-  (3, 20, 0.3, 'cantidad por m2', TRUE),  -- Albañilería + Albañil
-  (4, 20, 0.25, 'cantidad por m2', TRUE)  -- Hormigón Armado + Albañil
+  -- MADERA (ID=1): menos cemento/fierro, más volcanita y cable
+  (1, 2,  0.30, 'cantidad por m2', TRUE),   -- Cemento Especial
+  (1, 3,  0.40, 'cantidad por m2', TRUE),   -- Fierro A63-42H
+  (1, 7,  1.20, 'cantidad por m2', TRUE),   -- Volcanita RH Standard
+  (1, 16, 3.00, 'cantidad por m2', TRUE),   -- Cable H07Z1-K 1x2.5mm
+  (1, 19, 0.15, 'cantidad por m2', TRUE),   -- Tubo PVC Agua 110mm
+  -- METALCON (ID=2): estructura metálica, mucha volcanita
+  (2, 2,  0.25, 'cantidad por m2', TRUE),   -- Cemento Especial (radier)
+  (2, 3,  0.30, 'cantidad por m2', TRUE),   -- Fierro A63-42H
+  (2, 7,  2.00, 'cantidad por m2', TRUE),   -- Volcanita RH Standard
+  (2, 16, 3.50, 'cantidad por m2', TRUE),   -- Cable H07Z1-K 1x2.5mm
+  (2, 19, 0.15, 'cantidad por m2', TRUE),   -- Tubo PVC Agua 110mm
+  -- ALBAÑILERÍA (ID=3): mucho cemento y fierro
+  (3, 2,  0.70, 'cantidad por m2', TRUE),   -- Cemento Especial
+  (3, 3,  0.80, 'cantidad por m2', TRUE),   -- Fierro A63-42H
+  (3, 7,  0.80, 'cantidad por m2', TRUE),   -- Volcanita RH Standard
+  (3, 16, 2.50, 'cantidad por m2', TRUE),   -- Cable H07Z1-K 1x2.5mm
+  (3, 19, 0.20, 'cantidad por m2', TRUE),   -- Tubo PVC Agua 110mm
+  -- HORMIGÓN ARMADO (ID=4): máximo cemento y fierro
+  (4, 2,  0.90, 'cantidad por m2', TRUE),   -- Cemento Especial
+  (4, 3,  1.50, 'cantidad por m2', TRUE),   -- Fierro A63-42H
+  (4, 7,  0.60, 'cantidad por m2', TRUE),   -- Volcanita RH Standard
+  (4, 16, 2.50, 'cantidad por m2', TRUE),   -- Cable H07Z1-K 1x2.5mm
+  (4, 19, 0.25, 'cantidad por m2', TRUE)    -- Tubo PVC Agua 110mm
 ON CONFLICT ("Material_Estructural_ID", "Insumo_ID") DO NOTHING;
 
 -- ========== VERIFICACIONES FINALES ==========
