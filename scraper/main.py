@@ -21,7 +21,9 @@ from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from scrapers import scrape_sodimac, scrape_easy, scrape_construmart
+from sodimac_scraper import scrape_sodimac
+from easy_scraper import scrape_easy
+from construmart_scraper import scrape_construmart
 from db import insertar_precios
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -67,10 +69,10 @@ def ejecutar_scrapers() -> None:
             logger.info(f"[Scheduler] → Ejecutando scraper: {nombre}")
             resultados = scraper_fn()
 
-            # Solo insertar los que tienen al menos nombre y precio
+            # Solo insertar los que tienen nombre y precio válidos
             exitosos = [
                 r for r in resultados
-                if r.get("exitoso") and r.get("nombre_producto")
+                if r.get("exitoso") and r.get("nombre_producto") and r.get("precio") is not None
             ]
 
             if exitosos:
