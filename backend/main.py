@@ -4,6 +4,8 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 import unicodedata
+from collections import defaultdict
+from schemas import DesgloseResponse, CategoriaDesglose, InsumoCalculado
 
 # Importar configuración de BD y Modelos
 from database import engine, get_db, SessionLocal
@@ -167,6 +169,70 @@ def asociar_y_validar_layout_estricto(simulacion_id: int, payload: PayloadLayout
         "area_total_calculada": area_total_acumulada,
         "limite_m2_disponibles": simulacion.m2_totales
     }
+
+@app.post("/api/simulacion/{simulacion_id}/calcular-insumos", response_model=DesgloseResponse)
+def calcular_insumos(simulacion_id: int, db: Session = Depends(get_db)):
+    """
+    Calcula el desglose de insumos para una simulación usando la Matriz de Rendimiento.
+    """
+    # 1. Recuperar simulacion
+    simulacion = db.query(models.ConfiguracionSimulacion).filter(models.ConfiguracionSimulacion.id == simulacion_id).first()
+    if not simulacion:
+        raise HTTPException(status_code=404, detail="La simulación especificada no existe.")
+        
+    m2_totales = simulacion.m2_totales
+    material_id = simulacion.material_estructural_id
+
+    # 2. Material nombre
+    material = db.query(models.MaterialEstructural).filter(models.MaterialEstructural.id == material_id).first()
+    material_nombre = material.nombre if material else "Desconocido"
+
+    # 3. Consultar la matriz cruzada con insumos
+    datos_rendimiento = db.query(models.MatrizRendimiento, models.Insumo).join(
+        models.Insumo, 
+        models.MatrizRendimiento.insumo_id == models.Insumo.id
+    ).filter(
+        models.MatrizRendimiento.material_estructural_id == material_id,
+        models.MatrizRendimiento.activo == True,
+        models.Insumo.activo == True
+    ).all()
+
+    if not datos_rendimiento:
+        raise HTTPException(status_code=422, detail="No existen rendimientos para el material seleccionado")
+
+    # 4. Agrupar por categoria
+    categorias_dict = defaultdict(list)
+    
+    for r, insumo in datos_rendimiento:
+        cantidad_calc = float(r.factor_multiplicador) * m2_totales
+        
+        item = InsumoCalculado(
+            insumo=insumo.nombre,
+            cantidad=cantidad_calc,
+            unidad=insumo.unidad_medida,
+            precio_unitario=None,
+            subtotal=None
+        )
+        categorias_dict[insumo.categoria].append(item)
+        
+    # 5. Mapear a Schema
+    desglose_list = [
+        CategoriaDesglose(
+            categoria=cat_name, 
+            items=items, 
+            subtotal_categoria=None
+        ) 
+        for cat_name, items in categorias_dict.items()
+    ]
+        
+    return DesgloseResponse(
+        simulacion_id=simulacion_id,
+        m2_totales=m2_totales,
+        material=material_nombre,
+        desglose=desglose_list,
+        costo_total=None,
+        fecha_precios=None
+    )
 
 
 if __name__ == "__main__":
