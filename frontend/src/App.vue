@@ -8,6 +8,7 @@ import SaveLayoutDialog from "./components/SaveLayoutDialog.vue";
 import RoomEditor2D from "./components/RoomEditor2D.vue";
 import Scene3D from "./components/Scene3D.vue";
 import MaterialsPanel from "./components/MaterialsPanel.vue";
+import BudgetBreakdownPanel from "./components/BudgetBreakdownPanel.vue";
 import { useRecintosStore } from "./stores/recintos";
 import { useTokenCounter } from "./composables/useTokenCounter";
 import { useLayoutManager } from "./composables/useLayoutManager";
@@ -217,6 +218,11 @@ const handleSaveLayout = (name) => {
           :descripcionEstado="descripcionEstado"
         />
         <Scene3D />
+        
+        <BudgetBreakdownPanel
+          :m2Totales="formData.m2Totales"
+          :materialEstructuralId="formData.materialEstructuralId"
+        />
 
         <!-- CTA Final — después del modelo 3D -->
         <button
