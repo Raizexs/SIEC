@@ -25,6 +25,10 @@ const props = defineProps({
     type: Object,
     required: true,
   },
+  totalAreaUsado: {
+    type: Number,
+    default: 0,
+  },
 });
 
 const materialNamesES = {
@@ -204,14 +208,14 @@ const materials = computed(() => [
               class="text-3xl font-headline font-black flex items-end gap-1"
               :style="{ color: descripcionEstado.color }"
             >
-              <span>{{ tokensDisponibles * 10 }}</span>
+              <span>{{ (tokensTotales * 10 - (totalAreaUsado > 0 ? totalAreaUsado : tokensUsados * 10)).toFixed(1) }}</span>
               <span class="text-base font-semibold mb-1 opacity-70">m²</span>
             </div>
           </div>
           <div class="text-right">
             <span class="text-xs text-slate-500 uppercase font-bold">{{ t('used') }}</span>
             <div class="text-2xl font-headline font-bold text-slate-600">
-              {{ tokensUsados * 10 }} <span class="text-sm font-medium">m²</span>
+              {{ (totalAreaUsado > 0 ? totalAreaUsado : tokensUsados * 10).toFixed(1) }} <span class="text-sm font-medium">m²</span>
             </div>
           </div>
           <div class="text-right">
@@ -222,6 +226,16 @@ const materials = computed(() => [
               {{ tokensTotales * 10 }} <span class="text-sm font-medium">m²</span>
             </div>
           </div>
+        </div>
+        <!-- Live usage bar -->
+        <div class="mt-4 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+          <div
+            class="h-full rounded-full transition-all duration-300"
+            :style="{
+              width: Math.min(((totalAreaUsado > 0 ? totalAreaUsado : tokensUsados * 10) / (tokensTotales * 10)) * 100, 100) + '%',
+              backgroundColor: descripcionEstado.color,
+            }"
+          ></div>
         </div>
       </div>
 

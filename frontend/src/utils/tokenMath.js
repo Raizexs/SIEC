@@ -8,11 +8,15 @@
  */
 
 export const DEFAULT_COSTS = {
-  habitacionSimple: 5,
-  habitacionDoble: 8,
-  habitacionTriple: 12,
-  banio: 4,
-  area_comun: 12,
+  // Costos basados en los tamaños mínimos iniciales reales en la matriz 2D:
+  // habitacion (3x3 = 9m2) -> 0.9 tokens
+  // banio (2x2 = 4m2) -> 0.4 tokens
+  // areaComun (4x4 = 16m2) -> 1.6 tokens
+  habitacionSimple: 0.9,
+  habitacionDoble: 1.6, // placeholder (4x4)
+  habitacionTriple: 2.4, // placeholder (6x4)
+  banio: 0.4,
+  area_comun: 1.6,
 };
 
 export const STATUS_THRESHOLDS = {

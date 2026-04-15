@@ -39,12 +39,7 @@ const handleSubmit = () => {
 const maxHabitacionesSimples = computed(() => 
   props.formData.habitacionesSimples + Math.floor(props.tokensDisponibles / props.costs.habitacionSimple)
 )
-const maxHabitacionesDobles = computed(() => 
-  props.formData.habitacionesDobles + Math.floor(props.tokensDisponibles / props.costs.habitacionDoble)
-)
-const maxHabitacionesTriples = computed(() => 
-  props.formData.habitacionesTriples + Math.floor(props.tokensDisponibles / props.costs.habitacionTriple)
-)
+
 const maxBanios = computed(() => 
   props.formData.banios + Math.floor(props.tokensDisponibles / props.costs.banio)
 )
@@ -101,19 +96,19 @@ const materialName = computed(() => {
         :value="formData.m2Totales"
         @input="updateFormData('m2Totales', Number($event.target.value))"
         class="w-full h-1.5 bg-surface-container-highest rounded-lg appearance-none cursor-pointer" 
-        max="2500" 
+        max="500" 
         min="10" 
         step="10" 
         type="range"
       />
       <div class="flex justify-between text-[10px] text-slate-400 font-bold uppercase">
         <span>10 m²</span>
-        <span>1,250 m²</span>
-        <span>2,500 m²</span>
+        <span>250 m²</span>
+        <span>500 m²</span>
       </div>
     </div>
 
-    <div class="grid grid-cols-5 gap-3">
+    <div class="grid grid-cols-3 gap-4">
       <div class="space-y-3">
         <label class="text-[9px] font-bold text-on-surface uppercase tracking-widest text-center block truncate" title="Habitaciones Simples">{{ t('simpleRooms') }}</label>
         <div class="flex items-center gap-1 bg-surface-container-highest/30 p-1.5 rounded-full border border-outline-variant/10">
@@ -127,48 +122,6 @@ const materialName = computed(() => {
           <span class="flex-1 text-center font-headline font-extrabold text-sm">{{ formData.habitacionesSimples || 0 }}</span>
           <button 
             @click="increment('habitacionesSimples', maxHabitacionesSimples)"
-            type="button"
-            class="w-6 h-6 rounded-full bg-primary text-white shadow-sm flex items-center justify-center hover:opacity-90"
-          >
-            <span class="material-symbols-outlined text-[12px]">add</span>
-          </button>
-        </div>
-      </div>
-      
-      <div class="space-y-3">
-        <label class="text-[9px] font-bold text-on-surface uppercase tracking-widest text-center block truncate" title="Habitaciones Dobles">{{ t('doubleRooms') }}</label>
-        <div class="flex items-center gap-1 bg-surface-container-highest/30 p-1.5 rounded-full border border-outline-variant/10">
-          <button 
-            @click="decrement('habitacionesDobles')"
-            type="button"
-            class="w-6 h-6 rounded-full bg-white dark:bg-[#21262d] shadow-sm flex items-center justify-center hover:bg-slate-50 dark:hover:bg-[#30363d]"
-          >
-            <span class="material-symbols-outlined text-primary text-[12px]">remove</span>
-          </button>
-          <span class="flex-1 text-center font-headline font-extrabold text-sm">{{ formData.habitacionesDobles || 0 }}</span>
-          <button 
-            @click="increment('habitacionesDobles', maxHabitacionesDobles)"
-            type="button"
-            class="w-6 h-6 rounded-full bg-primary text-white shadow-sm flex items-center justify-center hover:opacity-90"
-          >
-            <span class="material-symbols-outlined text-[12px]">add</span>
-          </button>
-        </div>
-      </div>
-      
-      <div class="space-y-3">
-        <label class="text-[9px] font-bold text-on-surface uppercase tracking-widest text-center block truncate" title="Triples/Suites">{{ t('tripleSuites') }}</label>
-        <div class="flex items-center gap-1 bg-surface-container-highest/30 p-1.5 rounded-full border border-outline-variant/10">
-          <button 
-            @click="decrement('habitacionesTriples')"
-            type="button"
-            class="w-6 h-6 rounded-full bg-white dark:bg-[#21262d] shadow-sm flex items-center justify-center hover:bg-slate-50 dark:hover:bg-[#30363d]"
-          >
-            <span class="material-symbols-outlined text-primary text-[12px]">remove</span>
-          </button>
-          <span class="flex-1 text-center font-headline font-extrabold text-sm">{{ formData.habitacionesTriples || 0 }}</span>
-          <button 
-            @click="increment('habitacionesTriples', maxHabitacionesTriples)"
             type="button"
             class="w-6 h-6 rounded-full bg-primary text-white shadow-sm flex items-center justify-center hover:opacity-90"
           >
