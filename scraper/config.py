@@ -12,11 +12,11 @@ STORES = {
             'https://www.sodimac.cl/sodimac-cl/browse?region=valparaiso'
         ],
         'selectors': {
-            'name': {'css': '.pdp-basic-info__product-name', 'example': 'Hormigón Preparado Para Radieres Sobrelosas Pilares 25 Kg'},
-            'price': {'css': '.copy12.primary.senary', 'example': '$ 2.851'},
-            'price_discount': {'css': '.copy12.primary.senary.bold', 'example': 'N/A (sin descuento)'},
-            'stock': {'css': 'p.store-availability.available', 'example': '89 unidades disponibles'},
-            'category': {'css': 'a.Breadcrumbs-module_selected-bread-crumb__ZPj02', 'example': 'Cemento'},
+            'name': {'css': '.pdp-basic-info__product-name, [class*="product-name"], h1', 'example': 'Hormigón Preparado Para Radieres Sobrelosas Pilares 25 Kg'},
+            'price': {'css': '.copy12.primary.senary, [class*="price"], .primary.senary', 'example': '$ 2.851'},
+            'price_discount': {'css': '.copy12.primary.senary.bold, [class*="discount"]', 'example': 'N/A (sin descuento)'},
+            'stock': {'css': 'p.store-availability.available, [class*="availability"], .stock', 'example': '89 unidades disponibles'},
+            'category': {'css': 'a.Breadcrumbs-module_selected-bread-crumb__ZPj02, .selected-bread-crumb', 'example': 'Cemento'},
             'pagination': {'css': 'a[rel="next"]', 'example': 'N/A (en PDPs no hay paginación)'}
         },
 
@@ -27,7 +27,7 @@ STORES = {
             'https://www.sodimac.cl/sodimac-cl/articulo/113214486/cable-libre-de-halogenos-h07z1-k-1x2-5-mm2-rojo-100-metros/113214489',
             'https://www.sodimac.cl/sodimac-cl/articulo/135520693/tubo-gris-pvc-agua-110-mmx6-m/135520694'
         ],
-        'notes': 'INTERACCIÓN REQUERIDA: 1) Cerrar modal de región/cookies (click X). 2) Seleccionar Región Valparaíso si se solicita. 3) Stock y precio varían por sucursal seleccionada. 4) En listados, paginación usa JS (requiere Playwright para automatizar). Ver DOCUMENTACION_SELECTORES.md para paso a paso en DevTools.'
+        'notes': 'INTERACCIÓN REQUERIDA: 1) Cerrar modal de región/cookies (click X). 2) Seleccionar Región Valparaíso si se solicita. 3) Stock y precio varían por sucursal seleccionada. 4) El producto de fibrocemento se usa como equivalente de Volcanita para el mapeo de insumos. 5) En listados, paginación usa JS (requiere Playwright para automatizar). Ver DOCUMENTACION_SELECTORES.md para paso a paso en DevTools.'
     },
     'easy': {
         'name': 'Easy',

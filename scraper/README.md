@@ -264,7 +264,7 @@ El verificador mostrará ✅ o ❌ para cada selector
 ```
 1. Cemento:    https://www.sodimac.cl/sodimac-cl/articulo/110277134/hormigon-preparado-para-radieres-sobrelosas-pilares-25-kg/110277137
 2. Fierro:     https://www.sodimac.cl/sodimac-cl/articulo/110282820/fierro-liso-cuadrado-acero-10x10-5-mm-6-m/110282823
-3. Volcanita:  https://www.sodimac.cl/sodimac-cl/articulo/110288145/placa-fibrocemento-lisa-4-mm-120x240-cm-blanco/110288165
+3. Volcanita / fibrocemento:  https://www.sodimac.cl/sodimac-cl/articulo/110288145/placa-fibrocemento-lisa-4-mm-120x240-cm-blanco/110288165
 4. Cable:      https://www.sodimac.cl/sodimac-cl/articulo/113214486/cable-libre-de-halogenos-h07z1-k-1x2-5-mm2-rojo-100-metros/113214489
 5. Tubería:    https://www.sodimac.cl/sodimac-cl/articulo/135520693/tubo-gris-pvc-agua-110-mmx6-m/135520694
 ```
@@ -294,7 +294,7 @@ El verificador mostrará ✅ o ❌ para cada selector
 - ✅ Cada tienda tiene 6 selectores (name, price, price_discount, stock, category, pagination)
 - ✅ Cada selector se puede probar manualmente en DevTools Console
 - ✅ Ejemplos documentados en `config.py`
-- ✅ 5 URLs de productos por tienda (Cemento, Fierro, Volcanita, Cable, Tubería)
+- ✅ 5 URLs de productos por tienda (Cemento, Fierro, Volcanita/fibrocemento, Cable, Tubería)
 - ✅ Notas de interacción previas (modal/región/tienda)
 - ✅ Verificador interactivo en `verify_selectors.js`
 
