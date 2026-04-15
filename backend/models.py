@@ -37,8 +37,11 @@ class Insumo(Base):
     descripcion = Column("Descripcion", String)
     activo = Column("Activo", Boolean, default=True)
 
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Numeric, UniqueConstraint
+
 class MatrizRendimiento(Base):
     __tablename__ = "Matriz_Rendimiento"
+    __table_args__ = (UniqueConstraint('Material_Estructural_ID', 'Insumo_ID', name='uq_material_insumo'),)
 
     id = Column("ID", Integer, primary_key=True, index=True)
     material_estructural_id = Column("Material_Estructural_ID", Integer, ForeignKey("Material_Estructural.ID"), nullable=False)

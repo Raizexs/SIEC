@@ -16,6 +16,7 @@ const generateId = () =>
 export const useRecintosStore = defineStore("recintos", () => {
   // Estado reactivo: array de recintos con id, tipo, coordenadas y dimensiones
   const recintos = ref([]);
+  const selectedForBudget = ref(new Set());
 
   // Metadata de configuración para el layout inicial
   const configMetadata = ref({
@@ -62,6 +63,7 @@ export const useRecintosStore = defineStore("recintos", () => {
     materialEstructuralId,
   ) => {
     recintos.value = [];
+    selectedForBudget.value = new Set();
     configMetadata.value = {
       m2Totales,
       habitaciones,
@@ -151,7 +153,20 @@ export const useRecintosStore = defineStore("recintos", () => {
 
   const deleteRecinto = (id) => {
     recintos.value = recintos.value.filter((r) => r.id !== id);
+    selectedForBudget.value.delete(id);
   };
+
+  const toggleBudget = (id) => {
+    const s = new Set(selectedForBudget.value);
+    if (s.has(id)) s.delete(id); else s.add(id);
+    selectedForBudget.value = s;
+  };
+
+  const selectedM2 = computed(() => {
+    return recintos.value
+      .filter((r) => selectedForBudget.value.has(r.id))
+      .reduce((sum, r) => sum + r.dimensions.w * r.dimensions.l, 0);
+  });
 
   // Computed: indicadores útiles (totales, colisiones futuras, etc.)
   const totalArea = computed(() => {
@@ -172,14 +187,17 @@ export const useRecintosStore = defineStore("recintos", () => {
     recintos,
     configMetadata,
     TOKEN_COSTS,
+    selectedForBudget,
 
     // Methods
     initializeLayout,
     updateRecinto,
     deleteRecinto,
+    toggleBudget,
 
     // Computed
     totalArea,
     recintosByType,
+    selectedM2,
   };
 });
