@@ -2,68 +2,80 @@
 import { computed, onBeforeUnmount, ref } from "vue";
 import { useRecintosStore } from "../stores/recintos";
 import { useInteractiveEditor } from "../composables/useInteractiveEditor";
-import { useTopologyComputed } from "../composables/useTopologyComputed";
 
-const PIXELS_PER_METER = 40;
-const PADDING = 30;
+const PIXELS_PER_METER = 50;
+const VIEW_PADDING = 2; // metres of margin around all rooms
 
 const svgRef = ref(null);
 const store = useRecintosStore();
 const editor = useInteractiveEditor();
-const topology = useTopologyComputed();
 
-const bounds = computed(() => {
+// ── Frozen bounds: captured at interaction start so the coordinate system
+//    doesn't shift while dragging (prevents the "warp" bug). ──
+const frozenBounds = ref(null);
+
+const liveBounds = computed(() => {
   if (store.recintos.length === 0) {
-    return { minX: 0, minZ: 0, maxX: 10, maxZ: 10 };
+    return { minX: -1, minZ: -1, maxX: 15, maxZ: 10 };
   }
-
-  let minX = Infinity;
-  let minZ = Infinity;
-  let maxX = -Infinity;
-  let maxZ = -Infinity;
-
+  let minX = Infinity, minZ = Infinity, maxX = -Infinity, maxZ = -Infinity;
   store.recintos.forEach((r) => {
     minX = Math.min(minX, r.coords.x);
     minZ = Math.min(minZ, r.coords.z);
     maxX = Math.max(maxX, r.coords.x + r.dimensions.w);
     maxZ = Math.max(maxZ, r.coords.z + r.dimensions.l);
   });
-
-  return { minX, minZ, maxX, maxZ };
-});
-
-const editorSize = computed(() => {
-  const width =
-    (bounds.value.maxX - bounds.value.minX) * PIXELS_PER_METER + PADDING * 2;
-  const height =
-    (bounds.value.maxZ - bounds.value.minZ) * PIXELS_PER_METER + PADDING * 2;
   return {
-    width: Math.max(width, 520),
-    height: Math.max(height, 340),
+    minX: minX - VIEW_PADDING,
+    minZ: minZ - VIEW_PADDING,
+    maxX: maxX + VIEW_PADDING,
+    maxZ: maxZ + VIEW_PADDING,
   };
 });
 
-const toScreenX = (x) => {
-  return PADDING + (x - bounds.value.minX) * PIXELS_PER_METER;
-};
+// Use frozen bounds during interaction, live bounds otherwise
+const activeBounds = computed(() => frozenBounds.value || liveBounds.value);
 
-const toScreenZ = (z) => {
-  return PADDING + (z - bounds.value.minZ) * PIXELS_PER_METER;
-};
+const viewBox = computed(() => {
+  const b = activeBounds.value;
+  const w = (b.maxX - b.minX) * PIXELS_PER_METER;
+  const h = (b.maxZ - b.minZ) * PIXELS_PER_METER;
+  return `0 0 ${Math.max(w, 400)} ${Math.max(h, 280)}`;
+});
+
+const editorSize = computed(() => {
+  const b = activeBounds.value;
+  return {
+    width: Math.max((b.maxX - b.minX) * PIXELS_PER_METER, 400),
+    height: Math.max((b.maxZ - b.minZ) * PIXELS_PER_METER, 280),
+  };
+});
+
+// ── Coordinate transforms (use activeBounds so they're stable during drag) ──
+const toScreenX = (x) => (x - activeBounds.value.minX) * PIXELS_PER_METER;
+const toScreenZ = (z) => (z - activeBounds.value.minZ) * PIXELS_PER_METER;
 
 const toWorld = (clientX, clientY) => {
-  const rect = svgRef.value.getBoundingClientRect();
-  const x =
-    bounds.value.minX + (clientX - rect.left - PADDING) / PIXELS_PER_METER;
-  const z =
-    bounds.value.minZ + (clientY - rect.top - PADDING) / PIXELS_PER_METER;
-  return { x, z };
+  const svg = svgRef.value;
+  if (!svg) return { x: 0, z: 0 };
+
+  // Use SVG's own coordinate mapping — handles scaling, aspect ratio, etc.
+  const pt = svg.createSVGPoint();
+  pt.x = clientX;
+  pt.y = clientY;
+  const svgPt = pt.matrixTransform(svg.getScreenCTM().inverse());
+
+  const b = activeBounds.value;
+  return {
+    x: b.minX + svgPt.x / PIXELS_PER_METER,
+    z: b.minZ + svgPt.y / PIXELS_PER_METER,
+  };
 };
 
+// ── Interaction handlers ──
 const onPointerMove = (event) => {
   if (!editor.activeMode.value) return;
   const world = toWorld(event.clientX, event.clientY);
-
   if (editor.activeMode.value === "drag") {
     editor.dragTo(world);
   } else if (editor.activeMode.value === "resize") {
@@ -73,16 +85,21 @@ const onPointerMove = (event) => {
 
 const onPointerUp = () => {
   editor.endInteraction();
+  frozenBounds.value = null; // unfreeze
 };
 
 const startDrag = (event, id) => {
   event.preventDefault();
+  event.stopPropagation();
+  frozenBounds.value = { ...liveBounds.value }; // freeze
   const world = toWorld(event.clientX, event.clientY);
   editor.beginDrag(id, world);
 };
 
 const startResize = (event, id) => {
   event.preventDefault();
+  event.stopPropagation();
+  frozenBounds.value = { ...liveBounds.value }; // freeze
   const world = toWorld(event.clientX, event.clientY);
   editor.beginResize(id);
   editor.resizeTo(world);
@@ -97,108 +114,157 @@ onBeforeUnmount(() => {
 });
 
 const roomColor = (tipo) => {
-  if (tipo === "habitacion") return "#1d4ed8";
-  if (tipo === "banio") return "#0f766e";
-  return "#b45309";
+  if (tipo === "habitacion") return "#3b82f6";
+  if (tipo === "banio") return "#14b8a6";
+  return "#f59e0b";
 };
+
+const roomColorHover = (tipo) => {
+  if (tipo === "habitacion") return "#60a5fa";
+  if (tipo === "banio") return "#2dd4bf";
+  return "#fbbf24";
+};
+
+const isActive = (id) => editor.activeMode.value && editor.selectedRecintoId === id;
 </script>
 
 <template>
   <div class="w-full">
     <div class="bg-slate-900 rounded-xl border border-primary/30 p-4">
       <h3 class="text-white font-semibold mb-1">Editor Espacial 2D</h3>
-      <p class="text-slate-400 text-sm mb-4">Arrastra cada recinto o usa la esquina inferior derecha para redimensionar.</p>
+      <p class="text-slate-400 text-sm mb-4">Arrastra para mover · Esquina inferior derecha para redimensionar</p>
       
       <svg
         ref="svgRef"
-        :viewBox="`0 0 ${editorSize.width} ${editorSize.height}`"
+        :viewBox="viewBox"
         class="w-full rounded-lg bg-gradient-to-br from-slate-800 to-slate-900"
         style="touch-action: none; min-height: 400px;"
+        preserveAspectRatio="xMidYMid meet"
       >
         <defs>
-          <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+          <!-- Grid pattern: 1 metre = PIXELS_PER_METER px -->
+          <pattern id="grid-minor" :width="PIXELS_PER_METER / 2" :height="PIXELS_PER_METER / 2" patternUnits="userSpaceOnUse">
             <path
-              d="M 20 0 L 0 0 0 20"
+              :d="`M ${PIXELS_PER_METER / 2} 0 L 0 0 0 ${PIXELS_PER_METER / 2}`"
               fill="none"
-              stroke="rgba(100,116,139,0.3)"
+              stroke="rgba(100,116,139,0.15)"
+              stroke-width="0.5"
+            />
+          </pattern>
+          <pattern id="grid-major" :width="PIXELS_PER_METER" :height="PIXELS_PER_METER" patternUnits="userSpaceOnUse">
+            <rect :width="PIXELS_PER_METER" :height="PIXELS_PER_METER" fill="url(#grid-minor)" />
+            <path
+              :d="`M ${PIXELS_PER_METER} 0 L 0 0 0 ${PIXELS_PER_METER}`"
+              fill="none"
+              stroke="rgba(100,116,139,0.35)"
               stroke-width="1"
             />
           </pattern>
         </defs>
 
-        <rect
-          x="0"
-          y="0"
-          :width="editorSize.width"
-          :height="editorSize.height"
-          fill="url(#grid)"
-        />
+        <!-- Grid background -->
+        <rect x="0" y="0" :width="editorSize.width" :height="editorSize.height" fill="url(#grid-major)" />
 
+        <!-- Rooms -->
         <g v-for="recinto in store.recintos" :key="recinto.id">
+          <!-- Room body -->
           <rect
             :x="toScreenX(recinto.coords.x)"
             :y="toScreenZ(recinto.coords.z)"
             :width="recinto.dimensions.w * PIXELS_PER_METER"
             :height="recinto.dimensions.l * PIXELS_PER_METER"
             :fill="roomColor(recinto.tipo)"
-            :stroke="
-              editor.selectedRecintoId === recinto.id ? '#60a5fa' : '#1e293b'
-            "
-            stroke-width="2"
-            class="cursor-grab hover:opacity-90 transition-opacity"
-            rx="4"
+            :fill-opacity="isActive(recinto.id) ? 0.95 : 0.75"
+            :stroke="isActive(recinto.id) ? '#ffffff' : roomColorHover(recinto.tipo)"
+            :stroke-width="isActive(recinto.id) ? 2.5 : 1.5"
+            rx="3"
+            class="cursor-grab"
+            :class="{ 'cursor-grabbing': isActive(recinto.id) && editor.activeMode.value === 'drag' }"
             @pointerdown="(e) => startDrag(e, recinto.id)"
           />
 
+          <!-- Room label: type + area -->
           <text
-            :x="toScreenX(recinto.coords.x) + 8"
-            :y="toScreenZ(recinto.coords.z) + 18"
+            :x="toScreenX(recinto.coords.x) + (recinto.dimensions.w * PIXELS_PER_METER) / 2"
+            :y="toScreenZ(recinto.coords.z) + (recinto.dimensions.l * PIXELS_PER_METER) / 2 - 6"
             fill="#ffffff"
             font-size="11"
-            font-weight="600"
+            font-weight="700"
+            text-anchor="middle"
+            dominant-baseline="middle"
+            style="pointer-events: none"
           >
-            {{
-              recinto.tipo === "habitacion"
-                ? "Hab."
-                : recinto.tipo === "banio"
-                  ? "Baño"
-                  : "Común"
-            }}
-            ({{ (recinto.dimensions.w * recinto.dimensions.l).toFixed(1) }}m²)
+            {{ recinto.tipo === "habitacion" ? "Hab." : recinto.tipo === "banio" ? "Baño" : "Común" }}
+          </text>
+          <text
+            :x="toScreenX(recinto.coords.x) + (recinto.dimensions.w * PIXELS_PER_METER) / 2"
+            :y="toScreenZ(recinto.coords.z) + (recinto.dimensions.l * PIXELS_PER_METER) / 2 + 8"
+            fill="rgba(255,255,255,0.7)"
+            font-size="10"
+            font-weight="500"
+            text-anchor="middle"
+            dominant-baseline="middle"
+            style="pointer-events: none"
+          >
+            {{ (recinto.dimensions.w * recinto.dimensions.l).toFixed(1) }}m²
           </text>
 
-          <circle
-            :cx="toScreenX(recinto.coords.x + recinto.dimensions.w)"
-            :cy="toScreenZ(recinto.coords.z + recinto.dimensions.l)"
-            r="6"
-            fill="#f59e0b"
-            stroke="#ffffff"
-            stroke-width="2"
+          <!-- Resize handle: visible corner triangle + larger invisible hit area -->
+          <rect
+            :x="toScreenX(recinto.coords.x + recinto.dimensions.w) - 18"
+            :y="toScreenZ(recinto.coords.z + recinto.dimensions.l) - 18"
+            width="24"
+            height="24"
+            fill="transparent"
             class="cursor-nwse-resize"
             @pointerdown="(e) => startResize(e, recinto.id)"
           />
+          <path
+            :d="`M ${toScreenX(recinto.coords.x + recinto.dimensions.w)} ${toScreenZ(recinto.coords.z + recinto.dimensions.l) - 12} L ${toScreenX(recinto.coords.x + recinto.dimensions.w)} ${toScreenZ(recinto.coords.z + recinto.dimensions.l)} L ${toScreenX(recinto.coords.x + recinto.dimensions.w) - 12} ${toScreenZ(recinto.coords.z + recinto.dimensions.l)} Z`"
+            fill="rgba(255,255,255,0.8)"
+            style="pointer-events: none"
+          />
 
-          <g v-if="(editor.activeMode.value === 'resize' || editor.activeMode.value === 'drag') && editor.selectedRecintoId === recinto.id">
-            <!-- Ancho (Arriba) -->
+          <!-- Live dimension labels (shown while interacting) -->
+          <g v-if="isActive(recinto.id)">
+            <!-- Width label (top edge) -->
+            <rect
+              :x="toScreenX(recinto.coords.x) + (recinto.dimensions.w * PIXELS_PER_METER) / 2 - 24"
+              :y="toScreenZ(recinto.coords.z) - 20"
+              width="48"
+              height="16"
+              rx="3"
+              fill="rgba(0,0,0,0.75)"
+            />
             <text
               :x="toScreenX(recinto.coords.x) + (recinto.dimensions.w * PIXELS_PER_METER) / 2"
-              :y="toScreenZ(recinto.coords.z) - 8"
+              :y="toScreenZ(recinto.coords.z) - 9"
               fill="#fbbf24"
-              font-size="12"
+              font-size="11"
               font-weight="bold"
               text-anchor="middle"
+              style="pointer-events: none"
             >
               {{ recinto.dimensions.w.toFixed(1) }}m
             </text>
             
-            <!-- Largo (Derecha) -->
+            <!-- Height label (right edge) -->
+            <rect
+              :x="toScreenX(recinto.coords.x + recinto.dimensions.w) + 4"
+              :y="toScreenZ(recinto.coords.z) + (recinto.dimensions.l * PIXELS_PER_METER) / 2 - 8"
+              width="44"
+              height="16"
+              rx="3"
+              fill="rgba(0,0,0,0.75)"
+            />
             <text
-              :x="toScreenX(recinto.coords.x) + (recinto.dimensions.w * PIXELS_PER_METER) + 8"
-              :y="toScreenZ(recinto.coords.z) + (recinto.dimensions.l * PIXELS_PER_METER) / 2"
+              :x="toScreenX(recinto.coords.x + recinto.dimensions.w) + 26"
+              :y="toScreenZ(recinto.coords.z) + (recinto.dimensions.l * PIXELS_PER_METER) / 2 + 3"
               fill="#fbbf24"
-              font-size="12"
+              font-size="11"
               font-weight="bold"
-              alignment-baseline="middle"
+              text-anchor="middle"
+              style="pointer-events: none"
             >
               {{ recinto.dimensions.l.toFixed(1) }}m
             </text>
@@ -225,5 +291,10 @@ const roomColor = (tipo) => {
 </template>
 
 <style scoped>
-/* RoomEditor2D - using Tailwind classes */
+svg rect.cursor-grab:hover {
+  filter: brightness(1.15);
+}
+svg rect.cursor-grabbing {
+  cursor: grabbing;
+}
 </style>
