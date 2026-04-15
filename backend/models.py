@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, Numeric, ForeignKey
+from sqlalchemy import Column, Integer, String, Boolean, Numeric, ForeignKey, DateTime
 from database import Base
 
 class TipoRecinto(Base):
@@ -46,3 +46,18 @@ class MatrizRendimiento(Base):
     factor_multiplicador = Column("Factor_Multiplicador", Numeric(10, 4), nullable=False)
     unidad_factor = Column("Unidad_Factor", String, default='cantidad por m2')
     activo = Column("Activo", Boolean, default=True)
+
+class PrecioMercado(Base):
+    __tablename__ = "precio_mercado"
+
+    id = Column("ID", Integer, primary_key=True, index=True)
+    insumo_id = Column("Insumo_ID", Integer, ForeignKey("Insumo.ID"))
+    tienda = Column("Tienda", String, nullable=False)
+    nombre_producto = Column("Nombre_Producto", String, nullable=False)
+    precio = Column("Precio", Numeric(12, 2))
+    precio_descuento = Column("Precio_Descuento", Numeric(12, 2))
+    stock = Column("Stock", String)
+    categoria = Column("Categoria", String)
+    url = Column("URL", String, nullable=False)
+    fecha_scraping = Column("Fecha_Scraping", DateTime, nullable=False)
+    exitoso = Column("Exitoso", Boolean, default=True)
