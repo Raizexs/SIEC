@@ -12,13 +12,16 @@ from database import engine, get_db, SessionLocal
 import models
 
 # Crear tablas
-models.Base.metadata.create_all(bind=engine)
+# Crear tablas (movido a startup)
 
 app = FastAPI(title="SIEC API", version="1.0.0")
 
 # Seeding de datos iniciales
 @app.on_event("startup")
 def startup_event():
+    # Inicializar tablas aquí para evitar crash sin DB al importar (Testing)
+    models.Base.metadata.create_all(bind=engine)
+    
     db = SessionLocal()
     try:
         # Verificar si ya existen tipos de recinto
@@ -200,38 +203,81 @@ def calcular_insumos(simulacion_id: int, db: Session = Depends(get_db)):
     if not datos_rendimiento:
         raise HTTPException(status_code=422, detail="No existen rendimientos para el material seleccionado")
 
-    # 4. Agrupar por categoria
+    # Promediador de Precios de Mercado
+    insumo_ids = [insumo.id for r, insumo in datos_rendimiento]
+    
+    precios_records = db.query(models.PrecioMercado).distinct(
+        models.PrecioMercado.insumo_id, 
+        models.PrecioMercado.tienda
+    ).filter(
+        models.PrecioMercado.exitoso == True,
+        models.PrecioMercado.insumo_id.in_(insumo_ids)
+    ).order_by(
+        models.PrecioMercado.insumo_id, 
+        models.PrecioMercado.tienda, 
+        models.PrecioMercado.fecha_scraping.desc()
+    ).all()
+    
+    precios_x_insumo = defaultdict(list)
+    fechas_usadas = []
+    
+    for pm in precios_records:
+        precio_val = pm.precio_descuento if pm.precio_descuento is not None else pm.precio
+        if precio_val is not None:
+            precios_x_insumo[pm.insumo_id].append(float(precio_val))
+            if pm.fecha_scraping:
+                fechas_usadas.append(pm.fecha_scraping.isoformat() if hasattr(pm.fecha_scraping, 'isoformat') else str(pm.fecha_scraping))
+                
+    precio_promedio_map = {}
+    for i_id, lista_precios in precios_x_insumo.items():
+        if lista_precios:
+            precio_promedio_map[i_id] = sum(lista_precios) / len(lista_precios)
+            
+    fecha_precios = min(fechas_usadas) if fechas_usadas else None
+
+    # 4. Agrupar por categoria y calcular subtotales
     categorias_dict = defaultdict(list)
+    costo_total_simulacion = None
     
     for r, insumo in datos_rendimiento:
         cantidad_calc = float(r.factor_multiplicador) * m2_totales
         
+        precio_unit = precio_promedio_map.get(insumo.id)
+        subt = None
+        if precio_unit is not None:
+            subt = precio_unit * cantidad_calc
+            if costo_total_simulacion is None:
+                costo_total_simulacion = 0.0
+            costo_total_simulacion += subt
+            
         item = InsumoCalculado(
             insumo=insumo.nombre,
             cantidad=cantidad_calc,
             unidad=insumo.unidad_medida,
-            precio_unitario=None,
-            subtotal=None
+            precio_unitario=precio_unit,
+            subtotal=subt
         )
         categorias_dict[insumo.categoria].append(item)
         
     # 5. Mapear a Schema
-    desglose_list = [
-        CategoriaDesglose(
+    desglose_list = []
+    for cat_name, items in categorias_dict.items():
+        has_subt = any(i.subtotal is not None for i in items)
+        subcat = sum((i.subtotal for i in items if i.subtotal is not None)) if has_subt else None
+        
+        desglose_list.append(CategoriaDesglose(
             categoria=cat_name, 
             items=items, 
-            subtotal_categoria=None
-        ) 
-        for cat_name, items in categorias_dict.items()
-    ]
+            subtotal_categoria=subcat
+        ))
         
     return DesgloseResponse(
         simulacion_id=simulacion_id,
         m2_totales=m2_totales,
         material=material_nombre,
         desglose=desglose_list,
-        costo_total=None,
-        fecha_precios=None
+        costo_total=costo_total_simulacion,
+        fecha_precios=fecha_precios
     )
 
 
