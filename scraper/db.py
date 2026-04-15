@@ -10,6 +10,8 @@ from psycopg2.extras import execute_batch
 from datetime import datetime
 from typing import Optional
 
+from validators import validar_variacion_precio
+
 logger = logging.getLogger(__name__)
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -60,6 +62,35 @@ def insertar_precios(resultados: list[dict]) -> int:
     if not validos:
         logger.warning("[DB] Sin registros con precio válido. Inserción abortada — precio_mercado intacto.")
         return 0
+
+    # ── Filtro de variación de precios (SCRUM-64): descarta variaciones irracionales ──
+    # Criterio: nuevo > 3× anterior (+200%) o nuevo < 0.5× anterior (−50%)
+    import db as _db_self  # referencia al propio módulo para inyección en el validador
+    aprobados = []
+    rechazados_variacion = 0
+    for r in validos:
+        if validar_variacion_precio(
+            insumo_id=r.get("insumo_id"),
+            tienda=r.get("tienda", ""),
+            nuevo_precio=float(r["precio"]),
+            db=_db_self,
+            nombre_producto=r.get("nombre_producto", ""),
+            url=r.get("url", ""),
+        ):
+            aprobados.append(r)
+        else:
+            rechazados_variacion += 1
+
+    if rechazados_variacion:
+        logger.warning(
+            f"[DB] {rechazados_variacion} registro(s) descartados por variación irracional de precio. "
+            "Los datos anteriores en precio_mercado se mantienen intactos."
+        )
+    if not aprobados:
+        logger.warning("[DB] Sin registros aprobados tras filtro de variación. Inserción abortada — precio_mercado intacto.")
+        return 0
+
+    validos = aprobados
 
     sql = """
         INSERT INTO precio_mercado (
