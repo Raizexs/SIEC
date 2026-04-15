@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { useRecintosStore } from '../stores/recintos'
 
-const GRID_STEP = 0.5
+const GRID_STEP = 0.1   // Fine-grained snap for fluid feel
 const EPS = 1e-6
 
 function snap(value) {
@@ -19,21 +19,14 @@ export function useInteractiveEditor() {
   const dragOffset = ref({ x: 0, z: 0 })
 
   const minAreaByTipo = computed(() => ({
-    habitacion: store.TOKEN_COSTS.habitacion,
-    banio: store.TOKEN_COSTS.banio,
-    areaComun: store.TOKEN_COSTS.areaComun
+    habitacion: 4,    // minimum 4 m²
+    banio: 2,         // minimum 2 m²
+    areaComun: 4      // minimum 4 m²
   }))
 
   const selectedRecinto = computed(() => {
     return store.recintos.find((r) => r.id === selectedRecintoId.value) || null
   })
-
-  const getTotalAreaExcept = (id) => {
-    return store.recintos.reduce((sum, r) => {
-      if (r.id === id) return sum
-      return sum + (r.dimensions.w * r.dimensions.l)
-    }, 0)
-  }
 
   const hasCollision = (id, candidate) => {
     return store.recintos.some((r) => {
@@ -48,6 +41,7 @@ export function useInteractiveEditor() {
     })
   }
 
+  // ── Drag ──────────────────────────────────────────────────────────────
   const beginDrag = (id, pointerWorld) => {
     const room = store.recintos.find((r) => r.id === id)
     if (!room) return
@@ -75,12 +69,26 @@ export function useInteractiveEditor() {
     }
 
     if (hasCollision(room.id, candidate)) {
+      // Try sliding along X only
+      const slideX = { ...candidate, z: room.coords.z }
+      if (!hasCollision(room.id, slideX)) {
+        store.updateRecinto(room.id, { x: nextX })
+        return
+      }
+      // Try sliding along Z only
+      const slideZ = { ...candidate, x: room.coords.x }
+      if (!hasCollision(room.id, slideZ)) {
+        store.updateRecinto(room.id, { z: nextZ })
+        return
+      }
+      // Both blocked — don't move
       return
     }
 
     store.updateRecinto(room.id, { x: nextX, z: nextZ })
   }
 
+  // ── Resize ────────────────────────────────────────────────────────────
   const beginResize = (id) => {
     selectedRecintoId.value = id
     activeMode.value = 'resize'
@@ -90,30 +98,19 @@ export function useInteractiveEditor() {
     if (activeMode.value !== 'resize' || !selectedRecinto.value) return
 
     const room = selectedRecinto.value
-    const minArea = minAreaByTipo.value[room.tipo] || 1
+    const minArea = minAreaByTipo.value[room.tipo] || 2
+    const MIN_SIDE = 1.0 // minimum 1 metre per side
 
-    let nextW = Math.max(GRID_STEP, snap(pointerWorld.x - room.coords.x))
-    let nextL = Math.max(GRID_STEP, snap(pointerWorld.z - room.coords.z))
+    let nextW = Math.max(MIN_SIDE, snap(pointerWorld.x - room.coords.x))
+    let nextL = Math.max(MIN_SIDE, snap(pointerWorld.z - room.coords.z))
 
-    // Tope minimo: area del recinto no puede bajar de su costo token.
+    // Enforce minimum area
     if (nextW * nextL < minArea) {
-      const minSide = Math.sqrt(minArea)
-      nextW = Math.max(nextW, snap(minSide))
-      nextL = Math.max(nextL, snap(minArea / Math.max(nextW, GRID_STEP)))
-      if (nextW * nextL < minArea) {
-        nextL = snap(minArea / Math.max(nextW, GRID_STEP))
+      if (nextW < nextL) {
+        nextW = Math.max(MIN_SIDE, snap(minArea / nextL))
+      } else {
+        nextL = Math.max(MIN_SIDE, snap(minArea / nextW))
       }
-    }
-
-    // Tope maximo: suma areas no supera m2Totales.
-    const areaWithoutRoom = getTotalAreaExcept(room.id)
-    const allowedForRoom = store.configMetadata.m2Totales - areaWithoutRoom
-    if (nextW * nextL > allowedForRoom) {
-      const ratio = nextW / Math.max(nextL, GRID_STEP)
-      nextL = Math.sqrt(allowedForRoom / Math.max(ratio, EPS))
-      nextW = ratio * nextL
-      nextW = Math.max(GRID_STEP, snap(nextW))
-      nextL = Math.max(GRID_STEP, snap(nextL))
     }
 
     const candidate = {
@@ -130,8 +127,10 @@ export function useInteractiveEditor() {
     store.updateRecinto(room.id, { w: nextW, l: nextL })
   }
 
+  // ── End ───────────────────────────────────────────────────────────────
   const endInteraction = () => {
     activeMode.value = null
+    // Don't clear selectedRecintoId — keeps it highlighted
   }
 
   return {

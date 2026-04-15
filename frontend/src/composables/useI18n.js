@@ -25,7 +25,7 @@ const translations = {
     localCache: "Caché Local",
 
     // Configuration Panel
-    step01: "Paso 01 / Especificaciones Técnicas",
+    step01: "Paso 1 / Especificaciones Técnicas",
     projectGeometry: "Geometría del Proyecto",
     totalBuiltArea: "Área Total Construida (m²)",
     simpleRooms: "Habitaciones Simples",
@@ -49,7 +49,7 @@ const translations = {
     estimatedCost: "Costo Total Estimado del Proyecto",
     budgetConfidence: "Confianza del Presupuesto",
     costPerM2: "Costo por m²",
-    tokenBudget: "Presupuesto de Tokens",
+    tokenBudget: "Espacio Disponible",
     available: "Disponible",
     used: "Usado",
     total: "Total",
@@ -72,11 +72,11 @@ const translations = {
       "La configuración actual usa {material}. Optimizar la distribución de habitaciones podría reducir costos hasta en $12,000.",
 
     // Status messages
-    safeSpace: "✅ Espacio disponible",
+    safeSpace: "Espacio OK",
     limitedSpace: "⚠️ Espacio limitado",
-    noSpace: "❌ Sin espacio disponible",
-    tokensFree: "tokens libres",
-    tokensExcess: "Exceso de tokens",
+    noSpace: "❌ Sin espacio",
+    tokensFree: "m² libres",
+    tokensExcess: "m² en exceso",
 
     // Actions
     save: "Guardar",
@@ -85,7 +85,7 @@ const translations = {
     load: "Cargar",
 
     // Footer
-    footer: "© 2026 SIEC INTELLIGENCE SYSTEMS - V1.0.0",
+    footer: "2026 SIEC - V0.3",
     draftsSynced: "Borradores Sincronizados",
     privacyPolicy: "Política de Privacidad",
     termsOfService: "Términos de Servicio",
@@ -135,7 +135,7 @@ const translations = {
     localCache: "Local Cache",
 
     // Configuration Panel
-    step01: "Step 01 / Technical Specs",
+    step01: "Step 1 / Technical Specs",
     projectGeometry: "Project Geometry",
     totalBuiltArea: "Total Built Area (m²)",
     simpleRooms: "Simple Rooms",
@@ -159,7 +159,7 @@ const translations = {
     estimatedCost: "Estimated Total Project Cost",
     budgetConfidence: "Budget Confidence",
     costPerM2: "Cost per m²",
-    tokenBudget: "Token Budget",
+    tokenBudget: "Available Space",
     available: "Available",
     used: "Used",
     total: "Total",
@@ -182,11 +182,11 @@ const translations = {
       "Current configuration uses {material}. Optimizing room distribution could reduce costs by up to $12,000.",
 
     // Status messages
-    safeSpace: "✅ Space available",
+    safeSpace: "Space OK",
     limitedSpace: "⚠️ Limited space",
-    noSpace: "❌ No space available",
-    tokensFree: "tokens free",
-    tokensExcess: "tokens excess",
+    noSpace: "❌ No space",
+    tokensFree: "m² free",
+    tokensExcess: "m² excess",
 
     // Actions
     save: "Save",
@@ -195,7 +195,7 @@ const translations = {
     load: "Load",
 
     // Footer
-    footer: "© 2026 SIEC INTELLIGENCE SYSTEMS - V1.0.0",
+    footer: "2026 SIEC - V0.3",
     draftsSynced: "Drafts Synchronized",
     privacyPolicy: "Privacy Policy",
     termsOfService: "Terms of Service",

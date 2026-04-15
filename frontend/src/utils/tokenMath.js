@@ -8,11 +8,15 @@
  */
 
 export const DEFAULT_COSTS = {
-  habitacionSimple: 5,
-  habitacionDoble: 8,
-  habitacionTriple: 12,
-  banio: 4,
-  area_comun: 12,
+  // Costos basados en los tamaños mínimos iniciales reales en la matriz 2D:
+  // habitacion (3x3 = 9m2) -> 0.9 tokens
+  // banio (2x2 = 4m2) -> 0.4 tokens
+  // areaComun (4x4 = 16m2) -> 1.6 tokens
+  habitacionSimple: 0.9,
+  habitacionDoble: 1.6, // placeholder (4x4)
+  habitacionTriple: 2.4, // placeholder (6x4)
+  banio: 0.4,
+  area_comun: 1.6,
 };
 
 export const STATUS_THRESHOLDS = {
@@ -147,16 +151,19 @@ export function generateStatusDescription(
   let message = "";
   let subtitle = "";
 
+  // 1 token = 10 m², convertimos para mostrar al usuario
+  const availableM2 = availableTokens * 10;
+  const excessM2 = (usedTokens - totalTokens) * 10;
+
   if (status === "safe") {
-    message = "✅ Espacio disponible";
-    subtitle = `${availableTokens} tokens libres`;
+    message = "Espacio OK";
+    subtitle = `${availableM2} m² disponibles`;
   } else if (status === "warning") {
     message = "⚠️ Espacio limitado";
-    subtitle = `${availableTokens} tokens libres`;
+    subtitle = `${availableM2} m² disponibles`;
   } else {
-    message = "❌ Sin espacio disponible";
-    const excessTokens = usedTokens - totalTokens;
-    subtitle = `Exceso de ${excessTokens} tokens`;
+    message = "❌ Sin espacio";
+    subtitle = `${excessM2} m² en exceso`;
   }
 
   return {

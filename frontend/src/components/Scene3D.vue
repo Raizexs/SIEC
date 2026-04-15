@@ -104,7 +104,7 @@ const syncWalls = (walls) => {
     if (!mesh) {
       const geometry = new THREE.BoxGeometry(1, WALL_HEIGHT, wall.thickness);
       const material = new THREE.MeshStandardMaterial({
-        color: wall.tipo === "interior" ? "#f59e0b" : "#60a5fa",
+        color: "#60a5fa",
         roughness: 0.55,
         metalness: 0.1,
       });
@@ -199,8 +199,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="w-full">
     <div class="bg-slate-900 rounded-xl border border-primary/30 p-4">
-      <h3 class="text-white font-semibold mb-1">Renderizador Volumétrico Reactivo</h3>
-      <p class="text-slate-400 text-sm mb-4">Escucha la topología de muros y actualiza mallas 3D sin reiniciar la escena.</p>
+      <h3 class="text-white font-semibold mb-4">Renderizador Volumétrico</h3>
       <div ref="containerRef" class="w-full h-[500px] rounded-lg overflow-hidden" />
     </div>
   </div>
