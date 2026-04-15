@@ -10,6 +10,7 @@ import logging
 import re
 from abc import ABC, abstractmethod
 from typing import Optional
+from urllib.parse import urlparse
 
 from playwright.sync_api import sync_playwright, Browser, BrowserContext, Page, TimeoutError as PWTimeout
 
@@ -192,6 +193,57 @@ class BaseScraper(ABC):
             if p != base_price and (0.5 * base_price) <= p <= (2.0 * base_price)
         ]
         return plausible[0] if plausible else None
+
+    @staticmethod
+    def _extract_name_from_url(url: str) -> str:
+        """
+        Extrae un nombre legible desde el slug de la URL como fallback.
+
+        Se usa cuando el timeout ocurre antes de poder leer el nombre del
+        producto desde el DOM, garantizando que el mensaje de log del criterio
+        4 incluya siempre algo identificable:
+
+            [ERROR] [Sodimac] Timeout de 30s excedido para producto
+                    Hormigon Preparado Para Radieres. Manteniendo último precio válido.
+
+        Ejemplos:
+            sodimac.cl/.../hormigon-preparado-para-radieres-25-kg/110277137
+                → "Hormigon Preparado Para Radieres Kg"
+            easy.cl/cemento-especial-25-kg-polpaico-1195183/p
+                → "Cemento Especial Kg Polpaico"
+            construmart.cl/cemento-especial-saco-25-kg-san-juan-245005
+                → "Cemento Especial Saco Kg San Juan"
+        """
+        path = urlparse(url).path.rstrip("/")
+        segments = [s for s in path.split("/") if s]
+        for segment in reversed(segments):
+            # Ignorar segmentos que son solo dígitos o el sufijo "p" de Easy
+            if segment.isdigit() or segment == "p":
+                continue
+            parts = [tok for tok in segment.split("-") if not tok.isdigit() and tok]
+            friendly = " ".join(tok.capitalize() for tok in parts)
+            if friendly:
+                return friendly
+        return url
+
+    def _handle_timeout(self, url: str, nombre: Optional[str] = None) -> None:
+        """
+        Logea un timeout de 30s con el formato exacto requerido:
+
+            [ERROR] [Sodimac] Timeout de 30s excedido para producto Cemento.
+                    Manteniendo último precio válido.
+
+        Args:
+            url:    URL del producto que generó el timeout.
+            nombre: Nombre del producto si ya fue extraído del DOM
+                    (puede ser None si el timeout ocurrió antes de cargarlo).
+        """
+        display = nombre or self._extract_name_from_url(url)
+        store_display = self.store_key.capitalize()
+        self.logger.error(
+            f"[{store_display}] Timeout de 30s excedido para producto {display}. "
+            f"Manteniendo último precio válido."
+        )
 
     @staticmethod
     def _map_insumo_id(nombre_producto: str) -> Optional[int]:
