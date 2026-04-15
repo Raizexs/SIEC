@@ -121,7 +121,7 @@ def _log_descarte(
     nombre_display = nombre_producto if nombre_producto else "(sin nombre)"
     signo = "+" if variacion_pct >= 0 else ""
     logger.warning(
-        f"[WARNING] Precio descartado: {nombre_display} en {tienda_display} "
+        f"Precio descartado: {nombre_display} en {tienda_display} "
         f"pasó de {_fmt_clp(ultimo_precio)} a {_fmt_clp(nuevo_precio)} "
         f"({signo}{variacion_pct:.0f}%). "
         f"Supera umbral de {umbral_desc}."
