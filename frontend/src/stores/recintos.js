@@ -113,6 +113,7 @@ export const useRecintosStore = defineStore("recintos", () => {
     );
 
     // ── Place rooms ────────────────────────────────────────────────────────
+    const GAP = 0.15; // small gap so rooms aren't flush
     let zCursor = 0;
     strips.forEach((strip) => {
       const rawStripW = strip.reduce((s, r) => s + r.w, 0);
@@ -128,9 +129,9 @@ export const useRecintosStore = defineStore("recintos", () => {
           coords:     { x: parseFloat(xCursor.toFixed(3)), z: parseFloat(zCursor.toFixed(3)) },
           dimensions: { w: scaledW, l: room.l },
         });
-        xCursor += scaledW;       // zero gap → rooms are flush with each other
+        xCursor += scaledW + GAP;
       });
-      zCursor += stripH;          // next strip sits immediately below this one
+      zCursor += stripH + GAP;
     });
   };
 
