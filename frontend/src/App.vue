@@ -9,7 +9,6 @@ import RoomEditor2D from "./components/RoomEditor2D.vue";
 import Scene3D from "./components/Scene3D.vue";
 import MaterialsPanel from "./components/MaterialsPanel.vue";
 import BudgetBreakdownPanel from "./components/BudgetBreakdownPanel.vue";
-import QuickCalculator from "./components/QuickCalculator.vue";
 import { useRecintosStore } from "./stores/recintos";
 import { useTokenCounter } from "./composables/useTokenCounter";
 import { useLayoutManager } from "./composables/useLayoutManager";
@@ -185,12 +184,7 @@ const handleSaveLayout = (name) => {
     <main :class="sidebarCollapsed ? 'ml-0' : 'ml-64'" class="min-h-screen transition-all duration-300">
       <TopNavBar :activeTab="activeTab" @tab-change="handleTabChange" />
 
-      <!-- Vista Calculadora Rápida B2C -->
-      <div v-if="activeTab === 'quickCalc'" class="p-10 max-w-7xl mx-auto">
-        <QuickCalculator />
-      </div>
-
-      <div v-else class="p-10 max-w-7xl mx-auto grid grid-cols-12 gap-10">
+      <div class="p-10 max-w-7xl mx-auto grid grid-cols-12 gap-10">
         <ConfigurationPanel
           v-show="activeTab === 'generalSpecs'"
           :formData="formData"
@@ -224,9 +218,11 @@ const handleSaveLayout = (name) => {
           :descripcionEstado="descripcionEstado"
         />
         <Scene3D />
-        
+
+        <!-- Presupuesto: aparece cuando hay recintos con $ activado -->
         <BudgetBreakdownPanel
-          :m2Totales="formData.m2Totales"
+          v-if="recintosStore.selectedM2 > 0"
+          :m2Totales="recintosStore.selectedM2"
           :materialEstructuralId="formData.materialEstructuralId"
         />
 

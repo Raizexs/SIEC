@@ -31,40 +31,40 @@ const formatDate = (dateString) => {
   return `${day}/${month}/${year}`;
 };
 
+let debounceTimer = null;
+
 const fetchBudget = async () => {
+  if (props.m2Totales <= 0) {
+    desglose.value = [];
+    costoTotal.value = null;
+    fechaPrecios.value = null;
+    return;
+  }
+
   isLoading.value = true;
   error.value = null;
-  desglose.value = [];
-  costoTotal.value = null;
-  fechaPrecios.value = null;
 
   try {
-    // 1. Crear Simulación en la base de datos local
+    // 1. Crear simulación temporal
     const simRes = await fetch('http://localhost:8000/api/simulacion/parametros', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        m2Totales: props.m2Totales,
+        m2Totales: Math.round(props.m2Totales),
         materialEstructuralId: props.materialEstructuralId,
-        habitaciones: 0,
-        banios: 0,
-        areasComunes: 0
+        habitaciones: 0, banios: 0, areasComunes: 0
       })
     });
-    
-    if (!simRes.ok) throw new Error("Error al inicializar la simulación base");
+    if (!simRes.ok) throw new Error("Error al crear simulación");
     const simData = await simRes.json();
-    const simId = simData.idSimulacion;
 
-    // 2. Calcular Insumos via Promediador Scrum-65
-    // El api expuesto en el PR anterior
-    const calcRes = await fetch(`http://localhost:8000/api/simulacion/${simId}/calcular-insumos`, {
+    // 2. Calcular insumos
+    const calcRes = await fetch(`http://localhost:8000/api/simulacion/${simData.idSimulacion}/calcular-insumos`, {
       method: 'POST'
     });
-    
-    if (!calcRes.ok) throw new Error("Error al calcular insumos en el motor matemático");
+    if (!calcRes.ok) throw new Error("Error al calcular insumos");
     const data = await calcRes.json();
-    
+
     desglose.value = data.desglose || [];
     costoTotal.value = data.costo_total;
     fechaPrecios.value = data.fecha_precios;
@@ -76,7 +76,8 @@ const fetchBudget = async () => {
 };
 
 watch(() => [props.m2Totales, props.materialEstructuralId], () => {
-  fetchBudget();
+  if (debounceTimer) clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(fetchBudget, 600);
 }, { immediate: true });
 </script>
 
@@ -84,71 +85,71 @@ watch(() => [props.m2Totales, props.materialEstructuralId], () => {
   <div class="bg-surface dark:bg-[#151c27] border border-outline/20 p-6 rounded-2xl shadow-xl space-y-6">
     <h2 class="text-xl font-bold flex items-center gap-2">
       <span class="material-symbols-outlined text-primary">request_quote</span>
-      Presupuesto Desglosado de Insumos
+      Presupuesto Estimado
+      <span class="text-sm font-normal text-slate-400 ml-auto">{{ Math.round(m2Totales) }} m² seleccionados</span>
     </h2>
-    
-    <div v-if="isLoading" class="flex justify-center p-12">
-      <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+
+    <div v-if="isLoading" class="flex justify-center p-10">
+      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
     </div>
-    
-    <div v-else-if="error" class="p-6 bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-lg flex items-center gap-3">
+
+    <div v-else-if="error" class="p-4 bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-lg flex items-center gap-3 text-sm">
       <span class="material-symbols-outlined">error</span>
       {{ error }}
     </div>
-    
+
     <div v-else>
-      <!-- Highlight Costo Total -->
-      <div class="bg-gradient-to-br from-primary to-primary-container text-white p-6 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4 shadow-lg shadow-primary/20">
+      <!-- Costo Total Card -->
+      <div class="bg-gradient-to-br from-primary to-primary-container text-white p-5 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-end mb-6 gap-3 shadow-lg shadow-primary/20">
         <div>
-          <p class="text-sm opacity-80 uppercase tracking-widest font-bold mb-1">Costo Total Estimado</p>
-          <div class="text-4xl md:text-5xl font-black tracking-tight" :class="costoTotal == null ? 'text-2xl font-semibold opacity-90' : ''">
+          <p class="text-xs opacity-80 uppercase tracking-widest font-bold mb-1">Costo Total Estimado</p>
+          <div class="text-3xl md:text-4xl font-black tracking-tight" :class="costoTotal == null ? 'text-xl font-semibold opacity-90' : ''">
             {{ formatCurrency(costoTotal) }}
           </div>
         </div>
-        <div v-if="fechaPrecios" class="text-xs bg-white/20 px-3 py-1.5 rounded-full font-medium inline-flex items-center gap-1.5 backdrop-blur-md border border-white/10">
-          <span class="material-symbols-outlined text-[14px]">update</span>
-          Precios de mercado al: {{ formatDate(fechaPrecios) }}
+        <div v-if="fechaPrecios" class="text-[10px] bg-white/20 px-2.5 py-1 rounded-full font-medium inline-flex items-center gap-1 backdrop-blur-md border border-white/10">
+          <span class="material-symbols-outlined text-[12px]">update</span>
+          Precios al: {{ formatDate(fechaPrecios) }}
         </div>
       </div>
 
-      <!-- Tabla Categorias -->
-      <div class="space-y-8">
-        <div v-for="cat in desglose" :key="cat.categoria" class="border border-outline/20 rounded-xl overflow-hidden shadow-sm">
-          <div class="bg-surface-variant dark:bg-[#1a2130] p-4 flex justify-between items-center font-bold border-b border-outline/10">
-            <span class="text-lg flex items-center gap-2">
-              <span class="material-symbols-outlined text-primary text-base">category</span>
+      <!-- Tabla por Categorías -->
+      <div class="space-y-4">
+        <div v-for="cat in desglose" :key="cat.categoria" class="border border-outline/20 rounded-xl overflow-hidden">
+          <div class="bg-surface-variant dark:bg-[#1a2130] px-4 py-3 flex justify-between items-center font-bold border-b border-outline/10">
+            <span class="flex items-center gap-2 text-sm">
+              <span class="material-symbols-outlined text-primary text-sm">category</span>
               {{ cat.categoria }}
             </span>
-            <span class="text-primary text-lg">{{ formatCurrencyCell(cat.subtotal_categoria) }}</span>
+            <span class="text-primary text-sm">{{ formatCurrencyCell(cat.subtotal_categoria) }}</span>
           </div>
-          
           <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-              <thead class="bg-surface-container dark:bg-[#131822] text-on-surface-variant text-left text-xs uppercase tracking-wider">
+            <table class="w-full text-xs">
+              <thead class="bg-surface-container dark:bg-[#131822] text-on-surface-variant text-left uppercase tracking-wider">
                 <tr>
-                  <th class="p-4 font-semibold w-1/3">Insumo</th>
-                  <th class="p-4 font-semibold text-right">Cantidad</th>
-                  <th class="p-4 font-semibold">Unidad</th>
-                  <th class="p-4 font-semibold text-right">Valor Unit.</th>
-                  <th class="p-4 font-semibold text-right w-1/4">Subtotal</th>
+                  <th class="px-4 py-2 font-semibold">Insumo</th>
+                  <th class="px-4 py-2 font-semibold text-right">Cant.</th>
+                  <th class="px-4 py-2 font-semibold">Unidad</th>
+                  <th class="px-4 py-2 font-semibold text-right">Precio Unit.</th>
+                  <th class="px-4 py-2 font-semibold text-right">Subtotal</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-outline/10">
                 <tr v-for="item in cat.items" :key="item.insumo" class="hover:bg-surface-variant/30 transition-colors">
-                  <td class="p-4 font-medium">{{ item.insumo }}</td>
-                  <td class="p-4 text-right font-mono">{{ item.cantidad.toLocaleString('es-CL', {maximumFractionDigits: 2}) }}</td>
-                  <td class="p-4 text-on-surface-variant opacity-70">{{ item.unidad }}</td>
-                  <td class="p-4 text-right tabular-nums">{{ formatCurrencyCell(item.precio_unitario) }}</td>
-                  <td class="p-4 text-right font-bold text-primary tabular-nums">{{ formatCurrencyCell(item.subtotal) }}</td>
+                  <td class="px-4 py-2 font-medium">{{ item.insumo }}</td>
+                  <td class="px-4 py-2 text-right font-mono">{{ item.cantidad.toLocaleString('es-CL', {maximumFractionDigits: 2}) }}</td>
+                  <td class="px-4 py-2 text-on-surface-variant opacity-70">{{ item.unidad }}</td>
+                  <td class="px-4 py-2 text-right tabular-nums">{{ formatCurrencyCell(item.precio_unitario) }}</td>
+                  <td class="px-4 py-2 text-right font-bold text-primary tabular-nums">{{ formatCurrencyCell(item.subtotal) }}</td>
                 </tr>
               </tbody>
             </table>
           </div>
         </div>
-        
-        <div v-if="desglose.length === 0" class="text-center py-10 opacity-60 flex flex-col items-center gap-2">
-          <span class="material-symbols-outlined text-4xl">inventory_2</span>
-          <p>No se encontraron insumos para este material estructural.</p>
+
+        <div v-if="desglose.length === 0" class="text-center py-8 opacity-60 flex flex-col items-center gap-2">
+          <span class="material-symbols-outlined text-3xl">inventory_2</span>
+          <p class="text-sm">No se encontraron insumos para este material.</p>
         </div>
       </div>
     </div>
