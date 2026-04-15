@@ -207,11 +207,15 @@ const handleSaveLayout = (name) => {
           :tokensTotales="tokensTotales"
           :tokensDisponibles="tokensDisponibles"
           :descripcionEstado="descripcionEstado"
+          :totalAreaUsado="recintosStore.totalArea"
         />
       </div>
 
       <div v-if="hasRecintos" class="p-10 pt-0 max-w-7xl mx-auto space-y-6">
-        <RoomEditor2D />
+        <RoomEditor2D
+          :m2Totales="formData.m2Totales"
+          :descripcionEstado="descripcionEstado"
+        />
         <Scene3D />
 
         <!-- CTA Final — después del modelo 3D -->
