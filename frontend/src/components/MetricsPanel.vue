@@ -122,62 +122,6 @@ const materials = computed(() => [
 <template>
   <section class="col-span-5 relative">
     <div class="sticky top-24 space-y-6">
-      <!-- Metric Hero Card -->
-      <div
-        class="bg-gradient-to-br from-primary to-primary-container text-white p-8 rounded-2xl shadow-xl overflow-hidden relative"
-      >
-        <div
-          class="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 blur-3xl"
-        ></div>
-        <div class="relative z-10">
-          <div class="flex justify-between items-start mb-10">
-            <div>
-              <span
-                class="text-[10px] font-bold text-on-primary-container uppercase tracking-[0.2em]"
-                >{{ t('estimatedCost') }}</span
-              >
-              <div
-                class="text-4xl font-headline font-black mt-2 tracking-tighter"
-              >
-                {{ formatCurrency(estimatedCost) }}
-              </div>
-            </div>
-            <div class="bg-secondary p-3 rounded-lg flex flex-col items-center">
-              <span class="material-symbols-outlined text-white text-xl"
-                >trending_up</span
-              >
-              <span class="text-[9px] font-bold mt-1 text-white uppercase"
-                >+3.2%</span
-              >
-            </div>
-          </div>
-          <div class="flex items-center gap-6">
-            <div class="flex-1">
-              <div
-                class="flex justify-between text-[10px] font-bold uppercase mb-2 opacity-70"
-              >
-                <span>{{ t('budgetConfidence') }}</span>
-                <span>{{ budgetConfidence }}%</span>
-              </div>
-              <div class="h-1 bg-white/10 rounded-full overflow-hidden">
-                <div
-                  class="h-full bg-secondary-container transition-all duration-500"
-                  :style="{ width: budgetConfidence + '%' }"
-                ></div>
-              </div>
-            </div>
-            <div class="text-right">
-              <span class="text-[10px] font-bold opacity-50 uppercase block"
-                >{{ t('costPerM2') }}</span
-              >
-              <span class="font-bold text-xl">{{
-                formatCurrency(costPerM2)
-              }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <!-- Espacio Disponible Card -->
       <div
         class="bg-white dark:bg-[#161b22] rounded-xl border border-outline-variant/20 dark:border-[#30363d] shadow-sm p-6"
