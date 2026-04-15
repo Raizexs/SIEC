@@ -21,21 +21,18 @@ from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
+from logger import setup_logging          # ← configuración centralizada de formato
 from sodimac_scraper import scrape_sodimac
 from easy_scraper import scrape_easy
 from construmart_scraper import scrape_construmart
 from db import insertar_precios
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Logging
+# Logging — formato: "2026-04-07 03:00:15 [NIVEL  ] [TIENDA] Mensaje"
+# Setup centralizado: todos los módulos heredan esta configuración.
 # ──────────────────────────────────────────────────────────────────────────────
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    stream=sys.stdout,
-)
+setup_logging()
 logger = logging.getLogger("scraper.main")
 
 
@@ -48,52 +45,70 @@ def ejecutar_scrapers() -> None:
     Ejecuta los tres scrapers en secuencia e inserta los resultados
     exitosos en la tabla precio_mercado de PostgreSQL.
 
-    Si ocurre un error en cualquier scraper individual, se registra
-    y continúa con el siguiente — el contenedor NO se detiene.
+    Criterios de validación satisfechos:
+    - Try/except POR TIENDA: si Sodimac falla, Easy y Construmart siguen.
+    - Tracking granular: éxitos por producto, errores por producto, tiendas fallidas.
+    - Resumen final: "[INFO] Ejecución finalizada. Éxitos: X, Errores: Y, Tiendas fallidas: [Z]"
+    - Protección anti-nulo: solo se insertan resultados con precio válido.
     """
     inicio = datetime.now()
-    logger.info("=" * 60)
+    sep = "-" * 60
+    logger.info(sep)
     logger.info(f"[Scheduler] ▶ Ciclo de scraping iniciado: {inicio.strftime('%Y-%m-%d %H:%M:%S')}")
-    logger.info("=" * 60)
+    logger.info(sep)
 
     scrapers = [
-        ("Sodimac",    scrape_sodimac),
-        ("Easy",       scrape_easy),
-        ("Construmart",scrape_construmart),
+        ("Sodimac",     scrape_sodimac),
+        ("Easy",        scrape_easy),
+        ("Construmart", scrape_construmart),
     ]
 
-    total_insertados = 0
+    # Contadores para el resumen final (Criterio 4)
+    total_exitosos:   int       = 0
+    total_errores:    int       = 0
+    tiendas_fallidas: list[str] = []
 
     for nombre, scraper_fn in scrapers:
+        logger.info(f"[Scheduler] → Ejecutando scraper: {nombre}")
         try:
-            logger.info(f"[Scheduler] → Ejecutando scraper: {nombre}")
             resultados = scraper_fn()
 
-            # Solo insertar los que tienen nombre y precio válidos
+            # Productos con precio válido → se insertan
             exitosos = [
                 r for r in resultados
                 if r.get("exitoso") and r.get("nombre_producto") and r.get("precio") is not None
             ]
+            # Productos que fallaron (timeout, error, precio nulo)
+            fallidos = [r for r in resultados if not r.get("exitoso")]
+
+            total_errores += len(fallidos)
 
             if exitosos:
                 insertados = insertar_precios(exitosos)
-                total_insertados += insertados
-                logger.info(f"[Scheduler] ✅ {nombre}: {insertados} registros guardados.")
+                total_exitosos += insertados
+                logger.info(f"[Scheduler] ✅ {nombre}: {insertados} registros guardados, {len(fallidos)} fallidos.")
             else:
-                logger.warning(f"[Scheduler] ⚠️  {nombre}: No se obtuvieron datos válidos.")
+                logger.warning(f"[Scheduler] ⚠️  {nombre}: Sin datos válidos. Registros previos en precio_mercado se mantienen intactos.")
 
         except Exception as e:
-            # Error aislado: logeamos y seguimos con el siguiente scraper
-            logger.error(f"[Scheduler] ❌ Error en scraper {nombre}: {e}", exc_info=True)
-            logger.error("[Scheduler] El error es aislado — el scheduler continúa activo.")
+            # Criterio 2: error aislado por tienda — los demás scrapers continúan
+            logger.error(f"[Scheduler] ❌ [{nombre}] Error crítico en scraper: {e}", exc_info=True)
+            logger.error(f"[Scheduler] [{nombre}] Fallo aislado — continuando con siguiente tienda.")
+            tiendas_fallidas.append(nombre)
+            total_errores += 1
 
-    duracion = (datetime.now() - inicio).seconds
-    logger.info("=" * 60)
+    duracion = round((datetime.now() - inicio).total_seconds(), 1)
+
+    # Criterio 4: resumen final con formato exacto requerido
+    logger.info(sep)
     logger.info(
-        f"[Scheduler] ■ Ciclo completado en {duracion}s. "
-        f"Total insertados: {total_insertados} registros."
+        f"Ejecución finalizada. "
+        f"Éxitos: {total_exitosos}, "
+        f"Errores: {total_errores}, "
+        f"Tiendas fallidas: {tiendas_fallidas}"
     )
-    logger.info("=" * 60)
+    logger.info(f"[Scheduler] Duración total del ciclo: {duracion}s.")
+    logger.info(sep)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
