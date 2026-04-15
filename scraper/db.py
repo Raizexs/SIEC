@@ -44,19 +44,21 @@ def insertar_precios(resultados: list[dict]) -> int:
 
     sql = """
         INSERT INTO precio_mercado (
-            "Tienda", "Nombre_Producto", "Precio", "Precio_Descuento",
+            "Insumo_ID", "Tienda", "Nombre_Producto", "Precio", "Precio_Descuento",
             "Stock", "Categoria", "URL", "Fecha_Scraping", "Exitoso"
         ) VALUES (
-            %(tienda)s, %(nombre_producto)s, %(precio)s, %(precio_descuento)s,
+            %(insumo_id)s, %(tienda)s, %(nombre_producto)s, %(precio)s, %(precio_descuento)s,
             %(stock)s, %(categoria)s, %(url)s, %(fecha_scraping)s, %(exitoso)s
         )
     """
 
-    # Aseguramos que todos los registros tengan Fecha_Scraping
+    # Aseguramos que todos los registros tengan Fecha_Scraping e Insumo_ID
     ahora = datetime.utcnow()
     for r in resultados:
         r.setdefault("fecha_scraping", ahora)
         r.setdefault("exitoso", True)
+        r.setdefault("insumo_id", None)  # NULL si no se puede mapear al insumo
+
 
     try:
         conn = get_connection()
