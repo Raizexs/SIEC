@@ -17,6 +17,8 @@ const recintosStore = useRecintosStore();
 const { saveLayout } = useLayoutManager();
 const { t, currentLanguage } = useI18n();
 
+const sidebarCollapsed = ref(false);
+
 // Key reactiva para forzar re-render cuando cambia idioma
 const appKey = computed(() => `app-${currentLanguage.value}`);
 
@@ -175,10 +177,10 @@ const handleSaveLayout = (name) => {
 </script>
 
 <template>
-  <div :key="appKey" class="min-h-screen bg-background font-body text-on-surface antialiased">
-    <Sidebar @loadPreset="loadPreset" @loadLayout="loadLayout" />
+  <div :key="appKey" class="min-h-screen bg-background dark:bg-[#0d1117] font-body text-on-surface dark:text-slate-100 antialiased">
+    <Sidebar @loadPreset="loadPreset" @loadLayout="loadLayout" @collapse-change="sidebarCollapsed = $event" />
 
-    <main class="ml-64 min-h-screen">
+    <main :class="sidebarCollapsed ? 'ml-0' : 'ml-64'" class="min-h-screen transition-all duration-300">
       <TopNavBar :activeTab="activeTab" @tab-change="handleTabChange" />
 
       <div class="p-10 max-w-7xl mx-auto grid grid-cols-12 gap-10">
@@ -205,25 +207,37 @@ const handleSaveLayout = (name) => {
           :tokensTotales="tokensTotales"
           :tokensDisponibles="tokensDisponibles"
           :descripcionEstado="descripcionEstado"
+          :totalAreaUsado="recintosStore.totalArea"
         />
       </div>
 
       <div v-if="hasRecintos" class="p-10 pt-0 max-w-7xl mx-auto space-y-6">
-        <RoomEditor2D />
+        <RoomEditor2D
+          :m2Totales="formData.m2Totales"
+          :descripcionEstado="descripcionEstado"
+        />
         <Scene3D />
+
+        <!-- CTA Final — después del modelo 3D -->
+        <button
+          class="group w-full bg-gradient-to-br from-primary to-primary-container text-white p-6 rounded-2xl shadow-lg flex items-center justify-between overflow-hidden relative transition-all active:scale-[0.98]"
+        >
+          <div class="relative z-10 flex items-center gap-4">
+            <div class="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <span class="material-symbols-outlined">calculate</span>
+            </div>
+            <div class="text-left">
+              <span class="block text-sm font-bold">{{ t('generateFinal') }}</span>
+              <span class="text-[10px] opacity-70 uppercase font-medium">{{ t('lockedFor24h') }}</span>
+            </div>
+          </div>
+          <span class="material-symbols-outlined group-hover:translate-x-2 transition-transform">arrow_forward</span>
+          <div class="absolute top-0 left-0 w-full h-full bg-white/5 translate-x-full group-hover:translate-x-0 transition-transform skew-x-12 origin-left"></div>
+        </button>
       </div>
 
       <footer class="p-10 pt-0 text-slate-400 text-[10px] font-bold uppercase tracking-widest flex justify-between items-center">
         <div>{{ t('footer') }}</div>
-        <div class="flex gap-6">
-          <div class="flex items-center gap-2 mr-4 text-emerald-500/70">
-            <span class="material-symbols-outlined text-[14px]">cloud_done</span>
-            <span>{{ t('draftsSynced') }}</span>
-          </div>
-          <a class="hover:text-primary transition-colors" href="#">{{ t('privacyPolicy') }}</a>
-          <a class="hover:text-primary transition-colors" href="#">{{ t('termsOfService') }}</a>
-          <a class="hover:text-primary transition-colors" href="#">{{ t('supportPortal') }}</a>
-        </div>
       </footer>
     </main>
 
