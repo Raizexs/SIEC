@@ -131,6 +131,8 @@ const roomFill  = (t) => t === "habitacion" ? "#3b82f6" : t === "banio" ? "#14b8
 const roomEdge  = (t) => t === "habitacion" ? "#60a5fa" : t === "banio" ? "#2dd4bf" : "#fbbf24";
 const isActive   = (id) => !!editor.activeMode.value && editor.selectedRecintoId.value === id;
 const isResizing = (id) => editor.activeMode.value === "resize" && editor.selectedRecintoId.value === id;
+const isBudgeted = (id) => store.selectedForBudget.has(id);
+const onToggleBudget = (e, id) => { e.preventDefault(); e.stopPropagation(); store.toggleBudget(id); };
 
 // ── Font sizes dynamically scaled to each room's rendered area ───────────────
 // Base = geometric mean of room pixel dimensions; clamped to a readable range.
@@ -309,6 +311,28 @@ const dimLines = (r) => {
             text-anchor="middle" dominant-baseline="middle"
             style="pointer-events: none"
           >{{ (recinto.dimensions.w * recinto.dimensions.l).toFixed(1) }}m²</text>
+
+          <!-- Budget toggle icon (top-right corner) -->
+          <g
+            class="cursor-pointer"
+            @pointerdown.stop.prevent="(e) => onToggleBudget(e, recinto.id)"
+          >
+            <circle
+              :cx="toSX(recinto.coords.x + recinto.dimensions.w) - 12"
+              :cy="toSZ(recinto.coords.z) + 12"
+              r="10"
+              :fill="isBudgeted(recinto.id) ? '#22c55e' : 'rgba(0,0,0,0.5)'"
+              :stroke="isBudgeted(recinto.id) ? '#4ade80' : 'rgba(255,255,255,0.3)'"
+              stroke-width="1.5"
+            />
+            <text
+              :x="toSX(recinto.coords.x + recinto.dimensions.w) - 12"
+              :y="toSZ(recinto.coords.z) + 12"
+              fill="white" font-size="11" font-weight="800"
+              text-anchor="middle" dominant-baseline="central"
+              style="pointer-events: none"
+            >$</text>
+          </g>
 
           <!-- Resize hit area (invisible) -->
           <rect

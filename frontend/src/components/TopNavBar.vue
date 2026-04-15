@@ -15,8 +15,7 @@ const emit = defineEmits(['tab-change'])
 const tabs = [
   { name: 'generalSpecs' },
   { name: 'materials' },
-  { name: 'logistics' },
-  { name: 'quickCalc', label: '⚡ Calculadora Rápida' }
+  { name: 'logistics' }
 ]
 
 const handleTabClick = (tabName) => {
@@ -35,7 +34,7 @@ const handleTabClick = (tabName) => {
           :class="['py-5 transition-colors', activeTab === tab.name ? 'text-primary-container border-b-2 border-primary-container' : 'text-slate-500 hover:text-slate-800']"
           @click="handleTabClick(tab.name)"
         >
-          {{ tab.label || t(tab.name) }}
+          {{ t(tab.name) }}
         </button>
       </div>
     </div>

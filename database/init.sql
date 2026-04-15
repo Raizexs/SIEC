@@ -44,6 +44,9 @@ CREATE TABLE IF NOT EXISTS "Insumo" (
     'unidad',
     'caja',
     'rollo',
+    'rollo 100m',
+    'tubo 3m',
+    'barra 4.71kg',
     'HH',
     'hora',
     'metro cuadrado'
@@ -92,7 +95,7 @@ ON CONFLICT DO NOTHING;
 INSERT INTO "Insumo" ("Nombre", "Categoria", "Unidad_Medida", "Descripcion", "Activo") VALUES
   ('Cemento Portland', 'Obra Gruesa', 'saco 25kg', 'Cemento Portland para uso general en albañilería y hormigón', TRUE),
   ('Cemento Especial', 'Obra Gruesa', 'saco 25kg', 'Cemento especial para refuerzos estructurales', TRUE),
-  ('Fierro A63-42H', 'Obra Gruesa', 'kg', 'Acero laminado en caliente para refuerzo estructural', TRUE),
+  ('Fierro A63-42H', 'Obra Gruesa', 'barra 4.71kg', 'Acero laminado en caliente para refuerzo estructural', TRUE),
   ('Arena Gruesa', 'Obra Gruesa', 'metro cuadrado', 'Arena gruesa para hormigones y morteros', TRUE),
   ('Ripio', 'Obra Gruesa', 'metro cuadrado', 'Ripio o grava para hormigones', TRUE),
   ('Agua', 'Obra Gruesa', 'litro', 'Agua para obras civiles', TRUE)
@@ -113,10 +116,10 @@ ON CONFLICT ("Nombre") DO NOTHING;
 
 -- INSTALACIONES (3+ insumos mínimos)
 INSERT INTO "Insumo" ("Nombre", "Categoria", "Unidad_Medida", "Descripcion", "Activo") VALUES
-  ('Cable H07Z1-K 1x2.5mm', 'Instalaciones', 'metro lineal', 'Cable flexible libre de halógenos 1x2.5mm²', TRUE),
+  ('Cable H07Z1-K 1x2.5mm', 'Instalaciones', 'rollo 100m', 'Cable flexible libre de halógenos 1x2.5mm²', TRUE),
   ('Cable H07Z1-K 1x4mm', 'Instalaciones', 'metro lineal', 'Cable flexible libre de halógenos 1x4mm²', TRUE),
   ('Cable H07Z1-K 1x6mm', 'Instalaciones', 'metro lineal', 'Cable flexible libre de halógenos 1x6mm²', TRUE),
-  ('Tubo PVC Agua 110mm', 'Instalaciones', 'metro lineal', 'Tubo de PVC para agua potable diámetro 110mm', TRUE),
+  ('Tubo PVC Agua 110mm', 'Instalaciones', 'tubo 3m', 'Tubo de PVC para agua potable diámetro 110mm', TRUE),
   ('Tubo PVC Agua 75mm', 'Instalaciones', 'metro lineal', 'Tubo de PVC para agua potable diámetro 75mm', TRUE),
   ('Tubo PVC Agua 50mm', 'Instalaciones', 'metro lineal', 'Tubo de PVC para agua potable diámetro 50mm', TRUE),
   ('Tubo Cobre 15mm', 'Instalaciones', 'metro lineal', 'Tubo de cobre rígido 15mm para gas', TRUE),
@@ -134,22 +137,33 @@ INSERT INTO "Insumo" ("Nombre", "Categoria", "Unidad_Medida", "Descripcion", "Ac
 ON CONFLICT ("Nombre") DO NOTHING;
 
 -- Seed 004: Poblar Matriz_Rendimiento (factores de rendimiento por material)
+-- IMPORTANTE: Usa SOLO insumos que el scraper cotiza (IDs 2,3,7,16,19)
+-- para que cada materialidad genere precios reales de mercado.
 INSERT INTO "Matriz_Rendimiento" ("Material_Estructural_ID", "Insumo_ID", "Factor_Multiplicador", "Unidad_Factor", "Activo") VALUES
-  (1, 1, 0.5, 'cantidad por m2', TRUE),   -- Madera + Cemento
-  (1, 3, 0.8, 'cantidad por m2', TRUE),   -- Madera + Fierro
-  (1, 6, 0.3, 'cantidad por m2', TRUE),   -- Madera + Agua
-  (2, 2, 0.4, 'cantidad por m2', TRUE),   -- Metalcom + Cemento Especial
-  (2, 9, 2.0, 'cantidad por m2', TRUE),   -- Metalcom + Volcanita
-  (3, 1, 0.7, 'cantidad por m2', TRUE),   -- Albañilería + Cemento Portland
-  (3, 4, 1.5, 'cantidad por m2', TRUE),   -- Albañilería + Arena
-  (3, 5, 1.2, 'cantidad por m2', TRUE),   -- Albañilería + Ripio
-  (4, 1, 0.8, 'cantidad por m2', TRUE),   -- Hormigón Armado + Cemento Portland
-  (4, 3, 1.5, 'cantidad por m2', TRUE),   -- Hormigón Armado + Fierro
-  (4, 4, 2.0, 'cantidad por m2', TRUE),   -- Hormigón Armado + Arena
-  (1, 20, 0.15, 'cantidad por m2', TRUE), -- Madera + Albañil (HH por m2)
-  (2, 20, 0.2, 'cantidad por m2', TRUE),  -- Metalcom + Albañil
-  (3, 20, 0.3, 'cantidad por m2', TRUE),  -- Albañilería + Albañil
-  (4, 20, 0.25, 'cantidad por m2', TRUE)  -- Hormigón Armado + Albañil
+  -- MADERA (ID=1)
+  (1, 2,  0.30,   'sacos por m2', TRUE),       -- Cemento Especial (saco 25kg)
+  (1, 3,  0.085,  'barras por m2', TRUE),       -- Fierro (0.40kg / 4.71kg por barra)
+  (1, 7,  0.42,   'planchas por m2', TRUE),     -- Volcanita (1 plancha = 2.88m2, 1/2.88 ~ 0.35 + margen)
+  (1, 16, 0.030,  'rollos por m2', TRUE),       -- Cable (3m lineales / 100m por rollo)
+  (1, 19, 0.050,  'tubos por m2', TRUE),        -- Tubo PVC (0.15m / 3m por tubo)
+  -- METALCON (ID=2)
+  (2, 2,  0.25,   'sacos por m2', TRUE),
+  (2, 3,  0.064,  'barras por m2', TRUE),       -- 0.30 / 4.71
+  (2, 7,  0.70,   'planchas por m2', TRUE),     -- Más volcanita en metalcon
+  (2, 16, 0.035,  'rollos por m2', TRUE),       -- 3.5 / 100
+  (2, 19, 0.050,  'tubos por m2', TRUE),
+  -- ALBAÑILERÍA (ID=3)
+  (3, 2,  0.70,   'sacos por m2', TRUE),
+  (3, 3,  0.170,  'barras por m2', TRUE),       -- 0.80 / 4.71
+  (3, 7,  0.28,   'planchas por m2', TRUE),
+  (3, 16, 0.025,  'rollos por m2', TRUE),       -- 2.5 / 100
+  (3, 19, 0.067,  'tubos por m2', TRUE),        -- 0.20 / 3
+  -- HORMIGÓN ARMADO (ID=4)
+  (4, 2,  0.90,   'sacos por m2', TRUE),
+  (4, 3,  0.318,  'barras por m2', TRUE),       -- 1.50 / 4.71
+  (4, 7,  0.21,   'planchas por m2', TRUE),
+  (4, 16, 0.025,  'rollos por m2', TRUE),       -- 2.5 / 100
+  (4, 19, 0.083,  'tubos por m2', TRUE)         -- 0.25 / 3
 ON CONFLICT ("Material_Estructural_ID", "Insumo_ID") DO NOTHING;
 
 -- ========== VERIFICACIONES FINALES ==========
