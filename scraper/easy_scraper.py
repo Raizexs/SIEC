@@ -107,9 +107,10 @@ class EasyScraper(BaseScraper):
             logger.info(f"[Easy] ✅ {result['nombre_producto']} — ${result['precio']}")
 
         except PWTimeout:
-            logger.warning(f"[Easy] ⏱ Timeout (30s) en {url}")
+            # Criterio 1: mensaje exacto con nombre del producto (o slug de URL como fallback)
+            self._handle_timeout(url, result.get("nombre_producto"))
         except Exception as e:
-            logger.error(f"[Easy] ❌ Error en {url}: {e}")
+            logger.error(f"[Easy] ❌ Error inesperado en {url}: {e}")
 
         return result
 

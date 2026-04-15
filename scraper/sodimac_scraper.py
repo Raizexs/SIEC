@@ -111,9 +111,10 @@ class SodimacScraper(BaseScraper):
             logger.info(f"[Sodimac] ✅ {result['nombre_producto']} — ${result['precio']}")
 
         except PWTimeout:
-            logger.warning(f"[Sodimac] ⏱ Timeout (30s) en {url}")
+            # Criterio 1: mensaje exacto con nombre del producto (o slug de URL como fallback)
+            self._handle_timeout(url, result.get("nombre_producto"))
         except Exception as e:
-            logger.error(f"[Sodimac] ❌ Error en {url}: {e}")
+            logger.error(f"[Sodimac] ❌ Error inesperado en {url}: {e}")
 
         return result
 
