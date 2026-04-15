@@ -66,7 +66,7 @@ KEYWORD_INSUMO_MAP: dict[str, list[str]] = {
     "Fierro A63-42H":   ["fierro", "barra", "acero", "varilla", "cuadrada laminada"],
     "Volcanita RH Standard":  ["volcanita", "yeso cartón", "fibrocemento", "placa yeso"],
     "Volcanita RH Reforzado": ["volcanita rh", "volcanita reforzado"],
-    "Cable H07Z1-K 1x2.5mm": ["cable 2.5mm", "cable 2,5mm", "h07z1-k 1x2.5", "cable libre halogenos 2.5", "h07z1-k 1x2,5"],
+    "Cable H07Z1-K 1x2.5mm": ["cable 2.5mm", "cable 2,5mm", "cable 2.5 mm", "cable 2,5 mm", "h07z1-k 1x2.5", "h07z1-k 1x2,5", "h07z1-k c5 2,5", "c5 2,5 mm", "cable libre halogenos 2.5"],
     "Cable H07Z1-K 1x4mm":   ["cable 4mm", "h07z1-k 1x4"],
     "Cable H07Z1-K 1x6mm":   ["cable 6mm", "h07z1-k 1x6"],
     "Tubo PVC Agua 110mm":   ["tubo pvc 110", "pvc 110mm", "tubería 110", "pvc agua 110"],
