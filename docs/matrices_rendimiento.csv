@@ -1,0 +1,17 @@
+Categoria,Partida_Constructiva,Insumo,Unidad_Medida,Rendimiento_Unitario,Referencia
+Hormigon_InSitu,Hormigon_H20_1m3,Cemento,kg,340.00[1]
+Hormigon_InSitu,Hormigon_H20_1m3,Gravilla,kg,1095.00[1]
+Hormigon_InSitu,Hormigon_H20_1m3,Arena,kg,715.00[1]
+Hormigon_InSitu,Hormigon_H20_1m3,Agua,Litros,200.00[1]
+Albanileria,Muro_Ladrillo_Soga_1m2,Mortero_de_Pega,m3,0.016
+Albanileria,Muro_Ladrillo_Punta_1m2,Mortero_de_Pega,m3,0.048
+Metalcon_Tabiqueria,Muro_Perimetral_60mm_1m2,Montante_C_60x0.85,Tiras_6m,0.51[3]
+Metalcon_Tabiqueria,Muro_Perimetral_60mm_1m2,Canal_C_62x0.85,Tiras_6m,0.14[3]
+Metalcon_Tabiqueria,Muro_Perimetral_60mm_1m2,Tornillo_Framer,Unidad,5.00[3]
+Metalcon_Techumbre,Cerchas_a_90cm_1m2,Perfil_Montante_90,Metros_Lineales,1.98
+Panel_SIP,Muro_Estructural_1m2,Panel_1.22x2.44,Area_Bruta_Panel_m2,2.97
+Revestimientos,Yeso_Carton_10mm_1m2,Incidencia_Plancha,Unidad_Comercial,0.2142[6]
+Revestimientos,Fibrocemento_6mm_1m2,Incidencia_Plancha,Unidad_Comercial,0.2713[6]
+Mano_Obra,Muro_Albanileria_1m2,Cuadrilla_Albanil,Jornadas_por_m2,0.118[7]
+Mano_Obra,Losa_Hormigon_1m2,Cuadrilla_Concreto,Jornadas_por_m2,0.100[7]
+Mano_Obra,Armado_Techumbre_1m2,Carpintero_y_Ayudante,Jornadas_por_m2,0.07
