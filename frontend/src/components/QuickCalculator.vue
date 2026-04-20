@@ -62,15 +62,15 @@ watch([m2, materialId], () => {
         <input
           v-model.number="m2"
           type="range"
-          min="10"
-          max="500"
+          min="5"
+          max="200"
           step="1"
           class="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-primary"
         />
         <div class="flex justify-between text-xs text-slate-400 font-medium">
-          <span>10 m²</span>
-          <span>250 m²</span>
-          <span>500 m²</span>
+          <span>5 m²</span>
+          <span>100 m²</span>
+          <span>200 m²</span>
         </div>
       </div>
 
