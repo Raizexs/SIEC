@@ -45,7 +45,7 @@ const fetchBudget = async () => {
   error.value = null;
 
   try {
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    const baseUrl = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000' : '');
 
     // 1. Crear simulación temporal
     const simRes = await fetch(`${baseUrl}/api/simulacion/parametros`, {
