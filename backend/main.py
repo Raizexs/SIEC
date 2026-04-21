@@ -48,9 +48,20 @@ def calcular_insumos(simulacion_id: int, db: Session = Depends(lambda: next(Sess
 
     # build price maps
     insumo_ids = [insumo.id for r, insumo in datos]
-    precios_records = db.query(models.PrecioMercado).filter(models.PrecioMercado.exitoso == True, models.PrecioMercado.insumo_id.in_(insumo_ids)).order_by(models.PrecioMercado.insumo_id, models.PrecioMercado.fecha_scraping.desc()).all()
+    precios_records = db.query(models.PrecioMercado).distinct(
+        models.PrecioMercado.insumo_id,
+        models.PrecioMercado.tienda
+    ).filter(
+        models.PrecioMercado.exitoso == True,
+        models.PrecioMercado.insumo_id.in_(insumo_ids)
+    ).order_by(
+        models.PrecioMercado.insumo_id,
+        models.PrecioMercado.tienda,
+        models.PrecioMercado.fecha_scraping.desc()
+    ).all()
     precios_x_insumo = {}
     latest_precio = {}
+    fechas_usadas = []
     for pm in precios_records:
         p = pm.precio_descuento if pm.precio_descuento is not None else pm.precio
         if p is None:
@@ -58,6 +69,12 @@ def calcular_insumos(simulacion_id: int, db: Session = Depends(lambda: next(Sess
         precios_x_insumo.setdefault(pm.insumo_id, []).append(float(p))
         if pm.insumo_id not in latest_precio:
             latest_precio[pm.insumo_id] = pm
+        # collect scraping dates for reporting
+        try:
+            if getattr(pm, 'fecha_scraping', None):
+                fechas_usadas.append(pm.fecha_scraping)
+        except Exception:
+            pass
 
     precio_promedio_map = {i: (sum(vals)/len(vals)) for i, vals in precios_x_insumo.items() if vals}
 
@@ -139,6 +156,15 @@ def calcular_insumos(simulacion_id: int, db: Session = Depends(lambda: next(Sess
         desglose_list.append(CategoriaDesglose(categoria=cat, items=items, subtotal_categoria=subcat))
 
     porcentaje_retenido = round((SOCIAL_LEY_FACTOR - 1.0) * 100.0, 2)
+    # determine fecha_precios from collected dates
+    if 'fechas_usadas' in locals() and fechas_usadas:
+        try:
+            fecha_precios = min(fechas_usadas).isoformat()
+        except Exception:
+            fecha_precios = None
+    else:
+        fecha_precios = None
+
     return DesgloseResponse(simulacion_id=simulacion_id, m2_totales=m2_totales, material='', desglose=desglose_list, costo_total=costo_total_sim, fecha_precios=fecha_precios, tarifa_pura_local=tarifa_pura_local, porcentaje_retenido_leyes_sociales=porcentaje_retenido)
 
 if __name__ == '__main__':
