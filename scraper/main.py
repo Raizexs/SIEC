@@ -25,7 +25,8 @@ from logger import setup_logging          # ← configuración centralizada de f
 from sodimac_scraper import scrape_sodimac
 from easy_scraper import scrape_easy
 from construmart_scraper import scrape_construmart
-from db import insertar_precios
+from scrapers.cmf import scrape_uf_cmf
+from db import insertar_precios, insertar_indicador
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Logging — formato: "2026-04-07 03:00:15 [NIVEL  ] [TIENDA] Mensaje"
@@ -97,6 +98,23 @@ def ejecutar_scrapers() -> None:
             tiendas_fallidas.append(nombre)
             total_errores += 1
 
+    # ── Ejecución de indicadores financieros (UF) ──
+    logger.info("[Scheduler] → Ejecutando refresco de UF (CMF)...")
+    try:
+        datos_uf = scrape_uf_cmf()
+        if datos_uf:
+            insertado = insertar_indicador(datos_uf)
+            if insertado:
+                logger.info(f"[Scheduler] ✅ UF actualizada: {datos_uf['valor']} ({datos_uf['fecha']})")
+            else:
+                logger.warning("[Scheduler] ⚠️ UF no insertada (posible duplicado para la fecha).")
+        else:
+            logger.error("[Scheduler] ❌ Fallo al obtener UF desde CMF.")
+            total_errores += 1
+    except Exception as e:
+        logger.error(f"[Scheduler] ❌ Error crítico en refresco de UF: {e}", exc_info=True)
+        total_errores += 1
+
     duracion = round((datetime.now() - inicio).total_seconds(), 1)
 
     # Criterio 4: resumen final con formato exacto requerido
@@ -127,7 +145,7 @@ def main() -> None:
         func=ejecutar_scrapers,
         trigger=trigger,
         id="scraping_diario",
-        name="Scraping diario Sodimac / Easy / Construmart",
+        name="Scraping diario Precios y UF (CMF)",
         misfire_grace_time=3600,   # Tolera hasta 1h de retraso si el contenedor estuvo caído
         coalesce=True,             # Si perdió varios disparos, ejecuta solo uno al volver
     )

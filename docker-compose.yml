@@ -62,6 +62,7 @@ services:
       # Cambia a "true" para ejecutar el scraping de inmediato (testing/demo)
       # En PowerShell: $env:RUN_NOW="true"; docker compose up scraper --force-recreate
       - RUN_NOW=${RUN_NOW:-false}
+      - CMF_API_KEY=2bea1a42f6b3d657e19f22c2b01f7ee02d69ebf4
     depends_on:
       db:
         condition: service_healthy
