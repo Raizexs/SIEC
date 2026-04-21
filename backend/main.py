@@ -275,10 +275,73 @@ def calcular_insumos(simulacion_id: int, db: Session = Depends(get_db)):
     # 4. Agrupar por categoria y calcular subtotales
     categorias_dict = defaultdict(list)
     costo_total_simulacion = None
-    
+
+    # Prepare for labor parametrization: collect labor insumos and rendimiento factors
+    labor_insumos = []
+    rendimiento_jornadas_total = 0.0
+    labor_factors = {}
+    for r, insumo in datos_rendimiento:
+        if insumo.categoria and insumo.categoria.strip().lower() == 'mano de obra':
+            labor_insumos.append((r, insumo))
+            labor_factors[insumo.id] = r
+
+    # Determine total jornadas por m2 from labor factors
+    for r, insumo in labor_insumos:
+        unidad_factor = (getattr(r, 'unidad_factor', '') or '').lower()
+        try:
+            if 'jornada' in unidad_factor or 'jornad' in unidad_factor:
+                jornadas = float(r.factor_multiplicador)
+            else:
+                # Default: treat factor as HH per m2 and convert to jornadas
+                jornadas = float(r.factor_multiplicador) / float(HOURS_PER_DAY)
+        except Exception:
+            try:
+                jornadas = float(r.factor_multiplicador) / float(HOURS_PER_DAY)
+            except Exception:
+                jornadas = 0.0
+        rendimiento_jornadas_total += jornadas
+
+    # Find maestro and ayudante daily salaries from latest_precio_record
+    maestro_keywords = ('maestro', 'albañil', 'oficial')
+    ayudante_keywords = ('ayudante', 'ayuda')
+    salario_diario_maestro = 0.0
+    salario_diario_ayudante = 0.0
+    found_maestro = False
+    found_ayudante = False
+
+    for r, insumo in labor_insumos:
+        pm = latest_precio_record.get(insumo.id)
+        if not pm:
+            continue
+        precio_val = getattr(pm, 'precio_descuento', None) if getattr(pm, 'precio_descuento', None) is not None else getattr(pm, 'precio', None)
+        if precio_val is None:
+            continue
+        precio_val = float(precio_val)
+        nombre_prod = (getattr(pm, 'nombre_producto', '') or '').lower()
+        # Determine if price is per jornada
+        is_por_jornada = any(k in nombre_prod for k in ('jornada', 'por jornada', 'por día', 'por dia', 'día', 'dia'))
+        # If insumo unit is HH and price appears to be per HH, convert to diario
+        unidad_medida_insumo = (insumo.unidad_medida or '').strip().upper()
+        if unidad_medida_insumo in ('HH', 'H') and not is_por_jornada:
+            salario_diario = precio_val * float(HOURS_PER_DAY)
+        else:
+            salario_diario = precio_val
+
+        name_l = (insumo.nombre or '').lower()
+        if any(k in name_l for k in maestro_keywords):
+            salario_diario_maestro += salario_diario
+            found_maestro = True
+        if any(k in name_l for k in ayudante_keywords):
+            salario_diario_ayudante += salario_diario
+            found_ayudante = True
+
+    tarifa_pura_local = None
+    if (found_maestro or found_ayudante) and rendimiento_jornadas_total > 0:
+        tarifa_pura_local = (salario_diario_maestro + salario_diario_ayudante) * rendimiento_jornadas_total
+
     for r, insumo in datos_rendimiento:
         cantidad_calc = float(r.factor_multiplicador) * m2_totales
-        
+
         precio_unit = precio_promedio_map.get(insumo.id)
         precio_record = latest_precio_record.get(insumo.id)
         precio_unit_normalized = None
@@ -310,7 +373,7 @@ def calcular_insumos(simulacion_id: int, db: Session = Depends(get_db)):
             if costo_total_simulacion is None:
                 costo_total_simulacion = 0.0
             costo_total_simulacion += subt
-            
+
         item = InsumoCalculado(
             insumo=insumo.nombre,
             cantidad=cantidad_calc,
@@ -319,26 +382,27 @@ def calcular_insumos(simulacion_id: int, db: Session = Depends(get_db)):
             subtotal=subt
         )
         categorias_dict[insumo.categoria].append(item)
-        
+
     # 5. Mapear a Schema
     desglose_list = []
     for cat_name, items in categorias_dict.items():
         has_subt = any(i.subtotal is not None for i in items)
         subcat = sum((i.subtotal for i in items if i.subtotal is not None)) if has_subt else None
-        
+
         desglose_list.append(CategoriaDesglose(
             categoria=cat_name, 
             items=items, 
             subtotal_categoria=subcat
         ))
-        
+
     return DesgloseResponse(
         simulacion_id=simulacion_id,
         m2_totales=m2_totales,
         material=material_nombre,
         desglose=desglose_list,
         costo_total=costo_total_simulacion,
-        fecha_precios=fecha_precios
+        fecha_precios=fecha_precios,
+        tarifa_pura_local=tarifa_pura_local
     )
 
 
