@@ -226,6 +226,22 @@ const handleSaveLayout = (name) => {
           :materialEstructuralId="formData.materialEstructuralId"
         />
 
+        <!-- CTA Final — después del modelo 3D -->
+        <button
+          class="group w-full bg-gradient-to-br from-primary to-primary-container text-white p-6 rounded-2xl shadow-lg flex items-center justify-between overflow-hidden relative transition-all active:scale-[0.98]"
+        >
+          <div class="relative z-10 flex items-center gap-4">
+            <div class="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <span class="material-symbols-outlined">calculate</span>
+            </div>
+            <div class="text-left">
+              <span class="block text-sm font-bold">{{ t('generateFinal') }}</span>
+              <span class="text-[10px] opacity-70 uppercase font-medium">{{ t('lockedFor24h') }}</span>
+            </div>
+          </div>
+          <span class="material-symbols-outlined group-hover:translate-x-2 transition-transform">arrow_forward</span>
+          <div class="absolute top-0 left-0 w-full h-full bg-white/5 translate-x-full group-hover:translate-x-0 transition-transform skew-x-12 origin-left"></div>
+        </button>
       </div>
 
       <footer class="p-10 pt-0 text-slate-400 text-[10px] font-bold uppercase tracking-widest flex justify-between items-center">

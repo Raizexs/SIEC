@@ -45,10 +45,8 @@ const fetchBudget = async () => {
   error.value = null;
 
   try {
-    const baseUrl = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000' : '');
-
     // 1. Crear simulación temporal
-    const simRes = await fetch(`${baseUrl}/api/simulacion/parametros`, {
+    const simRes = await fetch('http://localhost:8000/api/simulacion/parametros', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -61,7 +59,7 @@ const fetchBudget = async () => {
     const simData = await simRes.json();
 
     // 2. Calcular insumos
-    const calcRes = await fetch(`${baseUrl}/api/simulacion/${simData.idSimulacion}/calcular-insumos`, {
+    const calcRes = await fetch(`http://localhost:8000/api/simulacion/${simData.idSimulacion}/calcular-insumos`, {
       method: 'POST'
     });
     if (!calcRes.ok) throw new Error("Error al calcular insumos");

@@ -95,8 +95,7 @@ def test_promedio_precios_logic():
     response = calcular_insumos(simulacion_id=1, db=mock_db)
     
     # Verificaciones
-    # Evitar comprobación de isinstance frágil entre cargas de módulos; comprobar estructura esperada
-    assert hasattr(response, 'desglose')
+    assert isinstance(response, DesgloseResponse)
     
     items = response.desglose[0].items
     assert len(items) == 3
