@@ -20,7 +20,11 @@ app = FastAPI(title="SIEC API", version="1.0.0")
 # CORS — permite que el frontend en localhost:5173 llame a la API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=[
+        "http://localhost:5173", 
+        "http://127.0.0.1:5173", 
+        "http://10.51.0.26:5173"  # IP del Frontend en el servidor de despliegue
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
