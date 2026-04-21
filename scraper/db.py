@@ -165,3 +165,36 @@ def get_ultimo_precio_valido(tienda: str, url: str) -> Optional[float]:
     except Exception as e:
         logger.debug(f"[DB] No se pudo recuperar último precio ({tienda}): {e}")
         return None
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Inserción de Indicadores Económicos
+# ──────────────────────────────────────────────────────────────────────────────
+
+def insertar_indicador(indicador: dict) -> bool:
+    """
+    Inserta un indicador económico (UF, etc.) en la tabla indicador_economico.
+    Si el par (nombre, fecha) ya existe, no hace nada (evita duplicados).
+    
+    El dict debe tener: nombre, valor, fecha, fuente
+    """
+    if not indicador or not indicador.get("valor"):
+        logger.warning("[DB] Indicador inválido, inserción abortada.")
+        return False
+
+    sql = """
+        INSERT INTO indicador_economico (nombre, valor, fecha, fuente)
+        VALUES (%(nombre)s, %(valor)s, %(fecha)s, %(fuente)s)
+        ON CONFLICT (nombre, fecha) DO NOTHING
+    """
+
+    try:
+        conn = get_connection()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, indicador)
+        conn.close()
+        logger.info(f"[DB] Indicador {indicador['nombre']} persistido exitosamente.")
+        return True
+    except Exception as e:
+        logger.error(f"[DB] Error al insertar indicador: {e}")
+        return False
