@@ -339,13 +339,27 @@ def calcular_insumos(simulacion_id: int, db: Session = Depends(get_db)):
         else:
             salario_diario = precio_val
 
-        name_l = (insumo.nombre or '').lower()
-        if any(k in name_l for k in maestro_keywords):
+        # Prefer explicit role mapping in Insumo_Role if available
+        role_entry = db.query(models.InsumoRole).filter(models.InsumoRole.insumo_id == insumo.id).first()
+        role_val = None
+        if role_entry and getattr(role_entry, 'role', None):
+            role_val = str(role_entry.role).strip().lower()
+
+        if role_val == 'maestro':
             salario_diario_maestro += salario_diario
             found_maestro = True
-        if any(k in name_l for k in ayudante_keywords):
+        elif role_val == 'ayudante' or role_val == 'help' or role_val == 'assistant':
             salario_diario_ayudante += salario_diario
             found_ayudante = True
+        else:
+            # Fallback to name matching if no explicit role
+            name_l = (insumo.nombre or '').lower()
+            if any(k in name_l for k in maestro_keywords):
+                salario_diario_maestro += salario_diario
+                found_maestro = True
+            if any(k in name_l for k in ayudante_keywords):
+                salario_diario_ayudante += salario_diario
+                found_ayudante = True
 
     tarifa_pura_local = None
     if (found_maestro or found_ayudante) and rendimiento_jornadas_total > 0:

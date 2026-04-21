@@ -47,6 +47,15 @@ pm2 = models.PrecioMercado(id=202, insumo_id=11, tienda='T1', nombre_producto='A
 session.add_all([pm1, pm2])
 session.commit()
 
+# Add explicit InsumoRole entries to avoid relying on name matching
+try:
+    role_maestro = models.InsumoRole(insumo_id=10, role='maestro')
+    role_ayud = models.InsumoRole(insumo_id=11, role='ayudante')
+    session.add_all([role_maestro, role_ayud])
+    session.commit()
+except Exception:
+    session.rollback()
+
 # Simulation
 sim = models.ConfiguracionSimulacion(id=1, m2_totales=100, material_estructural_id=1, habitaciones=1, banios=0, areas_comunes=0)
 session.add(sim)
