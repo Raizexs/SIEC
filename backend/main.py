@@ -282,6 +282,7 @@ def calcular_insumos(simulacion_id: int, db: Session = Depends(get_db)):
         precio_unit = precio_promedio_map.get(insumo.id)
         precio_record = latest_precio_record.get(insumo.id)
         precio_unit_normalized = None
+        subt = None
         if precio_unit is not None:
             precio_unit_normalized = float(precio_unit)
             # Normalización de unidades de mano de obra: si el insumo espera HH pero el producto sugiere precio por jornada/día,
