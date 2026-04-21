@@ -27,6 +27,9 @@ Comportamiento Acústico y Fuego: Los muros divisorios sugeridos deben cumplir c
 Resistencia de Hormigones: Para radicaciones o cadenas estructurales en el modelador 3D, el sistema fijará por defecto la dosificación de hormigón a Grado H20.
 
 4. Estructuración del Costo de Mano de Obra (APU)
+
+Nota operativa: El sistema normaliza automáticamente precios de mano de obra obtenidos del mercado. Si un precio de mercado está expresado "por jornada/día" y el insumo está definido en HH (horas hombre), el motor convertirá el precio a "por HH" dividiéndolo por HOURS_PER_DAY. HOURS_PER_DAY es configurable vía variable de entorno (por defecto 8). Esto asegura consistencia entre factores de rendimiento (factor_multiplicador en Matriz_Rendimiento) y tarifas de mercado.
+
 La transición hacia la proyección del costo de instalación requiere que el sistema estandarice el costo del tiempo de la fuerza laboral:
 
 Costo Diario Real: El cálculo de la mano de obra debe componerse del salario diario o por hora del maestro y su ayudante, multiplicándolo por el inverso del rendimiento diario por metro cuadrado.

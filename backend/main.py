@@ -65,6 +65,14 @@ except Exception:
 if SOCIAL_LEY_FACTOR < 1.28 or SOCIAL_LEY_FACTOR > 1.29:
     SOCIAL_LEY_FACTOR = 1.28  # Valor por defecto si la variable de entorno está fuera de rango
 
+# Horas por jornada usada para normalizar precios por día a precio por HH (configurable via env HOURS_PER_DAY)
+try:
+    HOURS_PER_DAY = float(os.getenv("HOURS_PER_DAY", "8"))
+except Exception:
+    HOURS_PER_DAY = 8.0
+if HOURS_PER_DAY <= 0 or HOURS_PER_DAY > 24:
+    HOURS_PER_DAY = 8.0
+
 class ProjectConfig(BaseModel):
     material_estructural: str
 
@@ -242,22 +250,26 @@ def calcular_insumos(simulacion_id: int, db: Session = Depends(get_db)):
         models.PrecioMercado.tienda, 
         models.PrecioMercado.fecha_scraping.desc()
     ).all()
-    
+
     precios_x_insumo = defaultdict(list)
+    latest_precio_record = {}
     fechas_usadas = []
-    
+
     for pm in precios_records:
         precio_val = pm.precio_descuento if pm.precio_descuento is not None else pm.precio
         if precio_val is not None:
             precios_x_insumo[pm.insumo_id].append(float(precio_val))
+            # Guardar el primer registro (ordenado por fecha desc) como muestra representativa
+            if pm.insumo_id not in latest_precio_record:
+                latest_precio_record[pm.insumo_id] = pm
             if pm.fecha_scraping:
                 fechas_usadas.append(pm.fecha_scraping.isoformat() if hasattr(pm.fecha_scraping, 'isoformat') else str(pm.fecha_scraping))
-                
+
     precio_promedio_map = {}
     for i_id, lista_precios in precios_x_insumo.items():
         if lista_precios:
             precio_promedio_map[i_id] = sum(lista_precios) / len(lista_precios)
-            
+
     fecha_precios = min(fechas_usadas) if fechas_usadas else None
 
     # 4. Agrupar por categoria y calcular subtotales
@@ -268,9 +280,25 @@ def calcular_insumos(simulacion_id: int, db: Session = Depends(get_db)):
         cantidad_calc = float(r.factor_multiplicador) * m2_totales
         
         precio_unit = precio_promedio_map.get(insumo.id)
-        subt = None
+        precio_record = latest_precio_record.get(insumo.id)
+        precio_unit_normalized = None
         if precio_unit is not None:
-            subt = precio_unit * cantidad_calc
+            precio_unit_normalized = float(precio_unit)
+            # Normalización de unidades de mano de obra: si el insumo espera HH pero el producto sugiere precio por jornada/día,
+            # convertir a precio por HH dividiendo por HOURS_PER_DAY.
+            try:
+                unidad_esperada = (insumo.unidad_medida or '').strip().upper()
+            except Exception:
+                unidad_esperada = ''
+            if unidad_esperada in ('HH', 'H') and precio_record is not None:
+                nombre_prod = getattr(precio_record, 'nombre_producto', '') or ''
+                nombre_prod_l = nombre_prod.lower()
+                if any(k in nombre_prod_l for k in ('jornada', 'por jornada', 'por día', 'por dia', 'día', 'dia')):
+                    try:
+                        precio_unit_normalized = precio_unit_normalized / float(HOURS_PER_DAY)
+                    except Exception:
+                        pass
+            subt = precio_unit_normalized * cantidad_calc
             # Aplicar recargo obligatorio por leyes sociales solo para Mano de Obra
             try:
                 categoria_normalizada = insumo.categoria.strip().lower() if insumo.categoria else ""
