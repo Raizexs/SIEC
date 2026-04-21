@@ -38,6 +38,18 @@ def startup_event():
     # Inicializar tablas aquí para evitar crash sin DB al importar (Testing)
     models.Base.metadata.create_all(bind=engine)
     
+    # Normalizar unidades de mano de obra en la BD (para evitar ambigüedades en seeds/CSV)
+    try:
+        from scripts.normalize_unidad_mano_obra import normalize_unidad_mano_obra
+        try:
+            updated = normalize_unidad_mano_obra(os.getenv('DATABASE_URL', None))
+            print(f'normalize_unidad_mano_obra updated rows: {updated}')
+        except Exception as e:
+            print('Normalization script failed at startup:', e)
+    except Exception:
+        # If import fails (e.g., during certain test flows), continue without normalization
+        pass
+    
     db = SessionLocal()
     try:
         # Verificar si ya existen tipos de recinto
