@@ -19,9 +19,15 @@ export function useInteractiveEditor() {
   const dragOffset = ref({ x: 0, z: 0 })
 
   const minAreaByTipo = computed(() => ({
-    habitacion: 4,    // minimum 4 m²
-    banio: 2,         // minimum 2 m²
-    areaComun: 4      // minimum 4 m²
+    habitacion: 7.0,  // minimum 7.0 m² (MINVU DS49)
+    banio: 2.5,       // minimum 2.5 m² (MINVU DS49)
+    areaComun: 9.4    // minimum 9.4 m² (MINVU DS49 Estar-Comedor)
+  }))
+
+  const minSideByTipo = computed(() => ({
+    habitacion: 2.2,  // width minimum 2.2m (220cm MINVU)
+    banio: 1.1,       // width minimum 1.1m (110cm MINVU)
+    areaComun: 2.1    // width minimum 2.1m (210cm MINVU)
   }))
 
   const selectedRecinto = computed(() => {
@@ -99,17 +105,17 @@ export function useInteractiveEditor() {
 
     const room = selectedRecinto.value
     const minArea = minAreaByTipo.value[room.tipo] || 2
-    const MIN_SIDE = 1.0 // minimum 1 metre per side
+    const minSide = minSideByTipo.value[room.tipo] || 1.0
 
-    let nextW = Math.max(MIN_SIDE, snap(pointerWorld.x - room.coords.x))
-    let nextL = Math.max(MIN_SIDE, snap(pointerWorld.z - room.coords.z))
+    let nextW = Math.max(minSide, snap(pointerWorld.x - room.coords.x))
+    let nextL = Math.max(minSide, snap(pointerWorld.z - room.coords.z))
 
     // Enforce minimum area
     if (nextW * nextL < minArea) {
       if (nextW < nextL) {
-        nextW = Math.max(MIN_SIDE, snap(minArea / nextL))
+        nextW = Math.max(minSide, snap(minArea / nextL))
       } else {
-        nextL = Math.max(MIN_SIDE, snap(minArea / nextW))
+        nextL = Math.max(minSide, snap(minArea / nextW))
       }
     }
 

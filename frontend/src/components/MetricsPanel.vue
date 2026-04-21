@@ -152,7 +152,7 @@ const materials = computed(() => [
               class="text-3xl font-headline font-black flex items-end gap-1"
               :style="{ color: descripcionEstado.color }"
             >
-              <span>{{ (tokensTotales * 10 - (totalAreaUsado > 0 ? totalAreaUsado : tokensUsados * 10)).toFixed(1) }}</span>
+              <span>{{ Math.max(0, tokensTotales * 10 - (totalAreaUsado > 0 ? totalAreaUsado : tokensUsados * 10)).toFixed(1) }}</span>
               <span class="text-base font-semibold mb-1 opacity-70">m²</span>
             </div>
           </div>

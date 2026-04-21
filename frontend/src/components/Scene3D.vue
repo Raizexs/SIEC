@@ -3,9 +3,11 @@ import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { useTopologyComputed } from "../composables/useTopologyComputed";
+import { useRecintosStore } from "../stores/recintos";
 
 const containerRef = ref(null);
 const topology = useTopologyComputed();
+const store = useRecintosStore();
 
 let renderer;
 let scene;
@@ -99,22 +101,28 @@ const syncWalls = (walls) => {
   // upsert meshes
   walls.forEach((wall) => {
     const transform = toMeshTransform(wall);
+    const isBudgeted = wall.recintosAdyacentes.every(id => store.selectedForBudget.has(id));
+    const targetColor = isBudgeted ? "#ef4444" : "#60a5fa"; // Red if budgeted, blue otherwise
 
     let mesh = wallMeshes.get(wall.id);
     if (!mesh) {
       const geometry = new THREE.BoxGeometry(1, WALL_HEIGHT, wall.thickness);
       const material = new THREE.MeshStandardMaterial({
-        color: "#60a5fa",
+        color: targetColor,
         roughness: 0.55,
         metalness: 0.1,
       });
       mesh = new THREE.Mesh(geometry, material);
       scene.add(mesh);
       wallMeshes.set(wall.id, mesh);
+    } else {
+      mesh.material.color.set(targetColor);
     }
 
-    mesh.scale.set(transform.length, 1, 1);
-    mesh.position.set(transform.centerX, WALL_HEIGHT / 2, transform.centerZ);
+    // Shrink budgeted walls slightly to avoid Z-fighting and let blue predominate
+    const scaleFactor = isBudgeted ? 0.99 : 1.0;
+    mesh.scale.set(transform.length, scaleFactor, scaleFactor);
+    mesh.position.set(transform.centerX, (WALL_HEIGHT * scaleFactor) / 2, transform.centerZ);
     mesh.rotation.set(0, -transform.angle, 0);
   });
 
@@ -165,8 +173,8 @@ const animate = () => {
 onMounted(() => {
   ensureScene();
   watch(
-    () => topology.walls.value,
-    (walls) => {
+    () => [topology.walls.value, Array.from(store.selectedForBudget)],
+    ([walls]) => {
       if (scene) syncWalls(walls);
     },
     { deep: true, immediate: true },

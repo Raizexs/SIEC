@@ -88,8 +88,8 @@ def crear_simulacion(sim: SimulacionCreate, db: Session = Depends(get_db)):
     """Guarda los parámetros de configuración de la vivienda y crea una nueva simulación."""
     
     # Validaciones obligatorias
-    if sim.m2Totales < 15 or sim.m2Totales > 200:
-        raise HTTPException(status_code=400, detail="Superficie total debe estar entre 15 y 200 m².")
+    if sim.m2Totales <= 0 or sim.m2Totales > 500:
+        raise HTTPException(status_code=400, detail="Superficie total debe estar entre 1 y 500 m².")
     
     if sim.habitaciones < 0 or sim.banios < 0 or sim.areasComunes < 0:
         raise HTTPException(status_code=400, detail="La cantidad de recintos no puede ser negativa.")
