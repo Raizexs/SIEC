@@ -5,6 +5,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 import unicodedata
+import os
 from collections import defaultdict
 from schemas import DesgloseResponse, CategoriaDesglose, InsumoCalculado
 
@@ -54,6 +55,15 @@ def startup_event():
 
 # Materiales permitidos según requerimientos
 ALLOWED_MATERIALS = ["Madera", "Metalcom", "Albañilería", "Hormigón Armado"]
+
+# Recargo obligatorio por leyes sociales (28% - 29%). Ajustable vía variable de entorno SOCIAL_LEY_FACTOR.
+try:
+    SOCIAL_LEY_FACTOR = float(os.getenv("SOCIAL_LEY_FACTOR", "1.28"))
+except Exception:
+    SOCIAL_LEY_FACTOR = 1.28
+# Validar rango permitido: 1.28 <= factor <= 1.29
+if SOCIAL_LEY_FACTOR < 1.28 or SOCIAL_LEY_FACTOR > 1.29:
+    SOCIAL_LEY_FACTOR = 1.28  # Valor por defecto si la variable de entorno está fuera de rango
 
 class ProjectConfig(BaseModel):
     material_estructural: str
@@ -261,6 +271,13 @@ def calcular_insumos(simulacion_id: int, db: Session = Depends(get_db)):
         subt = None
         if precio_unit is not None:
             subt = precio_unit * cantidad_calc
+            # Aplicar recargo obligatorio por leyes sociales solo para Mano de Obra
+            try:
+                categoria_normalizada = insumo.categoria.strip().lower() if insumo.categoria else ""
+            except Exception:
+                categoria_normalizada = ""
+            if categoria_normalizada == 'mano de obra':
+                subt = subt * SOCIAL_LEY_FACTOR
             if costo_total_simulacion is None:
                 costo_total_simulacion = 0.0
             costo_total_simulacion += subt
