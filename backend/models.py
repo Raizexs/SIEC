@@ -64,3 +64,10 @@ class PrecioMercado(Base):
     url = Column("URL", String, nullable=False)
     fecha_scraping = Column("Fecha_Scraping", DateTime, nullable=False)
     exitoso = Column("Exitoso", Boolean, default=True)
+
+class InsumoRole(Base):
+    __tablename__ = "Insumo_Role"
+
+    id = Column("ID", Integer, primary_key=True, index=True)
+    insumo_id = Column("Insumo_ID", Integer, ForeignKey("Insumo.ID"), nullable=False)
+    role = Column("Role", String, nullable=False)  # expected values: 'maestro', 'ayudante', etc.
