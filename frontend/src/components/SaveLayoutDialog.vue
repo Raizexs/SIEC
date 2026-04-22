@@ -36,7 +36,7 @@ const handleSave = () => {
 
 <template>
   <Teleport to="body">
-    <Transition name="modal">
+    <Transition name="fade-scale">
       <div
         v-if="show"
         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
@@ -93,24 +93,4 @@ const handleSave = () => {
   </Teleport>
 </template>
 
-<style scoped>
-.modal-enter-active,
-.modal-leave-active {
-  transition: opacity 0.3s ease;
-}
 
-.modal-enter-from,
-.modal-leave-to {
-  opacity: 0;
-}
-
-.modal-enter-active .bg-white,
-.modal-leave-active .bg-white {
-  transition: transform 0.3s ease;
-}
-
-.modal-enter-from .bg-white,
-.modal-leave-to .bg-white {
-  transform: scale(0.9);
-}
-</style>

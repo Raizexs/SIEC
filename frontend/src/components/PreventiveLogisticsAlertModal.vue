@@ -15,7 +15,7 @@ const emit = defineEmits(["close", "quote-light-materials"]);
 
 <template>
   <Teleport to="body">
-    <Transition name="modal">
+    <Transition name="fade-scale">
       <div
         v-if="props.show"
         class="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4"
@@ -59,14 +59,3 @@ const emit = defineEmits(["close", "quote-light-materials"]);
   </Teleport>
 </template>
 
-<style scoped>
-.modal-enter-active,
-.modal-leave-active {
-  transition: opacity 0.25s ease;
-}
-
-.modal-enter-from,
-.modal-leave-to {
-  opacity: 0;
-}
-</style>
