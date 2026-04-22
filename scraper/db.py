@@ -14,6 +14,32 @@ from validators import validar_variacion_precio
 
 logger = logging.getLogger(__name__)
 
+
+def _ensure_indicador_economico_table(conn) -> None:
+    """
+    Garantiza que la tabla `indicador_economico` exista antes de insertar.
+    Evita fallos en entornos donde la DB fue inicializada antes de la migración 006.
+    """
+    create_table_sql = """
+        CREATE TABLE IF NOT EXISTS indicador_economico (
+            id SERIAL PRIMARY KEY,
+            nombre TEXT NOT NULL,
+            valor NUMERIC(12, 2) NOT NULL,
+            fecha DATE NOT NULL,
+            fecha_captura TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            fuente TEXT DEFAULT 'CMF',
+            UNIQUE(nombre, fecha)
+        )
+    """
+    create_index_sql = """
+        CREATE INDEX IF NOT EXISTS idx_ie_nombre_fecha
+        ON indicador_economico (nombre, fecha DESC)
+    """
+
+    with conn.cursor() as cur:
+        cur.execute(create_table_sql)
+        cur.execute(create_index_sql)
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Conexión
 # ──────────────────────────────────────────────────────────────────────────────
@@ -190,6 +216,7 @@ def insertar_indicador(indicador: dict) -> bool:
     try:
         conn = get_connection()
         with conn:
+            _ensure_indicador_economico_table(conn)
             with conn.cursor() as cur:
                 cur.execute(sql, indicador)
         conn.close()
