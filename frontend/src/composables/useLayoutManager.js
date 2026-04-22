@@ -108,7 +108,7 @@ export function useLayoutManager() {
   const getMaterialName = (materialId) => {
     const materials = {
       1: "Wood Frame",
-      2: "Metalcom (Light Steel)",
+      2: "Galvanized Steel",
       3: "Masonry",
       4: "Ferrocement",
     };

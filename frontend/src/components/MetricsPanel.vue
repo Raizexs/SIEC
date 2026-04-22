@@ -33,14 +33,14 @@ const props = defineProps({
 
 const materialNamesES = {
   1: "Estructura de Madera",
-  2: "Metalcom (Acero Liviano)",
+  2: "Acero Galvanizado",
   3: "Mampostería",
   4: "Ferrocemento",
 };
 
 const materialNamesEN = {
   1: "Wood Frame",
-  2: "Metalcom (Light Steel)",
+  2: "Galvanized Steel",
   3: "Masonry",
   4: "Ferrocement",
 };
