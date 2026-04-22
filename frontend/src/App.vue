@@ -11,7 +11,7 @@ import MaterialsPanel from "./components/MaterialsPanel.vue";
 import LayerSelectionPanel from "./components/LayerSelectionPanel.vue";
 import BudgetBreakdownPanel from "./components/BudgetBreakdownPanel.vue";
 import PreventiveLogisticsAlertModal from "./components/PreventiveLogisticsAlertModal.vue";
-import TutorialOverlay from "./components/TutorialOverlay.vue";
+import UserManualModal from "./components/UserManualModal.vue";
 import { useRecintosStore } from "./stores/recintos";
 import { useTokenCounter } from "./composables/useTokenCounter";
 import { useLayoutManager } from "./composables/useLayoutManager";
@@ -23,6 +23,8 @@ const { t, currentLanguage } = useI18n();
 
 const sidebarCollapsed = ref(false);
 const showPreventiveLogisticsModal = ref(false);
+const showManual = ref(false);
+const is3DMode = ref(false);
 const HEAVY_LOGISTICS_MATERIAL_ID = 4;
 const LIGHTWEIGHT_QUOTE_MATERIAL_ID = 2;
 const materialTriggerReady = ref(false);
@@ -246,13 +248,14 @@ const handleSaveLayout = (name) => {
       @loadPreset="loadPreset"
       @loadLayout="loadLayout"
       @collapse-change="sidebarCollapsed = $event"
+      @open-manual="showManual = true"
     />
 
     <main
       :class="sidebarCollapsed ? 'ml-0' : 'ml-64'"
       class="min-h-screen transition-all duration-300"
     >
-      <TopNavBar :activeTab="activeTab" @tab-change="handleTabChange" @save-layout="showSaveDialog = true" />
+      <TopNavBar :activeTab="activeTab" :is3DMode="is3DMode" @tab-change="handleTabChange" @save-layout="showSaveDialog = true" @toggle-3d="is3DMode = $event" />
 
       <div class="p-10 max-w-7xl mx-auto grid grid-cols-12 gap-10">
         <ConfigurationPanel
@@ -284,11 +287,18 @@ const handleSaveLayout = (name) => {
 
       <div v-if="hasRecintos" class="p-10 pt-0 max-w-7xl mx-auto space-y-6">
         <LayerSelectionPanel />
-        <RoomEditor2D
-          :m2Totales="formData.m2Totales"
-          :descripcionEstado="descripcionEstado"
-        />
-        <Scene3D />
+        
+        <!-- Toggle 2D/3D Container -->
+        <transition name="fade" mode="out-in">
+          <KeepAlive>
+            <Scene3D v-if="is3DMode" />
+            <RoomEditor2D
+              v-else
+              :m2Totales="formData.m2Totales"
+              :descripcionEstado="descripcionEstado"
+            />
+          </KeepAlive>
+        </transition>
 
         <!-- Presupuesto: aparece cuando hay recintos con $ activado -->
         <BudgetBreakdownPanel
@@ -317,7 +327,7 @@ const handleSaveLayout = (name) => {
       @quote-light-materials="quoteWithLightweightMaterials"
     />
 
-    <TutorialOverlay />
+    <UserManualModal :show="showManual" @close="showManual = false" />
 
     <!-- Toast Notification -->
     <transition enter-active-class="transition ease-out duration-300" enter-from-class="transform translate-y-2 opacity-0" enter-to-class="transform translate-y-0 opacity-100" leave-active-class="transition ease-in duration-200" leave-from-class="transform translate-y-0 opacity-100" leave-to-class="transform translate-y-2 opacity-0">
@@ -328,3 +338,26 @@ const handleSaveLayout = (name) => {
     </transition>
   </div>
 </template>
+
+<style>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: scale(0.98);
+}
+
+.fade-scale-enter-active,
+.fade-scale-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.fade-scale-enter-from,
+.fade-scale-leave-to {
+  opacity: 0;
+  transform: scale(0.95);
+}
+</style>

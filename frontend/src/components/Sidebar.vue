@@ -6,7 +6,7 @@ import { useI18n } from '../composables/useI18n'
 const { t, currentLanguage, setLanguage } = useI18n()
 const { presets, savedLayouts } = useLayoutManager()
 
-const emit = defineEmits(['loadPreset', 'loadLayout', 'collapse-change'])
+const emit = defineEmits(['loadPreset', 'loadLayout', 'collapse-change', 'open-manual'])
 
 // ── Collapse ──────────────────────────────────────────────────────────
 const collapsed = ref(false)
@@ -41,6 +41,7 @@ const loadSavedLayout = (layout) => emit('loadLayout', layout)
 const toggleLanguage = () => {
   setLanguage(currentLanguage.value === 'es' ? 'en' : 'es')
 }
+
 </script>
 
 <template>
@@ -136,6 +137,17 @@ const toggleLanguage = () => {
           </button>
           <span class="material-symbols-outlined text-[14px] text-slate-400 dark:text-slate-300">dark_mode</span>
         </div>
+      </div>
+
+      <!-- Ayuda y Tutorial -->
+      <div class="px-3 pt-2">
+        <button 
+          @click="$emit('open-manual')"
+          class="w-full flex items-center justify-center gap-2 py-2 rounded-md bg-slate-100 dark:bg-slate-800/50 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-xs font-bold text-slate-600 dark:text-slate-300"
+        >
+          <span class="material-symbols-outlined text-[16px]">help</span>
+          Ver Guía Interactiva
+        </button>
       </div>
 
       <!-- Auto-save indicator -->
