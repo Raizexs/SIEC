@@ -11,6 +11,7 @@ import MaterialsPanel from "./components/MaterialsPanel.vue";
 import LayerSelectionPanel from "./components/LayerSelectionPanel.vue";
 import BudgetBreakdownPanel from "./components/BudgetBreakdownPanel.vue";
 import PreventiveLogisticsAlertModal from "./components/PreventiveLogisticsAlertModal.vue";
+import TutorialOverlay from "./components/TutorialOverlay.vue";
 import { useRecintosStore } from "./stores/recintos";
 import { useTokenCounter } from "./composables/useTokenCounter";
 import { useLayoutManager } from "./composables/useLayoutManager";
@@ -28,6 +29,8 @@ const materialTriggerReady = ref(false);
 
 // Key reactiva para forzar re-render cuando cambia idioma
 const appKey = computed(() => `app-${currentLanguage.value}`);
+
+const showToast = ref(false);
 
 const formData = ref({
   m2Totales: 150,
@@ -219,8 +222,6 @@ const submitForm = async () => {
       formData.value.areasComunes,
       formData.value.materialEstructuralId,
     );
-
-    showSaveDialog.value = true;
   } catch (error) {
     console.error("Error:", error);
   } finally {
@@ -231,6 +232,8 @@ const submitForm = async () => {
 const handleSaveLayout = (name) => {
   saveLayout(name, formData.value);
   showSaveDialog.value = false;
+  showToast.value = true;
+  setTimeout(() => showToast.value = false, 3000);
 };
 </script>
 
@@ -249,7 +252,7 @@ const handleSaveLayout = (name) => {
       :class="sidebarCollapsed ? 'ml-0' : 'ml-64'"
       class="min-h-screen transition-all duration-300"
     >
-      <TopNavBar :activeTab="activeTab" @tab-change="handleTabChange" />
+      <TopNavBar :activeTab="activeTab" @tab-change="handleTabChange" @save-layout="showSaveDialog = true" />
 
       <div class="p-10 max-w-7xl mx-auto grid grid-cols-12 gap-10">
         <ConfigurationPanel
@@ -313,5 +316,15 @@ const handleSaveLayout = (name) => {
       @close="dismissPreventiveLogisticsModal"
       @quote-light-materials="quoteWithLightweightMaterials"
     />
+
+    <TutorialOverlay />
+
+    <!-- Toast Notification -->
+    <transition enter-active-class="transition ease-out duration-300" enter-from-class="transform translate-y-2 opacity-0" enter-to-class="transform translate-y-0 opacity-100" leave-active-class="transition ease-in duration-200" leave-from-class="transform translate-y-0 opacity-100" leave-to-class="transform translate-y-2 opacity-0">
+      <div v-if="showToast" class="fixed bottom-6 right-6 z-50 bg-emerald-500 text-white px-6 py-3 rounded-xl shadow-lg flex items-center gap-3 font-semibold text-sm">
+        <span class="material-symbols-outlined">check_circle</span>
+        {{ t('layoutSaved') }}
+      </div>
+    </transition>
   </div>
 </template>
