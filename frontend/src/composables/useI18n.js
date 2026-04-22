@@ -21,6 +21,7 @@ const translations = {
     estimationConfigurator: "Configurador de Estimación",
     generalSpecs: "Especificaciones Generales",
     materials: "Materiales",
+    regulatory: "Validación Regulatoria",
     logistics: "Logística",
     localCache: "Caché Local",
 
@@ -131,6 +132,7 @@ const translations = {
     estimationConfigurator: "Estimation Configurator",
     generalSpecs: "General Specs",
     materials: "Materials",
+    regulatory: "Regulatory Validation",
     logistics: "Logistics",
     localCache: "Local Cache",
 

@@ -15,6 +15,7 @@ const emit = defineEmits(['tab-change'])
 const tabs = [
   { name: 'generalSpecs' },
   { name: 'materials' },
+  { name: 'regulatory' },
   { name: 'logistics' }
 ]
 

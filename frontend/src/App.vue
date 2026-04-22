@@ -12,6 +12,7 @@ import { useRecintosStore } from "./stores/recintos";
 import { useTokenCounter } from "./composables/useTokenCounter";
 import { useLayoutManager } from "./composables/useLayoutManager";
 import { useI18n } from "./composables/useI18n";
+import RegulatoryValidator from "./components/RegulatoryValidator.vue";
 
 const recintosStore = useRecintosStore();
 const { saveLayout } = useLayoutManager();
@@ -21,13 +22,17 @@ const { t, currentLanguage } = useI18n();
 const appKey = computed(() => `app-${currentLanguage.value}`);
 
 const formData = ref({
-  m2Totales: 150,
+  m2Totales: 400,
   materialEstructuralId: 4,
-  habitacionesSimples: 2,
+  habitacionesSimples: 1,
   habitacionesDobles: 0,
   habitacionesTriples: 0,
   banios: 1,
-  areasComunes: 1,
+  areasComunes: 0,
+  numPisos: 2,
+  zonaClimatica: "Central",
+  isComplex: false,
+  hasEngineer: false,
 });
 
 const {
@@ -90,6 +95,28 @@ const handleTabChange = (tab) => {
 };
 
 const hasRecintos = computed(() => recintosStore.recintos.length > 0);
+
+// Mapeo de materialEstructuralId a nombre de material para validación regulatoria
+const materialMap = {
+  1: "Madera",
+  2: "Metalcom",
+  3: "Albañilería",
+  4: "Hormigón Armado"
+};
+
+const materialEstructuralNombre = computed(() => {
+  return materialMap[formData.value.materialEstructuralId] || "Hormigón Armado";
+});
+
+// Datos para pasar al validador regulatorio
+const projectDataForValidator = computed(() => ({
+  m2_totales: formData.value.m2Totales,
+  material_estructural: materialEstructuralNombre.value,
+  num_stories: formData.value.numPisos,
+  zona_climatica: formData.value.zonaClimatica,
+  is_complex: formData.value.isComplex,
+  has_engineer: formData.value.hasEngineer
+}));
 
 const updateFormData = (newData) => {
   formData.value = newData;
@@ -197,6 +224,11 @@ const handleSaveLayout = (name) => {
           :totalM2="formData.m2Totales"
           @material-selected="(id) => formData.materialEstructuralId = id"
           class="col-span-7"
+        />
+        <RegulatoryValidator
+          v-show="activeTab === 'regulatory'"
+          :projectData="projectDataForValidator"
+          class="col-span-12"
         />
 
         <MetricsPanel

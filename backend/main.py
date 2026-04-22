@@ -4,15 +4,26 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 import unicodedata
+from fastapi.middleware.cors import CORSMiddleware
 
 # Importar configuración de BD y Modelos
 from database import engine, get_db, SessionLocal
 import models
+from regulatory_validator import regulatory_validator, RegulatoryValidationResult
 
 # Crear tablas
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="SIEC API", version="1.0.0")
+
+# Habilitar CORS para que el frontend pueda hacer requests
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Seeding de datos iniciales
 @app.on_event("startup")
@@ -202,6 +213,45 @@ class RecintoGeometrico(BaseModel):
 class PayloadLayout3D(BaseModel):
     recintos: List[RecintoGeometrico]
 
+
+# ════════════════════════════════════════════════════════════════════════════════
+# MODELOS PARA VALIDACIÓN REGULATORIA (HU18)
+# ════════════════════════════════════════════════════════════════════════════════
+
+class RegulationViolationResponse(BaseModel):
+    """Respuesta de una violación regulatoria"""
+    code: str
+    name: str
+    description: str
+    severity: str
+    detail: str
+    requirement: str
+    current_value: Optional[str] = None
+
+
+class RegulatoryValidationRequest(BaseModel):
+    """Solicitud de validación regulatoria"""
+    m2_totales: int
+    material_estructural: str
+    num_stories: int = 1
+    zona_climatica: str = "Central"
+    is_complex: bool = False
+    has_engineer: bool = False
+
+
+class RegulatoryValidationResponse(BaseModel):
+    """Respuesta de validación regulatoria"""
+    status: str  # "compliant" | "warning" | "blocked"
+    violations: List[RegulationViolationResponse]
+    warnings: List[RegulationViolationResponse]
+    is_constructible: bool
+    is_self_constructible: bool
+    requires_loscat: bool
+    max_stories_without_engineer: Optional[int]
+    
+    class Config:
+        from_attributes = True
+
 @app.post("/api/simulacion/{simulacion_id}/layout", status_code=status.HTTP_201_CREATED)
 def asociar_y_validar_layout_estricto(simulacion_id: int, payload: PayloadLayout3D, db: Session = Depends(get_db)):
     """
@@ -256,6 +306,127 @@ def asociar_y_validar_layout_estricto(simulacion_id: int, payload: PayloadLayout
         "message": "Validaciones estrictas pasadas. Configuración del plano íntegro.",
         "area_total_calculada": area_total_acumulada,
         "limite_m2_disponibles": simulacion.m2_totales
+    }
+
+
+# ════════════════════════════════════════════════════════════════════════════════
+# ENDPOINTS DE VALIDACIÓN REGULATORIA (HU18)
+# ════════════════════════════════════════════════════════════════════════════════
+
+@app.post("/api/validate-regulatory", response_model=RegulatoryValidationResponse)
+def validate_regulatory_constraints(request: RegulatoryValidationRequest):
+    """
+    Valida un proyecto contra restricciones regulatorias MINVU
+    
+    Criterios de aceptación HU18:
+    - Autoconstrucción: m² <= 90 (aislada) o <= 140 (conjunto)
+    - LOSCAT: requerido en zonas frías
+    - Metalcon: máximo 3 pisos sin ingeniero
+    
+    Returns:
+        RegulatoryValidationResponse con estado y violaciones/advertencias
+    """
+    result = regulatory_validator.validate_project(
+        m2_totales=request.m2_totales,
+        material_estructural=request.material_estructural,
+        num_stories=request.num_stories,
+        zona_climatica=request.zona_climatica,
+        is_complex=request.is_complex,
+        has_engineer=request.has_engineer,
+    )
+    
+    return RegulatoryValidationResponse(
+        status=result.status.value,
+        violations=[
+            RegulationViolationResponse(
+                code=v.code,
+                name=v.name,
+                description=v.description,
+                severity=v.severity,
+                detail=v.detail,
+                requirement=v.requirement,
+                current_value=str(v.current_value),
+            )
+            for v in result.violations
+        ],
+        warnings=[
+            RegulationViolationResponse(
+                code=w.code,
+                name=w.name,
+                description=w.description,
+                severity=w.severity,
+                detail=w.detail,
+                requirement=w.requirement,
+                current_value=str(w.current_value),
+            )
+            for w in result.warnings
+        ],
+        is_constructible=result.is_constructible,
+        is_self_constructible=result.is_self_constructible,
+        requires_loscat=result.requires_loscat,
+        max_stories_without_engineer=result.max_stories_without_engineer,
+    )
+
+
+@app.get("/api/regulatory/material-info/{material}")
+def get_material_regulatory_info(material: str):
+    """
+    Retorna información de restricciones regulatorias para un material
+    
+    Args:
+        material: Nombre del material ("Metalcom", "Madera", etc.)
+    
+    Returns:
+        Información de restricciones o error 404
+    """
+    info = regulatory_validator.get_material_info(material)
+    
+    if not info:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No se encontró información regulatoria para el material: {material}"
+        )
+    
+    return {
+        "material": material,
+        "constraints": info,
+    }
+
+
+@app.get("/api/regulatory/zones")
+def get_regulatory_zones():
+    """
+    Retorna lista de zonas frías que requieren LOSCAT
+    
+    Returns:
+        Lista de zonas y requisitos LOSCAT
+    """
+    return {
+        "cold_zones": regulatory_validator.COLD_ZONES,
+        "requires_loscat": True,
+        "requirements": {
+            "description": "Cumplir con Ley de Pisos (LOSCAT)",
+            "applicable_zones": regulatory_validator.COLD_ZONES,
+        }
+    }
+
+
+@app.get("/api/regulatory/limits")
+def get_regulatory_limits():
+    """
+    Retorna límites regulatorios globales
+    
+    Returns:
+        Límites de autoconstrucción, máximo m², etc.
+    """
+    return {
+        "self_build_isolated_max": regulatory_validator.SELF_BUILD_ISOLATED_MAX,
+        "self_build_complex_max": regulatory_validator.SELF_BUILD_COMPLEX_MAX,
+        "absolute_max_m2": regulatory_validator.ABSOLUTE_MAX_M2,
+        "materials": {
+            material: info
+            for material, info in regulatory_validator.MATERIAL_CONSTRAINTS.items()
+        }
     }
 
 

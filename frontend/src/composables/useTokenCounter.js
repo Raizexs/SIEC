@@ -13,7 +13,7 @@ import {
 } from "../utils/tokenMath";
 
 export function useTokenCounter() {
-  const m2Totales = ref(120);
+  const m2Totales = ref(400);
   const habitacionesSimples = ref(1);
   const habitacionesDobles = ref(0);
   const habitacionesTriples = ref(0);
