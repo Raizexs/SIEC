@@ -41,9 +41,14 @@ const translations = {
 
     // Materials
     woodFrame: "Estructura de Madera",
-    steelFramed: "Estructura de Acero",
+    steelFramed: "Metalcom (Acero Liviano)",
     masonry: "Mampostería Portante",
-    concrete: "Hormigón Armado (Grado 40)",
+    concrete: "Ferrocemento",
+    heavyLogisticsTitle: "Requisitos Logísticos Pesados.",
+    heavyLogisticsMessage:
+      "El Ferrocemento requiere maquinaria pesada para carga, descarga y montaje. En obras menores esto puede aumentar costos logísticos y tiempos de ejecución.",
+    quoteWithLightMaterials: "Cotizar con Materiales Ligeros",
+    dismissLogisticsAlert: "Descartar y Continuar",
 
     // Metrics Panel
     estimatedCost: "Costo Total Estimado del Proyecto",
@@ -95,24 +100,24 @@ const translations = {
     saveLayoutTitle: "💾 Guardar Layout",
     layoutNameLabel: "Nombre del Layout",
     layoutNamePlaceholder: "Ej: Casa Familiar 3 Pisos",
-    
+
     // Additional translations
-    editor2D: 'Editor de Layout 2D',
-    visualization3D: 'Visualización 3D',
-    
+    editor2D: "Editor de Layout 2D",
+    visualization3D: "Visualización 3D",
+
     // Materials Panel
-    selectedMaterial: 'Material Seleccionado',
-    estimatedTotal: 'Total Estimado',
-    updatePrices: 'Actualizar Precios',
-    exportSpecs: 'Exportar Specs',
-    durability: 'Durabilidad',
-    speed: 'Velocidad',
-    costEfficiency: 'Eficiencia',
-    pricePerM2: 'Precio/m²',
-    marketInsights: 'Análisis de Mercado',
-    averagePrice: 'Precio Promedio',
-    priceVariation: 'Variación',
-    lastUpdate: 'Última Actualización',
+    selectedMaterial: "Material Seleccionado",
+    estimatedTotal: "Total Estimado",
+    updatePrices: "Actualizar Precios",
+    exportSpecs: "Exportar Specs",
+    durability: "Durabilidad",
+    speed: "Velocidad",
+    costEfficiency: "Eficiencia",
+    pricePerM2: "Precio/m²",
+    marketInsights: "Análisis de Mercado",
+    averagePrice: "Precio Promedio",
+    priceVariation: "Variación",
+    lastUpdate: "Última Actualización",
   },
   en: {
     // Sidebar
@@ -151,9 +156,14 @@ const translations = {
 
     // Materials
     woodFrame: "Wood Frame Structure",
-    steelFramed: "Structural Steel Framed",
+    steelFramed: "Metalcom (Light Steel)",
     masonry: "Load-Bearing Masonry",
-    concrete: "Reinforced Concrete (Grade 40)",
+    concrete: "Ferrocement",
+    heavyLogisticsTitle: "Heavy Logistics Requirements.",
+    heavyLogisticsMessage:
+      "Ferrocement requires heavy machinery for loading, unloading, and assembly. In small projects this can increase logistics costs and execution time.",
+    quoteWithLightMaterials: "Quote with Lightweight Materials",
+    dismissLogisticsAlert: "Dismiss and Continue",
 
     // Metrics Panel
     estimatedCost: "Estimated Total Project Cost",
@@ -205,24 +215,24 @@ const translations = {
     saveLayoutTitle: "💾 Save Layout",
     layoutNameLabel: "Layout Name",
     layoutNamePlaceholder: "e.g., Family House 3 Floors",
-    
+
     // Additional translations
-    editor2D: '2D Room Layout Editor',
-    visualization3D: '3D Visualization',
-    
+    editor2D: "2D Room Layout Editor",
+    visualization3D: "3D Visualization",
+
     // Materials Panel
-    selectedMaterial: 'Selected Material',
-    estimatedTotal: 'Estimated Total',
-    updatePrices: 'Update Prices',
-    exportSpecs: 'Export Specs',
-    durability: 'Durability',
-    speed: 'Speed',
-    costEfficiency: 'Efficiency',
-    pricePerM2: 'Price/m²',
-    marketInsights: 'Market Insights',
-    averagePrice: 'Average Price',
-    priceVariation: 'Variation',
-    lastUpdate: 'Last Update',
+    selectedMaterial: "Selected Material",
+    estimatedTotal: "Estimated Total",
+    updatePrices: "Update Prices",
+    exportSpecs: "Export Specs",
+    durability: "Durability",
+    speed: "Speed",
+    costEfficiency: "Efficiency",
+    pricePerM2: "Price/m²",
+    marketInsights: "Market Insights",
+    averagePrice: "Average Price",
+    priceVariation: "Variation",
+    lastUpdate: "Last Update",
   },
 };
 
@@ -250,7 +260,7 @@ export function useI18n() {
   };
 
   const toggleLanguage = () => {
-    setLanguage(currentLanguage.value === 'es' ? 'en' : 'es');
+    setLanguage(currentLanguage.value === "es" ? "en" : "es");
   };
 
   return {
