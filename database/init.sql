@@ -210,3 +210,17 @@ CREATE INDEX IF NOT EXISTS idx_pm_tienda       ON precio_mercado("Tienda");
 CREATE INDEX IF NOT EXISTS idx_pm_insumo       ON precio_mercado("Insumo_ID");
 CREATE INDEX IF NOT EXISTS idx_pm_fecha        ON precio_mercado("Fecha_Scraping" DESC);
 CREATE INDEX IF NOT EXISTS idx_pm_tienda_fecha ON precio_mercado("Tienda", "Fecha_Scraping" DESC);
+
+-- ========== MIGRACIÓN 006: indicador_economico ==========
+-- Tabla para almacenar indicadores financieros (UF, etc.)
+CREATE TABLE IF NOT EXISTS indicador_economico (
+  id SERIAL PRIMARY KEY,
+  nombre TEXT NOT NULL,
+  valor NUMERIC(12, 2) NOT NULL,
+  fecha DATE NOT NULL,
+  fecha_captura TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  fuente TEXT DEFAULT 'CMF',
+  UNIQUE(nombre, fecha)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ie_nombre_fecha ON indicador_economico (nombre, fecha DESC);
