@@ -7,7 +7,16 @@ from sqlalchemy import text
 import unicodedata
 import os
 from collections import defaultdict
-from schemas import DesgloseResponse, CategoriaDesglose, InsumoCalculado
+from schemas import (
+    DesgloseResponse,
+    CategoriaDesglose,
+    InsumoCalculado,
+    DeduccionMermasPayload,
+)
+try:
+    from mermas import calcular_area_vanos, calcular_area_neta, inferir_factor_perdida
+except ModuleNotFoundError:
+    from backend.mermas import calcular_area_vanos, calcular_area_neta, inferir_factor_perdida
 
 # Importar configuración de BD y Modelos
 from database import engine, get_db, SessionLocal
@@ -219,7 +228,11 @@ def asociar_y_validar_layout_estricto(simulacion_id: int, payload: PayloadLayout
     }
 
 @app.post("/api/simulacion/{simulacion_id}/calcular-insumos", response_model=DesgloseResponse)
-def calcular_insumos(simulacion_id: int, db: Session = Depends(get_db)):
+def calcular_insumos(
+    simulacion_id: int,
+    payload: Optional[DeduccionMermasPayload] = None,
+    db: Session = Depends(get_db),
+):
     """
     Calcula el desglose de insumos para una simulación usando la Matriz de Rendimiento.
     """
@@ -229,6 +242,16 @@ def calcular_insumos(simulacion_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="La simulación especificada no existe.")
         
     m2_totales = simulacion.m2_totales
+    area_bruta = float(payload.area_bruta_m2) if payload and payload.area_bruta_m2 is not None else float(m2_totales)
+    area_vanos = calcular_area_vanos(payload.vanos if payload else [])
+    area_neta = calcular_area_neta(area_bruta, area_vanos)
+    if area_neta <= 0:
+        raise HTTPException(
+            status_code=422,
+            detail="La deducción de vanos deja un área neta no válida para cotizar.",
+        )
+    cortes_acero = int(payload.cortes_acero) if payload else 0
+    cruces_acero = int(payload.cruces_acero) if payload else 0
     material_id = simulacion.material_estructural_id
 
     # 2. Material nombre
@@ -365,8 +388,20 @@ def calcular_insumos(simulacion_id: int, db: Session = Depends(get_db)):
     if (found_maestro or found_ayudante) and rendimiento_jornadas_total > 0:
         tarifa_pura_local = (salario_diario_maestro + salario_diario_ayudante) * rendimiento_jornadas_total
 
+    volumen_neto_previo = 0.0
+    volumen_compensado_pre_cotizacion = 0.0
+
     for r, insumo in datos_rendimiento:
-        cantidad_calc = float(r.factor_multiplicador) * m2_totales
+        cantidad_neta = float(r.factor_multiplicador) * area_neta
+        factor_perdida = inferir_factor_perdida(
+            insumo=insumo.nombre,
+            categoria=insumo.categoria,
+            cortes_acero=cortes_acero,
+            cruces_acero=cruces_acero,
+        )
+        cantidad_calc = cantidad_neta * factor_perdida
+        volumen_neto_previo += cantidad_neta
+        volumen_compensado_pre_cotizacion += cantidad_calc
 
         precio_unit = precio_promedio_map.get(insumo.id)
         precio_record = latest_precio_record.get(insumo.id)
@@ -428,7 +463,12 @@ def calcular_insumos(simulacion_id: int, db: Session = Depends(get_db)):
         desglose=desglose_list,
         costo_total=costo_total_simulacion,
         fecha_precios=fecha_precios,
-        tarifa_pura_local=tarifa_pura_local
+        tarifa_pura_local=tarifa_pura_local,
+        area_bruta_m2=area_bruta,
+        area_vanos_m2=area_vanos,
+        area_neta_m2=area_neta,
+        volumen_neto_previo=volumen_neto_previo,
+        volumen_compensado_pre_cotizacion=volumen_compensado_pre_cotizacion,
     )
 
 
