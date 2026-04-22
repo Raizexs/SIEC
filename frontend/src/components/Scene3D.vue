@@ -88,6 +88,7 @@ const toMeshTransform = (wall) => {
 const ensureScene = () => {
   scene = new THREE.Scene();
   scene.background = new THREE.Color("#0b1220");
+  scene.fog = new THREE.FogExp2("#0b1220", 0.015);
 
   const width = containerRef.value.clientWidth;
   const height = containerRef.value.clientHeight;
@@ -100,9 +101,13 @@ const ensureScene = () => {
   );
   camera.position.set(12, 16, 12);
 
-  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setSize(width, height);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
   containerRef.value.appendChild(renderer.domElement);
 
   controls = new OrbitControls(camera, renderer.domElement);
@@ -119,26 +124,39 @@ const ensureScene = () => {
   buildingGroup.add(roomsGroup);
   scene.add(buildingGroup);
 
-  const ambient = new THREE.AmbientLight("#ffffff", 0.6);
+  const ambient = new THREE.AmbientLight("#ffffff", 0.45);
   scene.add(ambient);
 
-  const dir = new THREE.DirectionalLight("#ffffff", 0.8);
-  dir.position.set(10, 20, 8);
+  const dir = new THREE.DirectionalLight("#ffffff", 1.2);
+  dir.position.set(15, 25, 10);
+  dir.castShadow = true;
+  dir.shadow.mapSize.width = 2048;
+  dir.shadow.mapSize.height = 2048;
+  dir.shadow.camera.near = 0.5;
+  dir.shadow.camera.far = 100;
+  dir.shadow.camera.left = -25;
+  dir.shadow.camera.right = 25;
+  dir.shadow.camera.top = 25;
+  dir.shadow.camera.bottom = -25;
+  dir.shadow.bias = -0.001;
   scene.add(dir);
 
   const floorGeo = new THREE.PlaneGeometry(200, 200);
   const floorMat = new THREE.MeshStandardMaterial({
-    color: "#1f2937",
-    roughness: 0.9,
-    metalness: 0.05,
+    color: "#0a111c",
+    roughness: 0.8,
+    metalness: 0.1,
   });
   const floor = new THREE.Mesh(floorGeo, floorMat);
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = -0.005;
+  floor.receiveShadow = true;
   scene.add(floor);
 
-  const grid = new THREE.GridHelper(200, 200, "#475569", "#334155");
+  const grid = new THREE.GridHelper(200, 200, "#3b82f6", "#1e293b");
   grid.position.y = 0;
+  grid.material.opacity = 0.25;
+  grid.material.transparent = true;
   scene.add(grid);
 };
 
@@ -168,6 +186,8 @@ const syncWalls = (walls, selectedForBudget) => {
         metalness: 0.1,
       });
       mesh = new THREE.Mesh(geometry, material);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
       mesh.userData.layerTags =
         wall.tipo === "interior"
           ? ["structure", "interior", "installations"]
@@ -214,6 +234,8 @@ const syncRooms = (recintos, selectedForBudget) => {
         opacity: 0.82,
       });
       mesh = new THREE.Mesh(geometry, material);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
       mesh.userData.layerTags =
         recinto.tipo === "banio" ? ["interior", "installations"] : ["interior"];
       roomsGroup.add(mesh);

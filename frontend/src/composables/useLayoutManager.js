@@ -76,6 +76,13 @@ export function useLayoutManager() {
     };
 
     savedLayouts.value.push(newLayout);
+    
+    // Limit to 5 saved simulations to avoid scrollbar
+    if (savedLayouts.value.length > 5) {
+      savedLayouts.value.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+      savedLayouts.value.splice(0, savedLayouts.value.length - 5);
+    }
+
     localStorage.setItem(
       "siec_saved_layouts",
       JSON.stringify(savedLayouts.value),

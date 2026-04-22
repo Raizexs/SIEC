@@ -39,6 +39,13 @@ const handleTabClick = (tabName) => {
       </div>
     </div>
     <div class="flex items-center gap-4">
+      <button 
+        @click="$emit('save-layout')"
+        class="hidden md:flex items-center gap-2 bg-primary/10 text-primary hover:bg-primary/20 px-4 py-2 rounded-full font-bold text-xs uppercase tracking-wide transition-colors"
+      >
+        <span class="material-symbols-outlined text-[16px]">save</span>
+        {{ t('save') }}
+      </button>
 
       <div class="w-8 h-8 rounded-full overflow-hidden border border-outline-variant bg-surface-container">
         <div class="w-full h-full bg-gradient-to-br from-primary to-primary-container flex items-center justify-center text-white font-bold text-sm">U</div>
