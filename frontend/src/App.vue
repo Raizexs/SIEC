@@ -291,7 +291,7 @@ const handleSaveLayout = (name) => {
         <!-- Toggle 2D/3D Container -->
         <transition name="fade" mode="out-in">
           <KeepAlive>
-            <Scene3D v-if="is3DMode" />
+            <Scene3D v-if="is3DMode" :materialEstructuralId="formData.materialEstructuralId" />
             <RoomEditor2D
               v-else
               :m2Totales="formData.m2Totales"
@@ -314,6 +314,8 @@ const handleSaveLayout = (name) => {
         <div>{{ t("footer") }}</div>
       </footer>
     </main>
+
+
 
     <SaveLayoutDialog
       :show="showSaveDialog"
