@@ -12,6 +12,8 @@ import {
 } from "../utils/layerVisibilityEngine";
 
 const containerRef = ref(null);
+const rootRef = ref(null);
+const isFullScreen = ref(false);
 const topology = useTopologyComputed();
 const recintosStore = useRecintosStore();
 const layersStore = useConstructionLayersStore();
@@ -29,6 +31,7 @@ let buildingGroup;
 let wallsGroup;
 let roomsGroup;
 let cameraFitted = false;
+let resizeObserver;
 
 const WALL_HEIGHT = 2.4;
 
@@ -282,9 +285,36 @@ const onResize = () => {
   if (!renderer || !camera || !containerRef.value) return;
   const width = containerRef.value.clientWidth;
   const height = containerRef.value.clientHeight;
+  if (width === 0 || height === 0) return;
   renderer.setSize(width, height);
-  camera.aspect = width / Math.max(height, 1);
+  camera.aspect = width / height;
   camera.updateProjectionMatrix();
+};
+
+let savedScrollY = 0;
+
+const toggleFullScreen = async () => {
+  if (!document.fullscreenElement) {
+    savedScrollY = window.scrollY;
+    if (rootRef.value?.requestFullscreen) {
+      await rootRef.value.requestFullscreen().catch(err => console.error(err));
+    }
+  } else {
+    if (document.exitFullscreen) {
+      await document.exitFullscreen();
+    }
+  }
+};
+
+const handleFullscreenChange = () => {
+  const isEntering = !!document.fullscreenElement;
+  isFullScreen.value = isEntering;
+  
+  if (!isEntering) {
+    setTimeout(() => {
+      window.scrollTo({ top: savedScrollY, behavior: 'instant' });
+    }, 10);
+  }
 };
 
 const animate = () => {
@@ -317,12 +347,23 @@ onMounted(() => {
     { deep: true, immediate: true },
   );
 
-  window.addEventListener("resize", onResize);
+  document.addEventListener('fullscreenchange', handleFullscreenChange);
+
+  resizeObserver = new ResizeObserver(() => {
+    onResize();
+  });
+  
+  if (containerRef.value) {
+    resizeObserver.observe(containerRef.value);
+  }
+
   animate();
 });
 
 onBeforeUnmount(() => {
-  window.removeEventListener("resize", onResize);
+  document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  if (resizeObserver) resizeObserver.disconnect();
+  
   if (frameId) cancelAnimationFrame(frameId);
 
   for (const mesh of wallMeshes.values()) {
@@ -353,14 +394,22 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="w-full">
-    <div class="bg-slate-900 rounded-xl border border-primary/30 p-4">
-      <h3 class="text-white font-semibold mb-4">Renderizador Volumétrico</h3>
-      <div
-        ref="containerRef"
-        class="w-full h-[500px] rounded-lg overflow-hidden"
-      />
+  <div ref="rootRef" class="w-full bg-slate-900 rounded-xl border border-primary/30 p-4 flex flex-col shadow-2xl transition-all duration-300" :class="isFullScreen ? 'h-screen border-none rounded-none' : ''">
+    <div class="flex justify-between items-center mb-4 shrink-0">
+      <h3 class="text-white font-semibold flex items-center gap-2">
+        <span class="material-symbols-outlined text-primary text-sm">view_in_ar</span>
+        Renderizador Volumétrico
+      </h3>
+      <button @click="toggleFullScreen" class="text-slate-400 hover:text-white transition-colors flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-700 shadow-sm">
+        <span class="material-symbols-outlined text-[18px]">{{ isFullScreen ? 'fullscreen_exit' : 'fullscreen' }}</span>
+        <span class="text-xs font-bold uppercase tracking-wider">{{ isFullScreen ? 'Salir de Pantalla Completa' : 'Pantalla Completa' }}</span>
+      </button>
     </div>
+    <div
+      ref="containerRef"
+      class="w-full rounded-lg overflow-hidden"
+      :class="isFullScreen ? 'flex-1 h-full' : 'h-[500px]'"
+    />
   </div>
 </template>
 
