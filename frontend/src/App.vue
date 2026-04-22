@@ -9,6 +9,7 @@ import RoomEditor2D from "./components/RoomEditor2D.vue";
 import Scene3D from "./components/Scene3D.vue";
 import MaterialsPanel from "./components/MaterialsPanel.vue";
 import BudgetBreakdownPanel from "./components/BudgetBreakdownPanel.vue";
+import PreventiveLogisticsAlertModal from "./components/PreventiveLogisticsAlertModal.vue";
 import { useRecintosStore } from "./stores/recintos";
 import { useTokenCounter } from "./composables/useTokenCounter";
 import { useLayoutManager } from "./composables/useLayoutManager";
@@ -19,6 +20,10 @@ const { saveLayout } = useLayoutManager();
 const { t, currentLanguage } = useI18n();
 
 const sidebarCollapsed = ref(false);
+const showPreventiveLogisticsModal = ref(false);
+const HEAVY_LOGISTICS_MATERIAL_ID = 4;
+const LIGHTWEIGHT_QUOTE_MATERIAL_ID = 2;
+const materialTriggerReady = ref(false);
 
 // Key reactiva para forzar re-render cuando cambia idioma
 const appKey = computed(() => `app-${currentLanguage.value}`);
@@ -58,31 +63,55 @@ watchEffect(() => {
   areasComunes.value = formData.value.areasComunes;
 });
 
+watch(
+  () => formData.value.materialEstructuralId,
+  (newMaterialId, oldMaterialId) => {
+    if (!materialTriggerReady.value) {
+      materialTriggerReady.value = true;
+      return;
+    }
+
+    if (
+      newMaterialId === HEAVY_LOGISTICS_MATERIAL_ID &&
+      oldMaterialId !== HEAVY_LOGISTICS_MATERIAL_ID
+    ) {
+      showPreventiveLogisticsModal.value = true;
+    }
+  },
+);
+
 // Reactividad con el motor (HU03/HU11) - con debounce para rendimiento
 let debounceTimer = null;
-watch(formData, async (newVal) => {
-  await nextTick(); // Esperamos que useTokenCounter actualice 'estado'
-  
-  if (estado.value === "danger") {
-    // Si excede el límite de tokens, abortar regeneración para no corromper el modelo 3D
-    return;
-  }
-  
-  if (hasRecintos.value) {
-    if (debounceTimer) clearTimeout(debounceTimer);
-    
-    debounceTimer = setTimeout(() => {
-      const totalHabitaciones = newVal.habitacionesSimples + newVal.habitacionesDobles + newVal.habitacionesTriples;
-      recintosStore.initializeLayout(
-        newVal.m2Totales,
-        totalHabitaciones,
-        newVal.banios,
-        newVal.areasComunes,
-        newVal.materialEstructuralId
-      );
-    }, 400); // Debounce de 400ms para evitar congelamientos en cambios continuos (sliders/flechas)
-  }
-}, { deep: true });
+watch(
+  formData,
+  async (newVal) => {
+    await nextTick(); // Esperamos que useTokenCounter actualice 'estado'
+
+    if (estado.value === "danger") {
+      // Si excede el límite de tokens, abortar regeneración para no corromper el modelo 3D
+      return;
+    }
+
+    if (hasRecintos.value) {
+      if (debounceTimer) clearTimeout(debounceTimer);
+
+      debounceTimer = setTimeout(() => {
+        const totalHabitaciones =
+          newVal.habitacionesSimples +
+          newVal.habitacionesDobles +
+          newVal.habitacionesTriples;
+        recintosStore.initializeLayout(
+          newVal.m2Totales,
+          totalHabitaciones,
+          newVal.banios,
+          newVal.areasComunes,
+          newVal.materialEstructuralId,
+        );
+      }, 400); // Debounce de 400ms para evitar congelamientos en cambios continuos (sliders/flechas)
+    }
+  },
+  { deep: true },
+);
 
 const isSubmitting = ref(false);
 const activeTab = ref("generalSpecs");
@@ -98,6 +127,22 @@ const updateFormData = (newData) => {
   formData.value = newData;
 };
 
+const handleMaterialSelection = (materialId) => {
+  formData.value.materialEstructuralId = materialId;
+};
+
+const dismissPreventiveLogisticsModal = () => {
+  showPreventiveLogisticsModal.value = false;
+};
+
+const quoteWithLightweightMaterials = () => {
+  formData.value = {
+    ...formData.value,
+    materialEstructuralId: LIGHTWEIGHT_QUOTE_MATERIAL_ID,
+  };
+  showPreventiveLogisticsModal.value = false;
+};
+
 // Cargar preset desde sidebar
 const loadPreset = (preset) => {
   formData.value = {
@@ -109,15 +154,18 @@ const loadPreset = (preset) => {
     banios: preset.banios,
     areasComunes: preset.areasComunes,
   };
-  
-  const totalHabitaciones = formData.value.habitacionesSimples + formData.value.habitacionesDobles + formData.value.habitacionesTriples;
-  
+
+  const totalHabitaciones =
+    formData.value.habitacionesSimples +
+    formData.value.habitacionesDobles +
+    formData.value.habitacionesTriples;
+
   recintosStore.initializeLayout(
     formData.value.m2Totales,
     totalHabitaciones,
     formData.value.banios,
     formData.value.areasComunes,
-    formData.value.materialEstructuralId
+    formData.value.materialEstructuralId,
   );
 };
 
@@ -132,28 +180,36 @@ const loadLayout = (layout) => {
     banios: layout.banios,
     areasComunes: layout.areasComunes,
   };
-  
-  const totalHabitaciones = formData.value.habitacionesSimples + formData.value.habitacionesDobles + formData.value.habitacionesTriples;
-  
+
+  const totalHabitaciones =
+    formData.value.habitacionesSimples +
+    formData.value.habitacionesDobles +
+    formData.value.habitacionesTriples;
+
   recintosStore.initializeLayout(
     formData.value.m2Totales,
     totalHabitaciones,
     formData.value.banios,
     formData.value.areasComunes,
-    formData.value.materialEstructuralId
+    formData.value.materialEstructuralId,
   );
 };
 
 const submitForm = async () => {
   if (estado.value === "danger") {
-    alert("No puedes generar el layout. Excedes el límite de tokens disponibles.");
+    alert(
+      "No puedes generar el layout. Excedes el límite de tokens disponibles.",
+    );
     return;
   }
 
   isSubmitting.value = true;
 
   try {
-    const totalHabitaciones = formData.value.habitacionesSimples + formData.value.habitacionesDobles + formData.value.habitacionesTriples;
+    const totalHabitaciones =
+      formData.value.habitacionesSimples +
+      formData.value.habitacionesDobles +
+      formData.value.habitacionesTriples;
 
     recintosStore.initializeLayout(
       formData.value.m2Totales,
@@ -178,10 +234,20 @@ const handleSaveLayout = (name) => {
 </script>
 
 <template>
-  <div :key="appKey" class="min-h-screen bg-background dark:bg-[#0d1117] font-body text-on-surface dark:text-slate-100 antialiased">
-    <Sidebar @loadPreset="loadPreset" @loadLayout="loadLayout" @collapse-change="sidebarCollapsed = $event" />
+  <div
+    :key="appKey"
+    class="min-h-screen bg-background dark:bg-[#0d1117] font-body text-on-surface dark:text-slate-100 antialiased"
+  >
+    <Sidebar
+      @loadPreset="loadPreset"
+      @loadLayout="loadLayout"
+      @collapse-change="sidebarCollapsed = $event"
+    />
 
-    <main :class="sidebarCollapsed ? 'ml-0' : 'ml-64'" class="min-h-screen transition-all duration-300">
+    <main
+      :class="sidebarCollapsed ? 'ml-0' : 'ml-64'"
+      class="min-h-screen transition-all duration-300"
+    >
       <TopNavBar :activeTab="activeTab" @tab-change="handleTabChange" />
 
       <div class="p-10 max-w-7xl mx-auto grid grid-cols-12 gap-10">
@@ -198,7 +264,7 @@ const handleSaveLayout = (name) => {
           v-show="activeTab === 'materials'"
           :selectedMaterialId="formData.materialEstructuralId"
           :totalM2="formData.m2Totales"
-          @material-selected="(id) => formData.materialEstructuralId = id"
+          @material-selected="handleMaterialSelection"
           class="col-span-7"
         />
 
@@ -225,18 +291,25 @@ const handleSaveLayout = (name) => {
           :m2Totales="recintosStore.selectedM2"
           :materialEstructuralId="formData.materialEstructuralId"
         />
-
       </div>
 
-      <footer class="p-10 pt-0 text-slate-400 text-[10px] font-bold uppercase tracking-widest flex justify-between items-center">
-        <div>{{ t('footer') }}</div>
+      <footer
+        class="p-10 pt-0 text-slate-400 text-[10px] font-bold uppercase tracking-widest flex justify-between items-center"
+      >
+        <div>{{ t("footer") }}</div>
       </footer>
     </main>
 
-    <SaveLayoutDialog 
+    <SaveLayoutDialog
       :show="showSaveDialog"
       @close="showSaveDialog = false"
       @save="handleSaveLayout"
+    />
+
+    <PreventiveLogisticsAlertModal
+      :show="showPreventiveLogisticsModal"
+      @close="dismissPreventiveLogisticsModal"
+      @quote-light-materials="quoteWithLightweightMaterials"
     />
   </div>
 </template>

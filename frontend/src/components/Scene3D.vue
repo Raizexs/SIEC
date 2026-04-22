@@ -3,9 +3,11 @@ import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { useTopologyComputed } from "../composables/useTopologyComputed";
+import { useRecintosStore } from "../stores/recintos";
 
 const containerRef = ref(null);
 const topology = useTopologyComputed();
+const recintosStore = useRecintosStore();
 
 let renderer;
 let scene;
@@ -14,9 +16,24 @@ let controls;
 let frameId;
 
 const wallMeshes = new Map();
+const roomMeshes = new Map();
 let cameraFitted = false;
 
 const WALL_HEIGHT = 2.4;
+
+const getRoomColor = (tipo, isBudgeted) => {
+  if (isBudgeted) return "#ef4444";
+  if (tipo === "habitacion") return "#3b82f6";
+  if (tipo === "banio") return "#14b8a6";
+  return "#f59e0b";
+};
+
+const getWallColor = (wall, selectedForBudget) => {
+  if (wall.recintosAdyacentes.some((id) => selectedForBudget.has(id))) {
+    return "#ef4444";
+  }
+  return wall.tipo === "interior" ? "#60a5fa" : "#93c5fd";
+};
 
 const toMeshTransform = (wall) => {
   const { start, end } = wall.segmento;
@@ -83,7 +100,7 @@ const ensureScene = () => {
   scene.add(grid);
 };
 
-const syncWalls = (walls) => {
+const syncWalls = (walls, selectedForBudget) => {
   const incomingIds = new Set(walls.map((w) => w.id));
 
   // remove stale meshes
@@ -104,7 +121,7 @@ const syncWalls = (walls) => {
     if (!mesh) {
       const geometry = new THREE.BoxGeometry(1, WALL_HEIGHT, wall.thickness);
       const material = new THREE.MeshStandardMaterial({
-        color: "#60a5fa",
+        color: getWallColor(wall, selectedForBudget),
         roughness: 0.55,
         metalness: 0.1,
       });
@@ -113,6 +130,7 @@ const syncWalls = (walls) => {
       wallMeshes.set(wall.id, mesh);
     }
 
+    mesh.material.color.set(getWallColor(wall, selectedForBudget));
     mesh.scale.set(transform.length, 1, 1);
     mesh.position.set(transform.centerX, WALL_HEIGHT / 2, transform.centerZ);
     mesh.rotation.set(0, -transform.angle, 0);
@@ -122,6 +140,47 @@ const syncWalls = (walls) => {
     fitCameraToWalls(walls);
     cameraFitted = true;
   }
+};
+
+const syncRooms = (recintos, selectedForBudget) => {
+  const incomingIds = new Set(recintos.map((r) => r.id));
+
+  for (const [id, mesh] of roomMeshes.entries()) {
+    if (!incomingIds.has(id)) {
+      scene.remove(mesh);
+      mesh.geometry.dispose();
+      mesh.material.dispose();
+      roomMeshes.delete(id);
+    }
+  }
+
+  recintos.forEach((recinto) => {
+    let mesh = roomMeshes.get(recinto.id);
+
+    if (!mesh) {
+      const geometry = new THREE.BoxGeometry(1, 0.08, 1);
+      const material = new THREE.MeshStandardMaterial({
+        color: getRoomColor(recinto.tipo, selectedForBudget.has(recinto.id)),
+        roughness: 0.8,
+        metalness: 0.05,
+        transparent: true,
+        opacity: 0.82,
+      });
+      mesh = new THREE.Mesh(geometry, material);
+      scene.add(mesh);
+      roomMeshes.set(recinto.id, mesh);
+    }
+
+    mesh.material.color.set(
+      getRoomColor(recinto.tipo, selectedForBudget.has(recinto.id)),
+    );
+    mesh.scale.set(recinto.dimensions.w, 1, recinto.dimensions.l);
+    mesh.position.set(
+      recinto.coords.x + recinto.dimensions.w / 2,
+      0.04,
+      recinto.coords.z + recinto.dimensions.l / 2,
+    );
+  });
 };
 
 const fitCameraToWalls = (walls) => {
@@ -165,9 +224,15 @@ const animate = () => {
 onMounted(() => {
   ensureScene();
   watch(
-    () => topology.walls.value,
-    (walls) => {
-      if (scene) syncWalls(walls);
+    [
+      () => topology.walls.value,
+      () => recintosStore.recintos,
+      () => Array.from(recintosStore.selectedForBudget).sort(),
+    ],
+    ([walls, recintos, selectedIds]) => {
+      const selectedSet = new Set(selectedIds);
+      if (scene) syncWalls(walls, selectedSet);
+      if (scene) syncRooms(recintos, selectedSet);
     },
     { deep: true, immediate: true },
   );
@@ -187,6 +252,13 @@ onBeforeUnmount(() => {
   }
   wallMeshes.clear();
 
+  for (const mesh of roomMeshes.values()) {
+    scene.remove(mesh);
+    mesh.geometry.dispose();
+    mesh.material.dispose();
+  }
+  roomMeshes.clear();
+
   if (renderer) {
     renderer.dispose();
     if (renderer.domElement && renderer.domElement.parentNode) {
@@ -200,7 +272,10 @@ onBeforeUnmount(() => {
   <div class="w-full">
     <div class="bg-slate-900 rounded-xl border border-primary/30 p-4">
       <h3 class="text-white font-semibold mb-4">Renderizador Volumétrico</h3>
-      <div ref="containerRef" class="w-full h-[500px] rounded-lg overflow-hidden" />
+      <div
+        ref="containerRef"
+        class="w-full h-[500px] rounded-lg overflow-hidden"
+      />
     </div>
   </div>
 </template>
