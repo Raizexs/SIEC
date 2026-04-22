@@ -6,6 +6,10 @@ import { storeToRefs } from "pinia";
 import { useTopologyComputed } from "../composables/useTopologyComputed";
 import { useRecintosStore } from "../stores/recintos";
 import { useConstructionLayersStore } from "../stores/constructionLayers";
+import {
+  createLayerVisibilityState,
+  isLayerMeshVisible,
+} from "../utils/layerVisibilityEngine";
 
 const containerRef = ref(null);
 const topology = useTopologyComputed();
@@ -21,6 +25,9 @@ let frameId;
 
 const wallMeshes = new Map();
 const roomMeshes = new Map();
+let buildingGroup;
+let wallsGroup;
+let roomsGroup;
 let cameraFitted = false;
 
 const WALL_HEIGHT = 2.4;
@@ -39,19 +46,24 @@ const getWallColor = (wall, selectedForBudget) => {
   return wall.tipo === "interior" ? "#60a5fa" : "#93c5fd";
 };
 
-const isMeshVisible = (mesh) => {
-  if (!constructionModeEnabled.value) return true;
-  const tags = mesh.userData.layerTags || [];
-  return tags.some((layerId) => layerVisibility.value[layerId]);
-};
+const getCurrentLayerState = () =>
+  createLayerVisibilityState(
+    constructionModeEnabled.value,
+    layerVisibility.value,
+  );
+
+const isMeshVisible = (mesh, layerState = getCurrentLayerState()) =>
+  isLayerMeshVisible(mesh.userData.layerTags, layerState);
 
 const syncMeshVisibility = () => {
+  const layerState = getCurrentLayerState();
+
   for (const mesh of wallMeshes.values()) {
-    mesh.visible = isMeshVisible(mesh);
+    mesh.visible = isMeshVisible(mesh, layerState);
   }
 
   for (const mesh of roomMeshes.values()) {
-    mesh.visible = isMeshVisible(mesh);
+    mesh.visible = isMeshVisible(mesh, layerState);
   }
 };
 
@@ -97,6 +109,16 @@ const ensureScene = () => {
   controls.enableDamping = true;
   controls.target.set(0, 0, 0);
 
+  buildingGroup = new THREE.Group();
+  buildingGroup.name = "building-root";
+  wallsGroup = new THREE.Group();
+  wallsGroup.name = "walls-group";
+  roomsGroup = new THREE.Group();
+  roomsGroup.name = "rooms-group";
+  buildingGroup.add(wallsGroup);
+  buildingGroup.add(roomsGroup);
+  scene.add(buildingGroup);
+
   const ambient = new THREE.AmbientLight("#ffffff", 0.6);
   scene.add(ambient);
 
@@ -126,7 +148,7 @@ const syncWalls = (walls, selectedForBudget) => {
   // remove stale meshes
   for (const [id, mesh] of wallMeshes.entries()) {
     if (!incomingIds.has(id)) {
-      scene.remove(mesh);
+      wallsGroup.remove(mesh);
       mesh.geometry.dispose();
       mesh.material.dispose();
       wallMeshes.delete(id);
@@ -148,9 +170,9 @@ const syncWalls = (walls, selectedForBudget) => {
       mesh = new THREE.Mesh(geometry, material);
       mesh.userData.layerTags =
         wall.tipo === "interior"
-          ? ["structure", "interior"]
+          ? ["structure", "interior", "installations"]
           : ["structure", "facade", "insulation"];
-      scene.add(mesh);
+      wallsGroup.add(mesh);
       wallMeshes.set(wall.id, mesh);
     }
 
@@ -172,7 +194,7 @@ const syncRooms = (recintos, selectedForBudget) => {
 
   for (const [id, mesh] of roomMeshes.entries()) {
     if (!incomingIds.has(id)) {
-      scene.remove(mesh);
+      roomsGroup.remove(mesh);
       mesh.geometry.dispose();
       mesh.material.dispose();
       roomMeshes.delete(id);
@@ -194,7 +216,7 @@ const syncRooms = (recintos, selectedForBudget) => {
       mesh = new THREE.Mesh(geometry, material);
       mesh.userData.layerTags =
         recinto.tipo === "banio" ? ["interior", "installations"] : ["interior"];
-      scene.add(mesh);
+      roomsGroup.add(mesh);
       roomMeshes.set(recinto.id, mesh);
     }
 
@@ -282,18 +304,22 @@ onBeforeUnmount(() => {
   if (frameId) cancelAnimationFrame(frameId);
 
   for (const mesh of wallMeshes.values()) {
-    scene.remove(mesh);
+    wallsGroup.remove(mesh);
     mesh.geometry.dispose();
     mesh.material.dispose();
   }
   wallMeshes.clear();
 
   for (const mesh of roomMeshes.values()) {
-    scene.remove(mesh);
+    roomsGroup.remove(mesh);
     mesh.geometry.dispose();
     mesh.material.dispose();
   }
   roomMeshes.clear();
+
+  if (scene && buildingGroup) {
+    scene.remove(buildingGroup);
+  }
 
   if (renderer) {
     renderer.dispose();
