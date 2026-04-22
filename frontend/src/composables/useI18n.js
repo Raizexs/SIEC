@@ -104,6 +104,20 @@ const translations = {
     // Additional translations
     editor2D: "Editor de Layout 2D",
     visualization3D: "Visualización 3D",
+    stepLayers: "Paso 2 / Modo Construcción",
+    layerSelection: "Selección de Capas",
+    layerSelectionHelp:
+      "Activa el modo y alterna la visibilidad de cada capa para explorar el sistema interno del volumen 3D.",
+    constructionMode: "Modo Construcción",
+    facadeLayer: "Fachada",
+    insulationLayer: "Aislación",
+    installationsLayer: "Instalaciones",
+    interiorLayer: "Interior",
+    structureLayer: "Estructura",
+    layerVisible: "Visible",
+    layerHidden: "Oculta",
+    layersVisible: "{count} capas activas",
+    allLayersVisible: "Todas las capas activas",
 
     // Materials Panel
     selectedMaterial: "Material Seleccionado",
@@ -219,6 +233,20 @@ const translations = {
     // Additional translations
     editor2D: "2D Room Layout Editor",
     visualization3D: "3D Visualization",
+    stepLayers: "Step 2 / Construction Mode",
+    layerSelection: "Layer Selection",
+    layerSelectionHelp:
+      "Enable the mode and switch each layer on or off to explore the internal 3D volume system.",
+    constructionMode: "Construction Mode",
+    facadeLayer: "Facade",
+    insulationLayer: "Insulation",
+    installationsLayer: "Installations",
+    interiorLayer: "Interior",
+    structureLayer: "Structure",
+    layerVisible: "Visible",
+    layerHidden: "Hidden",
+    layersVisible: "{count} layers active",
+    allLayersVisible: "All layers active",
 
     // Materials Panel
     selectedMaterial: "Selected Material",

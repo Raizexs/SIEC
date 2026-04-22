@@ -2,12 +2,16 @@
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { storeToRefs } from "pinia";
 import { useTopologyComputed } from "../composables/useTopologyComputed";
 import { useRecintosStore } from "../stores/recintos";
+import { useConstructionLayersStore } from "../stores/constructionLayers";
 
 const containerRef = ref(null);
 const topology = useTopologyComputed();
 const recintosStore = useRecintosStore();
+const layersStore = useConstructionLayersStore();
+const { constructionModeEnabled, layerVisibility } = storeToRefs(layersStore);
 
 let renderer;
 let scene;
@@ -33,6 +37,22 @@ const getWallColor = (wall, selectedForBudget) => {
     return "#ef4444";
   }
   return wall.tipo === "interior" ? "#60a5fa" : "#93c5fd";
+};
+
+const isMeshVisible = (mesh) => {
+  if (!constructionModeEnabled.value) return true;
+  const tags = mesh.userData.layerTags || [];
+  return tags.some((layerId) => layerVisibility.value[layerId]);
+};
+
+const syncMeshVisibility = () => {
+  for (const mesh of wallMeshes.values()) {
+    mesh.visible = isMeshVisible(mesh);
+  }
+
+  for (const mesh of roomMeshes.values()) {
+    mesh.visible = isMeshVisible(mesh);
+  }
 };
 
 const toMeshTransform = (wall) => {
@@ -126,6 +146,10 @@ const syncWalls = (walls, selectedForBudget) => {
         metalness: 0.1,
       });
       mesh = new THREE.Mesh(geometry, material);
+      mesh.userData.layerTags =
+        wall.tipo === "interior"
+          ? ["structure", "interior"]
+          : ["structure", "facade", "insulation"];
       scene.add(mesh);
       wallMeshes.set(wall.id, mesh);
     }
@@ -134,6 +158,7 @@ const syncWalls = (walls, selectedForBudget) => {
     mesh.scale.set(transform.length, 1, 1);
     mesh.position.set(transform.centerX, WALL_HEIGHT / 2, transform.centerZ);
     mesh.rotation.set(0, -transform.angle, 0);
+    mesh.visible = isMeshVisible(mesh);
   });
 
   if (!cameraFitted && walls.length > 0) {
@@ -167,6 +192,8 @@ const syncRooms = (recintos, selectedForBudget) => {
         opacity: 0.82,
       });
       mesh = new THREE.Mesh(geometry, material);
+      mesh.userData.layerTags =
+        recinto.tipo === "banio" ? ["interior", "installations"] : ["interior"];
       scene.add(mesh);
       roomMeshes.set(recinto.id, mesh);
     }
@@ -180,6 +207,7 @@ const syncRooms = (recintos, selectedForBudget) => {
       0.04,
       recinto.coords.z + recinto.dimensions.l / 2,
     );
+    mesh.visible = isMeshVisible(mesh);
   });
 };
 
@@ -233,6 +261,14 @@ onMounted(() => {
       const selectedSet = new Set(selectedIds);
       if (scene) syncWalls(walls, selectedSet);
       if (scene) syncRooms(recintos, selectedSet);
+    },
+    { deep: true, immediate: true },
+  );
+
+  watch(
+    [constructionModeEnabled, layerVisibility],
+    () => {
+      syncMeshVisibility();
     },
     { deep: true, immediate: true },
   );

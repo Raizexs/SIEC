@@ -8,6 +8,7 @@ import SaveLayoutDialog from "./components/SaveLayoutDialog.vue";
 import RoomEditor2D from "./components/RoomEditor2D.vue";
 import Scene3D from "./components/Scene3D.vue";
 import MaterialsPanel from "./components/MaterialsPanel.vue";
+import LayerSelectionPanel from "./components/LayerSelectionPanel.vue";
 import BudgetBreakdownPanel from "./components/BudgetBreakdownPanel.vue";
 import PreventiveLogisticsAlertModal from "./components/PreventiveLogisticsAlertModal.vue";
 import { useRecintosStore } from "./stores/recintos";
@@ -279,6 +280,7 @@ const handleSaveLayout = (name) => {
       </div>
 
       <div v-if="hasRecintos" class="p-10 pt-0 max-w-7xl mx-auto space-y-6">
+        <LayerSelectionPanel />
         <RoomEditor2D
           :m2Totales="formData.m2Totales"
           :descripcionEstado="descripcionEstado"
