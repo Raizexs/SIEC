@@ -37,6 +37,9 @@ const translations = {
     materialNote:
       "Diferentes materiales afectan la eficiencia de costos y los cálculos de velocidad de construcción.",
     saveGenerate: "Guardar y Generar Layout",
+    generateModel: "Generar Modelo 3D",
+    generateBudget: "Generar Presupuesto Detallado",
+    layoutSaved: "Layout guardado exitosamente",
     saving: "Guardando Configuración...",
 
     // Materials
@@ -166,6 +169,9 @@ const translations = {
     materialNote:
       "Different materials affect cost efficiency and construction speed calculations.",
     saveGenerate: "Save & Generate Layout",
+    generateModel: "Generate 3D Model",
+    generateBudget: "Generate Detailed Budget",
+    layoutSaved: "Layout successfully saved",
     saving: "Saving Configuration...",
 
     // Materials
