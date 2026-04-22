@@ -31,17 +31,6 @@ La estimación de costos y materiales en proyectos de construcción residencial 
 Un **sistema interactivo** que permite:
 - ✅ **Configuración dinámica:** Ajuste de metros cuadrados totales, número de habitaciones (simples, dobles, triples), baños, áreas comunes y tipo de material estructural.
 - ✅ **Cálculo automático:** Determinación precisa de los insumos base como **Fierro, Cemento, Agua, Cableado, Tuberías y Mano de Obra**.
-
-Variables de entorno relevantes:
-- SOCIAL_LEY_FACTOR: multiplicador obligatorio para sobrecargo por leyes sociales (acepta 1.28-1.29, por defecto 1.28).
-- HOURS_PER_DAY: número de horas laborales por jornada para normalización de precios por día a precio por hora (por defecto 8).
-
-Seeding + Normalización de Unidades:
-- Ejecutar `python backend/scripts/seed_and_normalize.py` para aplicar los SQL seeds (database/seeds/*.sql) y normalizar unidades de mano de obra (mapear 'jornada'/'día' → 'DIA', 'hora'/'hh' → 'HH').
-- Ejecutar `python backend/scripts/seed_matrices_rendimiento.py` para cargar `docs/matrices_rendimiento.csv` en `Catalogo_Rendimiento` (Categoría, Partida, Insumo, Unidad y Rendimiento).
-- El seeder de matrices acepta `--database-url` y, si no hay `DATABASE_URL`, usa SQLite local como fallback para ejecución portátil.
-- Este script se ejecuta automáticamente al arrancar la app en el startup handler, pero debe correrse explícitamente en pipelines de CI/CD antes de desplegar si se cargan CSVs u otros datos.
-
 - ✅ **Visualización 3D Web:** Una interfaz interactiva basada en **Three.js** (WebGL nativo) que permite pre-visualización instantánea sin necesidad de plugins externos.
 - ✅ **Reglas de negocio robustas:** Motor de cálculo paramétrico y validación de reglas constructivas en el backend.
 - ✅ **Optimización de Recursos:** Sistema de validación espacial por tokens para asegurar la viabilidad del diseño.
