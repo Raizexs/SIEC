@@ -66,6 +66,7 @@ El sistema implementa lógicas avanzadas para garantizar una estimación precisa
 
 *   **Sistema de Tokens:** Cada m² equivale a 1 token. Los recintos (baños, habitaciones) consumen tokens, validando que el diseño sea viable en el espacio total.
 *   **Matriz de Rendimiento:** El motor de cálculo utiliza factores dinámicos desde la base de datos (ej. sacos de cemento por m² de albañilería) para evitar valores fijos en el código.
+*   **Deducción de Vanos y Mermas:** Antes de cotizar, la API descuenta vanos del área bruta y aplica pérdidas por material (1.10 morteros, 1.05 albañilería/hormigón y 1.03-1.10 en acero según cortes/cruces).
 *   **Web Scraping de Precios:** Un proceso automatizado extrae precios reales cada 24 horas de tiendas retail (Sodimac, Easy, Construmart) centradas en la Región de Valparaíso.
 
 ---
