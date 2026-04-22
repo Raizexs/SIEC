@@ -41,7 +41,7 @@ const translations = {
 
     // Materials
     woodFrame: "Estructura de Madera",
-    steelFramed: "Metalcom (Acero Liviano)",
+    steelFramed: "Acero Galvanizado",
     masonry: "Mampostería Portante",
     concrete: "Ferrocemento",
     heavyLogisticsTitle: "Requisitos Logísticos Pesados.",
@@ -156,7 +156,7 @@ const translations = {
 
     // Materials
     woodFrame: "Wood Frame Structure",
-    steelFramed: "Metalcom (Light Steel)",
+    steelFramed: "Galvanized Steel",
     masonry: "Load-Bearing Masonry",
     concrete: "Ferrocement",
     heavyLogisticsTitle: "Heavy Logistics Requirements.",

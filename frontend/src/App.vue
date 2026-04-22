@@ -23,6 +23,7 @@ const sidebarCollapsed = ref(false);
 const showPreventiveLogisticsModal = ref(false);
 const HEAVY_LOGISTICS_MATERIAL_ID = 4;
 const LIGHTWEIGHT_QUOTE_MATERIAL_ID = 2;
+const materialTriggerReady = ref(false);
 
 // Key reactiva para forzar re-render cuando cambia idioma
 const appKey = computed(() => `app-${currentLanguage.value}`);
@@ -61,6 +62,23 @@ watchEffect(() => {
   banios.value = formData.value.banios;
   areasComunes.value = formData.value.areasComunes;
 });
+
+watch(
+  () => formData.value.materialEstructuralId,
+  (newMaterialId, oldMaterialId) => {
+    if (!materialTriggerReady.value) {
+      materialTriggerReady.value = true;
+      return;
+    }
+
+    if (
+      newMaterialId === HEAVY_LOGISTICS_MATERIAL_ID &&
+      oldMaterialId !== HEAVY_LOGISTICS_MATERIAL_ID
+    ) {
+      showPreventiveLogisticsModal.value = true;
+    }
+  },
+);
 
 // Reactividad con el motor (HU03/HU11) - con debounce para rendimiento
 let debounceTimer = null;
@@ -106,23 +124,11 @@ const handleTabChange = (tab) => {
 const hasRecintos = computed(() => recintosStore.recintos.length > 0);
 
 const updateFormData = (newData) => {
-  const previousMaterialId = formData.value.materialEstructuralId;
   formData.value = newData;
-
-  if (
-    newData.materialEstructuralId === HEAVY_LOGISTICS_MATERIAL_ID &&
-    previousMaterialId !== HEAVY_LOGISTICS_MATERIAL_ID
-  ) {
-    showPreventiveLogisticsModal.value = true;
-  }
 };
 
 const handleMaterialSelection = (materialId) => {
   formData.value.materialEstructuralId = materialId;
-
-  if (materialId === HEAVY_LOGISTICS_MATERIAL_ID) {
-    showPreventiveLogisticsModal.value = true;
-  }
 };
 
 const dismissPreventiveLogisticsModal = () => {
@@ -134,7 +140,6 @@ const quoteWithLightweightMaterials = () => {
     ...formData.value,
     materialEstructuralId: LIGHTWEIGHT_QUOTE_MATERIAL_ID,
   };
-  activeTab.value = "materials";
   showPreventiveLogisticsModal.value = false;
 };
 

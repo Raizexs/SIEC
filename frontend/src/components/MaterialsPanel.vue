@@ -242,9 +242,9 @@ const materialsData = ref([
     id: 2,
     nameKey: "steelFramed",
     description:
-      "Sistema Metalcom de acero liviano galvanizado, rápido de montar y eficiente para obras menores.",
+      "Sistema de acero galvanizado, rápido de montar y eficiente para obras menores.",
     descriptionEn:
-      "Light-gauge Metalcom steel system, fast to install and efficient for small-scale projects.",
+      "Galvanized steel system, fast to install and efficient for small-scale projects.",
     image:
       "https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?w=400&h=300&fit=crop",
     costPerM2: 1100000,
