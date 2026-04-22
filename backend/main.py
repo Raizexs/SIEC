@@ -14,9 +14,19 @@ from schemas import (
     DeduccionMermasPayload,
 )
 try:
-    from mermas import calcular_area_vanos, calcular_area_neta, inferir_factor_perdida
+    from mermas import (
+        calcular_area_vanos,
+        calcular_area_neta,
+        inferir_factor_perdida,
+        optimizar_compra_por_nesting,
+    )
 except ModuleNotFoundError:
-    from backend.mermas import calcular_area_vanos, calcular_area_neta, inferir_factor_perdida
+    from backend.mermas import (
+        calcular_area_vanos,
+        calcular_area_neta,
+        inferir_factor_perdida,
+        optimizar_compra_por_nesting,
+    )
 
 # Importar configuración de BD y Modelos
 from database import engine, get_db, SessionLocal
@@ -252,6 +262,14 @@ def calcular_insumos(
         )
     cortes_acero = int(payload.cortes_acero) if payload else 0
     cruces_acero = int(payload.cruces_acero) if payload else 0
+    piezas_2d_payload = [
+        (float(piece.ancho), float(piece.alto), int(piece.cantidad))
+        for piece in (payload.piezas_2d if payload else [])
+    ]
+    cortes_1d_payload = [
+        (float(cut.largo), int(cut.cantidad))
+        for cut in (payload.cortes_1d if payload else [])
+    ]
     material_id = simulacion.material_estructural_id
 
     # 2. Material nombre
@@ -390,16 +408,34 @@ def calcular_insumos(
 
     volumen_neto_previo = 0.0
     volumen_compensado_pre_cotizacion = 0.0
+    perdidas_optimizadas = []
+    items_optimizados = 0
 
     for r, insumo in datos_rendimiento:
         cantidad_neta = float(r.factor_multiplicador) * area_neta
-        factor_perdida = inferir_factor_perdida(
+        nesting_result = optimizar_compra_por_nesting(
             insumo=insumo.nombre,
             categoria=insumo.categoria,
-            cortes_acero=cortes_acero,
-            cruces_acero=cruces_acero,
+            unidad_medida=insumo.unidad_medida,
+            unidad_factor=getattr(r, "unidad_factor", "") or "",
+            descripcion=getattr(insumo, "descripcion", None),
+            cantidad_objetivo=cantidad_neta,
+            piezas_2d=piezas_2d_payload,
+            cortes_1d=cortes_1d_payload,
         )
-        cantidad_calc = cantidad_neta * factor_perdida
+        if nesting_result is not None:
+            factor_perdida = float(nesting_result["factor_perdida_equivalente"])
+            cantidad_calc = float(nesting_result["cantidad_compra"])
+            perdidas_optimizadas.append(float(nesting_result["perdida_fraccion"]))
+            items_optimizados += 1
+        else:
+            factor_perdida = inferir_factor_perdida(
+                insumo=insumo.nombre,
+                categoria=insumo.categoria,
+                cortes_acero=cortes_acero,
+                cruces_acero=cruces_acero,
+            )
+            cantidad_calc = cantidad_neta * factor_perdida
         volumen_neto_previo += cantidad_neta
         volumen_compensado_pre_cotizacion += cantidad_calc
 
@@ -440,7 +476,12 @@ def calcular_insumos(
             cantidad=cantidad_calc,
             unidad=insumo.unidad_medida,
             precio_unitario=precio_unit,
-            subtotal=subt
+            subtotal=subt,
+            cantidad_objetivo=nesting_result["cantidad_objetivo"] if nesting_result else None,
+            cantidad_compra=nesting_result["cantidad_compra"] if nesting_result else None,
+            perdida_porcentual=(nesting_result["perdida_porcentual"] if nesting_result else ((factor_perdida - 1.0) * 100.0)),
+            metodo_optimizacion=(nesting_result["metodo"] if nesting_result else None),
+            formato_comercial=(nesting_result["formato_comercial"] if nesting_result else None),
         )
         categorias_dict[insumo.categoria].append(item)
 
@@ -469,6 +510,11 @@ def calcular_insumos(
         area_neta_m2=area_neta,
         volumen_neto_previo=volumen_neto_previo,
         volumen_compensado_pre_cotizacion=volumen_compensado_pre_cotizacion,
+        items_optimizados=items_optimizados if items_optimizados > 0 else None,
+        perdida_promedio_porcentual=(
+            (sum(perdidas_optimizadas) / len(perdidas_optimizadas)) * 100.0
+            if perdidas_optimizadas else None
+        ),
     )
 
 

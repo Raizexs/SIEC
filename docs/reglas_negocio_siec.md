@@ -11,9 +11,9 @@ Hormigón in situ y Albañilería (Ladrillos/Bloques): Multiplicar por 1.05 (5% 
 Acero de Refuerzo (Enfierradura): El desperdicio es dinámico, aplicar entre 3% y 10% dependiendo de la cantidad de cortes y cruces del elemento.
 
 2. Modulación Geométrica y Algoritmos de Corte
-Función Techo (Ceiling): El sistema debe impedir la compra de fracciones de materiales indivisibles. Todos los elementos comercializados por unidad (paneles, tiras, sacos) deben redondearse al entero superior una vez sumado el desperdicio.
+Nesting Geométrico (1D/2D): El sistema debe reemplazar redondeos brutos por optimización de corte. Para paneles/placas (2D) se aplica empaque tipo guillotina sobre formatos comerciales; para tiras lineales (1D) se aplica best-fit sobre largos comerciales (rollos/tubos/barras).
 
-Cubicación de Paneles (SIP, OSB, Yeso Cartón): El algoritmo debe dividir la superficie bruta del muro por el rendimiento comercial invariable de la placa base, que es de 2.97 m2 por unidad (formato 1,22 x 2,44 m).
+Corredor Estadístico de Pérdida: El motor calibra la compra al corredor objetivo de pérdida 4%–12% cuando la granularidad comercial lo permite (siempre respetando indivisibilidad y compra mínima factible).
 
 Descuento de Vanos: Al calcular superficies de albañilería, la fórmula debe descontar estrictamente el área de soleras, columnas, mochetas y los vanos de puertas y ventanas antes de aplicar el factor de ladrillos por metro cuadrado.
 
