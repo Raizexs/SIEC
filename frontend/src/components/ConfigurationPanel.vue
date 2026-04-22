@@ -199,7 +199,7 @@ const materialName = computed(() => {
       :disabled="isSubmitting"
       class="w-full bg-gradient-to-br from-primary to-primary-container text-white py-4 rounded-xl font-headline font-extrabold text-sm uppercase tracking-widest hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
     >
-      {{ isSubmitting ? t('saving') : t('saveGenerate') }}
+      {{ isSubmitting ? t('saving') : t('generateModel') }}
     </button>
   </section>
 </template>
