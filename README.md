@@ -38,6 +38,8 @@ Variables de entorno relevantes:
 
 Seeding + Normalización de Unidades:
 - Ejecutar `python backend/scripts/seed_and_normalize.py` para aplicar los SQL seeds (database/seeds/*.sql) y normalizar unidades de mano de obra (mapear 'jornada'/'día' → 'DIA', 'hora'/'hh' → 'HH').
+- Ejecutar `python backend/scripts/seed_matrices_rendimiento.py` para cargar `docs/matrices_rendimiento.csv` en `Catalogo_Rendimiento` (Categoría, Partida, Insumo, Unidad y Rendimiento).
+- El seeder de matrices acepta `--database-url` y, si no hay `DATABASE_URL`, usa SQLite local como fallback para ejecución portátil.
 - Este script se ejecuta automáticamente al arrancar la app en el startup handler, pero debe correrse explícitamente en pipelines de CI/CD antes de desplegar si se cargan CSVs u otros datos.
 
 - ✅ **Visualización 3D Web:** Una interfaz interactiva basada en **Three.js** (WebGL nativo) que permite pre-visualización instantánea sin necesidad de plugins externos.
