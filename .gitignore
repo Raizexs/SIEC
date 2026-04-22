@@ -1,0 +1,18 @@
+node_modules/
+dist_packaged/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# VS Code
+.vscode/
+
+# Archivos SCRUM
+SCRUM-*.md
+
+# Agentes
+.agent

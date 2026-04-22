@@ -1,0 +1,4 @@
+CREATE TABLE IF NOT EXISTS Material_Estructural (
+  ID SERIAL PRIMARY KEY,
+  Nombre TEXT NOT NULL UNIQUE
+);

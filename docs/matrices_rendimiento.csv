@@ -1,0 +1,22 @@
+Categoria,Partida_Constructiva,Termino_Busqueda_Retail_Scraping,Insumo_Tecnico,Unidad_Medida,Rendimiento_Neto_x_Unidad,Referencia
+Hormigon_InSitu,Hormigon_H20_1m3,Cemento 25 kg,Cemento,kg,340.00[1]
+Hormigon_InSitu,Hormigon_H20_1m3,Gravilla a granel,Gravilla,kg,1095.00[1]
+Hormigon_InSitu,Hormigon_H20_1m3,Arena gruesa a granel,Arena,kg,715.00[1]
+Albanileria,Muro_Ladrillo_1m2,Mortero de Pega Topex,Mortero_Pega,m3,0.023
+Albanileria,Muro_Ladrillo_1m2,Ladrillo Fiscal Princesa,Ladrillo_Ceramico,Unidad,38.12,
+Metalcon_Tabiqueria,Muro_Perimetral_60mm_1m2,Estructural C 2X3'' 0.85 mm,Montante_C_Estructural,Tiras_6m,0.51,
+Metalcon_Tabiqueria,Muro_Perimetral_60mm_1m2,Estructural U 2X3'' 0.85 mm,Canal_U_Estructural,Tiras_6m,0.14,
+Metalcon_Tabiqueria,Tabique_Interior_1m2,Montante economico 38X38X6X0.5 mm,Montante_C_Economico,Tiras_3m,0.85,
+Metalcon_Fijaciones,Tabiqueria_Metalcon_1m2,Tornillo volcanita punta broca,Tornillo_Framer,Unidad,5.00,
+Madera_Tabiqueria,Muro_Estructural_1m2,Pino MSD Construccion 2x3'',Pie_Derecho_2x3,Tira_3.2m,0.51,
+Madera_Tabiqueria,Muro_Estructural_1m2,Pino MSD Construccion 2x4'',Solera_2x4,Tira_3.2m,0.18,
+Revestimientos,Yeso_Carton_15mm_1m2,Volcanita ST 15mm,Plancha_ST,Area_Bruta_m2,0.34[3]
+Revestimientos,Siding_Exterior_1m2,Siding Pizarreño Cedral,Siding_Fibrocemento,Unidad_Comercial,1.60,
+Revestimientos_Fijaciones,Yeso_Carton_1m2,Tornillo volcanita p/fina,Tornillo_Yeso_Carton,Unidad,7.00,
+Techumbre,Cubierta_Zinc_1m2,Plancha zincalum acanalada 0.35mm,Plancha_Zinc,Area_Bruta_m2,1.15,
+Terminaciones,Ceramica_Piso_1m2,Adhesivo Ceramico Weber 25kg,Adhesivo_Ceramico,Saco_25kg,0.164,
+Terminaciones,Ceramica_Piso_1m2,Weber Frague Porcelanato 1kg,Frague_Ceramico,Bolsa_1kg,0.20,
+Terminaciones,Pintura_Muro_1m2,Esmalte al Agua 1 galon Mate,Pintura_Esmalte,Galon,0.029
+Instalaciones_Sanitarias,Red_Alcantarillado_1ml,Tuberia PVC Sanitario 40 mm,Tubo_PVC_40mm,Metro_Lineal,1.00[5]
+Instalaciones_Sanitarias,Red_Alcantarillado_1ml,Tuberia PVC Sanitario 50 mm,Tubo_PVC_50mm,Metro_Lineal,1.00[5]
+Paneles_SIP,Muro_SIP_1m2,Tornillo panel sip torx Dimasip,Tornillo_SIP,Unidad,4.00,

@@ -1,0 +1,158 @@
+# scraper/sodimac_scraper.py
+"""
+Scraper Sodimac — microservicio SIEC.
+
+Extrae precios de materiales de construcción desde Sodimac Chile,
+usando Playwright con playwright-stealth para evitar detección de bots.
+Filtra productos relevantes para la Región de Valparaíso.
+
+Uso standalone (dentro del contenedor):
+    python sodimac_scraper.py
+
+Importación desde main.py:
+    from sodimac_scraper import SodimacScraper, scrape_sodimac
+"""
+
+import logging
+import sys
+
+from playwright.sync_api import Page, TimeoutError as PWTimeout
+
+from base_scraper import BaseScraper
+from config import STORES
+
+logger = logging.getLogger(__name__)
+
+STORE_KEY = "sodimac"
+STORE_CFG = STORES[STORE_KEY]
+SELECTORS  = STORE_CFG["selectors"]
+
+
+class SodimacScraper(BaseScraper):
+    """
+    Scraper para Sodimac Chile.
+
+    Navega a URLs directas de producto (PDP) de la categoría
+    materiales de construcción filtrados por Región de Valparaíso.
+    Aplica playwright-stealth para evitar CAPTCHAs.
+    Timeout por producto: 30 segundos.
+    """
+
+    store_key = STORE_KEY
+
+    def _get_urls(self) -> list[str]:
+        return STORE_CFG["product_urls"]
+
+    def _dismiss_modal(self, page: Page) -> None:
+        """Cierra modal de región/cookies si aparece al cargar la página."""
+        selectors_cierre = [
+            "button[aria-label='Cerrar']",
+            "button.modal-close",
+            ".modal-overlay button",
+            "button:has-text('Cerrar')",
+            "[data-testid='close-button']",
+        ]
+        for sel in selectors_cierre:
+            try:
+                btn = page.locator(sel).first
+                if btn.is_visible(timeout=2_000):
+                    btn.click()
+                    logger.debug("[Sodimac] Modal cerrado.")
+                    return
+            except Exception:
+                continue
+
+    def _scrape_product(self, page: Page, url: str) -> dict:
+        """
+        Navega a la URL del producto y extrae datos.
+        Timeout total: 30 segundos (configurado en base_scraper).
+        """
+        result = {
+            "tienda":            STORE_KEY,
+            "url":               url,
+            "nombre_producto":   None,
+            "precio":            None,
+            "precio_descuento":  None,
+            "stock":             None,
+            "categoria":         None,
+            "insumo_id":         None,
+            "exitoso":           False,
+        }
+
+        try:
+            page.goto(url, wait_until="domcontentloaded", timeout=30_000)
+            self._dismiss_modal(page)
+
+            # Sodimac es React/SPA — esperar que el contenido cargue
+            page.wait_for_selector(SELECTORS["name"]["css"].split(',')[0].strip(), timeout=30_000)
+            # Pequeña espera por el precio que suele cargar justo después
+            page.wait_for_timeout(2000)
+
+            def text(css: str) -> str | None:
+                for sel in [s.strip() for s in css.split(",")]:
+                    el = page.query_selector(sel)
+                    if el:
+                        val = el.inner_text().strip()
+                        if val: return val
+                return None
+
+            result["nombre_producto"]  = text(SELECTORS["name"]["css"])
+            result["precio"]           = self.parse_price(text(SELECTORS["price"]["css"]))
+
+            result["precio_descuento"] = self.parse_discount_price(
+                text(SELECTORS["price_discount"]["css"]),
+                result["precio"],
+            )
+
+            result["stock"]            = text(SELECTORS["stock"]["css"])
+            result["categoria"]       = text(SELECTORS["category"]["css"])
+            result["exitoso"]          = True
+
+            logger.info(f"[Sodimac] ✅ {result['nombre_producto']} — ${result['precio']}")
+
+        except PWTimeout:
+            # Criterio 1: mensaje exacto con nombre del producto (o slug de URL como fallback)
+            self._handle_timeout(url, result.get("nombre_producto"))
+        except Exception as e:
+            logger.error(f"[Sodimac] ❌ Error inesperado en {url}: {e}")
+
+        return result
+
+
+def scrape_sodimac() -> list[dict]:
+    """
+    Punto de entrada compatible con main.py (llamado por APScheduler).
+    Retorna lista de dicts para insertar en precio_mercado.
+    """
+    return SodimacScraper().scrape()
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Ejecución standalone: python sodimac_scraper.py
+# (Criterio de validación de la tarea)
+# ──────────────────────────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        stream=sys.stdout,
+    )
+    logger.info("=== Sodimac Scraper — ejecución standalone ===")
+    resultados = scrape_sodimac()
+
+    exitosos = [r for r in resultados if r["exitoso"]]
+    logger.info(f"\n{'='*60}")
+    logger.info(f"Resultados: {len(exitosos)}/{len(resultados)} productos exitosos")
+    logger.info(f"{'='*60}")
+
+    for r in exitosos:
+        logger.info(
+            f"  ✅ {str(r['nombre_producto'] or 'N/A'):<50} "
+            f"${r['precio']:>10,.0f} CLP  |  "
+            f"Stock: {r['stock'] or 'N/A'}  |  "
+            f"Insumo_ID: {r.get('insumo_id', 'N/A')}"
+        ) if r['precio'] is not None else logger.info(
+            f"  ⚠️  {str(r['nombre_producto'] or 'N/A'):<50}  precio=None  |  "
+            f"Stock: {r['stock'] or 'N/A'}  |  "
+            f"Insumo_ID: {r.get('insumo_id', 'N/A')}"
+        )
