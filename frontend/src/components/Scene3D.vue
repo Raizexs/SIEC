@@ -2,11 +2,13 @@
 import { onBeforeUnmount, onMounted, ref, watch, defineProps } from "vue";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { DragControls } from "three/examples/jsm/controls/DragControls.js";
 import { HDRLoader } from "three/examples/jsm/loaders/HDRLoader.js";
 import { storeToRefs } from "pinia";
 import { useTopologyComputed } from "../composables/useTopologyComputed";
 import { useRecintosStore } from "../stores/recintos";
 import { useConstructionLayersStore } from "../stores/constructionLayers";
+import PropertiesSidebar from "./PropertiesSidebar.vue";
 import {
   createLayerVisibilityState,
   isLayerMeshVisible,
@@ -26,12 +28,15 @@ const props = defineProps({
   materialEstructuralId: { type: Number, default: 4 }
 });
 
-let renderer, scene, camera, controls, frameId;
+let renderer, scene, camera, controls, dragControls, frameId;
 const wallMeshes = new Map();
 const roomMeshes = new Map();
 let buildingGroup, wallsGroup, roomsGroup;
 let cameraFitted = false;
 let resizeObserver;
+
+// Mapa para gestionar animaciones de rebote (click/dragstart)
+const bouncingMeshes = new Map();
 
 const WALL_HEIGHT = 2.4;
 
@@ -88,6 +93,11 @@ const floorPBR = {
     normalMap:    'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/smooth_concrete_floor/smooth_concrete_floor_nor_gl_1k.jpg',
     roughnessMap: 'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/smooth_concrete_floor/smooth_concrete_floor_rough_1k.jpg',
   },
+  pasillo: {
+    map:          'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/laminate_floor_02/laminate_floor_02_diff_1k.jpg',
+    normalMap:    'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/laminate_floor_02/laminate_floor_02_nor_gl_1k.jpg',
+    roughnessMap: 'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/laminate_floor_02/laminate_floor_02_rough_1k.jpg',
+  },
 };
 
 // Pre-cargar todas las texturas al iniciar (asignación directa = rápida)
@@ -108,6 +118,7 @@ const getRoomColor = (tipo, isBudgeted) => {
   if (isBudgeted) return "#ef4444";
   if (tipo === "habitacion") return "#3b82f6";
   if (tipo === "banio") return "#14b8a6";
+  if (tipo === "pasillo") return "#64748b";
   return "#f59e0b";
 };
 
@@ -185,19 +196,73 @@ const ensureScene = () => {
   dir.shadow.bias = -0.001;
   scene.add(dir);
 
+  const grassMap = textureLoader.load('https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/aerial_grass_rock/aerial_grass_rock_diff_1k.jpg', (tex) => {
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(40, 40);
+  });
+  const grassNormal = textureLoader.load('https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/aerial_grass_rock/aerial_grass_rock_nor_gl_1k.jpg', (tex) => {
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(40, 40);
+  });
+
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(200, 200),
-    new THREE.MeshStandardMaterial({ color: "#0a111c", roughness: 0.8, metalness: 0.1 })
+    new THREE.MeshStandardMaterial({ 
+      color: "#888888", 
+      map: grassMap,
+      normalMap: grassNormal,
+      roughness: 0.9, 
+      metalness: 0.0 
+    })
   );
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = -0.005;
   floor.receiveShadow = true;
   scene.add(floor);
 
-  const grid = new THREE.GridHelper(200, 200, "#3b82f6", "#1e293b");
-  grid.material.opacity = 0.25;
+  const grid = new THREE.GridHelper(200, 200, "#ffffff", "#ffffff");
+  grid.material.opacity = 0.15;
   grid.material.transparent = true;
   scene.add(grid);
+
+  // ── Drag Controls ─────────────────────────────────────────────────────────
+  dragControls = new DragControls(roomsGroup.children, camera, renderer.domElement);
+  
+  dragControls.addEventListener('hoveron', (event) => {
+    if (containerRef.value) containerRef.value.style.cursor = 'grab';
+  });
+  
+  dragControls.addEventListener('hoveroff', (event) => {
+    if (containerRef.value) containerRef.value.style.cursor = 'auto';
+  });
+  
+  dragControls.addEventListener('dragstart', (event) => {
+    controls.enabled = false;
+    if (containerRef.value) containerRef.value.style.cursor = 'grabbing';
+    const mesh = event.object;
+    recintosStore.setActiveRecinto(mesh.userData.roomId);
+
+    // Activar animación de rebote
+    bouncingMeshes.set(mesh.uuid, {
+      roomId: mesh.userData.roomId,
+      baseY: 0.04,
+      time: 0
+    });
+  });
+  
+  dragControls.addEventListener('drag', (event) => {
+    event.object.position.y = 0.04; // Lock to floor
+  });
+  
+  dragControls.addEventListener('dragend', (event) => {
+    controls.enabled = true;
+    if (containerRef.value) containerRef.value.style.cursor = 'grab';
+    const mesh = event.object;
+    // Calc coordinates from center
+    const newX = mesh.position.x - mesh.scale.x / 2;
+    const newZ = mesh.position.z - mesh.scale.z / 2;
+    recintosStore.updateRecinto(mesh.userData.roomId, { x: newX, z: newZ });
+  });
 };
 
 // ── syncWalls ─────────────────────────────────────────────────────────────────
@@ -252,6 +317,13 @@ const syncWalls = (walls, selectedForBudget) => {
       mesh.material.color.set(getWallColor(wall, selectedForBudget));
     }
 
+    const isGhost = selectedForBudget.size > 0 && !wall.recintosAdyacentes.some(id => selectedForBudget.has(id));
+    mesh.castShadow = !isGhost;
+    mesh.receiveShadow = !isGhost;
+    mesh.material.transparent = isGhost;
+    mesh.material.opacity = isGhost ? 0.15 : 1.0;
+    mesh.material.depthWrite = !isGhost;
+
     mesh.scale.set(tf.length, 1, 1);
     mesh.position.set(tf.centerX, WALL_HEIGHT / 2, tf.centerZ);
     mesh.rotation.set(0, -tf.angle, 0);
@@ -287,6 +359,7 @@ const syncRooms = (recintos, selectedForBudget) => {
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       mesh.userData.layerTags = recinto.tipo === "banio" ? ["interior", "installations"] : ["interior"];
+      mesh.userData.roomId = recinto.id;
       roomsGroup.add(mesh);
       roomMeshes.set(recinto.id, mesh);
     }
@@ -310,9 +383,23 @@ const syncRooms = (recintos, selectedForBudget) => {
       selectedForBudget.has(recinto.id) ? "#ef4444" : (mesh.material.map ? "#ffffff" : getRoomColor(recinto.tipo, false))
     );
 
+    const isGhost = selectedForBudget.size > 0 && !selectedForBudget.has(recinto.id);
+    mesh.castShadow = !isGhost;
+    mesh.receiveShadow = !isGhost;
+    mesh.material.transparent = isGhost;
+    mesh.material.opacity = isGhost ? 0.15 : 1.0;
+    mesh.material.depthWrite = !isGhost;
+
     mesh.scale.set(recinto.dimensions.w, 1, recinto.dimensions.l);
+    // Solo actualizar posición si no está siendo arrastrado por el usuario
+    // (O si se confía en que dragend actualizará correctamente y el watcher dispara)
     mesh.position.set(recinto.coords.x + recinto.dimensions.w / 2, 0.04, recinto.coords.z + recinto.dimensions.l / 2);
     mesh.visible = isMeshVisible(mesh);
+
+    // Highlight for active recinto
+    const isActive = recinto.id === recintosStore.activeRecintoId;
+    mesh.material.emissive.setHex(isActive ? 0x2563eb : 0x000000);
+    mesh.material.emissiveIntensity = isActive ? 0.4 : 0;
   });
 };
 
@@ -390,6 +477,25 @@ const handleFullscreenChange = () => {
 const animate = () => {
   frameId = requestAnimationFrame(animate);
   controls?.update();
+  
+  // Procesar animaciones de rebote
+  if (bouncingMeshes.size > 0) {
+    for (const [uuid, state] of bouncingMeshes.entries()) {
+      state.time += 0.2; // Velocidad de animación
+      const mesh = roomMeshes.get(state.roomId);
+      if (mesh) {
+        // Medio seno para un rebote rápido hacia arriba y abajo
+        mesh.position.y = state.baseY + Math.sin(state.time) * 0.15;
+        if (state.time > Math.PI) {
+          mesh.position.y = state.baseY;
+          bouncingMeshes.delete(uuid);
+        }
+      } else {
+        bouncingMeshes.delete(uuid);
+      }
+    }
+  }
+
   if (renderer && scene && camera) renderer.render(scene, camera);
 };
 
@@ -397,9 +503,39 @@ const animate = () => {
 onMounted(() => {
   ensureScene();
 
+  // Click handler para limpiar selección si hace clic fuera
+  renderer.domElement.addEventListener('pointerdown', (e) => {
+    const rect = renderer.domElement.getBoundingClientRect();
+    const mouse = new THREE.Vector2(
+      ((e.clientX - rect.left) / rect.width) * 2 - 1,
+      -((e.clientY - rect.top) / rect.height) * 2 + 1
+    );
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(roomsGroup.children);
+    if (intersects.length === 0) {
+      recintosStore.clearActiveRecinto();
+    }
+  });
+
+  const handleKeyDown = (e) => {
+    if ((e.key === 'Delete' || e.key === 'Backspace') && recintosStore.activeRecintoId) {
+      recintosStore.deleteRecinto(recintosStore.activeRecintoId);
+    }
+  };
+  window.addEventListener('keydown', handleKeyDown);
+
+  // Guardar referencia para remover el listener luego
+  renderer.domElement._handleKeyDown = handleKeyDown;
+
   watch(
-    [() => topology.walls.value, () => recintosStore.recintos, () => Array.from(recintosStore.selectedForBudget).sort()],
-    ([walls, recintos, selectedIds]) => {
+    [
+      () => topology.walls.value,
+      () => recintosStore.recintos,
+      () => Array.from(recintosStore.selectedForBudget).sort(),
+      () => recintosStore.activeRecintoId
+    ],
+    ([walls, recintos, selectedIds, activeId]) => {
       const sel = new Set(selectedIds);
       if (scene) syncWalls(walls, sel);
       if (scene) syncRooms(recintos, sel);
@@ -426,8 +562,15 @@ onMounted(() => {
 onBeforeUnmount(() => {
   document.removeEventListener('fullscreenchange', handleFullscreenChange);
   window.removeEventListener('resize', onResize);
+  if (renderer && renderer.domElement._handleKeyDown) {
+    window.removeEventListener('keydown', renderer.domElement._handleKeyDown);
+  }
   resizeObserver?.disconnect();
   cancelAnimationFrame(frameId);
+
+  if (dragControls) {
+    dragControls.dispose();
+  }
 
   for (const m of wallMeshes.values()) { wallsGroup.remove(m); m.geometry.dispose(); m.material.dispose(); }
   for (const m of roomMeshes.values()) { roomsGroup.remove(m); m.geometry.dispose(); m.material.dispose(); }
@@ -442,9 +585,19 @@ onBeforeUnmount(() => {
 <template>
   <div
     ref="rootRef"
-    class="scene3d-root"
+    class="scene3d-root relative"
     :class="isFullScreen ? 'fullscreen-active' : 'normal-mode'"
   >
+    <PropertiesSidebar />
+    
+    <button
+      @click="recintosStore.addPasillo()"
+      class="absolute bottom-6 left-6 z-40 bg-slate-800/90 hover:bg-slate-700 text-white border border-slate-600 rounded-full px-5 py-3 shadow-xl flex items-center gap-2 font-bold text-sm transition-transform hover:scale-105 active:scale-95 backdrop-blur-md"
+    >
+      <span class="material-symbols-outlined text-[18px]">add_road</span>
+      Añadir Pasillo
+    </button>
+
     <div ref="headerRef" class="flex justify-between items-center mb-4 shrink-0">
       <h3 class="text-white font-semibold flex items-center gap-2">
         <span class="material-symbols-outlined text-primary text-sm">view_in_ar</span>

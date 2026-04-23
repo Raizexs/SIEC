@@ -14,9 +14,9 @@ const generateId = () =>
  */
 
 export const useRecintosStore = defineStore("recintos", () => {
-  // Estado reactivo: array de recintos con id, tipo, coordenadas y dimensiones
   const recintos = ref([]);
   const selectedForBudget = ref(new Set());
+  const activeRecintoId = ref(null);
 
   // Metadata de configuración para el layout inicial
   const configMetadata = ref({
@@ -41,6 +41,7 @@ export const useRecintosStore = defineStore("recintos", () => {
     habitacion: { w: 3.5, l: 3.0 },
     banio:      { w: 2.0, l: 2.0 },
     areaComun:  { w: 4.5, l: 3.5 },
+    pasillo:    { w: 1.5, l: 3.0 },
   };
 
   /**
@@ -137,6 +138,18 @@ export const useRecintosStore = defineStore("recintos", () => {
     });
   };
 
+  const addPasillo = () => {
+    const pasillosExistentes = recintos.value.filter(r => r.tipo === "pasillo").length;
+    const offset = pasillosExistentes * 2.0;
+
+    recintos.value.push({
+      id: generateId(),
+      tipo: "pasillo",
+      coords: { x: offset, z: offset },
+      dimensions: { ...BASE_DIMS.pasillo },
+    });
+  };
+
   /**
    * Mutadores limpios para que la Capa 3 (Editor) pueda alterar posición/tamaño
    * El editor debe llamar a estos para invalidar el cache de topología
@@ -162,6 +175,18 @@ export const useRecintosStore = defineStore("recintos", () => {
     selectedForBudget.value = s;
   };
 
+  const setActiveRecinto = (id) => {
+    activeRecintoId.value = id;
+  };
+
+  const clearActiveRecinto = () => {
+    activeRecintoId.value = null;
+  };
+
+  const activeRecinto = computed(() => {
+    return recintos.value.find((r) => r.id === activeRecintoId.value) || null;
+  });
+
   const selectedM2 = computed(() => {
     return recintos.value
       .filter((r) => selectedForBudget.value.has(r.id))
@@ -180,6 +205,7 @@ export const useRecintosStore = defineStore("recintos", () => {
     habitaciones: recintos.value.filter((r) => r.tipo === "habitacion").length,
     banios: recintos.value.filter((r) => r.tipo === "banio").length,
     areasComunes: recintos.value.filter((r) => r.tipo === "areaComun").length,
+    pasillos: recintos.value.filter((r) => r.tipo === "pasillo").length,
   }));
 
   return {
@@ -188,16 +214,21 @@ export const useRecintosStore = defineStore("recintos", () => {
     configMetadata,
     TOKEN_COSTS,
     selectedForBudget,
+    activeRecintoId,
 
     // Methods
     initializeLayout,
+    addPasillo,
     updateRecinto,
     deleteRecinto,
     toggleBudget,
+    setActiveRecinto,
+    clearActiveRecinto,
 
     // Computed
     totalArea,
     recintosByType,
     selectedM2,
+    activeRecinto,
   };
 });
