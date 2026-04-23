@@ -1,10 +1,11 @@
 <script setup>
 import { ref, computed, watchEffect, watch, nextTick } from "vue";
+import { driver } from "driver.js";
+import "driver.js/dist/driver.css";
 import Sidebar from "./components/Sidebar.vue";
 import TopNavBar from "./components/TopNavBar.vue";
 import ConfigurationPanel from "./components/ConfigurationPanel.vue";
 import MetricsPanel from "./components/MetricsPanel.vue";
-import SaveLayoutDialog from "./components/SaveLayoutDialog.vue";
 import RoomEditor2D from "./components/RoomEditor2D.vue";
 import Scene3D from "./components/Scene3D.vue";
 import MaterialsPanel from "./components/MaterialsPanel.vue";
@@ -33,7 +34,6 @@ const materialTriggerReady = ref(false);
 const appKey = computed(() => `app-${currentLanguage.value}`);
 
 const showToast = ref(false);
-
 const formData = ref({
   m2Totales: 150,
   materialEstructuralId: 4,
@@ -237,6 +237,47 @@ const handleSaveLayout = (name) => {
   showToast.value = true;
   setTimeout(() => showToast.value = false, 3000);
 };
+
+const startTutorial = () => {
+  const driverObj = driver({
+    showProgress: true,
+    popoverClass: 'siec-driver-theme',
+    steps: [
+      { 
+        popover: { 
+          title: 'Bienvenido a SIEC', 
+          description: 'Esta es tu plataforma de inteligencia constructiva. Te daremos un breve recorrido por el simulador.',
+          side: "left", align: 'start'
+        }
+      },
+      {
+        element: '.tour-config-panel',
+        popover: {
+          title: 'Configuración del Proyecto',
+          description: 'Aquí puedes definir los metros cuadrados de tu terreno, la cantidad de habitaciones, baños y el material estructural.',
+          side: "right", align: 'start'
+        }
+      },
+      {
+        element: '.tour-metrics-panel',
+        popover: {
+          title: 'Presupuesto Espacial',
+          description: 'Este panel te muestra en tiempo real cómo se distribuye el espacio de tu terreno a medida que agregas recintos.',
+          side: "left", align: 'start'
+        }
+      },
+      {
+        popover: {
+          title: '¡Todo listo!',
+          description: 'Haz clic en "Generar Modelo" cuando estés listo para visualizar tu proyecto en 3D.',
+          side: "top", align: 'center'
+        }
+      }
+    ]
+  });
+  
+  driverObj.drive();
+};
 </script>
 
 <template>
@@ -249,6 +290,7 @@ const handleSaveLayout = (name) => {
       @loadLayout="loadLayout"
       @collapse-change="sidebarCollapsed = $event"
       @open-manual="showManual = true"
+      @start-tutorial="startTutorial"
     />
 
     <main
@@ -259,6 +301,7 @@ const handleSaveLayout = (name) => {
 
       <div class="p-10 max-w-7xl mx-auto grid grid-cols-12 gap-10">
         <ConfigurationPanel
+          class="tour-config-panel"
           v-show="activeTab === 'generalSpecs'"
           :formData="formData"
           :costs="costs"
@@ -276,6 +319,7 @@ const handleSaveLayout = (name) => {
         />
 
         <MetricsPanel
+          class="tour-metrics-panel"
           :formData="formData"
           :tokensUsados="tokensUsados"
           :tokensTotales="tokensTotales"
@@ -360,6 +404,52 @@ const handleSaveLayout = (name) => {
 .fade-scale-enter-from,
 .fade-scale-leave-to {
   opacity: 0;
-  transform: scale(0.95);
+}
+
+/* ── Driver.js Premium Theme ─────────────────────────────────────────────────── */
+.siec-driver-theme {
+  background-color: #0d1117 !important;
+  color: #e2e8f0 !important;
+  border: 1px solid #30363d !important;
+  border-radius: 1rem !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
+  font-family: 'Inter', sans-serif !important;
+  padding: 1.25rem !important;
+}
+.siec-driver-theme .driver-popover-title {
+  font-size: 1.125rem !important;
+  font-weight: 800 !important;
+  color: #fff !important;
+  margin-bottom: 0.75rem !important;
+}
+.siec-driver-theme .driver-popover-description {
+  font-size: 0.875rem !important;
+  color: #94a3b8 !important;
+  line-height: 1.6 !important;
+}
+.siec-driver-theme .driver-popover-footer {
+  margin-top: 1rem !important;
+}
+.siec-driver-theme .driver-popover-footer button {
+  background-color: #1e293b !important;
+  color: #e2e8f0 !important;
+  border: 1px solid #334155 !important;
+  border-radius: 0.5rem !important;
+  padding: 0.5rem 1rem !important;
+  font-weight: 600 !important;
+  font-size: 0.8rem !important;
+  transition: all 0.2s !important;
+  text-shadow: none !important;
+  cursor: pointer !important;
+}
+.siec-driver-theme .driver-popover-footer button:hover {
+  background-color: #3b82f6 !important;
+  border-color: #60a5fa !important;
+  color: #fff !important;
+}
+.siec-driver-theme .driver-popover-progress-text {
+  color: #64748b !important;
+  font-weight: 600 !important;
+  font-size: 0.75rem !important;
 }
 </style>

@@ -140,13 +140,21 @@ const toggleLanguage = () => {
       </div>
 
       <!-- Ayuda y Tutorial -->
-      <div class="px-3 pt-2">
+      <div class="px-3 pt-2 flex flex-col gap-2">
+        <button 
+          @click="$emit('start-tutorial')"
+          class="w-full flex items-center justify-center gap-2 py-2 rounded-md bg-emerald-100 dark:bg-emerald-900/30 hover:bg-emerald-200 dark:hover:bg-emerald-800/50 transition-colors text-xs font-bold text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+        >
+          <span class="material-symbols-outlined text-[16px]">school</span>
+          Tutorial Interactivo
+        </button>
+
         <button 
           @click="$emit('open-manual')"
           class="w-full flex items-center justify-center gap-2 py-2 rounded-md bg-slate-100 dark:bg-slate-800/50 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-xs font-bold text-slate-600 dark:text-slate-300"
         >
           <span class="material-symbols-outlined text-[16px]">help</span>
-          Ver Guía Interactiva
+          Ver Guía Manual
         </button>
       </div>
 
