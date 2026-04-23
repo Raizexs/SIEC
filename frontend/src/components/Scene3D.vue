@@ -232,19 +232,39 @@ const ensureScene = () => {
   // ── Drag Controls ─────────────────────────────────────────────────────────
   dragControls = new DragControls(roomsGroup.children, camera, renderer.domElement);
   
-  dragControls.addEventListener('hoveron', (event) => {
-    if (containerRef.value) containerRef.value.style.cursor = 'grab';
-  });
+
   
+  dragControls.addEventListener('hoveron', (event) => {
+    if (containerRef.value && !isManipulating) containerRef.value.style.cursor = 'pointer';
+    let mesh = event.object;
+    if (!mesh.userData.roomId && mesh.parent && mesh.parent.userData.roomId) mesh = mesh.parent;
+    if (mesh.userData && mesh.userData.edgesHelper && mesh.userData.roomId !== recintosStore.activeRecintoId) {
+      mesh.userData.edgesHelper.material.opacity = 0.8;
+      mesh.userData.edgesHelper.material.color.setHex(0xffffff);
+      mesh.material.emissive.setHex(0xffffff);
+      mesh.material.emissiveIntensity = 0.15;
+    }
+  });
+
   dragControls.addEventListener('hoveroff', (event) => {
-    if (containerRef.value) containerRef.value.style.cursor = 'auto';
+    if (containerRef.value && !isManipulating) containerRef.value.style.cursor = 'grab';
+    let mesh = event.object;
+    if (!mesh.userData.roomId && mesh.parent && mesh.parent.userData.roomId) mesh = mesh.parent;
+    if (mesh.userData && mesh.userData.edgesHelper && mesh.userData.roomId !== recintosStore.activeRecintoId) {
+      mesh.userData.edgesHelper.material.opacity = 0.15;
+      mesh.userData.edgesHelper.material.color.setHex(0xaaaaaa);
+      mesh.material.emissiveIntensity = 0;
+    }
   });
   
   dragControls.addEventListener('dragstart', (event) => {
     controls.enabled = false;
     isManipulating = true;
     if (containerRef.value) containerRef.value.style.cursor = 'grabbing';
-    const mesh = event.object;
+    let mesh = event.object;
+    if (!mesh.userData.roomId && mesh.parent && mesh.parent.userData.roomId) mesh = mesh.parent;
+    if (!mesh.userData || !mesh.userData.roomId) return;
+    
     recintosStore.setActiveRecinto(mesh.userData.roomId);
 
     // Guardar posición original para revertir en caso de colisión
@@ -259,7 +279,10 @@ const ensureScene = () => {
   });
   
   dragControls.addEventListener('drag', (event) => {
-    const mesh = event.object;
+    let mesh = event.object;
+    if (!mesh.userData.roomId && mesh.parent && mesh.parent.userData.roomId) mesh = mesh.parent;
+    if (!mesh.userData || !mesh.userData.roomId) return;
+    
     const piso = mesh.userData.piso || 1;
     mesh.position.y = 0.04 + (piso - 1) * WALL_HEIGHT; // Lock to floor level
 
@@ -315,9 +338,12 @@ const ensureScene = () => {
     controls.enabled = true;
     isManipulating = false;
     if (containerRef.value) containerRef.value.style.cursor = 'grab';
-    const mesh = event.object;
+    let mesh = event.object;
+    if (!mesh.userData.roomId && mesh.parent && mesh.parent.userData.roomId) mesh = mesh.parent;
+    if (!mesh.userData || !mesh.userData.roomId) return;
     
-    // Desactivar animación
+    // Validar caída en vacío
+    let restingOnPiso = false;
     bouncingMeshes.delete(mesh.uuid);
     const piso = mesh.userData.piso || 1;
     mesh.position.y = 0.04 + (piso - 1) * WALL_HEIGHT;
@@ -514,6 +540,14 @@ const syncRooms = (recintos, selectedForBudget) => {
       mesh.userData.layerTags = recinto.tipo === "banio" ? ["interior", "installations"] : ["interior"];
       mesh.userData.roomId = recinto.id;
       mesh.userData.piso = recinto.piso || 1;
+      
+      // Edges Helper para aspecto de "Plano"
+      const edges = new THREE.EdgesGeometry(mesh.geometry);
+      const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xaaaaaa, transparent: true, opacity: 0.15, depthTest: false }));
+      line.raycast = () => {}; // Ignorar en Raycaster para no romper DragControls
+      mesh.add(line);
+      mesh.userData.edgesHelper = line;
+      
       roomsGroup.add(mesh);
       roomMeshes.set(recinto.id, mesh);
     }
@@ -673,9 +707,16 @@ onMounted(() => {
     );
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObjects(roomsGroup.children);
+    const intersects = raycaster.intersectObjects(roomsGroup.children, true);
     if (intersects.length > 0) {
-      recintosStore.setActiveRecinto(intersects[0].object.userData.roomId);
+      let object = intersects[0].object;
+      // Si interactuamos con el EdgesHelper u otro hijo, subir al Mesh padre
+      if (!object.userData.roomId && object.parent && object.parent.userData.roomId) {
+        object = object.parent;
+      }
+      if (object.userData && object.userData.roomId) {
+        recintosStore.setActiveRecinto(object.userData.roomId);
+      }
     } else {
       recintosStore.clearActiveRecinto();
     }
