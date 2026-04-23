@@ -1,0 +1,241 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ═══════════════════════════════════════════════════════════════════════
+   SIEC — Design System
+   
+   PALETA LIGHT:  blanco/gris muy suave + navy #031632 como primary
+   PALETA DARK:   GitHub-dark (#0d1117) + azul medio como accent
+   
+   JERARQUÍA DE TEXTO (ambos modos):
+     L1 — Headings:  máximo contraste
+     L2 — Body:      contraste normal
+     L3 — Muted:     contraste reducido (labels, captions)
+═══════════════════════════════════════════════════════════════════════ */
+
+@layer base {
+
+  /* ── Material Symbols ─────────────────────────────────────────────── */
+  .material-symbols-outlined {
+    font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+    display: inline-block;
+    line-height: 1;
+    text-transform: none;
+    letter-spacing: normal;
+    word-wrap: normal;
+    white-space: nowrap;
+    direction: ltr;
+  }
+
+  /* ── Base transition ──────────────────────────────────────────────── */
+  html { color-scheme: light; }
+  html.dark { color-scheme: dark; }
+
+  body {
+    transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* ── View Transitions API ─────────────────────────────────────────── */
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 0.5s;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+
+  /* ╔══════════════════════════════════════════════════════════╗
+     ║  DARK MODE — Token overrides completos                  ║
+     ║  Se aplican cuando <html class="dark"> está activo.     ║
+     ╚══════════════════════════════════════════════════════════╝ */
+
+  /* ── Fondos ───────────────────────────────────────────────────────── */
+  .dark body,
+  .dark .min-h-screen,
+  .dark .bg-background       { background-color: #0d1117; }
+
+  .dark .bg-surface-container-lowest { background-color: #0d1117; }
+  .dark .bg-surface-container-low    { background-color: #161b22; }
+  .dark .bg-surface-container        { background-color: #1c2128; }
+  .dark .bg-surface-container-highest { background-color: #2d333b; }
+  .dark .bg-surface-container-highest\/30 { background-color: rgba(45,51,59,0.3); }
+
+  /* Cards y paneles blancos */
+  .dark .bg-white            { background-color: #161b22 !important; }
+  .dark .bg-white\/80        { background-color: rgba(22,27,34,0.92) !important; }
+  .dark .bg-white\/50        { background-color: rgba(22,27,34,0.6) !important; }
+  .dark .bg-slate-50         { background-color: #21262d !important; }
+  .dark .bg-slate-800        { background-color: #21262d !important; }
+  .dark .bg-slate-900        { background-color: #0d1117 !important; }
+
+  /* Secondary chip (el badge naranja en la metric card) */
+  .dark .bg-secondary        { background-color: #b45309; } /* amber-700, más legible */
+
+  /* Hover states */
+  .dark .hover\:bg-slate-50:hover    { background-color: #21262d; }
+  .dark .hover\:bg-slate-200\/50:hover { background-color: #21262d; }
+  .dark .hover\:bg-surface-container-low:hover { background-color: #1c2128; }
+  .dark .hover\:bg-white\/50:hover   { background-color: rgba(22,27,34,0.6); }
+  .dark .hover\:opacity-90:hover     { opacity: 0.85; }
+
+
+  /* ── JERARQUÍA DE TEXTO ───────────────────────────────────────────── */
+  
+  /* L1 — Titulares (máximo contraste) */
+  .dark .text-on-surface     { color: #e6edf3; }
+  .dark .text-on-background  { color: #e6edf3; }
+  .dark h1, .dark h2, .dark h3, .dark h4 { color: #e6edf3; }
+
+  /* L2 — Acento / Primarios de brand (azul claro, readable) */
+  .dark .text-primary        { color: #7aaddb; }         /* azul claro legible */
+  .dark .text-primary-container { color: #93b4d8; }      /* azul medio */
+  .dark .text-on-primary-container { color: #93b4d8; }
+
+  /* L2 — Secundario (antes era naranja oscuro #904d00, imposible en dark) */
+  .dark .text-secondary      { color: #f0a868; }         /* naranja claro, warm */
+
+  /* L2 — Terciario */
+  .dark .text-tertiary       { color: #d4b896; }
+
+  /* L3 — Muted (texto de apoyo) */
+  .dark .text-slate-800      { color: #cdd5de; }
+  .dark .text-slate-700      { color: #b1bac4; }
+  .dark .text-slate-600      { color: #8b949e; }
+  .dark .text-slate-500      { color: #6e7681; }
+  .dark .text-slate-400      { color: #565d68; }
+
+  /* Outline y variantes de surface-text */
+  .dark .text-outline        { color: #8b949e; }
+  .dark .text-outline-variant { color: #6e7681; }
+  .dark .text-on-surface-variant { color: #8b949e; }
+
+  /* White permanece blanco (sobre fondos de color) */
+  .dark .text-white          { color: #ffffff; }
+
+  /* Emerald se mantiene */
+  .dark .text-emerald-500    { color: #34d399; }
+  .dark .text-emerald-600    { color: #10b981; }
+
+  /* Amber para badges especiales */
+  .dark .text-amber-400      { color: #fbbf24; }
+
+
+  /* ── BORDES ───────────────────────────────────────────────────────── */
+  .dark .border-slate-200        { border-color: #30363d; }
+  .dark .border-slate-200\/50    { border-color: rgba(48,54,61,0.5); }
+  .dark .border-outline-variant\/20,
+  .dark .border-outline-variant\/10,
+  .dark .border-outline-variant  { border-color: #2d333b; }
+  .dark .border-surface-container-highest { border-color: #2d333b; }
+  .dark .border-t               { border-top-color: #30363d; }
+
+
+  /* ── COMPONENTES ─────────────────────────────────────────────────── */
+
+  /* TopNav */
+  .dark header.sticky {
+    background-color: rgba(13,17,23,0.95) !important;
+    border-bottom-color: #21262d !important;
+  }
+
+  /* Botones circulares blancos (stepper - / +) */
+  .dark .bg-white.shadow-sm,
+  .dark [class*="bg-white"][class*="rounded-full"] {
+    background-color: #21262d !important;
+  }
+
+  /* Select */
+  .dark select {
+    background-color: #21262d;
+    color: #e6edf3;
+    border-color: #30363d;
+  }
+  .dark option {
+    background-color: #161b22;
+    color: #e6edf3;
+  }
+
+  /* Input text transparente */
+  .dark input[type="text"],
+  .dark input[type="number"] {
+    color: #e6edf3;
+  }
+
+  /* Range track */
+  .dark input[type="range"] {
+    background-color: #30363d;
+  }
+
+  /* Glass panel */
+  .dark .glass-panel {
+    background: rgba(22,27,34,0.88);
+    border-color: rgba(48,54,61,0.4);
+  }
+
+  /* SVG 2D editor */
+  .dark .bg-gradient-to-br.from-slate-800.to-slate-900 {
+    background: linear-gradient(to bottom right, #161b22, #0d1117) !important;
+  }
+
+  /* Emerald backgrounds (auto-save dot, etc) */
+  .dark .bg-emerald-400        { background-color: #34d399; }
+  .dark .bg-emerald-500        { background-color: #10b981; }
+
+  /* Tertiary-fixed para el badge "PROYECCIÓN EN VIVO" */
+  .dark .bg-tertiary-fixed     { background-color: #533e00; }
+  .dark .text-on-tertiary-fixed { color: #fde68a; }
+
+  /* Secondary container (chip de la metric hero card) */
+  .dark .bg-secondary-container { background-color: #9a3412; }
+
+} /* end @layer base */
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   UTILITIES
+═══════════════════════════════════════════════════════════════════════ */
+@layer utilities {
+
+  .glass-panel {
+    background: rgba(255,255,255,0.8);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  @keyframes pulse-soft {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.5; }
+  }
+  .animate-pulse-soft {
+    animation: pulse-soft 2s cubic-bezier(0.4,0,0.6,1) infinite;
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .animate-fade-in {
+    animation: fade-in 0.35s ease forwards;
+  }
+
+  /* Range slider thumb — light */
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px; height: 18px;
+    background: #031632;
+    cursor: pointer;
+    border-radius: 50%;
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 18px; height: 18px;
+    background: #031632;
+    cursor: pointer;
+    border-radius: 50%;
+    border: none;
+  }
+
+  /* Range slider thumb — dark */
+  .dark input[type="range"]::-webkit-slider-thumb { background: #7aaddb; }
+  .dark input[type="range"]::-moz-range-thumb     { background: #7aaddb; }
+}
