@@ -141,8 +141,7 @@ const materials = computed(() => [
           </h4>
           <span
             v-if="
-              descripcionEstado.message !== 'Espacio OK' &&
-              descripcionEstado.message !== 'Space OK'
+              descripcionEstado.status !== 'safe'
             "
             class="text-[10px] font-bold px-2 py-1 rounded uppercase"
             :style="{
@@ -162,12 +161,7 @@ const materials = computed(() => [
               class="text-3xl font-headline font-black flex items-end gap-1"
               :style="{ color: descripcionEstado.color }"
             >
-              <span>{{
-                (
-                  tokensTotales * 10 -
-                  (totalAreaUsado > 0 ? totalAreaUsado : tokensUsados * 10)
-                ).toFixed(1)
-              }}</span>
+              <span>{{ (tokensTotales * 10 - tokensUsados * 10).toFixed(1) }}</span>
               <span class="text-base font-semibold mb-1 opacity-70">m²</span>
             </div>
           </div>
@@ -176,12 +170,7 @@ const materials = computed(() => [
               t("used")
             }}</span>
             <div class="text-2xl font-headline font-bold text-slate-600">
-              {{
-                (totalAreaUsado > 0
-                  ? totalAreaUsado
-                  : tokensUsados * 10
-                ).toFixed(1)
-              }}
+              {{ (tokensUsados * 10).toFixed(1) }}
               <span class="text-sm font-medium">m²</span>
             </div>
           </div>
@@ -203,12 +192,9 @@ const materials = computed(() => [
             class="h-full rounded-full transition-all duration-300"
             :style="{
               width:
-                Math.min(
-                  ((totalAreaUsado > 0 ? totalAreaUsado : tokensUsados * 10) /
-                    (tokensTotales * 10)) *
-                    100,
-                  100,
-                ) + '%',
+                (tokensTotales > 0
+                  ? Math.min((tokensUsados / tokensTotales) * 100, 100)
+                  : 0) + '%',
               backgroundColor: descripcionEstado.color,
             }"
           ></div>
