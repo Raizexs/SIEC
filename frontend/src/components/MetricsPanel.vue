@@ -161,7 +161,7 @@ const materials = computed(() => [
               class="text-3xl font-headline font-black flex items-end gap-1"
               :style="{ color: descripcionEstado.color }"
             >
-              <span>{{ (tokensTotales * 10 - tokensUsados * 10).toFixed(1) }}</span>
+              <span>{{ tokensDisponibles.toFixed(1) }}</span>
               <span class="text-base font-semibold mb-1 opacity-70">m²</span>
             </div>
           </div>
@@ -170,7 +170,7 @@ const materials = computed(() => [
               t("used")
             }}</span>
             <div class="text-2xl font-headline font-bold text-slate-600">
-              {{ (tokensUsados * 10).toFixed(1) }}
+              {{ tokensUsados.toFixed(1) }}
               <span class="text-sm font-medium">m²</span>
             </div>
           </div>
@@ -179,7 +179,7 @@ const materials = computed(() => [
               t("total")
             }}</span>
             <div class="text-2xl font-headline font-bold text-slate-600">
-              {{ tokensTotales * 10 }}
+              {{ tokensTotales.toFixed(1) }}
               <span class="text-sm font-medium">m²</span>
             </div>
           </div>

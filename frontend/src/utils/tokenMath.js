@@ -3,16 +3,17 @@
  * Pure mathematical functions for token calculation (HU11 - Sistema de Validación Espacial)
  *
  * No Vue dependencies here - these are pure functions for testability.
- * 1 token per 10 m² total
- * Token costs: habitación simple (5), doble (8), triple (12), baño (4), área común (12)
+ * 1 token = 1 m²
+ * Token costs correspond exactly to the area of the rooms.
  */
 
 export const DEFAULT_COSTS = {
-  habitacionSimple: 5,
-  habitacionDoble: 8,
-  habitacionTriple: 12,
-  banio: 4,
-  area_comun: 12,
+  habitacionSimple: 10.5, // 3.5 x 3.0
+  habitacionDoble: 15.0,
+  habitacionTriple: 20.0,
+  banio: 4.0, // 2.0 x 2.0
+  area_comun: 15.75, // 4.5 x 3.5
+  pasillo: 4.5, // 1.5 x 3.0
 };
 
 export const STATUS_THRESHOLDS = {
@@ -43,6 +44,7 @@ export function calculateTokensUsedByType(counts, costs = DEFAULT_COSTS) {
       habitacionesTriples: 0,
       banios: 0,
       areasComunes: 0,
+      pasillos: 0,
     };
   }
 
@@ -55,6 +57,7 @@ export function calculateTokensUsedByType(counts, costs = DEFAULT_COSTS) {
       (counts.habitacionesTriples || 0) * costs.habitacionTriple,
     banios: (counts.banios || 0) * costs.banio,
     areasComunes: (counts.areasComunes || 0) * costs.area_comun,
+    pasillos: (counts.pasillos || 0) * costs.pasillo,
   };
 }
 
@@ -73,14 +76,14 @@ export function calculateTotalTokensUsed(tokensUsedByType) {
 }
 
 /**
- * Calculate total tokens available based on m² (1 token per 10 m²)
+ * Calculate total tokens available based on m² (1 token = 1 m²)
  * @param {number} m2Totales - total square meters
- * @returns {number} total tokens available (floored)
+ * @returns {number} total tokens available
  */
 export function calculateTotalTokens(m2Totales) {
   if (!m2Totales || m2Totales < 0 || isNaN(m2Totales)) return 0;
   const clampedM2 = Math.min(m2Totales, MAX_M2);
-  return Math.floor(clampedM2 / 10);
+  return clampedM2;
 }
 
 /**
@@ -149,13 +152,13 @@ export function generateStatusDescription(
 
   if (status === "safe") {
     message = "✅ Espacio disponible";
-    subtitle = `${availableTokens} tokens disponibles`;
+    subtitle = `${availableTokens.toFixed(1)} m² disponibles`;
   } else if (status === "warning") {
     message = "⚠️ Espacio limitado";
-    subtitle = `${availableTokens} tokens disponibles`;
+    subtitle = `${availableTokens.toFixed(1)} m² disponibles`;
   } else {
     message = "❌ Sin espacio";
-    subtitle = `Exceso de ${Math.max(usedTokens - totalTokens, 0)} tokens`;
+    subtitle = `Exceso de ${Math.max(usedTokens - totalTokens, 0).toFixed(1)} m²`;
   }
 
   return {
@@ -176,12 +179,12 @@ export function validateTokensForAddition(requiredTokens, availableTokens) {
   if (availableTokens >= requiredTokens) {
     return {
       canAdd: true,
-      reason: `Saldo suficiente: ${availableTokens} tokens disponibles`,
+      reason: `Saldo suficiente: ${availableTokens.toFixed(1)} m² disponibles`,
     };
   }
   return {
     canAdd: false,
-    reason: `Saldo insuficiente. Necesita ${requiredTokens} tokens, disponibles: ${availableTokens}`,
+    reason: `Saldo insuficiente. Necesita ${requiredTokens.toFixed(1)} m², disponibles: ${availableTokens.toFixed(1)} m²`,
   };
 }
 
@@ -199,6 +202,7 @@ export function calculateTokensComplete(params, costs = DEFAULT_COSTS) {
     habitacionesTriples: params.habitacionesTriples || 0,
     banios: params.banios || 0,
     areasComunes: params.areasComunes || 0,
+    pasillos: params.pasillos || 0,
   };
 
   const tokensUsedByType = calculateTokensUsedByType(counts, costs);
