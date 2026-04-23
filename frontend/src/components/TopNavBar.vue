@@ -14,7 +14,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['tab-change', 'save-layout', 'toggle-3d'])
+const emit = defineEmits(['tab-change', 'save-layout', 'toggle-3d', 'export-pdf'])
 
 const tabs = [
   { name: 'generalSpecs' },
@@ -73,6 +73,14 @@ const handleTabClick = (tabName) => {
       >
         <span class="material-symbols-outlined text-[16px]">save</span>
         {{ t('save') }}
+      </button>
+
+      <button 
+        @click="$emit('export-pdf')"
+        class="flex items-center gap-2 bg-gradient-to-br from-emerald-500 to-emerald-600 text-white hover:opacity-90 px-4 py-2 rounded-full font-bold text-xs uppercase tracking-wide transition-colors shadow-sm"
+      >
+        <span class="material-symbols-outlined text-[16px]">picture_as_pdf</span>
+        Exportar PDF
       </button>
 
       <div class="w-8 h-8 rounded-full overflow-hidden border border-outline-variant bg-surface-container">

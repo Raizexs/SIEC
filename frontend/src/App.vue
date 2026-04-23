@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watchEffect, watch, nextTick } from "vue";
+import { ref, computed, watchEffect, watch, nextTick, onMounted } from "vue";
 import { driver } from "driver.js";
 import "driver.js/dist/driver.css";
 import Sidebar from "./components/Sidebar.vue";
@@ -11,18 +11,26 @@ import Scene3D from "./components/Scene3D.vue";
 import MaterialsPanel from "./components/MaterialsPanel.vue";
 import LayerSelectionPanel from "./components/LayerSelectionPanel.vue";
 import BudgetBreakdownPanel from "./components/BudgetBreakdownPanel.vue";
+import SaveLayoutDialog from "./components/SaveLayoutDialog.vue";
 import PreventiveLogisticsAlertModal from "./components/PreventiveLogisticsAlertModal.vue";
 import UserManualModal from "./components/UserManualModal.vue";
 import { useRecintosStore } from "./stores/recintos";
+import { useWorkspaceStore } from "./stores/workspace";
 import { useTokenCounter } from "./composables/useTokenCounter";
 import { useLayoutManager } from "./composables/useLayoutManager";
 import { useI18n } from "./composables/useI18n";
+import { generateCommercialPDF } from "./utils/pdfGenerator";
 
 const recintosStore = useRecintosStore();
+const workspaceStore = useWorkspaceStore();
 const { saveLayout } = useLayoutManager();
 const { t, currentLanguage } = useI18n();
 
 const sidebarCollapsed = ref(false);
+
+onMounted(() => {
+  workspaceStore.loadWorkspace();
+});
 const showPreventiveLogisticsModal = ref(false);
 const showManual = ref(false);
 const is3DMode = ref(false);
@@ -199,6 +207,12 @@ const loadLayout = (layout) => {
     formData.value.areasComunes,
     formData.value.materialEstructuralId,
   );
+
+  // Cargar topología 3D personalizada si existe en el layout
+  if (layout.recintos && layout.recintos.length > 0) {
+    recintosStore.recintos = JSON.parse(JSON.stringify(layout.recintos));
+    recintosStore.currentFloor = layout.currentFloor || 1;
+  }
 };
 
 const submitForm = async () => {
@@ -236,6 +250,11 @@ const handleSaveLayout = (name) => {
   showSaveDialog.value = false;
   showToast.value = true;
   setTimeout(() => showToast.value = false, 3000);
+};
+
+const handleExportPDF = async () => {
+  const canvas = document.querySelector('canvas');
+  await generateCommercialPDF(canvas, workspaceStore.activePresetName);
 };
 
 const startTutorial = () => {
@@ -297,7 +316,7 @@ const startTutorial = () => {
       :class="sidebarCollapsed ? 'ml-0' : 'ml-64'"
       class="min-h-screen transition-all duration-300"
     >
-      <TopNavBar :activeTab="activeTab" :is3DMode="is3DMode" @tab-change="handleTabChange" @save-layout="showSaveDialog = true" @toggle-3d="is3DMode = $event" />
+      <TopNavBar :activeTab="activeTab" :is3DMode="is3DMode" @tab-change="handleTabChange" @save-layout="showSaveDialog = true" @export-pdf="handleExportPDF" @toggle-3d="is3DMode = $event" />
 
       <div class="p-10 max-w-7xl mx-auto grid grid-cols-12 gap-10">
         <ConfigurationPanel
