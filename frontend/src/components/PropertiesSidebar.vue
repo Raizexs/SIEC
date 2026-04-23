@@ -6,11 +6,6 @@ const recintosStore = useRecintosStore()
 
 const activeRecinto = computed(() => recintosStore.activeRecinto)
 
-const updateDimension = (dimension, value) => {
-  if (!activeRecinto.value) return
-  recintosStore.updateRecinto(activeRecinto.value.id, { [dimension]: Number(value) })
-}
-
 const formatTipo = (tipo) => {
   if (tipo === 'habitacion') return 'Habitación'
   if (tipo === 'banio') return 'Baño'
@@ -43,11 +38,20 @@ const formatTipo = (tipo) => {
               Propiedades
             </h3>
             <span class="text-[10px] text-slate-500 font-medium uppercase tracking-widest mt-1 block">
-              {{ formatTipo(activeRecinto.tipo) }}
+              {{ formatTipo(activeRecinto.tipo) }} • Piso {{ activeRecinto.piso || 1 }}
             </span>
           </div>
         </div>
         <div class="flex items-center gap-2">
+          <button
+            v-if="activeRecinto.piso === recintosStore.currentFloor - 1 && recintosStore.currentFloor <= 3"
+            @click="recintosStore.cloneToCurrentFloor(activeRecinto.id)"
+            class="h-8 px-3 flex items-center justify-center rounded-full bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 text-blue-600 transition-colors text-xs font-bold gap-1"
+            title="Clonar a este piso"
+          >
+            <span class="material-symbols-outlined text-[14px]">content_copy</span>
+            Clonar al Piso {{ recintosStore.currentFloor }}
+          </button>
           <button
             @click="recintosStore.deleteRecinto(activeRecinto.id)"
             class="w-8 h-8 flex items-center justify-center rounded-full bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 text-red-500 transition-colors"
@@ -64,47 +68,29 @@ const formatTipo = (tipo) => {
         </div>
       </div>
 
-      <div class="space-y-4">
-        <!-- Width (Ancho) -->
-        <div class="space-y-2">
-          <div class="flex justify-between items-center text-xs font-bold text-slate-600 dark:text-slate-300">
-            <span>Ancho (W)</span>
-            <span class="text-primary">{{ activeRecinto.dimensions.w.toFixed(2) }}m</span>
-          </div>
-          <input
-            type="range"
-            min="1.5"
-            max="12"
-            step="0.1"
-            :value="activeRecinto.dimensions.w"
-            @input="e => updateDimension('w', e.target.value)"
-            class="w-full accent-primary"
-          />
+      <div class="grid grid-cols-2 gap-3">
+        <div class="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-700/50">
+          <span class="text-[10px] text-slate-500 font-bold uppercase tracking-widest block mb-1">Ancho (X)</span>
+          <span class="text-sm font-black text-slate-700 dark:text-slate-200">{{ activeRecinto.dimensions.w.toFixed(2) }} m</span>
         </div>
-
-        <!-- Length (Largo) -->
-        <div class="space-y-2">
-          <div class="flex justify-between items-center text-xs font-bold text-slate-600 dark:text-slate-300">
-            <span>Largo (L)</span>
-            <span class="text-primary">{{ activeRecinto.dimensions.l.toFixed(2) }}m</span>
+        <div class="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-700/50">
+          <span class="text-[10px] text-slate-500 font-bold uppercase tracking-widest block mb-1">Largo (Z)</span>
+          <span class="text-sm font-black text-slate-700 dark:text-slate-200">{{ activeRecinto.dimensions.l.toFixed(2) }} m</span>
+        </div>
+        <div class="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-700/50 col-span-2 flex justify-between items-center">
+          <div>
+            <span class="text-[10px] text-slate-500 font-bold uppercase tracking-widest block mb-1">Área Total</span>
+            <span class="text-lg font-black text-primary">{{ (activeRecinto.dimensions.w * activeRecinto.dimensions.l).toFixed(2) }} m²</span>
           </div>
-          <input
-            type="range"
-            min="1.5"
-            max="12"
-            step="0.1"
-            :value="activeRecinto.dimensions.l"
-            @input="e => updateDimension('l', e.target.value)"
-            class="w-full accent-primary"
-          />
+          <span class="material-symbols-outlined text-primary/20 text-3xl">aspect_ratio</span>
         </div>
       </div>
       
       <div class="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-900/30">
         <div class="flex items-start gap-2">
-          <span class="material-symbols-outlined text-blue-500 text-[16px] mt-0.5">info</span>
+          <span class="material-symbols-outlined text-blue-500 text-[16px] mt-0.5">tips_and_updates</span>
           <p class="text-[10px] text-blue-700 dark:text-blue-300 font-medium leading-relaxed">
-            Área total: <strong>{{ (activeRecinto.dimensions.w * activeRecinto.dimensions.l).toFixed(2) }} m²</strong>. Asegúrate de no solapar otras habitaciones si aumentas mucho las dimensiones.
+            <strong>Edición Libre 3D:</strong> Utiliza las flechas rojas y azules directamente sobre la habitación en el plano para estirarla interactivamente.
           </p>
         </div>
       </div>

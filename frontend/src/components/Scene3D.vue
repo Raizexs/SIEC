@@ -3,6 +3,7 @@ import { onBeforeUnmount, onMounted, ref, watch, defineProps } from "vue";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { DragControls } from "three/examples/jsm/controls/DragControls.js";
+import { TransformControls } from "three/examples/jsm/controls/TransformControls.js";
 import { HDRLoader } from "three/examples/jsm/loaders/HDRLoader.js";
 import { storeToRefs } from "pinia";
 import { useTopologyComputed } from "../composables/useTopologyComputed";
@@ -18,6 +19,7 @@ const containerRef = ref(null);
 const rootRef     = ref(null);
 const headerRef   = ref(null);   // ← referencia al header para medir su altura
 const isFullScreen = ref(false);
+const currentTool = ref('move'); // 'move' o 'scale'
 
 const topology     = useTopologyComputed();
 const recintosStore = useRecintosStore();
@@ -28,7 +30,9 @@ const props = defineProps({
   materialEstructuralId: { type: Number, default: 4 }
 });
 
-let renderer, scene, camera, controls, dragControls, frameId;
+let renderer, scene, camera, controls, dragControls;
+let transformControl;
+let isManipulating = false, frameId;
 const wallMeshes = new Map();
 const roomMeshes = new Map();
 let buildingGroup, wallsGroup, roomsGroup;
@@ -238,31 +242,177 @@ const ensureScene = () => {
   
   dragControls.addEventListener('dragstart', (event) => {
     controls.enabled = false;
+    isManipulating = true;
     if (containerRef.value) containerRef.value.style.cursor = 'grabbing';
     const mesh = event.object;
     recintosStore.setActiveRecinto(mesh.userData.roomId);
 
+    // Guardar posición original para revertir en caso de colisión
+    mesh.userData.prevPosition = mesh.position.clone();
+
     // Activar animación de rebote
     bouncingMeshes.set(mesh.uuid, {
       roomId: mesh.userData.roomId,
-      baseY: 0.04,
+      baseY: 0.04 + (mesh.userData.piso - 1) * WALL_HEIGHT,
       time: 0
     });
   });
   
   dragControls.addEventListener('drag', (event) => {
-    event.object.position.y = 0.04; // Lock to floor
+    const mesh = event.object;
+    const piso = mesh.userData.piso || 1;
+    mesh.position.y = 0.04 + (piso - 1) * WALL_HEIGHT; // Lock to floor level
+
+    // -- AABB Collision Detection --
+    const box = new THREE.Box3().setFromObject(mesh);
+    // Margen microscópico de 2cm para permitir tocarse sin solaparse
+    box.expandByScalar(-0.02); 
+    
+    let collision = false;
+    for (const other of roomsGroup.children) {
+      if (other !== mesh && (other.userData.piso || 1) === piso && other.visible) {
+        const otherBox = new THREE.Box3().setFromObject(other);
+        otherBox.expandByScalar(-0.02);
+        if (box.intersectsBox(otherBox)) {
+          collision = true;
+          break;
+        }
+      }
+    }
+
+    if (collision) {
+      // Revertir movimiento
+      mesh.position.copy(mesh.userData.prevPosition);
+    } else {
+      // Guardar la nueva posición válida
+      mesh.userData.prevPosition.copy(mesh.position);
+      
+      // Mover toda la columna (stack)
+      const roomId = mesh.userData.roomId;
+      const recinto = recintosStore.recintos.find(r => r.id === roomId);
+      if (recinto) {
+        const stackId = recinto.stackId || recinto.id;
+        const stack = recintosStore.recintos.filter(r => (r.stackId || r.id) === stackId && r.id !== roomId);
+        stack.forEach(r => {
+          const siblingMesh = roomMeshes.get(r.id);
+          if (siblingMesh) {
+            siblingMesh.position.x = mesh.position.x;
+            siblingMesh.position.z = mesh.position.z;
+          }
+        });
+      }
+    }
+    
+    // Live update to 2D
+    const w = mesh.scale.x;
+    const l = mesh.scale.z;
+    recintosStore.updateRecinto(mesh.userData.roomId, {
+      coords: { x: parseFloat((mesh.position.x - w / 2).toFixed(3)), z: parseFloat((mesh.position.z - l / 2).toFixed(3)) }
+    });
   });
   
   dragControls.addEventListener('dragend', (event) => {
     controls.enabled = true;
+    isManipulating = false;
     if (containerRef.value) containerRef.value.style.cursor = 'grab';
     const mesh = event.object;
-    // Calc coordinates from center
-    const newX = mesh.position.x - mesh.scale.x / 2;
-    const newZ = mesh.position.z - mesh.scale.z / 2;
-    recintosStore.updateRecinto(mesh.userData.roomId, { x: newX, z: newZ });
+    
+    // Desactivar animación
+    bouncingMeshes.delete(mesh.uuid);
+    const piso = mesh.userData.piso || 1;
+    mesh.position.y = 0.04 + (piso - 1) * WALL_HEIGHT;
+    mesh.scale.y = 1.0;
+
+    const recinto = recintosStore.recintos.find(r => r.id === mesh.userData.roomId);
+    if (recinto) {
+      const w = recinto.dimensions.w;
+      const l = recinto.dimensions.l;
+      recintosStore.updateRecinto(mesh.userData.roomId, {
+        coords: { x: mesh.position.x - w / 2, z: mesh.position.z - l / 2 }
+      });
+    }
   });
+
+  // ── Transform Controls (Scale / Flechitas) ──────────────────────────────────
+  transformControl = new TransformControls(camera, renderer.domElement);
+  transformControl.setMode('scale');
+  transformControl.showY = false; // Solo escalar en X y Z
+  transformControl.enabled = false;
+  transformControl.visible = false;
+  // No necesitamos hoveron/hoveroff porque usaremos 'currentTool'
+  transformControl.addEventListener('dragging-changed', (event) => {
+    controls.enabled = !event.value;
+    isManipulating = event.value;
+    
+    if (event.value && transformControl.object) {
+      // Inicia el escalado: guardar estado válido
+      const mesh = transformControl.object;
+      mesh.userData.prevScale = mesh.scale.clone();
+      mesh.userData.prevPosition = mesh.position.clone();
+    }
+    
+    if (!event.value && transformControl.object) {
+      const mesh = transformControl.object;
+      const roomId = mesh.userData.roomId;
+      const newW = mesh.scale.x;
+      const newL = mesh.scale.z;
+      
+      const newX = mesh.position.x - newW / 2;
+      const newZ = mesh.position.z - newL / 2;
+      
+      recintosStore.updateRecinto(roomId, {
+        dimensions: { w: parseFloat(newW.toFixed(3)), l: parseFloat(newL.toFixed(3)) },
+        coords: { x: parseFloat(newX.toFixed(3)), z: parseFloat(newZ.toFixed(3)) }
+      });
+    }
+  });
+
+  transformControl.addEventListener('change', () => {
+    const mesh = transformControl.object;
+    if (!mesh || !transformControl.dragging) return;
+    
+    // Evitar dimensiones negativas
+    if (mesh.scale.x < 0.5) mesh.scale.x = 0.5;
+    if (mesh.scale.z < 0.5) mesh.scale.z = 0.5;
+    
+    const box = new THREE.Box3().setFromObject(mesh);
+    box.expandByScalar(-0.02);
+    
+    let collision = false;
+    for (const other of roomsGroup.children) {
+      if (other !== mesh && (other.userData.piso || 1) === (mesh.userData.piso || 1) && other.visible) {
+        const otherBox = new THREE.Box3().setFromObject(other);
+        otherBox.expandByScalar(-0.02);
+        if (box.intersectsBox(otherBox)) {
+          collision = true;
+          break;
+        }
+      }
+    }
+    
+    if (collision && mesh.userData.prevScale && mesh.userData.prevPosition) {
+      mesh.scale.copy(mesh.userData.prevScale);
+      mesh.position.copy(mesh.userData.prevPosition);
+    } else {
+      if (!mesh.userData.prevScale) mesh.userData.prevScale = mesh.scale.clone();
+      if (!mesh.userData.prevPosition) mesh.userData.prevPosition = mesh.position.clone();
+      mesh.userData.prevScale.copy(mesh.scale);
+      mesh.userData.prevPosition.copy(mesh.position);
+    }
+    
+    // Live update to 2D
+    const roomId = mesh.userData.roomId;
+    const newW = mesh.scale.x;
+    const newL = mesh.scale.z;
+    const newX = mesh.position.x - newW / 2;
+    const newZ = mesh.position.z - newL / 2;
+    recintosStore.updateRecinto(roomId, {
+      dimensions: { w: parseFloat(newW.toFixed(3)), l: parseFloat(newL.toFixed(3)) },
+      coords: { x: parseFloat(newX.toFixed(3)), z: parseFloat(newZ.toFixed(3)) }
+    });
+  });
+
+  scene.add(transformControl.getHelper());
 };
 
 // ── syncWalls ─────────────────────────────────────────────────────────────────
@@ -324,10 +474,13 @@ const syncWalls = (walls, selectedForBudget) => {
     mesh.material.opacity = isGhost ? 0.15 : 1.0;
     mesh.material.depthWrite = !isGhost;
 
+    const piso = wall.piso || 1;
     mesh.scale.set(tf.length, 1, 1);
-    mesh.position.set(tf.centerX, WALL_HEIGHT / 2, tf.centerZ);
+    mesh.position.set(tf.centerX, (WALL_HEIGHT / 2) + (piso - 1) * WALL_HEIGHT, tf.centerZ);
     mesh.rotation.set(0, -tf.angle, 0);
-    mesh.visible = isMeshVisible(mesh);
+    
+    // Ocultar si el muro es de un piso superior al actual
+    mesh.visible = isMeshVisible(mesh) && piso <= recintosStore.currentFloor;
   });
 
   if (!cameraFitted && walls.length > 0) {
@@ -360,6 +513,7 @@ const syncRooms = (recintos, selectedForBudget) => {
       mesh.receiveShadow = true;
       mesh.userData.layerTags = recinto.tipo === "banio" ? ["interior", "installations"] : ["interior"];
       mesh.userData.roomId = recinto.id;
+      mesh.userData.piso = recinto.piso || 1;
       roomsGroup.add(mesh);
       roomMeshes.set(recinto.id, mesh);
     }
@@ -390,11 +544,16 @@ const syncRooms = (recintos, selectedForBudget) => {
     mesh.material.opacity = isGhost ? 0.15 : 1.0;
     mesh.material.depthWrite = !isGhost;
 
-    mesh.scale.set(recinto.dimensions.w, 1, recinto.dimensions.l);
-    // Solo actualizar posición si no está siendo arrastrado por el usuario
-    // (O si se confía en que dragend actualizará correctamente y el watcher dispara)
-    mesh.position.set(recinto.coords.x + recinto.dimensions.w / 2, 0.04, recinto.coords.z + recinto.dimensions.l / 2);
-    mesh.visible = isMeshVisible(mesh);
+    const piso = recinto.piso || 1;
+    const isCurrentlyActive = isManipulating && recinto.id === recintosStore.activeRecintoId;
+    
+    if (!isCurrentlyActive) {
+      mesh.scale.set(recinto.dimensions.w, 1, recinto.dimensions.l);
+      mesh.position.set(recinto.coords.x + recinto.dimensions.w / 2, 0.04 + (piso - 1) * WALL_HEIGHT, recinto.coords.z + recinto.dimensions.l / 2);
+    }
+    
+    // Ocultar recintos de pisos superiores
+    mesh.visible = isMeshVisible(mesh) && piso <= recintosStore.currentFloor;
 
     // Highlight for active recinto
     const isActive = recinto.id === recintosStore.activeRecintoId;
@@ -503,8 +662,10 @@ const animate = () => {
 onMounted(() => {
   ensureScene();
 
-  // Click handler para limpiar selección si hace clic fuera
   renderer.domElement.addEventListener('pointerdown', (e) => {
+    // Si el usuario está interactuando con las flechas, ignorar el clic
+    if (transformControl && transformControl.axis !== null) return;
+
     const rect = renderer.domElement.getBoundingClientRect();
     const mouse = new THREE.Vector2(
       ((e.clientX - rect.left) / rect.width) * 2 - 1,
@@ -513,7 +674,9 @@ onMounted(() => {
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(mouse, camera);
     const intersects = raycaster.intersectObjects(roomsGroup.children);
-    if (intersects.length === 0) {
+    if (intersects.length > 0) {
+      recintosStore.setActiveRecinto(intersects[0].object.userData.roomId);
+    } else {
       recintosStore.clearActiveRecinto();
     }
   });
@@ -533,9 +696,10 @@ onMounted(() => {
       () => topology.walls.value,
       () => recintosStore.recintos,
       () => Array.from(recintosStore.selectedForBudget).sort(),
-      () => recintosStore.activeRecintoId
+      () => recintosStore.activeRecintoId,
+      () => recintosStore.currentFloor
     ],
-    ([walls, recintos, selectedIds, activeId]) => {
+    ([walls, recintos, selectedIds, activeId, currentFloor]) => {
       const sel = new Set(selectedIds);
       if (scene) syncWalls(walls, sel);
       if (scene) syncRooms(recintos, sel);
@@ -548,6 +712,29 @@ onMounted(() => {
   watch(() => props.materialEstructuralId, () => {
     if (scene) syncWalls(topology.walls.value, recintosStore.selectedForBudget);
   });
+
+  watch(() => recintosStore.activeRecintoId, (id) => {
+    if (currentTool.value === 'scale' && id && roomMeshes.has(id)) {
+      transformControl.attach(roomMeshes.get(id));
+    } else {
+      transformControl.detach();
+    }
+  });
+
+  watch(currentTool, (tool) => {
+    if (!dragControls || !transformControl) return;
+    if (tool === 'move') {
+      dragControls.enabled = true;
+      transformControl.enabled = false;
+      transformControl.detach(); // Desaparecen por completo
+    } else {
+      dragControls.enabled = false;
+      transformControl.enabled = true;
+      if (recintosStore.activeRecintoId && roomMeshes.has(recintosStore.activeRecintoId)) {
+        transformControl.attach(roomMeshes.get(recintosStore.activeRecintoId));
+      }
+    }
+  }, { immediate: true });
 
   document.addEventListener('fullscreenchange', handleFullscreenChange);
 
@@ -599,10 +786,42 @@ onBeforeUnmount(() => {
     </button>
 
     <div ref="headerRef" class="flex justify-between items-center mb-4 shrink-0">
-      <h3 class="text-white font-semibold flex items-center gap-2">
-        <span class="material-symbols-outlined text-primary text-sm">view_in_ar</span>
-        Renderizador Volumétrico
-      </h3>
+      <div class="flex items-center gap-4">
+        <h3 class="text-white font-semibold flex items-center gap-2">
+          <span class="material-symbols-outlined text-primary text-sm">view_in_ar</span>
+          Renderizador Volumétrico
+        </h3>
+        
+        <!-- Tool Selector -->
+        <div class="flex items-center gap-1 bg-slate-800/80 backdrop-blur-sm rounded-lg p-1 border border-slate-700/80 shadow-inner">
+          <button 
+            @click="currentTool = 'move'" 
+            :class="[currentTool === 'move' ? 'bg-primary text-white shadow-md' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700']"
+            class="flex items-center gap-1 px-2 py-1 rounded text-xs font-bold transition-all"
+            title="Mover (Drag)"
+          >
+            <span class="material-symbols-outlined text-[14px]">pan_tool</span>
+            Mover
+          </button>
+          <button 
+            @click="currentTool = 'scale'" 
+            :class="[currentTool === 'scale' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700']"
+            class="flex items-center gap-1 px-2 py-1 rounded text-xs font-bold transition-all"
+            title="Escalar (Flechitas)"
+          >
+            <span class="material-symbols-outlined text-[14px]">open_in_full</span>
+            Escalar
+          </button>
+        </div>
+
+        <!-- Floor Selector -->
+        <div class="flex items-center gap-2 bg-slate-800/80 backdrop-blur-sm rounded-lg p-1 border border-slate-700/80 shadow-inner">
+          <button @click="recintosStore.setFloor(recintosStore.currentFloor - 1)" :disabled="recintosStore.currentFloor <= 1" class="text-slate-300 hover:text-white hover:bg-slate-700 px-2 rounded disabled:opacity-30 transition-colors font-bold text-sm">-</button>
+          <span class="text-[11px] font-black text-white px-2 tracking-widest uppercase">Piso {{ recintosStore.currentFloor }}</span>
+          <button @click="recintosStore.setFloor(recintosStore.currentFloor + 1)" class="text-slate-300 hover:text-white hover:bg-slate-700 px-2 rounded transition-colors font-bold text-sm">+</button>
+        </div>
+      </div>
+
       <button
         @click="toggleFullScreen"
         class="text-slate-400 hover:text-white transition-colors flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-700 shadow-sm"

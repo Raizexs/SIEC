@@ -1,4 +1,4 @@
-﻿const WALL_THICKNESS = 0.15
+const WALL_THICKNESS = 0.15
 const EPS = 1e-6
 
 function round(n) {
@@ -98,56 +98,70 @@ function stableWallId(seg, tipo) {
 }
 
 export function extractTopologyFromRecintos(recintosArray) {
-  const edgeMap = new Map()
+  const byFloor = new Map();
+  recintosArray.forEach(r => {
+    const p = r.piso || 1;
+    if (!byFloor.has(p)) byFloor.set(p, []);
+    byFloor.get(p).push(r);
+  });
 
-  recintosArray.forEach((recinto) => {
-    edgesFromRecinto(recinto).forEach((edge) => {
-      const key = segmentoKey(edge)
-      const found = edgeMap.get(key)
-      if (!found) {
-        edgeMap.set(key, { segmento: edge, recintos: [recinto.id] })
-      } else {
-        found.recintos.push(recinto.id)
-      }
-    })
-  })
+  const allMergedWalls = [];
 
-  const rawWalls = []
-  edgeMap.forEach((entry) => {
-    const uniqueRecintos = Array.from(new Set(entry.recintos))
-    const tipo = uniqueRecintos.length > 1 ? 'interior' : 'exterior'
+  byFloor.forEach((floorRecintos, piso) => {
+    const edgeMap = new Map()
 
-    rawWalls.push({
-      id: stableWallId(entry.segmento, tipo),
-      segmento: entry.segmento,
-      tipo,
-      thickness: WALL_THICKNESS,
-      recintosAdyacentes: uniqueRecintos
-    })
-  })
-
-  const merged = []
-  rawWalls.forEach((wall) => {
-    let mergedIntoExisting = false
-
-    for (let i = 0; i < merged.length; i += 1) {
-      const candidate = mergeIfPossible(merged[i], wall)
-      if (candidate) {
-        merged[i] = {
-          ...candidate,
-          id: stableWallId(candidate.segmento, candidate.tipo)
+    floorRecintos.forEach((recinto) => {
+      edgesFromRecinto(recinto).forEach((edge) => {
+        const key = segmentoKey(edge)
+        const found = edgeMap.get(key)
+        if (!found) {
+          edgeMap.set(key, { segmento: edge, recintos: [recinto.id] })
+        } else {
+          found.recintos.push(recinto.id)
         }
-        mergedIntoExisting = true
-        break
+      })
+    })
+
+    const rawWalls = []
+    edgeMap.forEach((entry) => {
+      const uniqueRecintos = Array.from(new Set(entry.recintos))
+      const tipo = uniqueRecintos.length > 1 ? 'interior' : 'exterior'
+
+      rawWalls.push({
+        id: stableWallId(entry.segmento, tipo) + `-p${piso}`,
+        segmento: entry.segmento,
+        tipo,
+        thickness: WALL_THICKNESS,
+        recintosAdyacentes: uniqueRecintos,
+        piso
+      })
+    })
+
+    const merged = []
+    rawWalls.forEach((wall) => {
+      let mergedIntoExisting = false
+
+      for (let i = 0; i < merged.length; i += 1) {
+        const candidate = mergeIfPossible(merged[i], wall)
+        if (candidate) {
+          merged[i] = {
+            ...candidate,
+            id: stableWallId(candidate.segmento, candidate.tipo) + `-p${piso}`
+          }
+          mergedIntoExisting = true
+          break
+        }
       }
-    }
 
-    if (!mergedIntoExisting) {
-      merged.push(wall)
-    }
-  })
+      if (!mergedIntoExisting) {
+        merged.push(wall)
+      }
+    })
 
-  return merged
+    allMergedWalls.push(...merged);
+  });
+
+  return allMergedWalls;
 }
 
 export function calculateWallLengthTotal(walls) {
