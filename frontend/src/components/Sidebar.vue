@@ -6,7 +6,7 @@ import { useI18n } from '../composables/useI18n'
 const { t, currentLanguage, setLanguage } = useI18n()
 const { presets, savedLayouts, deleteLayout } = useLayoutManager()
 
-const emit = defineEmits(['loadPreset', 'loadLayout', 'collapse-change', 'open-manual'])
+const emit = defineEmits(['loadPreset', 'loadLayout', 'collapse-change', 'open-manual', 'new-estimate', 'start-tutorial'])
 
 // ── Collapse ──────────────────────────────────────────────────────────
 const collapsed = ref(false)
@@ -16,7 +16,15 @@ const toggleCollapse = () => {
 }
 
 // ── Dark mode ─────────────────────────────────────────────────────────
-const isDark = ref(localStorage.getItem('siec_dark') === 'true')
+const getInitialTheme = () => {
+  const saved = localStorage.getItem('siec_dark')
+  if (saved !== null) {
+    return saved === 'true'
+  }
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+}
+
+const isDark = ref(getInitialTheme())
 
 const applyDark = (value) => {
   if (value) {
@@ -27,9 +35,17 @@ const applyDark = (value) => {
 }
 
 const toggleDark = () => {
-  isDark.value = !isDark.value
-  localStorage.setItem('siec_dark', String(isDark.value))
-  applyDark(isDark.value)
+  const switchTheme = () => {
+    isDark.value = !isDark.value
+    localStorage.setItem('siec_dark', String(isDark.value))
+    applyDark(isDark.value)
+  }
+
+  if (document.startViewTransition) {
+    document.startViewTransition(switchTheme)
+  } else {
+    switchTheme()
+  }
 }
 
 onMounted(() => { applyDark(isDark.value) })
@@ -40,7 +56,15 @@ const loadSavedLayout = (layout) => emit('loadLayout', layout)
 const deleteSavedLayout = (id) => deleteLayout(id)
 
 const toggleLanguage = () => {
-  setLanguage(currentLanguage.value === 'es' ? 'en' : 'es')
+  const switchLang = () => {
+    setLanguage(currentLanguage.value === 'es' ? 'en' : 'es')
+  }
+  
+  if (document.startViewTransition) {
+    document.startViewTransition(switchLang)
+  } else {
+    switchLang()
+  }
 }
 
 </script>
@@ -182,7 +206,7 @@ const toggleLanguage = () => {
         {{ t('autoSaveActive') }}
       </div>
 
-      <button class="w-full bg-gradient-to-br from-primary to-primary-container text-white py-3 rounded-md font-bold text-sm shadow-sm hover:opacity-90 transition-opacity">
+      <button @click="$emit('new-estimate')" class="w-full bg-gradient-to-br from-primary to-primary-container text-white py-3 rounded-md font-bold text-sm shadow-sm hover:scale-[1.02] hover:opacity-90 transition-all duration-300">
         {{ t('newEstimate') }}
       </button>
     </div>

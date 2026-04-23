@@ -38,6 +38,14 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     }, 500);
   };
 
+  // Limpiar workspace para nueva estimación
+  const resetWorkspace = () => {
+    recintosStore.recintos = [];
+    recintosStore.currentFloor = 1;
+    activePresetName.value = "Proyecto Sin Título";
+    saveWorkspace();
+  };
+
   // Auto-guardado: Vigilar cambios en recintos y piso
   watch(
     () => [recintosStore.recintos, recintosStore.currentFloor],
@@ -52,5 +60,6 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     isSaving,
     loadWorkspace,
     saveWorkspace,
+    resetWorkspace,
   };
 });

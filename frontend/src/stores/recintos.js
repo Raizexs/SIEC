@@ -143,8 +143,11 @@ export const useRecintosStore = defineStore("recintos", () => {
   };
 
   const addPasillo = () => {
-    const pasillosExistentes = recintos.value.filter(r => r.tipo === "pasillo").length;
-    const offset = pasillosExistentes * 2.0;
+    const floorRecintos = recintos.value.filter(r => r.piso === currentFloor.value);
+    let maxX = 0;
+    if (floorRecintos.length > 0) {
+      maxX = Math.max(...floorRecintos.map(r => r.coords.x + r.dimensions.w));
+    }
 
     const id = generateId();
     recintos.value.push({
@@ -152,7 +155,7 @@ export const useRecintosStore = defineStore("recintos", () => {
       stackId: id,
       tipo: "pasillo",
       piso: currentFloor.value,
-      coords: { x: offset, z: offset },
+      coords: { x: maxX + 0.15, z: 0 },
       dimensions: { ...BASE_DIMS.pasillo },
     });
   };

@@ -9,6 +9,7 @@ import MetricsPanel from "./components/MetricsPanel.vue";
 import RoomEditor2D from "./components/RoomEditor2D.vue";
 import Scene3D from "./components/Scene3D.vue";
 import MaterialsPanel from "./components/MaterialsPanel.vue";
+import LogisticsPanel from "./components/LogisticsPanel.vue";
 import LayerSelectionPanel from "./components/LayerSelectionPanel.vue";
 import BudgetBreakdownPanel from "./components/BudgetBreakdownPanel.vue";
 import SaveLayoutDialog from "./components/SaveLayoutDialog.vue";
@@ -274,6 +275,24 @@ const handleSaveLayout = (name) => {
   setTimeout(() => showToast.value = false, 3000);
 };
 
+const handleNewEstimate = () => {
+  if (confirm("¿Estás seguro que deseas iniciar una nueva estimación? Se perderá el diseño actual no guardado.")) {
+    isProgrammaticUpdate.value = true;
+    workspaceStore.resetWorkspace();
+    formData.value = {
+      m2Totales: 50,
+      habitacionesSimples: 0,
+      habitacionesDobles: 0,
+      habitacionesTriples: 0,
+      banios: 0,
+      areasComunes: 0,
+      materialEstructuralId: 1
+    };
+    recintosStore.configMetadata = null;
+    setTimeout(() => { isProgrammaticUpdate.value = false; }, 500);
+  }
+};
+
 const handleExportPDF = async () => {
   const canvas = document.querySelector('canvas');
   await generateCommercialPDF(canvas, workspaceStore.activePresetName);
@@ -327,13 +346,14 @@ const startTutorial = () => {
     :key="appKey"
     class="min-h-screen bg-background dark:bg-[#0d1117] font-body text-on-surface dark:text-slate-100 antialiased"
   >
-    <Sidebar
-      @loadPreset="loadPreset"
-      @loadLayout="loadLayout"
-      @collapse-change="sidebarCollapsed = $event"
-      @open-manual="showManual = true"
-      @start-tutorial="startTutorial"
-    />
+    <Sidebar 
+        @load-preset="loadPreset" 
+        @load-layout="loadLayout" 
+        @collapse-change="(val) => sidebarCollapsed = val" 
+        @open-manual="showManual = true"
+        @new-estimate="handleNewEstimate"
+        @start-tutorial="startTutorial"
+      />
 
     <main
       :class="sidebarCollapsed ? 'ml-0' : 'ml-64'"
@@ -357,6 +377,12 @@ const startTutorial = () => {
           :selectedMaterialId="formData.materialEstructuralId"
           :totalM2="formData.m2Totales"
           @material-selected="handleMaterialSelection"
+          class="col-span-7"
+        />
+        <LogisticsPanel
+          v-show="activeTab === 'logistics'"
+          :materialEstructuralId="formData.materialEstructuralId"
+          :m2Totales="formData.m2Totales"
           class="col-span-7"
         />
 
