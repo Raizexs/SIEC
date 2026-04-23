@@ -4,7 +4,7 @@ import { useLayoutManager } from '../composables/useLayoutManager'
 import { useI18n } from '../composables/useI18n'
 
 const { t, currentLanguage, setLanguage } = useI18n()
-const { presets, savedLayouts } = useLayoutManager()
+const { presets, savedLayouts, deleteLayout } = useLayoutManager()
 
 const emit = defineEmits(['loadPreset', 'loadLayout', 'collapse-change', 'open-manual'])
 
@@ -37,6 +37,7 @@ onMounted(() => { applyDark(isDark.value) })
 // ── Language ──────────────────────────────────────────────────────────
 const loadPreset = (preset) => emit('loadPreset', preset)
 const loadSavedLayout = (layout) => emit('loadLayout', layout)
+const deleteSavedLayout = (id) => deleteLayout(id)
 
 const toggleLanguage = () => {
   setLanguage(currentLanguage.value === 'es' ? 'en' : 'es')
@@ -81,20 +82,34 @@ const toggleLanguage = () => {
 
       <!-- Saved Layouts -->
       <div v-if="savedLayouts.length > 0" class="pt-4 pb-2">
-        <h4 class="text-[10px] font-extrabold text-emerald-600 uppercase tracking-widest px-3 mb-3">{{ t('savedLayouts') }}</h4>
-        <div class="space-y-1">
-          <button
+        <h4 class="text-[10px] font-extrabold text-emerald-600 uppercase tracking-widest px-3 mb-3 flex items-center gap-1">
+          <span class="material-symbols-outlined text-[14px]">save</span>
+          {{ t('savedLayouts') }}
+        </h4>
+        <div class="space-y-2 px-2">
+          <div
             v-for="layout in savedLayouts"
             :key="layout.id"
-            @click="loadSavedLayout(layout)"
-            class="w-full text-left flex items-center justify-between px-3 py-2 rounded-md hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors group"
+            class="w-full text-left flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-700/50 hover:border-emerald-200 dark:hover:border-emerald-800/50 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all group shadow-sm"
           >
-            <div class="overflow-hidden">
-              <span class="block text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{{ layout.name }}</span>
-              <span class="block text-[10px] text-slate-500 dark:text-slate-400 italic">{{ layout.m2Totales }} m² • {{ new Date(layout.createdAt).toLocaleDateString() }}</span>
+            <button @click="loadSavedLayout(layout)" class="flex-1 overflow-hidden">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="block text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{{ layout.name }}</span>
+                <span v-if="layout.recintos && layout.recintos.length > 0" class="text-[8px] font-bold bg-primary/10 text-primary px-1.5 py-0.5 rounded uppercase tracking-wider">3D</span>
+              </div>
+              <span class="block text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                {{ layout.m2Totales }} m² • {{ new Date(layout.createdAt).toLocaleDateString() }}
+              </span>
+            </button>
+            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+              <button @click="loadSavedLayout(layout)" class="p-1.5 text-emerald-600 hover:bg-emerald-100 dark:hover:bg-emerald-800/50 rounded-lg transition-colors" title="Cargar">
+                <span class="material-symbols-outlined text-[14px]">open_in_new</span>
+              </button>
+              <button @click="deleteSavedLayout(layout.id)" class="p-1.5 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors" title="Eliminar">
+                <span class="material-symbols-outlined text-[14px]">delete</span>
+              </button>
             </div>
-            <span class="material-symbols-outlined text-emerald-600 text-xs opacity-0 group-hover:opacity-100 shrink-0">folder_open</span>
-          </button>
+          </div>
         </div>
       </div>
     </nav>

@@ -1,4 +1,5 @@
 import { ref, computed } from "vue";
+import { useRecintosStore } from "../stores/recintos";
 
 // Material costs in Chilean Pesos (CLP) per m² - Updated November 2024
 export const MATERIAL_COSTS = {
@@ -68,10 +69,13 @@ const presets = ref([
 export function useLayoutManager() {
   // Save a new layout
   const saveLayout = (name, layoutData) => {
+    const recintosStore = useRecintosStore();
     const newLayout = {
       id: Date.now(),
       name: name,
       createdAt: new Date().toISOString(),
+      recintos: JSON.parse(JSON.stringify(recintosStore.recintos)),
+      currentFloor: recintosStore.currentFloor,
       ...layoutData,
     };
 
