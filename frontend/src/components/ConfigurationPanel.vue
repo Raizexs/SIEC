@@ -174,24 +174,73 @@ const materialName = computed(() => {
     </div>
 
     <div class="space-y-4">
-      <label class="text-xs font-bold text-on-surface uppercase tracking-widest">{{ t('structuralMaterial') }}</label>
-      <div class="relative">
-        <select 
-          :value="formData.materialEstructuralId"
-          @change="updateFormData('materialEstructuralId', Number($event.target.value))"
-          class="w-full bg-surface-container-highest p-4 rounded-xl border-none text-primary font-manrope font-semibold appearance-none focus:ring-2 focus:ring-primary/20"
-          required
+      <label class="text-xs font-bold text-on-surface uppercase tracking-widest flex items-center gap-2">
+        <span class="material-symbols-outlined text-primary text-[16px]">foundation</span>
+        {{ t('structuralMaterial') }}
+      </label>
+      
+      <!-- Grid de Materiales Premium -->
+      <div class="grid grid-cols-2 gap-3">
+        <!-- 1: Wood Frame -->
+        <button 
+          type="button"
+          @click="updateFormData('materialEstructuralId', 1)"
+          class="flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-300 relative overflow-hidden group text-center"
+          :class="formData.materialEstructuralId === 1 ? 'border-primary bg-primary/5 dark:bg-primary/10' : 'border-outline-variant/20 dark:border-[#30363d] bg-surface-container-highest dark:bg-[#161b22] hover:border-primary/50'"
         >
-          <option value="1">{{ t('woodFrame') }}</option>
-          <option value="2">{{ t('steelFramed') }}</option>
-          <option value="3">{{ t('masonry') }}</option>
-          <option value="4">{{ t('concrete') }}</option>
-        </select>
-        <div class="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-          <span class="material-symbols-outlined text-slate-400">unfold_more</span>
+          <span class="material-symbols-outlined text-[28px] transition-colors" :class="formData.materialEstructuralId === 1 ? 'text-primary' : 'text-slate-400 group-hover:text-primary'">forest</span>
+          <span class="text-xs font-bold" :class="formData.materialEstructuralId === 1 ? 'text-primary' : 'text-slate-600 dark:text-slate-300'">{{ t('woodFrame') }}</span>
+          <div v-if="formData.materialEstructuralId === 1" class="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary animate-pulse"></div>
+        </button>
+
+        <!-- 2: Steel Framed -->
+        <button 
+          type="button"
+          @click="updateFormData('materialEstructuralId', 2)"
+          class="flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-300 relative overflow-hidden group text-center"
+          :class="formData.materialEstructuralId === 2 ? 'border-primary bg-primary/5 dark:bg-primary/10' : 'border-outline-variant/20 dark:border-[#30363d] bg-surface-container-highest dark:bg-[#161b22] hover:border-primary/50'"
+        >
+          <span class="material-symbols-outlined text-[28px] transition-colors" :class="formData.materialEstructuralId === 2 ? 'text-primary' : 'text-slate-400 group-hover:text-primary'">view_module</span>
+          <span class="text-xs font-bold" :class="formData.materialEstructuralId === 2 ? 'text-primary' : 'text-slate-600 dark:text-slate-300'">{{ t('steelFramed') }}</span>
+          <div v-if="formData.materialEstructuralId === 2" class="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary animate-pulse"></div>
+        </button>
+
+        <!-- 3: Masonry -->
+        <button 
+          type="button"
+          @click="updateFormData('materialEstructuralId', 3)"
+          class="flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-300 relative overflow-hidden group text-center"
+          :class="formData.materialEstructuralId === 3 ? 'border-primary bg-primary/5 dark:bg-primary/10' : 'border-outline-variant/20 dark:border-[#30363d] bg-surface-container-highest dark:bg-[#161b22] hover:border-primary/50'"
+        >
+          <span class="material-symbols-outlined text-[28px] transition-colors" :class="formData.materialEstructuralId === 3 ? 'text-primary' : 'text-slate-400 group-hover:text-primary'">grid_view</span>
+          <span class="text-xs font-bold" :class="formData.materialEstructuralId === 3 ? 'text-primary' : 'text-slate-600 dark:text-slate-300'">{{ t('masonry') }}</span>
+          <div v-if="formData.materialEstructuralId === 3" class="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary animate-pulse"></div>
+        </button>
+
+        <!-- 4: Concrete -->
+        <button 
+          type="button"
+          @click="updateFormData('materialEstructuralId', 4)"
+          class="flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-300 relative overflow-hidden group text-center"
+          :class="formData.materialEstructuralId === 4 ? 'border-primary bg-primary/5 dark:bg-primary/10' : 'border-outline-variant/20 dark:border-[#30363d] bg-surface-container-highest dark:bg-[#161b22] hover:border-primary/50'"
+        >
+          <span class="material-symbols-outlined text-[28px] transition-colors" :class="formData.materialEstructuralId === 4 ? 'text-primary' : 'text-slate-400 group-hover:text-primary'">domain</span>
+          <span class="text-xs font-bold" :class="formData.materialEstructuralId === 4 ? 'text-primary' : 'text-slate-600 dark:text-slate-300'">{{ t('concrete') }}</span>
+          <div v-if="formData.materialEstructuralId === 4" class="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary animate-pulse"></div>
+        </button>
+      </div>
+      
+      <!-- Feedback dinámico del material -->
+      <div class="flex items-start gap-3 p-3 rounded-lg bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30">
+        <span class="material-symbols-outlined text-blue-500 dark:text-blue-400 text-[18px] mt-0.5">info</span>
+        <div>
+          <p class="text-[11px] text-slate-600 dark:text-slate-300 italic leading-relaxed">{{ t('materialNote') }}</p>
+          <p v-if="formData.materialEstructuralId === 4" class="text-[10px] font-bold text-amber-600 dark:text-amber-400 mt-1 uppercase tracking-widest flex items-center gap-1">
+            <span class="material-symbols-outlined text-[12px]">warning</span>
+            Requiere logística pesada
+          </p>
         </div>
       </div>
-      <p class="text-[11px] text-slate-500 px-1 italic">{{ t('materialNote') }}</p>
     </div>
 
     <button 

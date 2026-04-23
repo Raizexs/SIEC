@@ -1,19 +1,24 @@
 <template>
-  <div class="space-y-6">
+  <div class="space-y-6 animate-fade-in">
     <!-- Materials Header -->
-    <div class="flex items-center justify-between">
-      <h3 class="text-lg font-bold text-primary">
-        {{ t("materialIntelligence") }}
-      </h3>
-      <div class="flex gap-2">
+    <div class="flex items-center justify-between pb-4 border-b border-outline-variant/10">
+      <div>
+        <h3 class="text-2xl font-headline font-extrabold text-primary tracking-tight">
+          {{ t("materialIntelligence") }}
+        </h3>
+        <p class="text-[11px] text-slate-500 font-medium tracking-wide uppercase mt-1">Análisis de Mercado & Desempeño</p>
+      </div>
+      <div class="flex gap-3">
         <button
-          class="px-3 py-1 bg-primary/10 text-primary rounded-lg text-xs font-medium hover:bg-primary/20 transition-colors"
+          class="flex items-center gap-1.5 px-4 py-2 bg-slate-100 dark:bg-[#161b22] text-slate-600 dark:text-slate-300 rounded-lg text-xs font-bold hover:bg-slate-200 dark:hover:bg-[#21262d] hover:scale-[1.02] transition-all duration-300 shadow-sm"
         >
+          <span class="material-symbols-outlined text-[14px]">sync</span>
           {{ t("updatePrices") }}
         </button>
         <button
-          class="px-3 py-1 bg-outline-variant/10 text-outline rounded-lg text-xs font-medium hover:bg-outline-variant/20 transition-colors"
+          class="flex items-center gap-1.5 px-4 py-2 bg-primary/10 text-primary rounded-lg text-xs font-bold hover:bg-primary/20 hover:scale-[1.02] transition-all duration-300 shadow-sm"
         >
+          <span class="material-symbols-outlined text-[14px]">download</span>
           {{ t("exportSpecs") }}
         </button>
       </div>
@@ -21,30 +26,32 @@
 
     <!-- Current Material Selection -->
     <div
-      class="bg-gradient-to-r from-primary/5 to-secondary/5 border border-primary/20 rounded-xl p-4"
+      class="bg-gradient-to-br from-primary/5 to-secondary/5 border-2 border-primary/20 rounded-2xl p-5 shadow-lg relative overflow-hidden group"
     >
-      <div class="flex items-center gap-3">
-        <div class="w-12 h-12 rounded-lg overflow-hidden bg-white shadow-sm">
+      <div class="absolute inset-0 bg-white/20 dark:bg-black/20 pointer-events-none"></div>
+      <div class="flex items-center gap-5 relative z-10">
+        <div class="w-16 h-16 rounded-xl overflow-hidden bg-white shadow-md border-2 border-white dark:border-[#21262d]">
           <img
             :src="currentMaterialInfo.image"
             :alt="currentMaterialInfo.name"
-            class="w-full h-full object-cover"
+            class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
           />
         </div>
         <div>
-          <h4 class="font-semibold text-primary">
+          <h4 class="font-bold text-primary flex items-center gap-2">
+            <span class="material-symbols-outlined text-[16px]">verified</span>
             {{ t("selectedMaterial") }}
           </h4>
-          <p class="text-sm text-outline">{{ currentMaterialInfo.name }}</p>
-          <p class="text-xs text-outline font-medium">
-            {{ currentMaterialInfo.costPerM2 }} CLP/m²
+          <p class="text-xl font-headline font-black text-slate-800 dark:text-slate-100">{{ currentMaterialInfo.name }}</p>
+          <p class="text-xs text-primary font-bold bg-primary/10 px-2 py-0.5 rounded-full inline-block mt-1">
+            {{ formatCurrency(currentMaterialInfo.costPerM2) }} / m²
           </p>
         </div>
-        <div class="ml-auto text-right">
-          <p class="text-sm font-medium text-secondary">
+        <div class="ml-auto text-right bg-white/60 dark:bg-[#0d1117]/60 p-3 rounded-xl border border-white/50 dark:border-[#30363d] backdrop-blur-sm">
+          <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">
             {{ t("estimatedTotal") }}
           </p>
-          <p class="text-lg font-bold text-primary">
+          <p class="text-2xl font-black text-primary font-headline">
             {{ formatCurrency(totalMaterialCost) }}
           </p>
         </div>
@@ -52,16 +59,14 @@
     </div>
 
     <!-- Materials Grid -->
-    <div class="grid grid-cols-2 gap-4">
+    <div class="grid grid-cols-2 gap-5">
       <div
-        v-for="material in materialsData"
+        v-for="(material, index) in materialsData"
         :key="material.id"
-        class="bg-white border border-outline-variant/20 rounded-xl p-4 hover:border-primary/30 hover:shadow-md transition-all duration-200 cursor-pointer group"
-        :class="{
-          'ring-2 ring-primary/30 bg-primary/5':
-            selectedMaterialId === material.id,
-        }"
+        class="bg-white dark:bg-[#161b22] border-2 rounded-2xl p-5 cursor-pointer group transition-all duration-300 relative overflow-hidden animate-fade-in"
+        :class="selectedMaterialId === material.id ? 'border-primary shadow-[0_4px_20px_rgba(var(--color-primary),0.2)] bg-primary/[0.02] dark:bg-primary/[0.05] scale-[1.02]' : 'border-slate-100 dark:border-[#30363d] hover:border-primary/50 hover:shadow-lg'"
         @click="selectMaterial(material.id)"
+        :style="{ animationDelay: `${index * 100}ms` }"
       >
         <div
           class="aspect-video bg-surface-container rounded-lg overflow-hidden mb-3"
@@ -140,11 +145,9 @@
         </div>
 
         <!-- Price -->
-        <div class="flex justify-between items-center">
-          <span class="text-xs text-outline">{{ t("pricePerM2") }}</span>
-          <span class="text-sm font-bold text-primary">{{
-            formatCurrency(material.costPerM2)
-          }}</span>
+        <div class="flex justify-between items-center bg-slate-50 dark:bg-[#0d1117] p-2 rounded-lg">
+          <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{{ t("pricePerM2") }}</span>
+          <span class="text-sm font-black text-primary">{{ formatCurrency(material.costPerM2) }}</span>
         </div>
 
         <!-- Chilean Supplier Info -->
