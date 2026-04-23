@@ -61,7 +61,7 @@ const freeArea = computed(() => Math.max(budgetArea.value - totalArea.value, 0))
 
       <!-- Badge de estado (solo si hay problema) -->
       <span
-        v-if="descripcionEstado.message !== 'Espacio OK' && descripcionEstado.message !== 'Space OK'"
+        v-if="descripcionEstado.status !== 'safe'"
         class="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase text-center"
         :style="{
           backgroundColor: descripcionEstado.color + '22',

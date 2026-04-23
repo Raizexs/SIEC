@@ -11,7 +11,6 @@ import {
   DEFAULT_COSTS,
   MAX_M2,
 } from "../utils/tokenMath";
-import { useRecintosStore } from "../stores/recintos";
 
 export function useTokenCounter() {
   const m2Totales = ref(120);
@@ -40,24 +39,8 @@ export function useTokenCounter() {
     return calculateTokensUsedByType(counts, costs.value);
   });
 
-  const recintosStore = useRecintosStore();
-
   const tokensUsados = computed(() => {
-    if (recintosStore.recintos.length > 0) {
-      // Usar área geométrica real: 1 token = 10m²
-      return recintosStore.totalArea / 10;
-    }
-    
-    // Si no hay recintos en el grid aún, usar el tamaño mínimo preliminar para calcular tokens.
-    // room (base 3x3=9m²=0.9 tokens), banio (base 2x2=4m²=0.4 tokens), comun (base 4x4=16m²=1.6 tokens)
-    const baseAreaCalc = 
-      (habitacionesSimples.value * 9) + 
-      (habitacionesDobles.value * 16) + 
-      (habitacionesTriples.value * 24) + 
-      (banios.value * 4) + 
-      (areasComunes.value * 16);
-      
-    return baseAreaCalc / 10;
+    return calculateTotalTokensUsed(tokensUsadosPorTipo.value);
   });
 
   // Tokens totales basados en m² (1 token cada 10 m²)
