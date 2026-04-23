@@ -12,6 +12,7 @@ import MaterialsPanel from "./components/MaterialsPanel.vue";
 import LayerSelectionPanel from "./components/LayerSelectionPanel.vue";
 import BudgetBreakdownPanel from "./components/BudgetBreakdownPanel.vue";
 import SaveLayoutDialog from "./components/SaveLayoutDialog.vue";
+import LoginOverlay from "./components/LoginOverlay.vue";
 import PreventiveLogisticsAlertModal from "./components/PreventiveLogisticsAlertModal.vue";
 import UserManualModal from "./components/UserManualModal.vue";
 import { useRecintosStore } from "./stores/recintos";
@@ -20,15 +21,18 @@ import { useTokenCounter } from "./composables/useTokenCounter";
 import { useLayoutManager } from "./composables/useLayoutManager";
 import { useI18n } from "./composables/useI18n";
 import { generateCommercialPDF } from "./utils/pdfGenerator";
+import { useAuthStore } from "./stores/auth";
 
 const recintosStore = useRecintosStore();
 const workspaceStore = useWorkspaceStore();
+const authStore = useAuthStore();
 const { saveLayout } = useLayoutManager();
 const { t, currentLanguage } = useI18n();
 
 const sidebarCollapsed = ref(false);
 
 onMounted(() => {
+  authStore.initializeAuth();
   workspaceStore.loadWorkspace();
 });
 const showPreventiveLogisticsModal = ref(false);
@@ -96,6 +100,8 @@ watch(
 
 // Reactividad con el motor (HU03/HU11) - con debounce para rendimiento
 let debounceTimer = null;
+const isProgrammaticUpdate = ref(false);
+
 watch(
   formData,
   async (newVal) => {
@@ -105,6 +111,8 @@ watch(
       // Si excede el límite de tokens, abortar regeneración para no corromper el modelo 3D
       return;
     }
+
+    if (isProgrammaticUpdate.value) return;
 
     if (hasRecintos.value) {
       if (debounceTimer) clearTimeout(debounceTimer);
@@ -159,6 +167,7 @@ const quoteWithLightweightMaterials = () => {
 
 // Cargar preset desde sidebar
 const loadPreset = (preset) => {
+  isProgrammaticUpdate.value = true;
   formData.value = {
     m2Totales: preset.m2Totales,
     materialEstructuralId: preset.materialEstructuralId,
@@ -181,10 +190,13 @@ const loadPreset = (preset) => {
     formData.value.areasComunes,
     formData.value.materialEstructuralId,
   );
+  
+  setTimeout(() => { isProgrammaticUpdate.value = false; }, 500);
 };
 
 // Cargar layout guardado
 const loadLayout = (layout) => {
+  isProgrammaticUpdate.value = true;
   formData.value = {
     m2Totales: layout.m2Totales,
     materialEstructuralId: layout.materialEstructuralId,
@@ -200,19 +212,29 @@ const loadLayout = (layout) => {
     formData.value.habitacionesDobles +
     formData.value.habitacionesTriples;
 
-  recintosStore.initializeLayout(
-    formData.value.m2Totales,
-    totalHabitaciones,
-    formData.value.banios,
-    formData.value.areasComunes,
-    formData.value.materialEstructuralId,
-  );
-
   // Cargar topología 3D personalizada si existe en el layout
   if (layout.recintos && layout.recintos.length > 0) {
+    // Saltamos la inicialización genérica y cargamos directamente la topología
+    recintosStore.configMetadata = {
+      m2Totales: formData.value.m2Totales,
+      habitaciones: totalHabitaciones,
+      banios: formData.value.banios,
+      areasComunes: formData.value.areasComunes,
+      materialEstructuralId: formData.value.materialEstructuralId,
+    };
     recintosStore.recintos = JSON.parse(JSON.stringify(layout.recintos));
     recintosStore.currentFloor = layout.currentFloor || 1;
+  } else {
+    recintosStore.initializeLayout(
+      formData.value.m2Totales,
+      totalHabitaciones,
+      formData.value.banios,
+      formData.value.areasComunes,
+      formData.value.materialEstructuralId,
+    );
   }
+  
+  setTimeout(() => { isProgrammaticUpdate.value = false; }, 500);
 };
 
 const submitForm = async () => {
@@ -255,6 +277,7 @@ const handleSaveLayout = (name) => {
 const handleExportPDF = async () => {
   const canvas = document.querySelector('canvas');
   await generateCommercialPDF(canvas, workspaceStore.activePresetName);
+  authStore.addExportToHistory(workspaceStore.activePresetName);
 };
 
 const startTutorial = () => {
@@ -401,6 +424,8 @@ const startTutorial = () => {
         {{ t('layoutSaved') }}
       </div>
     </transition>
+
+    <LoginOverlay />
   </div>
 </template>
 

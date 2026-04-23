@@ -1,7 +1,12 @@
 <script setup>
+import { ref } from 'vue'
 import { useI18n } from '../composables/useI18n'
+import { useAuthStore } from '../stores/auth'
 
 const { t } = useI18n()
+const authStore = useAuthStore()
+
+const showProfileMenu = ref(false)
 
 const props = defineProps({
   activeTab: {
@@ -83,8 +88,40 @@ const handleTabClick = (tabName) => {
         Exportar PDF
       </button>
 
-      <div class="w-8 h-8 rounded-full overflow-hidden border border-outline-variant bg-surface-container">
-        <div class="w-full h-full bg-gradient-to-br from-primary to-primary-container flex items-center justify-center text-white font-bold text-sm">U</div>
+      <div class="relative">
+        <button @click="showProfileMenu = !showProfileMenu" class="w-8 h-8 rounded-full overflow-hidden border-2 border-slate-200 dark:border-slate-700 bg-surface-container hover:border-primary transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 relative z-40">
+          <div class="w-full h-full bg-gradient-to-br from-primary to-primary-container flex items-center justify-center text-white font-bold text-sm">
+            {{ authStore.user?.name?.charAt(0).toUpperCase() || 'U' }}
+          </div>
+        </button>
+
+        <!-- Dropdown Menu -->
+        <transition name="fade-slide">
+          <div v-if="showProfileMenu" class="absolute right-0 mt-2 w-64 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden z-50">
+            <div class="p-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
+              <p class="font-bold text-slate-800 dark:text-white truncate">{{ authStore.user?.name || 'Arquitecto' }}</p>
+              <p class="text-xs text-slate-500 dark:text-slate-400 truncate">{{ authStore.user?.email || 'usuario@siec.cloud' }}</p>
+            </div>
+            
+            <div class="p-2 max-h-48 overflow-y-auto">
+              <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2 mb-2 mt-1">Historial Exportaciones</h4>
+              <div v-if="authStore.exportHistory.length === 0" class="text-xs text-slate-500 italic px-2 py-1">
+                No hay PDFs exportados
+              </div>
+              <div v-for="item in authStore.exportHistory" :key="item.id" class="px-2 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg cursor-pointer transition-colors flex justify-between items-center group">
+                <span class="text-xs text-slate-700 dark:text-slate-300 truncate max-w-[120px]" :title="item.name">{{ item.name }}</span>
+                <span class="text-[10px] text-slate-400 shrink-0">{{ item.date }}</span>
+              </div>
+            </div>
+
+            <div class="p-2 border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
+              <button @click="authStore.logout(); showProfileMenu = false" class="w-full text-left px-2 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors">
+                <span class="material-symbols-outlined text-[16px]">logout</span>
+                Cerrar Sesión
+              </button>
+            </div>
+          </div>
+        </transition>
       </div>
     </div>
   </header>
