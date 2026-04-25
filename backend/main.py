@@ -5,8 +5,28 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 import unicodedata
+import os
 from collections import defaultdict
-from schemas import DesgloseResponse, CategoriaDesglose, InsumoCalculado
+from schemas import (
+    DesgloseResponse,
+    CategoriaDesglose,
+    InsumoCalculado,
+    DeduccionMermasPayload,
+)
+try:
+    from mermas import (
+        calcular_area_vanos,
+        calcular_area_neta,
+        inferir_factor_perdida,
+        optimizar_compra_por_nesting,
+    )
+except ModuleNotFoundError:
+    from backend.mermas import (
+        calcular_area_vanos,
+        calcular_area_neta,
+        inferir_factor_perdida,
+        optimizar_compra_por_nesting,
+    )
 
 # Importar configuración de BD y Modelos
 from database import engine, get_db, SessionLocal
@@ -37,6 +57,18 @@ def startup_event():
     # Inicializar tablas aquí para evitar crash sin DB al importar (Testing)
     models.Base.metadata.create_all(bind=engine)
     
+    # Normalizar unidades de mano de obra en la BD (para evitar ambigüedades en seeds/CSV)
+    try:
+        from scripts.normalize_unidad_mano_obra import normalize_unidad_mano_obra
+        try:
+            updated = normalize_unidad_mano_obra(os.getenv('DATABASE_URL', None))
+            print(f'normalize_unidad_mano_obra updated rows: {updated}')
+        except Exception as e:
+            print('Normalization script failed at startup:', e)
+    except Exception:
+        # If import fails (e.g., during certain test flows), continue without normalization
+        pass
+    
     db = SessionLocal()
     try:
         # Verificar si ya existen tipos de recinto
@@ -54,6 +86,23 @@ def startup_event():
 
 # Materiales permitidos según requerimientos
 ALLOWED_MATERIALS = ["Madera", "Metalcom", "Albañilería", "Hormigón Armado"]
+
+# Recargo obligatorio por leyes sociales (28% - 29%). Ajustable vía variable de entorno SOCIAL_LEY_FACTOR.
+try:
+    SOCIAL_LEY_FACTOR = float(os.getenv("SOCIAL_LEY_FACTOR", "1.28"))
+except Exception:
+    SOCIAL_LEY_FACTOR = 1.28
+# Validar rango permitido: 1.28 <= factor <= 1.29
+if SOCIAL_LEY_FACTOR < 1.28 or SOCIAL_LEY_FACTOR > 1.29:
+    SOCIAL_LEY_FACTOR = 1.28  # Valor por defecto si la variable de entorno está fuera de rango
+
+# Horas por jornada usada para normalizar precios por día a precio por HH (configurable via env HOURS_PER_DAY)
+try:
+    HOURS_PER_DAY = float(os.getenv("HOURS_PER_DAY", "8"))
+except Exception:
+    HOURS_PER_DAY = 8.0
+if HOURS_PER_DAY <= 0 or HOURS_PER_DAY > 24:
+    HOURS_PER_DAY = 8.0
 
 class ProjectConfig(BaseModel):
     material_estructural: str
@@ -189,7 +238,11 @@ def asociar_y_validar_layout_estricto(simulacion_id: int, payload: PayloadLayout
     }
 
 @app.post("/api/simulacion/{simulacion_id}/calcular-insumos", response_model=DesgloseResponse)
-def calcular_insumos(simulacion_id: int, db: Session = Depends(get_db)):
+def calcular_insumos(
+    simulacion_id: int,
+    payload: Optional[DeduccionMermasPayload] = None,
+    db: Session = Depends(get_db),
+):
     """
     Calcula el desglose de insumos para una simulación usando la Matriz de Rendimiento.
     """
@@ -199,6 +252,24 @@ def calcular_insumos(simulacion_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="La simulación especificada no existe.")
         
     m2_totales = simulacion.m2_totales
+    area_bruta = float(payload.area_bruta_m2) if payload and payload.area_bruta_m2 is not None else float(m2_totales)
+    area_vanos = calcular_area_vanos(payload.vanos if payload else [])
+    area_neta = calcular_area_neta(area_bruta, area_vanos)
+    if area_neta <= 0:
+        raise HTTPException(
+            status_code=422,
+            detail="La deducción de vanos deja un área neta no válida para cotizar.",
+        )
+    cortes_acero = int(payload.cortes_acero) if payload else 0
+    cruces_acero = int(payload.cruces_acero) if payload else 0
+    piezas_2d_payload = [
+        (float(piece.ancho), float(piece.alto), int(piece.cantidad))
+        for piece in (payload.piezas_2d if payload else [])
+    ]
+    cortes_1d_payload = [
+        (float(cut.largo), int(cut.cantidad))
+        for cut in (payload.cortes_1d if payload else [])
+    ]
     material_id = simulacion.material_estructural_id
 
     # 2. Material nombre
@@ -232,67 +303,218 @@ def calcular_insumos(simulacion_id: int, db: Session = Depends(get_db)):
         models.PrecioMercado.tienda, 
         models.PrecioMercado.fecha_scraping.desc()
     ).all()
-    
+
     precios_x_insumo = defaultdict(list)
+    latest_precio_record = {}
     fechas_usadas = []
-    
+
     for pm in precios_records:
         precio_val = pm.precio_descuento if pm.precio_descuento is not None else pm.precio
         if precio_val is not None:
             precios_x_insumo[pm.insumo_id].append(float(precio_val))
+            # Guardar el primer registro (ordenado por fecha desc) como muestra representativa
+            if pm.insumo_id not in latest_precio_record:
+                latest_precio_record[pm.insumo_id] = pm
             if pm.fecha_scraping:
                 fechas_usadas.append(pm.fecha_scraping.isoformat() if hasattr(pm.fecha_scraping, 'isoformat') else str(pm.fecha_scraping))
-                
+
     precio_promedio_map = {}
     for i_id, lista_precios in precios_x_insumo.items():
         if lista_precios:
             precio_promedio_map[i_id] = sum(lista_precios) / len(lista_precios)
-            
+
     fecha_precios = min(fechas_usadas) if fechas_usadas else None
 
     # 4. Agrupar por categoria y calcular subtotales
     categorias_dict = defaultdict(list)
     costo_total_simulacion = None
-    
+
+    # Prepare for labor parametrization: collect labor insumos and rendimiento factors
+    labor_insumos = []
+    rendimiento_jornadas_total = 0.0
+    labor_factors = {}
     for r, insumo in datos_rendimiento:
-        cantidad_calc = float(r.factor_multiplicador) * m2_totales
-        
+        if insumo.categoria and insumo.categoria.strip().lower() == 'mano de obra':
+            labor_insumos.append((r, insumo))
+            labor_factors[insumo.id] = r
+
+    # Determine total jornadas por m2 from labor factors
+    for r, insumo in labor_insumos:
+        unidad_factor = (getattr(r, 'unidad_factor', '') or '').lower()
+        try:
+            if 'jornada' in unidad_factor or 'jornad' in unidad_factor:
+                jornadas = float(r.factor_multiplicador)
+            else:
+                # Default: treat factor as HH per m2 and convert to jornadas
+                jornadas = float(r.factor_multiplicador) / float(HOURS_PER_DAY)
+        except Exception:
+            try:
+                jornadas = float(r.factor_multiplicador) / float(HOURS_PER_DAY)
+            except Exception:
+                jornadas = 0.0
+        rendimiento_jornadas_total += jornadas
+
+    # Find maestro and ayudante daily salaries from latest_precio_record
+    maestro_keywords = ('maestro', 'albañil', 'oficial')
+    ayudante_keywords = ('ayudante', 'ayuda')
+    salario_diario_maestro = 0.0
+    salario_diario_ayudante = 0.0
+    found_maestro = False
+    found_ayudante = False
+
+    for r, insumo in labor_insumos:
+        pm = latest_precio_record.get(insumo.id)
+        if not pm:
+            continue
+        precio_val = getattr(pm, 'precio_descuento', None) if getattr(pm, 'precio_descuento', None) is not None else getattr(pm, 'precio', None)
+        if precio_val is None:
+            continue
+        precio_val = float(precio_val)
+        nombre_prod = (getattr(pm, 'nombre_producto', '') or '').lower()
+        # Determine if price is per jornada
+        is_por_jornada = any(k in nombre_prod for k in ('jornada', 'por jornada', 'por día', 'por dia', 'día', 'dia'))
+        # If insumo unit is HH and price appears to be per HH, convert to diario
+        unidad_medida_insumo = (insumo.unidad_medida or '').strip().upper()
+        if unidad_medida_insumo in ('HH', 'H') and not is_por_jornada:
+            salario_diario = precio_val * float(HOURS_PER_DAY)
+        else:
+            salario_diario = precio_val
+
+        # Prefer explicit role mapping in Insumo_Role if available
+        role_entry = db.query(models.InsumoRole).filter(models.InsumoRole.insumo_id == insumo.id).first()
+        role_val = None
+        if role_entry and getattr(role_entry, 'role', None):
+            role_val = str(role_entry.role).strip().lower()
+
+        if role_val == 'maestro':
+            salario_diario_maestro += salario_diario
+            found_maestro = True
+        elif role_val == 'ayudante' or role_val == 'help' or role_val == 'assistant':
+            salario_diario_ayudante += salario_diario
+            found_ayudante = True
+        else:
+            # Fallback to name matching if no explicit role
+            name_l = (insumo.nombre or '').lower()
+            if any(k in name_l for k in maestro_keywords):
+                salario_diario_maestro += salario_diario
+                found_maestro = True
+            if any(k in name_l for k in ayudante_keywords):
+                salario_diario_ayudante += salario_diario
+                found_ayudante = True
+
+    tarifa_pura_local = None
+    if (found_maestro or found_ayudante) and rendimiento_jornadas_total > 0:
+        tarifa_pura_local = (salario_diario_maestro + salario_diario_ayudante) * rendimiento_jornadas_total
+
+    volumen_neto_previo = 0.0
+    volumen_compensado_pre_cotizacion = 0.0
+    perdidas_optimizadas = []
+    items_optimizados = 0
+
+    for r, insumo in datos_rendimiento:
+        cantidad_neta = float(r.factor_multiplicador) * area_neta
+        nesting_result = optimizar_compra_por_nesting(
+            insumo=insumo.nombre,
+            categoria=insumo.categoria,
+            unidad_medida=insumo.unidad_medida,
+            unidad_factor=getattr(r, "unidad_factor", "") or "",
+            descripcion=getattr(insumo, "descripcion", None),
+            cantidad_objetivo=cantidad_neta,
+            piezas_2d=piezas_2d_payload,
+            cortes_1d=cortes_1d_payload,
+        )
+        if nesting_result is not None:
+            factor_perdida = float(nesting_result["factor_perdida_equivalente"])
+            cantidad_calc = float(nesting_result["cantidad_compra"])
+            perdidas_optimizadas.append(float(nesting_result["perdida_fraccion"]))
+            items_optimizados += 1
+        else:
+            factor_perdida = inferir_factor_perdida(
+                insumo=insumo.nombre,
+                categoria=insumo.categoria,
+                cortes_acero=cortes_acero,
+                cruces_acero=cruces_acero,
+            )
+            cantidad_calc = cantidad_neta * factor_perdida
+        volumen_neto_previo += cantidad_neta
+        volumen_compensado_pre_cotizacion += cantidad_calc
+
         precio_unit = precio_promedio_map.get(insumo.id)
+        precio_record = latest_precio_record.get(insumo.id)
+        precio_unit_normalized = None
         subt = None
         if precio_unit is not None:
-            subt = precio_unit * cantidad_calc
+            precio_unit_normalized = float(precio_unit)
+            # Normalización de unidades de mano de obra: si el insumo espera HH pero el producto sugiere precio por jornada/día,
+            # convertir a precio por HH dividiendo por HOURS_PER_DAY.
+            try:
+                unidad_esperada = (insumo.unidad_medida or '').strip().upper()
+            except Exception:
+                unidad_esperada = ''
+            if unidad_esperada in ('HH', 'H') and precio_record is not None:
+                nombre_prod = getattr(precio_record, 'nombre_producto', '') or ''
+                nombre_prod_l = nombre_prod.lower()
+                if any(k in nombre_prod_l for k in ('jornada', 'por jornada', 'por día', 'por dia', 'día', 'dia')):
+                    try:
+                        precio_unit_normalized = precio_unit_normalized / float(HOURS_PER_DAY)
+                    except Exception:
+                        pass
+            subt = precio_unit_normalized * cantidad_calc
+            # Aplicar recargo obligatorio por leyes sociales solo para Mano de Obra
+            try:
+                categoria_normalizada = insumo.categoria.strip().lower() if insumo.categoria else ""
+            except Exception:
+                categoria_normalizada = ""
+            if categoria_normalizada == 'mano de obra':
+                subt = subt * SOCIAL_LEY_FACTOR
             if costo_total_simulacion is None:
                 costo_total_simulacion = 0.0
             costo_total_simulacion += subt
-            
+
         item = InsumoCalculado(
             insumo=insumo.nombre,
             cantidad=cantidad_calc,
             unidad=insumo.unidad_medida,
             precio_unitario=precio_unit,
-            subtotal=subt
+            subtotal=subt,
+            cantidad_objetivo=nesting_result["cantidad_objetivo"] if nesting_result else None,
+            cantidad_compra=nesting_result["cantidad_compra"] if nesting_result else None,
+            perdida_porcentual=(nesting_result["perdida_porcentual"] if nesting_result else ((factor_perdida - 1.0) * 100.0)),
+            metodo_optimizacion=(nesting_result["metodo"] if nesting_result else None),
+            formato_comercial=(nesting_result["formato_comercial"] if nesting_result else None),
         )
         categorias_dict[insumo.categoria].append(item)
-        
+
     # 5. Mapear a Schema
     desglose_list = []
     for cat_name, items in categorias_dict.items():
         has_subt = any(i.subtotal is not None for i in items)
         subcat = sum((i.subtotal for i in items if i.subtotal is not None)) if has_subt else None
-        
+
         desglose_list.append(CategoriaDesglose(
             categoria=cat_name, 
             items=items, 
             subtotal_categoria=subcat
         ))
-        
+
     return DesgloseResponse(
         simulacion_id=simulacion_id,
         m2_totales=m2_totales,
         material=material_nombre,
         desglose=desglose_list,
         costo_total=costo_total_simulacion,
-        fecha_precios=fecha_precios
+        fecha_precios=fecha_precios,
+        tarifa_pura_local=tarifa_pura_local,
+        area_bruta_m2=area_bruta,
+        area_vanos_m2=area_vanos,
+        area_neta_m2=area_neta,
+        volumen_neto_previo=volumen_neto_previo,
+        volumen_compensado_pre_cotizacion=volumen_compensado_pre_cotizacion,
+        items_optimizados=items_optimizados if items_optimizados > 0 else None,
+        perdida_promedio_porcentual=(
+            (sum(perdidas_optimizadas) / len(perdidas_optimizadas)) * 100.0
+            if perdidas_optimizadas else None
+        ),
     )
 
 

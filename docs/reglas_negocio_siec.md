@@ -11,9 +11,9 @@ Hormigón in situ y Albañilería (Ladrillos/Bloques): Multiplicar por 1.05 (5% 
 Acero de Refuerzo (Enfierradura): El desperdicio es dinámico, aplicar entre 3% y 10% dependiendo de la cantidad de cortes y cruces del elemento.
 
 2. Modulación Geométrica y Algoritmos de Corte
-Función Techo (Ceiling): El sistema debe impedir la compra de fracciones de materiales indivisibles. Todos los elementos comercializados por unidad (paneles, tiras, sacos) deben redondearse al entero superior una vez sumado el desperdicio.
+Nesting Geométrico (1D/2D): El sistema debe reemplazar redondeos brutos por optimización de corte. Para paneles/placas (2D) se aplica empaque tipo guillotina sobre formatos comerciales; para tiras lineales (1D) se aplica best-fit sobre largos comerciales (rollos/tubos/barras).
 
-Cubicación de Paneles (SIP, OSB, Yeso Cartón): El algoritmo debe dividir la superficie bruta del muro por el rendimiento comercial invariable de la placa base, que es de 2.97 m2 por unidad (formato 1,22 x 2,44 m).
+Corredor Estadístico de Pérdida: El motor calibra la compra al corredor objetivo de pérdida 4%–12% cuando la granularidad comercial lo permite (siempre respetando indivisibilidad y compra mínima factible).
 
 Descuento de Vanos: Al calcular superficies de albañilería, la fórmula debe descontar estrictamente el área de soleras, columnas, mochetas y los vanos de puertas y ventanas antes de aplicar el factor de ladrillos por metro cuadrado.
 
@@ -27,6 +27,11 @@ Comportamiento Acústico y Fuego: Los muros divisorios sugeridos deben cumplir c
 Resistencia de Hormigones: Para radicaciones o cadenas estructurales en el modelador 3D, el sistema fijará por defecto la dosificación de hormigón a Grado H20.
 
 4. Estructuración del Costo de Mano de Obra (APU)
+
+Nota operativa: El sistema normaliza automáticamente precios de mano de obra obtenidos del mercado. Si un precio de mercado está expresado "por jornada/día" y el insumo está definido en HH (horas hombre), el motor convertirá el precio a "por HH" dividiéndolo por HOURS_PER_DAY. HOURS_PER_DAY es configurable vía variable de entorno (por defecto 8). Esto asegura consistencia entre factores de rendimiento (factor_multiplicador en Matriz_Rendimiento) y tarifas de mercado.
+
+Automatización de normalización de unidades: Al iniciar la aplicación, el motor ejecuta una normalización sobre la tabla Insumo para homologar variantes de unidad de mano de obra. Se convierten variantes como "jornada", "día", "por jornada" a la forma canónica 'DIA', y variantes como "hora", "hh" a 'HH'. El script responsable es backend/scripts/normalize_unidad_mano_obra.py y se recomienda ejecutarlo también en el pipeline ETL/seed al cargar CSV.
+
 La transición hacia la proyección del costo de instalación requiere que el sistema estandarice el costo del tiempo de la fuerza laboral:
 
 Costo Diario Real: El cálculo de la mano de obra debe componerse del salario diario o por hora del maestro y su ayudante, multiplicándolo por el inverso del rendimiento diario por metro cuadrado.

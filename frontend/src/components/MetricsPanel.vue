@@ -33,37 +33,44 @@ const props = defineProps({
 
 const materialNamesES = {
   1: "Estructura de Madera",
-  2: "Estructura de Acero",
+  2: "Acero Galvanizado",
   3: "Mampostería",
-  4: "Hormigón Armado",
+  4: "Ferrocemento",
 };
 
 const materialNamesEN = {
   1: "Wood Frame",
-  2: "Steel Structure",
+  2: "Galvanized Steel",
   3: "Masonry",
-  4: "Reinforced Concrete",
+  4: "Ferrocement",
 };
 
 const getMaterialName = (id) => {
-  return currentLanguage.value === 'es' ? materialNamesES[id] : materialNamesEN[id];
+  return currentLanguage.value === "es"
+    ? materialNamesES[id]
+    : materialNamesEN[id];
 };
 
 // Precios por m2 en pesos chilenos (CLP)
 const MATERIAL_COST_PER_M2 = {
-  1: 850000,   // Wood Frame - $850,000 CLP/m2
-  2: 1100000,  // Steel Frame - $1,100,000 CLP/m2
-  3: 950000,   // Masonry - $950,000 CLP/m2
-  4: 1200000   // Concrete - $1,200,000 CLP/m2
+  1: 850000, // Wood Frame - $850,000 CLP/m2
+  2: 1100000, // Steel Frame - $1,100,000 CLP/m2
+  3: 950000, // Masonry - $950,000 CLP/m2
+  4: 1200000, // Concrete - $1,200,000 CLP/m2
 };
 
 const estimatedCost = computed(() => {
-  const costPerM2Val = MATERIAL_COST_PER_M2[props.formData.materialEstructuralId] || MATERIAL_COST_PER_M2[4];
+  const costPerM2Val =
+    MATERIAL_COST_PER_M2[props.formData.materialEstructuralId] ||
+    MATERIAL_COST_PER_M2[4];
   return props.formData.m2Totales * costPerM2Val;
 });
 
 const costPerM2 = computed(() => {
-  return MATERIAL_COST_PER_M2[props.formData.materialEstructuralId] || MATERIAL_COST_PER_M2[4];
+  return (
+    MATERIAL_COST_PER_M2[props.formData.materialEstructuralId] ||
+    MATERIAL_COST_PER_M2[4]
+  );
 });
 
 const budgetConfidence = computed(() => {
@@ -74,11 +81,11 @@ const budgetConfidence = computed(() => {
 });
 
 const formatCurrency = (value) => {
-  return new Intl.NumberFormat('es-CL', {
-    style: 'currency',
-    currency: 'CLP',
+  return new Intl.NumberFormat("es-CL", {
+    style: "currency",
+    currency: "CLP",
     minimumFractionDigits: 0,
-    maximumFractionDigits: 0
+    maximumFractionDigits: 0,
   }).format(Math.round(value));
 };
 
@@ -130,10 +137,12 @@ const materials = computed(() => [
           <h4
             class="font-headline font-bold text-primary text-sm uppercase tracking-wide"
           >
-            {{ t('tokenBudget') }}
+            {{ t("tokenBudget") }}
           </h4>
           <span
-            v-if="descripcionEstado.message !== 'Espacio OK' && descripcionEstado.message !== 'Space OK'"
+            v-if="
+              descripcionEstado.status !== 'safe'
+            "
             class="text-[10px] font-bold px-2 py-1 rounded uppercase"
             :style="{
               backgroundColor: descripcionEstado.color + '20',
@@ -145,9 +154,9 @@ const materials = computed(() => [
         </div>
         <div class="flex justify-between items-end">
           <div>
-            <span class="text-xs text-slate-500 uppercase font-bold"
-              >{{ t('available') }}</span
-            >
+            <span class="text-xs text-slate-500 uppercase font-bold">{{
+              t("available")
+            }}</span>
             <div
               class="text-3xl font-headline font-black flex items-end gap-1"
               :style="{ color: descripcionEstado.color }"
@@ -157,34 +166,40 @@ const materials = computed(() => [
             </div>
           </div>
           <div class="text-right">
-            <span class="text-xs text-slate-500 uppercase font-bold">{{ t('used') }}</span>
+            <span class="text-xs text-slate-500 uppercase font-bold">{{
+              t("used")
+            }}</span>
             <div class="text-2xl font-headline font-bold text-slate-600">
-              {{ (totalAreaUsado > 0 ? totalAreaUsado : tokensUsados * 10).toFixed(1) }} <span class="text-sm font-medium">m²</span>
+              {{ tokensUsados.toFixed(1) }}
+              <span class="text-sm font-medium">m²</span>
             </div>
           </div>
           <div class="text-right">
-            <span class="text-xs text-slate-500 uppercase font-bold"
-              >{{ t('total') }}</span
-            >
+            <span class="text-xs text-slate-500 uppercase font-bold">{{
+              t("total")
+            }}</span>
             <div class="text-2xl font-headline font-bold text-slate-600">
-              {{ tokensTotales * 10 }} <span class="text-sm font-medium">m²</span>
+              {{ tokensTotales.toFixed(1) }}
+              <span class="text-sm font-medium">m²</span>
             </div>
           </div>
         </div>
         <!-- Live usage bar -->
-        <div class="mt-4 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+        <div
+          class="mt-4 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden"
+        >
           <div
             class="h-full rounded-full transition-all duration-300"
             :style="{
-              width: Math.min(((totalAreaUsado > 0 ? totalAreaUsado : tokensUsados * 10) / (tokensTotales * 10)) * 100, 100) + '%',
+              width:
+                (tokensTotales > 0
+                  ? Math.min((tokensUsados / tokensTotales) * 100, 100)
+                  : 0) + '%',
               backgroundColor: descripcionEstado.color,
             }"
           ></div>
         </div>
       </div>
-
-
-
     </div>
   </section>
 </template>

@@ -14,9 +14,10 @@ const generateId = () =>
  */
 
 export const useRecintosStore = defineStore("recintos", () => {
-  // Estado reactivo: array de recintos con id, tipo, coordenadas y dimensiones
   const recintos = ref([]);
   const selectedForBudget = ref(new Set());
+  const activeRecintoId = ref(null);
+  const currentFloor = ref(1);
 
   // Metadata de configuración para el layout inicial
   const configMetadata = ref({
@@ -41,6 +42,7 @@ export const useRecintosStore = defineStore("recintos", () => {
     habitacion: { w: 3.5, l: 3.0 },
     banio:      { w: 2.0, l: 2.0 },
     areaComun:  { w: 4.5, l: 3.5 },
+    pasillo:    { w: 1.5, l: 3.0 },
   };
 
   /**
@@ -125,9 +127,12 @@ export const useRecintosStore = defineStore("recintos", () => {
       let xCursor = 0;
       strip.forEach((room) => {
         const scaledW = parseFloat((room.w * scale).toFixed(3));
+        const id = generateId();
         recintos.value.push({
-          id: generateId(),
+          id,
+          stackId: id,
           tipo: room.tipo,
+          piso: 1,
           coords:     { x: parseFloat(xCursor.toFixed(3)), z: parseFloat(zCursor.toFixed(3)) },
           dimensions: { w: scaledW, l: room.l },
         });
@@ -137,18 +142,95 @@ export const useRecintosStore = defineStore("recintos", () => {
     });
   };
 
+  const addPasillo = () => {
+    const floorRecintos = recintos.value.filter(r => r.piso === currentFloor.value);
+    let maxX = 0;
+    if (floorRecintos.length > 0) {
+      maxX = Math.max(...floorRecintos.map(r => r.coords.x + r.dimensions.w));
+    }
+
+    const id = generateId();
+    recintos.value.push({
+      id,
+      stackId: id,
+      tipo: "pasillo",
+      piso: currentFloor.value,
+      coords: { x: maxX + 0.15, z: 0 },
+      dimensions: { ...BASE_DIMS.pasillo },
+    });
+  };
+
+  const setFloor = (floor) => {
+    currentFloor.value = Math.min(3, Math.max(1, floor));
+  };
+
+  const cloneToCurrentFloor = (id) => {
+    const source = recintos.value.find(r => r.id === id);
+    if (!source) return;
+    
+    // Evitar clonar sobre el mismo piso o saltarse pisos
+    if (source.piso !== currentFloor.value - 1) return;
+
+    // Verificar límite máximo de 3 pisos
+    if (currentFloor.value > 3) return;
+
+    recintos.value.push({
+      id: generateId(),
+      stackId: source.stackId || source.id,
+      tipo: source.tipo,
+      piso: currentFloor.value,
+      coords: { x: source.coords.x, z: source.coords.z },
+      dimensions: { w: source.dimensions.w, l: source.dimensions.l }
+    });
+  };
+
   /**
    * Mutadores limpios para que la Capa 3 (Editor) pueda alterar posición/tamaño
    * El editor debe llamar a estos para invalidar el cache de topología
    */
   const updateRecinto = (id, updates) => {
-    const recinto = recintos.value.find((r) => r.id === id);
-    if (!recinto) return;
+    const targetIndex = recintos.value.findIndex((r) => r.id === id);
+    if (targetIndex !== -1) {
+      const target = recintos.value[targetIndex];
+      const stackId = target.stackId || target.id;
+      
+      const hasDims = updates.dimensions || updates.w !== undefined || updates.l !== undefined;
+      if (hasDims) {
+        const newW = updates.dimensions?.w ?? updates.w ?? target.dimensions.w;
+        const newL = updates.dimensions?.l ?? updates.l ?? target.dimensions.l;
+        const proposedDims = { w: newW, l: newL };
 
-    if (updates.x !== undefined) recinto.coords.x = updates.x;
-    if (updates.z !== undefined) recinto.coords.z = updates.z;
-    if (updates.w !== undefined) recinto.dimensions.w = updates.w;
-    if (updates.l !== undefined) recinto.dimensions.l = updates.l;
+        const roomBelow = recintos.value.find(r => (r.stackId || r.id) === stackId && r.piso === target.piso - 1);
+        if (roomBelow) {
+          proposedDims.w = Math.min(proposedDims.w, roomBelow.dimensions.w);
+          proposedDims.l = Math.min(proposedDims.l, roomBelow.dimensions.l);
+        }
+        
+        target.dimensions = { ...proposedDims };
+        
+        const stack = recintos.value.filter(r => (r.stackId || r.id) === stackId).sort((a,b) => a.piso - b.piso);
+        for (let i = 1; i < stack.length; i++) {
+          const lower = stack[i-1];
+          const upper = stack[i];
+          if (upper.dimensions.w > lower.dimensions.w || upper.dimensions.l > lower.dimensions.l) {
+            upper.dimensions.w = Math.min(upper.dimensions.w, lower.dimensions.w);
+            upper.dimensions.l = Math.min(upper.dimensions.l, lower.dimensions.l);
+          }
+        }
+      }
+
+      const hasCoords = updates.coords || updates.x !== undefined || updates.z !== undefined;
+      if (hasCoords) {
+        const newX = updates.coords?.x ?? updates.x ?? target.coords.x;
+        const newZ = updates.coords?.z ?? updates.z ?? target.coords.z;
+        target.coords = { x: newX, z: newZ };
+        
+        const stack = recintos.value.filter(r => (r.stackId || r.id) === stackId);
+        stack.forEach(r => {
+          r.coords = { x: newX, z: newZ };
+        });
+      }
+    }
   };
 
   const deleteRecinto = (id) => {
@@ -161,6 +243,18 @@ export const useRecintosStore = defineStore("recintos", () => {
     if (s.has(id)) s.delete(id); else s.add(id);
     selectedForBudget.value = s;
   };
+
+  const setActiveRecinto = (id) => {
+    activeRecintoId.value = id;
+  };
+
+  const clearActiveRecinto = () => {
+    activeRecintoId.value = null;
+  };
+
+  const activeRecinto = computed(() => {
+    return recintos.value.find((r) => r.id === activeRecintoId.value) || null;
+  });
 
   const selectedM2 = computed(() => {
     return recintos.value
@@ -180,6 +274,7 @@ export const useRecintosStore = defineStore("recintos", () => {
     habitaciones: recintos.value.filter((r) => r.tipo === "habitacion").length,
     banios: recintos.value.filter((r) => r.tipo === "banio").length,
     areasComunes: recintos.value.filter((r) => r.tipo === "areaComun").length,
+    pasillos: recintos.value.filter((r) => r.tipo === "pasillo").length,
   }));
 
   return {
@@ -188,16 +283,24 @@ export const useRecintosStore = defineStore("recintos", () => {
     configMetadata,
     TOKEN_COSTS,
     selectedForBudget,
+    activeRecintoId,
+    currentFloor,
 
     // Methods
     initializeLayout,
+    addPasillo,
+    setFloor,
+    cloneToCurrentFloor,
     updateRecinto,
     deleteRecinto,
     toggleBudget,
+    setActiveRecinto,
+    clearActiveRecinto,
 
     // Computed
     totalArea,
     recintosByType,
     selectedM2,
+    activeRecinto,
   };
 });

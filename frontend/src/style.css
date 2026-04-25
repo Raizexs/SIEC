@@ -33,7 +33,14 @@
   html.dark { color-scheme: dark; }
 
   body {
-    transition: background-color 0.25s ease, color 0.25s ease;
+    transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* ── View Transitions API ─────────────────────────────────────────── */
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 0.5s;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   }
 
 

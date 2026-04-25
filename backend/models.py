@@ -64,3 +64,33 @@ class PrecioMercado(Base):
     url = Column("URL", String, nullable=False)
     fecha_scraping = Column("Fecha_Scraping", DateTime, nullable=False)
     exitoso = Column("Exitoso", Boolean, default=True)
+
+class InsumoRole(Base):
+    __tablename__ = "Insumo_Role"
+
+    id = Column("ID", Integer, primary_key=True, index=True)
+    insumo_id = Column("Insumo_ID", Integer, ForeignKey("Insumo.ID"), nullable=False)
+    role = Column("Role", String, nullable=False)  # expected values: 'maestro', 'ayudante', etc.
+
+
+class CatalogoRendimiento(Base):
+    __tablename__ = "Catalogo_Rendimiento"
+    __table_args__ = (
+        UniqueConstraint(
+            "Categoria",
+            "Partida_Constructiva",
+            "Insumo_Tecnico",
+            "Unidad_Medida",
+            name="uq_catalogo_rendimiento_item",
+        ),
+    )
+
+    id = Column("ID", Integer, primary_key=True, index=True)
+    categoria = Column("Categoria", String, nullable=False)
+    partida_constructiva = Column("Partida_Constructiva", String, nullable=False)
+    termino_busqueda_retail = Column("Termino_Busqueda_Retail_Scraping", String, nullable=True)
+    insumo_tecnico = Column("Insumo_Tecnico", String, nullable=False)
+    unidad_medida = Column("Unidad_Medida", String, nullable=False)
+    rendimiento_neto_x_unidad = Column("Rendimiento_Neto_x_Unidad", Numeric(12, 4), nullable=False)
+    referencia = Column("Referencia", String, nullable=True)
+    activo = Column("Activo", Boolean, default=True)

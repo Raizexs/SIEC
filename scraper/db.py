@@ -14,6 +14,32 @@ from validators import validar_variacion_precio
 
 logger = logging.getLogger(__name__)
 
+
+def _ensure_indicador_economico_table(conn) -> None:
+    """
+    Garantiza que la tabla `indicador_economico` exista antes de insertar.
+    Evita fallos en entornos donde la DB fue inicializada antes de la migración 006.
+    """
+    create_table_sql = """
+        CREATE TABLE IF NOT EXISTS indicador_economico (
+            id SERIAL PRIMARY KEY,
+            nombre TEXT NOT NULL,
+            valor NUMERIC(12, 2) NOT NULL,
+            fecha DATE NOT NULL,
+            fecha_captura TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            fuente TEXT DEFAULT 'CMF',
+            UNIQUE(nombre, fecha)
+        )
+    """
+    create_index_sql = """
+        CREATE INDEX IF NOT EXISTS idx_ie_nombre_fecha
+        ON indicador_economico (nombre, fecha DESC)
+    """
+
+    with conn.cursor() as cur:
+        cur.execute(create_table_sql)
+        cur.execute(create_index_sql)
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Conexión
 # ──────────────────────────────────────────────────────────────────────────────
@@ -165,3 +191,37 @@ def get_ultimo_precio_valido(tienda: str, url: str) -> Optional[float]:
     except Exception as e:
         logger.debug(f"[DB] No se pudo recuperar último precio ({tienda}): {e}")
         return None
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Inserción de Indicadores Económicos
+# ──────────────────────────────────────────────────────────────────────────────
+
+def insertar_indicador(indicador: dict) -> bool:
+    """
+    Inserta un indicador económico (UF, etc.) en la tabla indicador_economico.
+    Si el par (nombre, fecha) ya existe, no hace nada (evita duplicados).
+    
+    El dict debe tener: nombre, valor, fecha, fuente
+    """
+    if not indicador or not indicador.get("valor"):
+        logger.warning("[DB] Indicador inválido, inserción abortada.")
+        return False
+
+    sql = """
+        INSERT INTO indicador_economico (nombre, valor, fecha, fuente)
+        VALUES (%(nombre)s, %(valor)s, %(fecha)s, %(fuente)s)
+        ON CONFLICT (nombre, fecha) DO NOTHING
+    """
+
+    try:
+        conn = get_connection()
+        with conn:
+            _ensure_indicador_economico_table(conn)
+            with conn.cursor() as cur:
+                cur.execute(sql, indicador)
+        conn.close()
+        logger.info(f"[DB] Indicador {indicador['nombre']} persistido exitosamente.")
+        return True
+    except Exception as e:
+        logger.error(f"[DB] Error al insertar indicador: {e}")
+        return False

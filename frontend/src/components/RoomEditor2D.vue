@@ -16,6 +16,8 @@ const TICK_LEN    = 6;    // half-length of dimension ticks
 
 // ── Store & editor ───────────────────────────────────────────────────────────
 const svgRef = ref(null);
+const rootRef = ref(null);
+const isFullScreen = ref(false);
 const store  = useRecintosStore();
 const editor = useInteractiveEditor();
 
@@ -93,6 +95,9 @@ const toWorld = (clientX, clientY) => {
 };
 
 // ── Interaction handlers ──────────────────────────────────────────────────────
+const ghostRoom = ref(null);
+const isGhostFading = ref(false);
+
 const onPointerMove = (e) => {
   if (!editor.activeMode.value) return;
   const w = toWorld(e.clientX, e.clientY);
@@ -103,27 +108,76 @@ const onPointerMove = (e) => {
 const onPointerUp = () => {
   editor.endInteraction();
   frozenBounds.value = null;
+  
+  if (ghostRoom.value) {
+    isGhostFading.value = true;
+    setTimeout(() => {
+      ghostRoom.value = null;
+      isGhostFading.value = false;
+    }, 1500); // Desvanecimiento rápido de 1.5s
+  }
 };
 
 const startDrag = (e, id) => {
   e.preventDefault(); e.stopPropagation();
   frozenBounds.value = { ...liveBounds.value };
+  
+  // Guardar snapshot para Ghost Mode
+  const r = store.recintos.find(r => r.id === id);
+  if (r) ghostRoom.value = JSON.parse(JSON.stringify(r)); // deep copy
+  isGhostFading.value = false;
+
   editor.beginDrag(id, toWorld(e.clientX, e.clientY));
 };
 
 const startResize = (e, id) => {
   e.preventDefault(); e.stopPropagation();
   frozenBounds.value = { ...liveBounds.value };
+  
+  // Guardar snapshot para Ghost Mode
+  const r = store.recintos.find(r => r.id === id);
+  if (r) ghostRoom.value = JSON.parse(JSON.stringify(r));
+  isGhostFading.value = false;
+
   const w = toWorld(e.clientX, e.clientY);
   editor.beginResize(id);
   editor.resizeTo(w);
 };
 
+let savedScrollY = 0;
+
+const toggleFullScreen = async () => {
+  if (!document.fullscreenElement) {
+    savedScrollY = window.scrollY;
+    if (rootRef.value?.requestFullscreen) {
+      await rootRef.value.requestFullscreen().catch(err => console.error(err));
+    }
+  } else {
+    if (document.exitFullscreen) {
+      await document.exitFullscreen();
+    }
+  }
+};
+
+const handleFullscreenChange = () => {
+  const isEntering = !!document.fullscreenElement;
+  isFullScreen.value = isEntering;
+  
+  if (!isEntering) {
+    setTimeout(() => {
+      window.scrollTo({ top: savedScrollY, behavior: 'instant' });
+    }, 10);
+  }
+};
+
 window.addEventListener("pointermove", onPointerMove);
 window.addEventListener("pointerup",   onPointerUp);
+document.addEventListener('fullscreenchange', handleFullscreenChange);
+
 onBeforeUnmount(() => {
   window.removeEventListener("pointermove", onPointerMove);
   window.removeEventListener("pointerup",   onPointerUp);
+  document.removeEventListener('fullscreenchange', handleFullscreenChange);
 });
 
 // ── Room helpers ───────────────────────────────────────────────────────────────
@@ -176,49 +230,80 @@ const dimLines = (r) => {
     },
   };
 };
+
+// ── Manual Dimension Inputs ──────────────────────────────────────────────────
+const selectedRoomWidth = computed({
+  get: () => {
+    if (!editor.selectedRecintoId.value) return 0;
+    const r = store.recintos.find(r => r.id === editor.selectedRecintoId.value);
+    return r ? Number(r.dimensions.w.toFixed(2)) : 0;
+  },
+  set: (val) => {
+    if (!editor.selectedRecintoId.value || val < 0.5) return;
+    const r = store.recintos.find(r => r.id === editor.selectedRecintoId.value);
+    if (r) r.dimensions.w = val;
+  }
+});
+
+const selectedRoomLength = computed({
+  get: () => {
+    if (!editor.selectedRecintoId.value) return 0;
+    const r = store.recintos.find(r => r.id === editor.selectedRecintoId.value);
+    return r ? Number(r.dimensions.l.toFixed(2)) : 0;
+  },
+  set: (val) => {
+    if (!editor.selectedRecintoId.value || val < 0.5) return;
+    const r = store.recintos.find(r => r.id === editor.selectedRecintoId.value);
+    if (r) r.dimensions.l = val;
+  }
+});
 </script>
 
 <template>
-  <div class="w-full">
-    <div class="bg-slate-900 rounded-xl border border-primary/30 overflow-hidden">
+  <div ref="rootRef" class="w-full relative bg-slate-900 rounded-xl border border-primary/30 overflow-hidden flex flex-col shadow-2xl transition-all duration-300" :class="isFullScreen ? 'h-screen border-none rounded-none' : ''">
 
       <!-- ── Header ─────────────────────────────────────────────────────────── -->
-      <div class="px-3 pt-2 pb-1.5">
-        <div class="flex items-center justify-between mb-0.5">
-          <h3 class="text-white font-bold text-xs uppercase tracking-wider">Editor Espacial 2D</h3>
-          <div class="flex items-center gap-2 text-[11px] font-bold tabular-nums">
-            <span :style="{ color: descripcionEstado.color }">
-              {{ freeArea.toFixed(1) }} m² libres
-            </span>
-            <span class="text-slate-600">·</span>
-            <span class="text-slate-400">{{ usedArea.toFixed(1) }} / {{ m2Totales }} m²</span>
+      <div class="px-4 py-3 border-b border-slate-700/50 bg-slate-800/50 flex justify-between items-center">
+        <div>
+          <div class="flex items-center gap-3 mb-1">
+            <h3 class="text-white font-bold text-sm uppercase tracking-wider flex items-center gap-2">
+              <span class="material-symbols-outlined text-primary text-sm">architecture</span>
+              Editor Espacial 2D
+            </h3>
+            <div class="flex items-center gap-2 text-[11px] font-bold tabular-nums">
+              <span :style="{ color: descripcionEstado.color }">
+                {{ freeArea.toFixed(1) }} m² libres
+              </span>
+              <span class="text-slate-600">·</span>
+              <span class="text-slate-400">{{ usedArea.toFixed(1) }} / {{ m2Totales }} m²</span>
+            </div>
           </div>
+          <p class="text-slate-400 text-[10px]">
+            Arrastra para mover · Esquina inferior derecha para redimensionar
+          </p>
         </div>
-        <p class="text-slate-500 text-[10px] mb-1.5">
-          Arrastra para mover · Esquina inferior derecha para redimensionar
-        </p>
-        <!-- Barra de uso pegada al borde del canvas -->
-        <div class="h-[2px] bg-slate-700/50 rounded-full overflow-hidden">
-          <div
-            class="h-full rounded-full transition-all duration-200"
-            :style="{ width: freePct + '%', backgroundColor: descripcionEstado.color }"
-          />
-        </div>
+        
+        <button @click="toggleFullScreen" class="text-slate-400 hover:text-white transition-colors flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-700 shadow-sm shrink-0">
+          <span class="material-symbols-outlined text-[18px]">{{ isFullScreen ? 'fullscreen_exit' : 'fullscreen' }}</span>
+          <span class="text-xs font-bold uppercase tracking-wider">{{ isFullScreen ? 'Salir de Pantalla Completa' : 'Pantalla Completa' }}</span>
+        </button>
+      </div>
+      <!-- Barra de uso pegada al borde del canvas -->
+      <div class="h-[2px] bg-slate-700/50 w-full overflow-hidden shrink-0">
+        <div
+          class="h-full transition-all duration-200"
+          :style="{ width: freePct + '%', backgroundColor: descripcionEstado.color }"
+        />
       </div>
 
       <!-- ── SVG canvas (sin scroll, se adapta al presupuesto) ─────────────── -->
-      <!--
-        width="100%" sin height explícito: el browser calcula la height
-        automáticamente desde el viewBox (aspect ratio preservado).
-        No hay overflow ni max-height: el canvas sencillamente crece
-        o se achica con el presupuesto.
-      -->
       <svg
         ref="svgRef"
         :viewBox="viewBox"
         width="100%"
-        height="380"
+        :height="isFullScreen ? '100%' : '380'"
         class="block bg-gradient-to-br from-slate-800 to-slate-900"
+        :class="isFullScreen ? 'flex-1' : ''"
         style="touch-action: none;"
         preserveAspectRatio="xMidYMid meet"
       >
@@ -264,6 +349,31 @@ const dimLines = (r) => {
           rx="2"
           style="pointer-events: none"
         />
+        <text
+          :x="toSX(0) + 10" :y="toSZ(0) + 20"
+          fill="rgba(99,102,241,0.5)"
+          font-size="12"
+          font-weight="bold"
+          class="uppercase tracking-widest pointer-events-none select-none"
+        >
+          Límites del Terreno ({{ budgetRect.w.toFixed(1) }}m x {{ budgetRect.h.toFixed(1) }}m)
+        </text>
+
+        <!-- ── Ghost Trace (Auto-Fade) ────────────────────────────────────── -->
+        <g v-if="ghostRoom" class="transition-opacity duration-1000 ease-out" :class="isGhostFading ? 'opacity-0' : 'opacity-80'">
+          <rect
+            :x="toSX(ghostRoom.coords.x)"
+            :y="toSZ(ghostRoom.coords.z)"
+            :width="ghostRoom.dimensions.w * PPM"
+            :height="ghostRoom.dimensions.l * PPM"
+            fill="rgba(255,255,255,0.05)"
+            stroke="#94a3b8"
+            stroke-width="2"
+            stroke-dasharray="4 4"
+            rx="4"
+            class="pointer-events-none"
+          />
+        </g>
         <!-- Label del presupuesto -->
         <text
           :x="toSX(budgetRect.w) - 6" :y="toSZ(0) + 14"
@@ -436,9 +546,31 @@ const dimLines = (r) => {
 
         </g><!-- /rooms -->
       </svg>
-
+      
+      <!-- ── Manual Dimensions Floating Panel ───────────────────────────────── -->
+      <transition name="fade-scale">
+        <div v-if="editor.selectedRecintoId.value" class="absolute bottom-6 right-6 bg-slate-800/90 backdrop-blur-md p-4 rounded-xl border border-slate-600 shadow-xl z-10 flex flex-col gap-3 pointer-events-auto">
+          <div class="flex justify-between items-center mb-1">
+            <h4 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1">
+              <span class="material-symbols-outlined text-[14px]">straighten</span> Medidas
+            </h4>
+            <button @click="editor.selectedRecintoId.value = null" class="text-slate-500 hover:text-white">
+              <span class="material-symbols-outlined text-[14px]">close</span>
+            </button>
+          </div>
+          <div class="flex gap-4">
+            <div class="flex flex-col gap-1">
+              <label class="text-[10px] text-slate-400 font-bold uppercase">Ancho (m)</label>
+              <input type="number" v-model.number="selectedRoomWidth" class="w-20 px-2 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white font-mono text-center focus:border-primary outline-none transition-colors" step="0.5" />
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-[10px] text-slate-400 font-bold uppercase">Largo (m)</label>
+              <input type="number" v-model.number="selectedRoomLength" class="w-20 px-2 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white font-mono text-center focus:border-primary outline-none transition-colors" step="0.5" />
+            </div>
+          </div>
+        </div>
+      </transition>
     </div>
-  </div>
 </template>
 
 <style scoped>

@@ -4,9 +4,9 @@ import { useLayoutManager } from '../composables/useLayoutManager'
 import { useI18n } from '../composables/useI18n'
 
 const { t, currentLanguage, setLanguage } = useI18n()
-const { presets, savedLayouts } = useLayoutManager()
+const { presets, savedLayouts, deleteLayout } = useLayoutManager()
 
-const emit = defineEmits(['loadPreset', 'loadLayout', 'collapse-change'])
+const emit = defineEmits(['loadPreset', 'loadLayout', 'collapse-change', 'open-manual', 'new-estimate', 'start-tutorial'])
 
 // ── Collapse ──────────────────────────────────────────────────────────
 const collapsed = ref(false)
@@ -16,7 +16,15 @@ const toggleCollapse = () => {
 }
 
 // ── Dark mode ─────────────────────────────────────────────────────────
-const isDark = ref(localStorage.getItem('siec_dark') === 'true')
+const getInitialTheme = () => {
+  const saved = localStorage.getItem('siec_dark')
+  if (saved !== null) {
+    return saved === 'true'
+  }
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+}
+
+const isDark = ref(getInitialTheme())
 
 const applyDark = (value) => {
   if (value) {
@@ -27,9 +35,17 @@ const applyDark = (value) => {
 }
 
 const toggleDark = () => {
-  isDark.value = !isDark.value
-  localStorage.setItem('siec_dark', String(isDark.value))
-  applyDark(isDark.value)
+  const switchTheme = () => {
+    isDark.value = !isDark.value
+    localStorage.setItem('siec_dark', String(isDark.value))
+    applyDark(isDark.value)
+  }
+
+  if (document.startViewTransition) {
+    document.startViewTransition(switchTheme)
+  } else {
+    switchTheme()
+  }
 }
 
 onMounted(() => { applyDark(isDark.value) })
@@ -37,10 +53,20 @@ onMounted(() => { applyDark(isDark.value) })
 // ── Language ──────────────────────────────────────────────────────────
 const loadPreset = (preset) => emit('loadPreset', preset)
 const loadSavedLayout = (layout) => emit('loadLayout', layout)
+const deleteSavedLayout = (id) => deleteLayout(id)
 
 const toggleLanguage = () => {
-  setLanguage(currentLanguage.value === 'es' ? 'en' : 'es')
+  const switchLang = () => {
+    setLanguage(currentLanguage.value === 'es' ? 'en' : 'es')
+  }
+  
+  if (document.startViewTransition) {
+    document.startViewTransition(switchLang)
+  } else {
+    switchLang()
+  }
 }
+
 </script>
 
 <template>
@@ -80,20 +106,34 @@ const toggleLanguage = () => {
 
       <!-- Saved Layouts -->
       <div v-if="savedLayouts.length > 0" class="pt-4 pb-2">
-        <h4 class="text-[10px] font-extrabold text-emerald-600 uppercase tracking-widest px-3 mb-3">{{ t('savedLayouts') }}</h4>
-        <div class="space-y-1">
-          <button
+        <h4 class="text-[10px] font-extrabold text-emerald-600 uppercase tracking-widest px-3 mb-3 flex items-center gap-1">
+          <span class="material-symbols-outlined text-[14px]">save</span>
+          {{ t('savedLayouts') }}
+        </h4>
+        <div class="space-y-2 px-2">
+          <div
             v-for="layout in savedLayouts"
             :key="layout.id"
-            @click="loadSavedLayout(layout)"
-            class="w-full text-left flex items-center justify-between px-3 py-2 rounded-md hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors group"
+            class="w-full text-left flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-700/50 hover:border-emerald-200 dark:hover:border-emerald-800/50 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all group shadow-sm"
           >
-            <div class="overflow-hidden">
-              <span class="block text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{{ layout.name }}</span>
-              <span class="block text-[10px] text-slate-500 dark:text-slate-400 italic">{{ layout.m2Totales }} m² • {{ new Date(layout.createdAt).toLocaleDateString() }}</span>
+            <button @click="loadSavedLayout(layout)" class="flex-1 overflow-hidden">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="block text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{{ layout.name }}</span>
+                <span v-if="layout.recintos && layout.recintos.length > 0" class="text-[8px] font-bold bg-primary/10 text-primary px-1.5 py-0.5 rounded uppercase tracking-wider">3D</span>
+              </div>
+              <span class="block text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                {{ layout.m2Totales }} m² • {{ new Date(layout.createdAt).toLocaleDateString() }}
+              </span>
+            </button>
+            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+              <button @click="loadSavedLayout(layout)" class="p-1.5 text-emerald-600 hover:bg-emerald-100 dark:hover:bg-emerald-800/50 rounded-lg transition-colors" title="Cargar">
+                <span class="material-symbols-outlined text-[14px]">open_in_new</span>
+              </button>
+              <button @click="deleteSavedLayout(layout.id)" class="p-1.5 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors" title="Eliminar">
+                <span class="material-symbols-outlined text-[14px]">delete</span>
+              </button>
             </div>
-            <span class="material-symbols-outlined text-emerald-600 text-xs opacity-0 group-hover:opacity-100 shrink-0">folder_open</span>
-          </button>
+          </div>
         </div>
       </div>
     </nav>
@@ -138,6 +178,25 @@ const toggleLanguage = () => {
         </div>
       </div>
 
+      <!-- Ayuda y Tutorial -->
+      <div class="px-3 pt-2 flex flex-col gap-2">
+        <button 
+          @click="$emit('start-tutorial')"
+          class="w-full flex items-center justify-center gap-2 py-2 rounded-md bg-emerald-100 dark:bg-emerald-900/30 hover:bg-emerald-200 dark:hover:bg-emerald-800/50 transition-colors text-xs font-bold text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+        >
+          <span class="material-symbols-outlined text-[16px]">school</span>
+          Tutorial Interactivo
+        </button>
+
+        <button 
+          @click="$emit('open-manual')"
+          class="w-full flex items-center justify-center gap-2 py-2 rounded-md bg-slate-100 dark:bg-slate-800/50 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-xs font-bold text-slate-600 dark:text-slate-300"
+        >
+          <span class="material-symbols-outlined text-[16px]">help</span>
+          Ver Guía Manual
+        </button>
+      </div>
+
       <!-- Auto-save indicator -->
       <div class="px-3 flex items-center gap-2 text-[10px] font-bold text-slate-400 dark:text-slate-300 uppercase tracking-tight">
         <span class="flex h-2 w-2 relative">
@@ -147,7 +206,7 @@ const toggleLanguage = () => {
         {{ t('autoSaveActive') }}
       </div>
 
-      <button class="w-full bg-gradient-to-br from-primary to-primary-container text-white py-3 rounded-md font-bold text-sm shadow-sm hover:opacity-90 transition-opacity">
+      <button @click="$emit('new-estimate')" class="w-full bg-gradient-to-br from-primary to-primary-container text-white py-3 rounded-md font-bold text-sm shadow-sm hover:scale-[1.02] hover:opacity-90 transition-all duration-300">
         {{ t('newEstimate') }}
       </button>
     </div>
