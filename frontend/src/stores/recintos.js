@@ -1,5 +1,7 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
+import { useMetalconValidator } from "../composables/useMetalconValidator";
+
 // Función simple para generar IDs únicos sin dependencias externas
 const generateId = () =>
   `recinto-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -18,6 +20,9 @@ export const useRecintosStore = defineStore("recintos", () => {
   const selectedForBudget = ref(new Set());
   const activeRecintoId = ref(null);
   const currentFloor = ref(1);
+
+  // SCRUM-98: Validador de cruce Insumo vs Altura (Metalcon)
+  const metalconValidator = useMetalconValidator();
 
   // Metadata de configuración para el layout inicial
   const configMetadata = ref({
@@ -182,6 +187,12 @@ export const useRecintosStore = defineStore("recintos", () => {
       coords: { x: source.coords.x, z: source.coords.z },
       dimensions: { w: source.dimensions.w, l: source.dimensions.l }
     });
+
+    // SCRUM-98: Validar cruce Insumo (Metalcon) vs Altura (pisos) tras clonar
+    metalconValidator.validarDesdeStore(
+      configMetadata.value.materialEstructuralId,
+      recintos.value
+    );
   };
 
   /**
@@ -302,5 +313,8 @@ export const useRecintosStore = defineStore("recintos", () => {
     recintosByType,
     selectedM2,
     activeRecinto,
+
+    // SCRUM-98: Validador Metalcon vs Altura
+    metalconValidator,
   };
 });
