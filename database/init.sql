@@ -98,7 +98,16 @@ INSERT INTO "Insumo" ("Nombre", "Categoria", "Unidad_Medida", "Descripcion", "Ac
   ('Fierro A63-42H', 'Obra Gruesa', 'barra 4.71kg', 'Acero laminado en caliente para refuerzo estructural', TRUE),
   ('Arena Gruesa', 'Obra Gruesa', 'metro cuadrado', 'Arena gruesa para hormigones y morteros', TRUE),
   ('Ripio', 'Obra Gruesa', 'metro cuadrado', 'Ripio o grava para hormigones', TRUE),
-  ('Agua', 'Obra Gruesa', 'litro', 'Agua para obras civiles', TRUE)
+  ('Agua', 'Obra Gruesa', 'litro', 'Agua para obras civiles', TRUE),
+  ('Perfil C 60x38x0.85', 'Obra Gruesa', 'unidad', 'Perfil estructural C Metalcon 6m', TRUE),
+  ('Perfil U 62x25x0.85', 'Obra Gruesa', 'unidad', 'Perfil canal U Metalcon 6m', TRUE),
+  ('Perfil Omega', 'Obra Gruesa', 'unidad', 'Perfil Omega Metalcon 6m', TRUE),
+  ('Pino Dimensionado 2x3', 'Obra Gruesa', 'unidad', 'Madera pino dimensionado 2x3 3.2m', TRUE),
+  ('Pino Dimensionado 2x4', 'Obra Gruesa', 'unidad', 'Madera pino dimensionado 2x4 3.2m', TRUE),
+  ('Terciado Estructural 12mm', 'Obra Gruesa', 'plancha', 'Placa de terciado estructural 1.22x2.44m', TRUE),
+  ('Tornillo Volcanita', 'Obra Gruesa', 'caja', 'Caja de tornillos para volcanita', TRUE),
+  ('Tornillo Madera', 'Obra Gruesa', 'caja', 'Caja de tornillos para madera', TRUE),
+  ('Tornillo Autoperforante', 'Obra Gruesa', 'caja', 'Caja de tornillos autoperforantes para metal', TRUE)
 ON CONFLICT ("Nombre") DO NOTHING;
 
 -- TERMINACIONES (4+ insumos mínimos)
@@ -163,7 +172,19 @@ INSERT INTO "Matriz_Rendimiento" ("Material_Estructural_ID", "Insumo_ID", "Facto
   (4, 3,  0.318,  'barras por m2', TRUE),       -- 1.50 / 4.71
   (4, 7,  0.21,   'planchas por m2', TRUE),
   (4, 16, 0.025,  'rollos por m2', TRUE),       -- 2.5 / 100
-  (4, 19, 0.083,  'tubos por m2', TRUE)         -- 0.25 / 3
+  (4, 19, 0.083,  'tubos por m2', TRUE),        -- 0.25 / 3
+  -- NUEVOS MATERIALES (Asignaciones aproximadas para cumplir con agregar a matriz)
+  -- MADERA (ID=1)
+  (1, 28, 1.5,    'unidades por m2', TRUE),     -- Pino Dimensionado 2x3
+  (1, 29, 0.5,    'unidades por m2', TRUE),     -- Pino Dimensionado 2x4
+  (1, 30, 0.35,   'planchas por m2', TRUE),     -- Terciado Estructural 12mm
+  (1, 32, 0.1,    'cajas por m2', TRUE),        -- Tornillo Madera
+  -- METALCON (ID=2)
+  (2, 25, 1.2,    'unidades por m2', TRUE),     -- Perfil C
+  (2, 26, 0.4,    'unidades por m2', TRUE),     -- Perfil U
+  (2, 27, 0.8,    'unidades por m2', TRUE),     -- Perfil Omega
+  (2, 31, 0.1,    'cajas por m2', TRUE),        -- Tornillo Volcanita
+  (2, 33, 0.05,   'cajas por m2', TRUE)         -- Tornillo Autoperforante
 ON CONFLICT ("Material_Estructural_ID", "Insumo_ID") DO NOTHING;
 
 -- ========== VERIFICACIONES FINALES ==========

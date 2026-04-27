@@ -25,7 +25,12 @@ STORES = {
             'https://www.sodimac.cl/sodimac-cl/articulo/110282820/fierro-liso-cuadrado-acero-10x10-5-mm-6-m/110282823',
             'https://www.sodimac.cl/sodimac-cl/articulo/110288145/placa-fibrocemento-lisa-4-mm-120x240-cm-blanco/110288165',
             'https://www.sodimac.cl/sodimac-cl/articulo/113214486/cable-libre-de-halogenos-h07z1-k-1x2-5-mm2-rojo-100-metros/113214489',
-            'https://www.sodimac.cl/sodimac-cl/articulo/135520693/tubo-gris-pvc-agua-110-mmx6-m/135520694'
+            'https://www.sodimac.cl/sodimac-cl/articulo/135520693/tubo-gris-pvc-agua-110-mmx6-m/135520694',
+            # -- Nuevos Materiales (SCRUM-90) --
+            'https://www.sodimac.cl/sodimac-cl/search?Ntt=Perfil+C+60x38', # Placeholder Metalcon C
+            'https://www.sodimac.cl/sodimac-cl/search?Ntt=Perfil+U+62x25', # Placeholder Metalcon U
+            'https://www.sodimac.cl/sodimac-cl/search?Ntt=Pino+Dimensionado+2x4', # Placeholder Madera
+            'https://www.sodimac.cl/sodimac-cl/search?Ntt=Tornillo+Volcanita' # Placeholder Tornillos
         ],
         'notes': 'INTERACCIÓN REQUERIDA: 1) Cerrar modal de región/cookies (click X). 2) Seleccionar Región Valparaíso si se solicita. 3) Stock y precio varían por sucursal seleccionada. 4) El producto de fibrocemento se usa como equivalente de Volcanita para el mapeo de insumos. 5) En listados, paginación usa JS (requiere Playwright para automatizar). Ver DOCUMENTACION_SELECTORES.md para paso a paso en DevTools.'
     },
@@ -48,7 +53,12 @@ STORES = {
             'https://www.easy.cl/perfil-rectangulo-30x20x2-mm-6-m-816-kg-119314/p',
             'https://www.easy.cl/volcanita-acu-br-1-2x2-4-m-10-mm-1354955/p',
             'https://www.easy.cl/cable-eva-2-5-mm-x-100-m-h07z1-k-823913/p',
-            'https://www.easy.cl/tuberia-hidrahulica-20-mm-x3-m-clase-16-pvc-235195/p'
+            'https://www.easy.cl/tuberia-hidrahulica-20-mm-x3-m-clase-16-pvc-235195/p',
+            # -- Nuevos Materiales (SCRUM-90) --
+            'https://www.easy.cl/search/perfil%20c', # Placeholder Metalcon C
+            'https://www.easy.cl/search/perfil%20u', # Placeholder Metalcon U
+            'https://www.easy.cl/search/pino%20dimensionado', # Placeholder Madera
+            'https://www.easy.cl/search/tornillo%20volcanita' # Placeholder Tornillos
         ],
         'notes': 'INTERACCIÓN REQUERIDA: 1) Seleccionar ubicación/región antes de ver precios y stock. 2) Los selectores con nth-child pueden cambiar (framework CSS-in-JS). 3) Sin ubicación seleccionada, price y stock retornan vacíos. 4) Modal de ubicación aparece en startup. Ver DOCUMENTACION_SELECTORES.md para paso a paso en DevTools.'
     },
@@ -71,7 +81,12 @@ STORES = {
             'https://www.construmart.cl/barra-cuadrada-laminada-10-x-10-mm-47-30872',
             'https://www.construmart.cl/yeso-carton-volcanita-rh-borde-rebaja-23602',
             'https://www.construmart.cl/cable-evaflex-h07z1-k-c5-25-mm-50-m-219322',
-            'https://www.construmart.cl/tubo-ppr-pn-16-25-mm-3-m-213256'
+            'https://www.construmart.cl/tubo-ppr-pn-16-25-mm-3-m-213256',
+            # -- Nuevos Materiales (SCRUM-90) --
+            'https://www.construmart.cl/catalogsearch/result/?q=perfil+c', # Placeholder Metalcon C
+            'https://www.construmart.cl/catalogsearch/result/?q=perfil+u', # Placeholder Metalcon U
+            'https://www.construmart.cl/catalogsearch/result/?q=pino+dimensionado', # Placeholder Madera
+            'https://www.construmart.cl/catalogsearch/result/?q=tornillo+volcanita' # Placeholder Tornillos
         ],
         'notes': 'INTERACCIÓN REQUERIDA: 1) Seleccionar tienda/sucursal para ver precios y stock locales. 2) Selectores genéricos (.product-name, h1) son más estables. 3) Algunos listados usan infinite scroll (sin botón "Siguiente"). 4) Breadcrumb dinámico con path de categorías. Ver DOCUMENTACION_SELECTORES.md para paso a paso en DevTools.'
     }
