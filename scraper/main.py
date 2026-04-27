@@ -21,12 +21,12 @@ from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from logger import setup_logging          # ← configuración centralizada de formato
-from sodimac_scraper import scrape_sodimac
-from easy_scraper import scrape_easy
-from construmart_scraper import scrape_construmart
+from logger import setup_logging
+from sodimac_scraper import SodimacScraper
+from easy_scraper import EasyScraper
+from construmart_scraper import ConstrumartScraper
 from scrapers.cmf import scrape_uf_cmf
-from db import insertar_precios, insertar_indicador
+from db import insertar_precios, insertar_indicador, get_insumos_activos
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Logging — formato: "2026-04-07 03:00:15 [NIVEL  ] [TIENDA] Mensaje"
@@ -58,21 +58,31 @@ def ejecutar_scrapers() -> None:
     logger.info(f"[Scheduler] ▶ Ciclo de scraping iniciado: {inicio.strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info(sep)
 
+    logger.info(sep)
+
+    # 1. Obtener insumos activos de la DB
+    insumos = get_insumos_activos()
+    if not insumos:
+        logger.error("[Scheduler] No se encontraron insumos activos en la DB. Abortando ciclo.")
+        return
+
+    logger.info(f"[Scheduler] Insumos a cotizar: {[i['nombre'] for i in insumos]}")
+
     scrapers = [
-        ("Sodimac",     scrape_sodimac),
-        ("Easy",        scrape_easy),
-        ("Construmart", scrape_construmart),
+        ("Sodimac",     SodimacScraper()),
+        ("Easy",        EasyScraper()),
+        ("Construmart", ConstrumartScraper()),
     ]
 
-    # Contadores para el resumen final (Criterio 4)
     total_exitosos:   int       = 0
     total_errores:    int       = 0
     tiendas_fallidas: list[str] = []
 
-    for nombre, scraper_fn in scrapers:
-        logger.info(f"[Scheduler] → Ejecutando scraper: {nombre}")
+    for nombre, scraper_inst in scrapers:
+        logger.info(f"[Scheduler] → Ejecutando descubrimiento por keywords: {nombre}")
         try:
-            resultados = scraper_fn()
+            # 2. Ejecutar búsqueda y matching difuso
+            resultados = scraper_inst.scrape_by_keywords(insumos)
 
             # Productos con precio válido → se insertan
             exitosos = [
