@@ -25,7 +25,12 @@ STORES = {
             'https://www.sodimac.cl/sodimac-cl/articulo/110282820/fierro-liso-cuadrado-acero-10x10-5-mm-6-m/110282823',
             'https://www.sodimac.cl/sodimac-cl/articulo/110288145/placa-fibrocemento-lisa-4-mm-120x240-cm-blanco/110288165',
             'https://www.sodimac.cl/sodimac-cl/articulo/113214486/cable-libre-de-halogenos-h07z1-k-1x2-5-mm2-rojo-100-metros/113214489',
-            'https://www.sodimac.cl/sodimac-cl/articulo/135520693/tubo-gris-pvc-agua-110-mmx6-m/135520694'
+            'https://www.sodimac.cl/sodimac-cl/articulo/135520693/tubo-gris-pvc-agua-110-mmx6-m/135520694',
+            # -- Nuevos Materiales (SCRUM-90) --
+            'https://www.sodimac.cl/sodimac-cl/search?Ntt=Perfil+C+60x38', # Placeholder Metalcon C
+            'https://www.sodimac.cl/sodimac-cl/search?Ntt=Perfil+U+62x25', # Placeholder Metalcon U
+            'https://www.sodimac.cl/sodimac-cl/search?Ntt=Pino+Dimensionado+2x4', # Placeholder Madera
+            'https://www.sodimac.cl/sodimac-cl/search?Ntt=Tornillo+Volcanita' # Placeholder Tornillos
         ],
         'search_url': 'https://www.sodimac.cl/sodimac-cl/search?Ntt={query}',
         'search_selectors': {
@@ -55,7 +60,12 @@ STORES = {
             'https://www.easy.cl/perfil-rectangulo-30x20x2-mm-6-m-816-kg-119314/p',
             'https://www.easy.cl/volcanita-acu-br-1-2x2-4-m-10-mm-1354955/p',
             'https://www.easy.cl/cable-eva-2-5-mm-x-100-m-h07z1-k-823913/p',
-            'https://www.easy.cl/tuberia-hidrahulica-20-mm-x3-m-clase-16-pvc-235195/p'
+            'https://www.easy.cl/tuberia-hidrahulica-20-mm-x3-m-clase-16-pvc-235195/p',
+            # -- Nuevos Materiales (SCRUM-90) --
+            'https://www.easy.cl/search/perfil%20c', # Placeholder Metalcon C
+            'https://www.easy.cl/search/perfil%20u', # Placeholder Metalcon U
+            'https://www.easy.cl/search/pino%20dimensionado', # Placeholder Madera
+            'https://www.easy.cl/search/tornillo%20volcanita' # Placeholder Tornillos
         ],
         'search_url': 'https://www.easy.cl/search/{query}',
         'search_selectors': {
@@ -85,7 +95,12 @@ STORES = {
             'https://www.construmart.cl/barra-cuadrada-laminada-10-x-10-mm-47-30872',
             'https://www.construmart.cl/yeso-carton-volcanita-rh-borde-rebaja-23602',
             'https://www.construmart.cl/cable-evaflex-h07z1-k-c5-25-mm-50-m-219322',
-            'https://www.construmart.cl/tubo-ppr-pn-16-25-mm-3-m-213256'
+            'https://www.construmart.cl/tubo-ppr-pn-16-25-mm-3-m-213256',
+            # -- Nuevos Materiales (SCRUM-90) --
+            'https://www.construmart.cl/catalogsearch/result/?q=perfil+c', # Placeholder Metalcon C
+            'https://www.construmart.cl/catalogsearch/result/?q=perfil+u', # Placeholder Metalcon U
+            'https://www.construmart.cl/catalogsearch/result/?q=pino+dimensionado', # Placeholder Madera
+            'https://www.construmart.cl/catalogsearch/result/?q=tornillo+volcanita' # Placeholder Tornillos
         ],
         'search_url': 'https://www.construmart.cl/catalogsearch/result/?q={query}',
         'search_selectors': {
