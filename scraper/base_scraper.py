@@ -25,6 +25,7 @@ except ImportError:
     )
 
 from models import ResultadoScraping, KEYWORD_INSUMO_MAP
+from normalizer import FuzzyNormalizer
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +95,71 @@ class BaseScraper(ABC):
         self.logger.info(f"[{self.store_key}] Completado: {exitosos}/{len(results)} exitosos.")
         return results
 
+    def search_and_match(self, page: Page, query: str, insumo_id: Optional[int] = None) -> Optional[dict]:
+        """
+        Busca un material por nombre genérico, extrae resultados y aplica 
+        Fuzzy Matching para encontrar el mejor producto.
+        """
+        self.logger.info(f"[{self.store_key}] Buscando material genérico: '{query}'")
+        
+        try:
+            # 1. Obtener lista de productos candidatos desde la búsqueda
+            candidatos = self._scrape_search_results(page, query)
+            if not candidatos:
+                self.logger.warning(f"[{self.store_key}] No se encontraron resultados para '{query}'")
+                return None
+
+            # 2. Aplicar Fuzzy Normalizer
+            normalizer = FuzzyNormalizer(threshold=70)
+            mejor_match = normalizer.filter_results(query, candidatos)
+
+            if mejor_match:
+                self.logger.info(
+                    f"[{self.store_key}] ✅ Mejor match para '{query}': "
+                    f"'{mejor_match['nombre_producto']}' (Score: {mejor_match['match_score']}, "
+                    f"Precio: ${mejor_match['precio']})"
+                )
+                mejor_match["insumo_id"] = insumo_id
+                
+                # Normalización de unidad (kg/m/etc)
+                self._normalize_prices_by_insumo_unit(mejor_match)
+                
+                return mejor_match
+            
+            self.logger.warning(f"[{self.store_key}] ⚠️  Ningún resultado de búsqueda superó el umbral de confianza para '{query}'")
+            return None
+
+        except Exception as e:
+            self.logger.error(f"[{self.store_key}] ❌ Error en búsqueda de '{query}': {e}", exc_info=True)
+            return None
+
+    def scrape_by_keywords(self, insumos: list[dict]) -> list[dict]:
+        """
+        Ejecuta el scraping buscando cada insumo por su nombre genérico.
+        """
+        self.logger.info(f"[{self.store_key}] Iniciando scraping por keywords para {len(insumos)} insumos…")
+        results: list[dict] = []
+
+        with sync_playwright() as p:
+            browser = self._launch_browser(p)
+            context = self._new_context(browser)
+            page = context.new_page()
+            page.set_default_timeout(PRODUCT_TIMEOUT_MS)
+
+            if STEALTH_AVAILABLE:
+                stealth_sync(page)
+
+            for insumo in insumos:
+                match = self.search_and_match(page, insumo["nombre"], insumo["id"])
+                if match:
+                    results.append(match)
+
+            browser.close()
+
+        exitosos = len(results)
+        self.logger.info(f"[{self.store_key}] Completado por keywords: {exitosos}/{len(insumos)} exitosos.")
+        return results
+
     # ──────────────────────────────────────────────────────────────────────────
     # Métodos que las subclases DEBEN implementar
     # ──────────────────────────────────────────────────────────────────────────
@@ -110,6 +176,19 @@ class BaseScraper(ABC):
         Retorna dict con keys: tienda, url, nombre_producto, precio,
         precio_descuento, stock, categoria, exitoso.
         Timeout por producto: 30 segundos (PRODUCT_TIMEOUT_MS).
+        """
+        ...
+
+    @abstractmethod
+    def _get_search_url(self, query: str) -> str:
+        """Retorna la URL de búsqueda para un query dado."""
+        ...
+
+    @abstractmethod
+    def _scrape_search_results(self, page: Page, query: str) -> list[dict]:
+        """
+        Navega a la página de búsqueda y extrae una lista preliminar de productos.
+        Cada dict debe tener: nombre_producto, precio, url.
         """
         ...
 
