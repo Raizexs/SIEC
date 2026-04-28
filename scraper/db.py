@@ -225,3 +225,35 @@ def insertar_indicador(indicador: dict) -> bool:
     except Exception as e:
         logger.error(f"[DB] Error al insertar indicador: {e}")
         return False
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Consulta de Insumos Activos
+# ──────────────────────────────────────────────────────────────────────────────
+
+def get_insumos_activos() -> list[dict]:
+    """
+    Retorna la lista de insumos activos en la base de datos para ser
+    usados como términos de búsqueda en el scraper.
+    """
+    try:
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT "ID", "Nombre", "Categoria"
+                    FROM   "Insumo"
+                    WHERE  "Activo" = TRUE
+                      AND  "Categoria" != 'Mano de Obra'
+                    """
+                )
+                rows = cur.fetchall()
+                return [
+                    {"id": r[0], "nombre": r[1], "categoria": r[2]}
+                    for r in rows
+                ]
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.error(f"[DB] Error al obtener insumos activos: {e}")
+        return []
