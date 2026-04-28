@@ -10,8 +10,9 @@ export const MATERIAL_COSTS = {
 };
 
 // Singleton state for layouts
+// Use sessionStorage so layouts reset on tab close (no account system yet)
 const savedLayouts = ref(
-  JSON.parse(localStorage.getItem("siec_saved_layouts") || "[]"),
+  JSON.parse(sessionStorage.getItem("siec_saved_layouts") || "[]"),
 );
 
 // Preset configurations
@@ -87,7 +88,7 @@ export function useLayoutManager() {
       savedLayouts.value.splice(0, savedLayouts.value.length - 5);
     }
 
-    localStorage.setItem(
+    sessionStorage.setItem(
       "siec_saved_layouts",
       JSON.stringify(savedLayouts.value),
     );
@@ -102,7 +103,7 @@ export function useLayoutManager() {
     );
     if (index > -1) {
       savedLayouts.value.splice(index, 1);
-      localStorage.setItem(
+      sessionStorage.setItem(
         "siec_saved_layouts",
         JSON.stringify(savedLayouts.value),
       );

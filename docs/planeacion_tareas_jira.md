@@ -269,8 +269,16 @@ Tarea T17.1: Documentación de Viabilidad AI Visual `[INVESTIGACIÓN]`
 - Dependencias: Ninguna.
 
 Tarea T17.2: Prueba de Concepto (PoC) sobre Análisis Topográfico `[BACKEND] [AI]`
-- Descripción: Escribir un script experimental que invoque la API elegida cargando una imagen estática (foto de ejemplo del patio del cliente) con prompt pidiendo determinar factibilidad u observaciones del relieve. Evaluar respuesta del modelo.
-- Criterios de Aceptación:
-  - Código capaz de completar el ciclo carga (Request) y devolución textual (JSON).
-  - Existencia de un log midiendo en la consola los segundos que tardó en resolver la petición.
-- Dependencias: Bloqueada parcialmente por Documentación de Viabilidad AI Visual (Determinar a qué proveedor/API disparar).
+- Descripción: La investigación inicial concluyó que el análisis topográfico mediante modelos fundacionales multi-modales (procesando fotografías 2D en la nube) es inviable debido a la ambigüedad de escala óptica y a los prohibitivos costos transaccionales y computacionales. Para resolver esta necesidad funcional en el MVP, esta tarea plantea el desarrollo de una Prueba de Concepto (PoC) orientada al procesamiento local o Edge Computing.
+
+El equipo debe evaluar e implementar el uso de las capacidades nativas de los dispositivos móviles (ARCore para Android, que utiliza Odometría y Mapeo Concurrente, y ARKit para iOS, que utiliza Odometría Inercial Visual) para mapear el terreno en tiempo real. El propósito es detectar la superficie topográfica, calcular su ángulo de inclinación y obtener las dimensiones del área para generar una métrica volumétrica (metros cúbicos de tierra a mover). Este dato volumétrico alimentará directamente el motor de cotizaciones de mano de obra y maquinaria de SIEC.
+
+Criterios de Aceptación:
+
+Mapeo Espacial Determinista: La PoC debe ser capaz de iniciar una sesión de seguimiento (tracking) que identifique exitosamente los planos del terreno en el patio del usuario.
+
+Extracción Trigonométrica: El código debe extraer el vector normal de la superficie detectada y calcular la pendiente topográfica respecto al vector de gravedad global.
+
+Cálculo de Volumen y Área: Empleando los límites de extensión o los vértices del polígono de la malla detectada, el sistema debe estimar la superficie total para derivar los metros cúbicos necesarios para la nivelación.
+
+Mitigación de Errores de Textura: Dado que los motores AR dependen de grupos de puntos de características visuales para calcular la superficie, el sistema puede fallar si el suelo carece de textura, como en un césped perfectamente uniforme. Se debe programar código defensivo y alertas en la interfaz para advertir al usuario cuando la confianza del mapeo sea baja, instruyéndole a moverse o colocar referencias físicas para forzar contrastes visuales.

@@ -18,46 +18,16 @@ const props = defineProps({
   tokensDisponibles: {
     type: Number,
     required: true
-  },
-  isSubmitting: {
-    type: Boolean,
-    default: false
   }
 })
 
-const emit = defineEmits(['update:formData', 'submit'])
+const emit = defineEmits(['update:formData'])
 
 const updateFormData = (field, value) => {
   emit('update:formData', { ...props.formData, [field]: value })
 }
 
-const handleSubmit = () => {
-  emit('submit')
-}
-
-// Límites máximos
-const maxHabitacionesSimples = computed(() => 
-  props.formData.habitacionesSimples + Math.floor(props.tokensDisponibles / props.costs.habitacionSimple)
-)
-
-const maxBanios = computed(() => 
-  props.formData.banios + Math.floor(props.tokensDisponibles / props.costs.banio)
-)
-const maxAreasComunes = computed(() => 
-  props.formData.areasComunes + Math.floor(props.tokensDisponibles / props.costs.area_comun)
-)
-
-const increment = (field, max) => {
-  if (props.formData[field] < max) {
-    updateFormData(field, props.formData[field] + 1)
-  }
-}
-
-const decrement = (field) => {
-  if (props.formData[field] > 0) {
-    updateFormData(field, props.formData[field] - 1)
-  }
-}
+// Room counters removed — rooms are created via "Añadir Recinto" in RoomEditor2D
 
 const formatNumber = (num) => {
   return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",")
@@ -81,97 +51,40 @@ const materialName = computed(() => {
 
     <div class="bg-surface-container-lowest dark:bg-[#161b22] p-6 rounded-xl border border-outline-variant/10 dark:border-[#30363d] shadow-sm space-y-6 transform transition-all duration-300 hover:shadow-lg hover:scale-[1.01]">
       <div class="flex justify-between items-end">
-        <label class="text-sm font-bold text-on-surface uppercase tracking-wider">{{ t('totalBuiltArea') }}</label>
+        <label class="text-sm font-bold text-on-surface uppercase tracking-wider">Medidas del Terreno</label>
         <div class="flex items-center gap-2">
-          <input 
-            :value="formatNumber(formData.m2Totales)" 
-            @input="updateFormData('m2Totales', Number($event.target.value.replace(/,/g, '')))"
-            class="w-24 text-right font-headline font-bold text-2xl border-none p-0 focus:ring-0 text-primary bg-transparent" 
-            type="text"
-          />
-          <span class="text-slate-400 font-medium">m²</span>
-        </div>
-      </div>
-      <input 
-        :value="formData.m2Totales"
-        @input="updateFormData('m2Totales', Number($event.target.value))"
-        class="w-full h-1.5 bg-surface-container-highest rounded-lg appearance-none cursor-pointer" 
-        max="500" 
-        min="10" 
-        step="10" 
-        type="range"
-      />
-      <div class="flex justify-between text-[10px] text-slate-400 font-bold uppercase">
-        <span>10 m²</span>
-        <span>250 m²</span>
-        <span>500 m²</span>
-      </div>
-    </div>
-
-    <div class="grid grid-cols-3 gap-4">
-      <div class="space-y-3">
-        <label class="text-[9px] font-bold text-on-surface uppercase tracking-widest text-center block truncate" title="Habitaciones Simples">{{ t('simpleRooms') }}</label>
-        <div class="flex items-center gap-1 bg-surface-container-highest/30 p-1.5 rounded-full border border-outline-variant/10">
-          <button 
-            @click="decrement('habitacionesSimples')"
-            type="button"
-            class="w-6 h-6 rounded-full bg-white dark:bg-[#21262d] shadow-sm flex items-center justify-center hover:bg-slate-50 dark:hover:bg-[#30363d]"
-          >
-            <span class="material-symbols-outlined text-primary text-[12px]">remove</span>
-          </button>
-          <span class="flex-1 text-center font-headline font-extrabold text-sm">{{ formData.habitacionesSimples || 0 }}</span>
-          <button 
-            @click="increment('habitacionesSimples', maxHabitacionesSimples)"
-            type="button"
-            class="w-6 h-6 rounded-full bg-primary text-white shadow-sm flex items-center justify-center hover:opacity-90"
-          >
-            <span class="material-symbols-outlined text-[12px]">add</span>
-          </button>
-        </div>
-      </div>
-
-      <div class="space-y-3">
-        <label class="text-[9px] font-bold text-on-surface uppercase tracking-widest text-center block truncate" title="Baños">{{ t('bathrooms') }}</label>
-        <div class="flex items-center gap-1 bg-surface-container-highest/30 p-1.5 rounded-full border border-outline-variant/10">
-          <button 
-            @click="decrement('banios')"
-            type="button"
-            class="w-6 h-6 rounded-full bg-white dark:bg-[#21262d] shadow-sm flex items-center justify-center hover:bg-slate-50 dark:hover:bg-[#30363d]"
-          >
-            <span class="material-symbols-outlined text-primary text-[12px]">remove</span>
-          </button>
-          <span class="flex-1 text-center font-headline font-extrabold text-sm">{{ formData.banios }}</span>
-          <button 
-            @click="increment('banios', maxBanios)"
-            type="button"
-            class="w-6 h-6 rounded-full bg-primary text-white shadow-sm flex items-center justify-center hover:opacity-90"
-          >
-            <span class="material-symbols-outlined text-[12px]">add</span>
-          </button>
+          <span class="text-lg font-headline font-bold text-primary">{{ formData.m2Totales }}</span>
+          <span class="text-slate-400 font-medium">m² totales</span>
         </div>
       </div>
       
-      <div class="space-y-3">
-        <label class="text-[9px] font-bold text-on-surface uppercase tracking-widest text-center block truncate" title="Áreas Comunes">{{ t('commonAreas') }}</label>
-        <div class="flex items-center gap-1 bg-surface-container-highest/30 p-1.5 rounded-full border border-outline-variant/10">
-          <button 
-            @click="decrement('areasComunes')"
-            type="button"
-            class="w-6 h-6 rounded-full bg-white dark:bg-[#21262d] shadow-sm flex items-center justify-center hover:bg-slate-50 dark:hover:bg-[#30363d]"
-          >
-            <span class="material-symbols-outlined text-primary text-[12px]">remove</span>
-          </button>
-          <span class="flex-1 text-center font-headline font-extrabold text-sm">{{ formData.areasComunes }}</span>
-          <button 
-            @click="increment('areasComunes', maxAreasComunes)"
-            type="button"
-            class="w-6 h-6 rounded-full bg-primary text-white shadow-sm flex items-center justify-center hover:opacity-90"
-          >
-            <span class="material-symbols-outlined text-[12px]">add</span>
-          </button>
+      <div class="grid grid-cols-2 gap-4">
+        <div class="space-y-2">
+          <label class="text-xs text-slate-500 font-bold uppercase">Ancho (m)</label>
+          <input 
+            :value="formData.terrenoAncho"
+            @input="updateFormData('terrenoAncho', Number($event.target.value))"
+            class="w-full bg-surface-container-highest dark:bg-[#0d1117] border border-outline-variant/20 dark:border-[#30363d] rounded-lg p-2 text-center font-mono font-bold text-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
+            type="number"
+            min="2"
+            step="0.5"
+          />
+        </div>
+        <div class="space-y-2">
+          <label class="text-xs text-slate-500 font-bold uppercase">Largo (m)</label>
+          <input 
+            :value="formData.terrenoLargo"
+            @input="updateFormData('terrenoLargo', Number($event.target.value))"
+            class="w-full bg-surface-container-highest dark:bg-[#0d1117] border border-outline-variant/20 dark:border-[#30363d] rounded-lg p-2 text-center font-mono font-bold text-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
+            type="number"
+            min="2"
+            step="0.5"
+          />
         </div>
       </div>
     </div>
+
+
 
     <div class="space-y-4">
       <label class="text-xs font-bold text-on-surface uppercase tracking-widest flex items-center gap-2">
@@ -243,12 +156,7 @@ const materialName = computed(() => {
       </div>
     </div>
 
-    <button 
-      @click="handleSubmit"
-      :disabled="isSubmitting"
-      class="w-full bg-gradient-to-br from-primary to-primary-container text-white py-4 rounded-xl font-headline font-extrabold text-sm uppercase tracking-widest hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-    >
-      {{ isSubmitting ? t('saving') : t('generateModel') }}
-    </button>
+
+
   </section>
 </template>

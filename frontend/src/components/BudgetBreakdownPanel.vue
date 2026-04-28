@@ -4,6 +4,8 @@ import { useI18n } from '../composables/useI18n';
 
 const { t } = useI18n();
 
+const emit = defineEmits(['export-pdf']);
+
 const props = defineProps({
   m2Totales: { type: Number, required: true },
   materialEstructuralId: { type: Number, required: true }
@@ -115,8 +117,10 @@ watch(() => [props.m2Totales, props.materialEstructuralId], () => {
         @click="handleGenerateBudget"
         class="bg-gradient-to-r from-primary to-primary-container text-white px-8 py-4 rounded-xl font-bold tracking-wide shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:scale-[1.02] transition-all"
       >
-        {{ t('generateBudget') }}
+        <span class="material-symbols-outlined text-[18px] align-middle mr-1">calculate</span>
+        Calcular Presupuesto Real
       </button>
+      <p class="text-xs text-slate-400 mt-3">Consulta los precios de mercado actualizados vía scraper</p>
     </div>
 
     <div v-else class="relative z-10">
@@ -142,9 +146,19 @@ watch(() => [props.m2Totales, props.materialEstructuralId], () => {
                 {{ formatCurrency(costoTotal) }}
               </div>
             </div>
-            <div v-if="fechaPrecios" class="text-xs bg-white/10 px-4 py-2 rounded-full font-semibold inline-flex items-center gap-2 backdrop-blur-md border border-white/10">
-              <span class="material-symbols-outlined text-[14px]">update</span>
-              Actualizado: {{ formatDate(fechaPrecios) }}
+            <div class="flex flex-col items-end gap-3">
+              <div v-if="fechaPrecios" class="text-xs bg-white/10 px-4 py-2 rounded-full font-semibold inline-flex items-center gap-2 backdrop-blur-md border border-white/10">
+                <span class="material-symbols-outlined text-[14px]">update</span>
+                Actualizado: {{ formatDate(fechaPrecios) }}
+              </div>
+              <!-- Export PDF button — solo visible tras generar presupuesto -->
+              <button
+                @click="emit('export-pdf')"
+                class="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white px-5 py-2.5 rounded-full font-bold text-xs uppercase tracking-wide transition-all shadow-lg shadow-emerald-500/30 hover:scale-[1.03]"
+              >
+                <span class="material-symbols-outlined text-[16px]">picture_as_pdf</span>
+                Exportar PDF
+              </button>
             </div>
           </div>
         </div>

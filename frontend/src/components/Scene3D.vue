@@ -59,62 +59,30 @@ const loadTex = (url) => {
 };
 
 const materialsPBR = {
-  1: {
-    map:          'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/plywood/plywood_diff_1k.jpg',
-    normalMap:    'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/plywood/plywood_nor_gl_1k.jpg',
-    roughnessMap: 'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/plywood/plywood_rough_1k.jpg',
-  },
-  2: {
-    map:          'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/corrugated_iron_02/corrugated_iron_02_diff_1k.jpg',
-    normalMap:    'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/corrugated_iron_02/corrugated_iron_02_nor_gl_1k.jpg',
-    roughnessMap: 'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/corrugated_iron_02/corrugated_iron_02_rough_1k.jpg',
-  },
-  3: {
-    map:          'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/castle_wall_slates/castle_wall_slates_diff_1k.jpg',
-    normalMap:    'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/castle_wall_slates/castle_wall_slates_nor_gl_1k.jpg',
-    roughnessMap: 'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/castle_wall_slates/castle_wall_slates_rough_1k.jpg',
-  },
-  4: {
-    map:          'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/concrete_wall_004/concrete_wall_004_diff_1k.jpg',
-    normalMap:    'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/concrete_wall_004/concrete_wall_004_nor_gl_1k.jpg',
-    roughnessMap: 'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/concrete_wall_004/concrete_wall_004_rough_1k.jpg',
-  },
+  1: { map: '/textures/Wood_17-256x256.png' },
+  2: { map: '/textures/Plaster_20-256x256.png' },
+  3: { map: '/textures/Brick_02-256x256.png' },
+  4: { map: '/textures/Bricks_22-256x256.png' },
 };
 
 const floorPBR = {
-  habitacion: {
-    map:          'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_cabinet_worn_long/wood_cabinet_worn_long_diff_1k.jpg',
-    normalMap:    'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_cabinet_worn_long/wood_cabinet_worn_long_nor_gl_1k.jpg',
-    roughnessMap: 'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_cabinet_worn_long/wood_cabinet_worn_long_rough_1k.jpg',
-  },
-  banio: {
-    map:          'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/large_floor_tiles_02/large_floor_tiles_02_diff_1k.jpg',
-    normalMap:    'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/large_floor_tiles_02/large_floor_tiles_02_nor_gl_1k.jpg',
-    roughnessMap: 'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/large_floor_tiles_02/large_floor_tiles_02_rough_1k.jpg',
-  },
-  comun: {
-    map:          'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/smooth_concrete_floor/smooth_concrete_floor_diff_1k.jpg',
-    normalMap:    'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/smooth_concrete_floor/smooth_concrete_floor_nor_gl_1k.jpg',
-    roughnessMap: 'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/smooth_concrete_floor/smooth_concrete_floor_rough_1k.jpg',
-  },
-  pasillo: {
-    map:          'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/laminate_floor_02/laminate_floor_02_diff_1k.jpg',
-    normalMap:    'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/laminate_floor_02/laminate_floor_02_nor_gl_1k.jpg',
-    roughnessMap: 'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/laminate_floor_02/laminate_floor_02_rough_1k.jpg',
-  },
+  habitacion: { map: '/textures/Wood_17-256x256.png' },
+  banio:      { map: '/textures/Tile_15-256x256.png' },
+  comun:      { map: '/textures/Wood_17-256x256.png' },
+  pasillo:    { map: '/textures/Tile_15-256x256.png' },
 };
 
 // Pre-cargar todas las texturas al iniciar (asignación directa = rápida)
 const loadedTextures = {};
 Object.keys(materialsPBR).forEach(id => {
   const u = materialsPBR[id];
-  loadedTextures[id] = { map: loadTex(u.map), normalMap: loadTex(u.normalMap), roughnessMap: loadTex(u.roughnessMap) };
+  loadedTextures[id] = { map: loadTex(u.map) };
 });
 
 const loadedFloorTextures = {};
 Object.keys(floorPBR).forEach(tipo => {
   const u = floorPBR[tipo];
-  loadedFloorTextures[tipo] = { map: loadTex(u.map), normalMap: loadTex(u.normalMap), roughnessMap: loadTex(u.roughnessMap) };
+  loadedFloorTextures[tipo] = { map: loadTex(u.map) };
 });
 
 // ── Color helpers ─────────────────────────────────────────────────────────────
@@ -160,9 +128,14 @@ const ensureScene = () => {
   scene.background = new THREE.Color("#0b1220");
   scene.fog = new THREE.FogExp2("#0b1220", 0.015);
 
-  new HDRLoader().load(
-    'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/belfast_farmhouse_1k.hdr',
-    (tex) => { tex.mapping = THREE.EquirectangularReflectionMapping; scene.environment = tex; }
+  textureLoader.load(
+    '/textures/sky/sky_118_2k.png',
+    (tex) => { 
+      tex.mapping = THREE.EquirectangularReflectionMapping; 
+      tex.colorSpace = THREE.SRGBColorSpace;
+      scene.environment = tex; 
+      scene.background = tex; 
+    }
   );
 
   const w = containerRef.value.clientWidth;
@@ -171,7 +144,7 @@ const ensureScene = () => {
   camera = new THREE.PerspectiveCamera(60, w / Math.max(h, 1), 0.1, 3000);
   camera.position.set(12, 16, 12);
 
-  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
   renderer.setSize(w, h);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
@@ -183,6 +156,7 @@ const ensureScene = () => {
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.target.set(0, 0, 0);
+  controls.maxPolarAngle = Math.PI / 2 - 0.02; // can't look from below
 
   buildingGroup = new THREE.Group(); buildingGroup.name = "building-root";
   wallsGroup    = new THREE.Group(); wallsGroup.name = "walls-group";
@@ -200,21 +174,10 @@ const ensureScene = () => {
   dir.shadow.bias = -0.001;
   scene.add(dir);
 
-  const grassMap = textureLoader.load('https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/aerial_grass_rock/aerial_grass_rock_diff_1k.jpg', (tex) => {
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(40, 40);
-  });
-  const grassNormal = textureLoader.load('https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/aerial_grass_rock/aerial_grass_rock_nor_gl_1k.jpg', (tex) => {
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(40, 40);
-  });
-
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(200, 200),
     new THREE.MeshStandardMaterial({ 
-      color: "#888888", 
-      map: grassMap,
-      normalMap: grassNormal,
+      color: "#4ade80", 
       roughness: 0.9, 
       metalness: 0.0 
     })
@@ -222,6 +185,7 @@ const ensureScene = () => {
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = -0.005;
   floor.receiveShadow = true;
+  floor.raycast = () => {}; // Floor is non-interactive
   scene.add(floor);
 
   const grid = new THREE.GridHelper(200, 200, "#ffffff", "#ffffff");
@@ -232,7 +196,18 @@ const ensureScene = () => {
   // ── Drag Controls ─────────────────────────────────────────────────────────
   dragControls = new DragControls(roomsGroup.children, camera, renderer.domElement);
   
+  // Disable drag on right/middle mouse button BEFORE dragControls processes it
+  renderer.domElement.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) {
+      dragControls.enabled = false;
+    } else if (currentTool.value === 'move') {
+      dragControls.enabled = true;
+    }
+  }, { capture: true });
 
+  renderer.domElement.addEventListener('pointerup', () => {
+    if (currentTool.value === 'move') dragControls.enabled = true;
+  });
   
   dragControls.addEventListener('hoveron', (event) => {
     if (containerRef.value && !isManipulating) containerRef.value.style.cursor = 'pointer';
@@ -486,11 +461,9 @@ const syncWalls = (walls, selectedForBudget) => {
         const rx = Math.max(1, tf.length / 2.5);
         const ry = Math.max(1, WALL_HEIGHT / 2.5);
         mesh.material.map          = pbr.map;
-        mesh.material.normalMap    = pbr.normalMap;
-        mesh.material.roughnessMap = pbr.roughnessMap;
+        mesh.material.normalMap    = null;
+        mesh.material.roughnessMap = null;
         mesh.material.map.repeat.set(rx, ry);
-        mesh.material.normalMap.repeat.set(rx, ry);
-        mesh.material.roughnessMap.repeat.set(rx, ry);
         mesh.material.userData.matId = props.materialEstructuralId;
         mesh.material.needsUpdate = true;
       }
@@ -568,11 +541,9 @@ const syncRooms = (recintos, selectedForBudget) => {
       const rx = Math.max(1, recinto.dimensions.w / 2);
       const rz = Math.max(1, recinto.dimensions.l / 2);
       mesh.material.map          = fp.map;
-      mesh.material.normalMap    = fp.normalMap;
-      mesh.material.roughnessMap = fp.roughnessMap;
+      mesh.material.normalMap    = null;
+      mesh.material.roughnessMap = null;
       mesh.material.map.repeat.set(rx, rz);
-      mesh.material.normalMap.repeat.set(rx, rz);
-      mesh.material.roughnessMap.repeat.set(rx, rz);
       mesh.material.userData.roomType = recinto.tipo;
       mesh.material.needsUpdate = true;
     }
@@ -619,6 +590,34 @@ const fitCameraToWalls = (walls) => {
   camera.position.set(cx + d * 0.8, Math.max(d, 8), cz + d * 0.8);
   controls.target.set(cx, 0, cz);
   controls.update();
+};
+
+const centerCamera = () => {
+  if (topology.value && topology.value.walls && topology.value.walls.length > 0) {
+    fitCameraToWalls(topology.value.walls);
+  } else {
+    controls.target.set(0, 0, 0);
+    camera.position.set(10, 10, 10);
+    controls.update();
+  }
+};
+
+const handleCloneFloor = () => {
+  const result = recintosStore.cloneEntireFloor();
+  if (result === 'conflict') {
+    const ok = window.confirm(
+      `El Piso ${recintosStore.currentFloor + 1} ya tiene recintos.\n¿Deseas igualmente clonar el piso ${recintosStore.currentFloor} encima?`
+    );
+    if (ok) {
+      // Forzar clonación eliminando recintos del piso destino primero
+      const target = recintosStore.currentFloor + 1;
+      const toRemove = recintosStore.recintos
+        .filter(r => (r.piso || 1) === target)
+        .map(r => r.id);
+      toRemove.forEach(id => recintosStore.deleteRecinto(id));
+      recintosStore.cloneEntireFloor();
+    }
+  }
 };
 
 // ── Resize ────────────────────────────────────────────────────────────────────
@@ -707,6 +706,9 @@ onMounted(() => {
   ensureScene();
 
   renderer.domElement.addEventListener('pointerdown', (e) => {
+    // Only process left click for selection
+    if (e.button !== 0) return;
+
     // Si el usuario está interactuando con las flechas, ignorar el clic
     if (transformControl && transformControl.axis !== null) return;
 
@@ -754,7 +756,6 @@ onMounted(() => {
       const sel = new Set(selectedIds);
       if (scene) syncWalls(walls, sel);
       if (scene) syncRooms(recintos, sel);
-    },
     },
     { deep: true, immediate: true }
   );
@@ -870,21 +871,41 @@ onBeforeUnmount(() => {
         <div class="flex items-center gap-2 bg-slate-800/80 backdrop-blur-sm rounded-lg p-1 border border-slate-700/80 shadow-inner">
           <button @click="recintosStore.setFloor(recintosStore.currentFloor - 1)" :disabled="recintosStore.currentFloor <= 1" class="text-slate-300 hover:text-white hover:bg-slate-700 px-2 rounded disabled:opacity-30 transition-colors font-bold text-sm">-</button>
           <span class="text-[11px] font-black text-white px-2 tracking-widest uppercase">Piso {{ recintosStore.currentFloor }}</span>
-          <button @click="recintosStore.setFloor(recintosStore.currentFloor + 1)" class="text-slate-300 hover:text-white hover:bg-slate-700 px-2 rounded transition-colors font-bold text-sm">+</button>
+          <button @click="recintosStore.setFloor(recintosStore.currentFloor + 1)" :disabled="recintosStore.currentFloor >= 3" class="text-slate-300 hover:text-white hover:bg-slate-700 px-2 rounded disabled:opacity-30 transition-colors font-bold text-sm">+</button>
         </div>
+        <!-- Clone Floor button -->
+        <button
+          v-if="recintosStore.currentFloor < 3"
+          @click="handleCloneFloor"
+          class="flex items-center gap-1 px-2 py-1 rounded text-xs font-bold bg-blue-900/50 hover:bg-blue-800/70 text-blue-300 hover:text-white border border-blue-700/50 transition-all"
+          title="Duplicar piso actual al siguiente piso"
+        >
+          <span class="material-symbols-outlined text-[14px]">content_copy</span>
+          Clonar Piso
+        </button>
       </div>
 
-      <button
-        @click="toggleFullScreen"
-        class="text-slate-400 hover:text-white transition-colors flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-700 shadow-sm"
-      >
-        <span class="material-symbols-outlined text-[18px]">
-          {{ isFullScreen ? 'fullscreen_exit' : 'fullscreen' }}
-        </span>
-        <span class="text-xs font-bold uppercase tracking-wider">
-          {{ isFullScreen ? 'Salir de Pantalla Completa' : 'Pantalla Completa' }}
-        </span>
-      </button>
+      <div class="flex items-center gap-2">
+        <button
+          @click="centerCamera"
+          class="text-slate-400 hover:text-white transition-colors flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-700 shadow-sm"
+          title="Centrar Cámara"
+        >
+          <span class="material-symbols-outlined text-[18px]">my_location</span>
+        </button>
+
+        <button
+          @click="toggleFullScreen"
+          class="text-slate-400 hover:text-white transition-colors flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-700 shadow-sm"
+        >
+          <span class="material-symbols-outlined text-[18px]">
+            {{ isFullScreen ? 'fullscreen_exit' : 'fullscreen' }}
+          </span>
+          <span class="text-xs font-bold uppercase tracking-wider">
+            {{ isFullScreen ? 'Salir de Pantalla Completa' : 'Pantalla Completa' }}
+          </span>
+        </button>
+      </div>
     </div>
 
     <div ref="containerRef" class="scene3d-canvas" />

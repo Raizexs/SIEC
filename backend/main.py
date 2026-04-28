@@ -141,8 +141,8 @@ def crear_simulacion(sim: SimulacionCreate, db: Session = Depends(get_db)):
     """Guarda los parámetros de configuración de la vivienda y crea una nueva simulación."""
     
     # Validaciones obligatorias
-    if sim.m2Totales <= 0 or sim.m2Totales > 500:
-        raise HTTPException(status_code=400, detail="Superficie total debe estar entre 1 y 500 m².")
+    if sim.m2Totales < 15 or sim.m2Totales > 200:
+        raise HTTPException(status_code=400, detail="Superficie total debe estar entre 15 y 200 m².")
     
     if sim.habitaciones < 0 or sim.banios < 0 or sim.areasComunes < 0:
         raise HTTPException(status_code=400, detail="La cantidad de recintos no puede ser negativa.")
@@ -515,6 +515,21 @@ def calcular_insumos(
             (sum(perdidas_optimizadas) / len(perdidas_optimizadas)) * 100.0
             if perdidas_optimizadas else None
         ),
+    )
+
+## SCRUM-97
+## Ley 21.725 - Validación de Cumplimiento Normativo (Ley del Mono)
+try:
+    from ley21725 import ValidacionLeyMonoRequest, ValidacionLeyMonoResponse, validar_ley_21725
+except ModuleNotFoundError:
+    from backend.ley21725 import ValidacionLeyMonoRequest, ValidacionLeyMonoResponse, validar_ley_21725
+
+@app.post("/api/validar-ley-mono", response_model=ValidacionLeyMonoResponse)
+def endpoint_validar_ley_mono(payload: ValidacionLeyMonoRequest):
+    return validar_ley_21725(
+        area_m2=payload.area_m2,
+        costo_total_clp=payload.costo_total_clp,
+        valor_uf_actual=payload.valor_uf_actual,
     )
 
 
