@@ -24,22 +24,17 @@ const props = defineProps({
     type: String,
     default: 'generalSpecs'
   },
-  is3DMode: {
-    type: Boolean,
-    default: false
-  }
 })
 
-const emit = defineEmits(['tab-change', 'save-layout', 'toggle-3d', 'export-pdf'])
+const emit = defineEmits(['save-layout', 'export-pdf'])
 
+// Only one tab remains; kept for future extensibility
 const tabs = [
   { name: 'generalSpecs' },
-  { name: 'materials' },
-  { name: 'logistics' }
 ]
 
 const handleTabClick = (tabName) => {
-  emit('tab-change', tabName)
+  // reserved for future tabs
 }
 
 const logout = () => {
@@ -53,55 +48,17 @@ const logout = () => {
     <div class="flex items-center gap-8">
       <h2 class="text-xl font-black text-primary-container dark:text-slate-200 uppercase tracking-wider font-headline">{{ t('estimationConfigurator') }}</h2>
       
-      <!-- Centro: Toggle 2D / 3D -->
-      <div class="hidden md:flex items-center bg-slate-200/50 dark:bg-slate-800/50 p-1 rounded-full border border-slate-300/50 dark:border-slate-700/50 shadow-inner relative ml-4">
-        <button 
-          @click="$emit('toggle-3d', false)"
-          class="relative z-10 px-4 py-1 rounded-full text-xs font-bold transition-colors duration-300"
-          :class="!is3DMode ? 'text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'"
-        >
-          2D
-        </button>
-        <button 
-          @click="$emit('toggle-3d', true)"
-          class="relative z-10 px-4 py-1 rounded-full text-xs font-bold transition-colors duration-300"
-          :class="is3DMode ? 'text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'"
-        >
-          3D
-        </button>
-        <!-- Pill animado -->
-        <div 
-          class="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-primary rounded-full shadow-md transition-transform duration-300 ease-in-out"
-          :class="is3DMode ? 'translate-x-[calc(100%+4px)]' : 'translate-x-1'"
-        ></div>
-      </div>
-
-      <div class="hidden md:flex items-center space-x-6 text-sm font-manrope font-semibold tracking-tight ml-4">
-        <button 
-          v-for="tab in tabs" 
-          :key="tab.name"
-          :class="['py-5 transition-colors', activeTab === tab.name ? 'text-primary-container border-b-2 border-primary-container' : 'text-slate-500 hover:text-slate-800']"
-          @click="handleTabClick(tab.name)"
-        >
-          {{ t(tab.name) }}
-        </button>
-      </div>
+      <!-- Tabs (solo generalSpecs visible; reservado para futuras secciones) -->
+      <div class="hidden"></div>
     </div>
     <div class="flex items-center gap-4">
       <button 
         @click="$emit('save-layout')"
         class="hidden md:flex items-center gap-2 bg-primary/10 text-primary hover:bg-primary/20 px-4 py-2 rounded-full font-bold text-xs uppercase tracking-wide transition-colors"
+        title="Guardar diseño actual"
       >
         <span class="material-symbols-outlined text-[16px]">save</span>
         {{ t('save') }}
-      </button>
-
-      <button 
-        @click="$emit('export-pdf')"
-        class="flex items-center gap-2 bg-gradient-to-br from-emerald-500 to-emerald-600 text-white hover:opacity-90 px-4 py-2 rounded-full font-bold text-xs uppercase tracking-wide transition-colors shadow-sm"
-      >
-        <span class="material-symbols-outlined text-[16px]">picture_as_pdf</span>
-        Exportar PDF
       </button>
 
       <div class="relative">

@@ -43,6 +43,53 @@ class EasyScraper(BaseScraper):
     def _get_urls(self) -> list[str]:
         return STORE_CFG["product_urls"]
 
+    def _get_search_url(self, query: str) -> str:
+        return STORE_CFG["search_url"].format(query=query.replace(" ", "%20"))
+
+    def _scrape_search_results(self, page: Page, query: str) -> list[dict]:
+        """Extrae lista de productos desde la página de búsqueda de Easy."""
+        url = self._get_search_url(query)
+        page.goto(url, wait_until="domcontentloaded", timeout=30_000)
+        self._dismiss_location_modal(page)
+        
+        sel_cont = STORE_CFG["search_selectors"]["container"]
+        try:
+            page.wait_for_selector(sel_cont, timeout=15_000)
+        except Exception:
+            return []
+
+        products = []
+        cards = page.locator(sel_cont).all()
+        
+        for card in cards[:10]:
+            try:
+                name_sel = STORE_CFG["search_selectors"]["name"]
+                price_sel = STORE_CFG["search_selectors"]["price"]
+                link_sel = STORE_CFG["search_selectors"]["link"]
+
+                name_el = card.locator(name_sel).first
+                price_el = card.locator(price_sel).first
+                link_el = card.locator(link_sel).first
+
+                if name_el.is_visible() and price_el.is_visible():
+                    name = name_el.inner_text().strip()
+                    price_raw = price_el.inner_text().strip()
+                    link = link_el.get_attribute("href")
+                    if link and not link.startswith("http"):
+                        link = f"https://www.easy.cl{link}"
+
+                    products.append({
+                        "tienda": self.store_key,
+                        "nombre_producto": name,
+                        "precio": self.parse_price(price_raw),
+                        "url": link,
+                        "exitoso": True
+                    })
+            except Exception:
+                continue
+        
+        return products
+
     def _dismiss_location_modal(self, page: Page) -> None:
         """Cierra el modal de selección de ubicación de Easy."""
         selectors_cierre = [

@@ -8,15 +8,12 @@ import ConfigurationPanel from "./components/ConfigurationPanel.vue";
 import MetricsPanel from "./components/MetricsPanel.vue";
 import RoomEditor2D from "./components/RoomEditor2D.vue";
 import Scene3D from "./components/Scene3D.vue";
-import MaterialsPanel from "./components/MaterialsPanel.vue";
-import LogisticsPanel from "./components/LogisticsPanel.vue";
 import LayerSelectionPanel from "./components/LayerSelectionPanel.vue";
 import BudgetBreakdownPanel from "./components/BudgetBreakdownPanel.vue";
 import SaveLayoutDialog from "./components/SaveLayoutDialog.vue";
 import LoginOverlay from "./components/LoginOverlay.vue";
 import PreventiveLogisticsAlertModal from "./components/PreventiveLogisticsAlertModal.vue";
 import UserManualModal from "./components/UserManualModal.vue";
-import Ley21725AlertModal from "./components/Ley21725AlertModal.vue";
 import { useRecintosStore } from "./stores/recintos";
 import { useWorkspaceStore } from "./stores/workspace";
 import { useTokenCounter } from "./composables/useTokenCounter";
@@ -24,7 +21,6 @@ import { useLayoutManager } from "./composables/useLayoutManager";
 import { useI18n } from "./composables/useI18n";
 import { generateCommercialPDF } from "./utils/pdfGenerator";
 import { useAuthStore } from "./stores/auth";
-import { useLey21725 } from "./composables/useLey21725";
 
 const recintosStore = useRecintosStore();
 const workspaceStore = useWorkspaceStore();
@@ -32,25 +28,15 @@ const authStore = useAuthStore();
 const { saveLayout } = useLayoutManager();
 const { t, currentLanguage } = useI18n();
 
-// SCRUM-97: Validador Ley 21.725 (Ley del Mono)
-const {
-  showModal: showLey21725Modal,
-  resultado: ley21725Resultado,
-  hayInfraccion: hayInfraccionLey21725,
-  validar: validarLey21725,
-  cerrarModal: cerrarLey21725Modal,
-  excedeLimiteLocal,
-} = useLey21725();
-
 const sidebarCollapsed = ref(false);
 
 onMounted(() => {
   authStore.initializeAuth();
   workspaceStore.loadWorkspace();
+  // No auto-generate rooms — user creates them manually via editor 2D
 });
 const showPreventiveLogisticsModal = ref(false);
 const showManual = ref(false);
-const is3DMode = ref(false);
 const HEAVY_LOGISTICS_MATERIAL_ID = 4;
 const LIGHTWEIGHT_QUOTE_MATERIAL_ID = 2;
 const materialTriggerReady = ref(false);
@@ -60,13 +46,19 @@ const appKey = computed(() => `app-${currentLanguage.value}`);
 
 const showToast = ref(false);
 const formData = ref({
-  m2Totales: 150,
+  terrenoAncho: 15,
+  terrenoLargo: 7,
+  m2Totales: 105,
   materialEstructuralId: 4,
-  habitacionesSimples: 2,
+  habitacionesSimples: 0,
   habitacionesDobles: 0,
   habitacionesTriples: 0,
-  banios: 1,
-  areasComunes: 1,
+  banios: 0,
+  areasComunes: 0,
+});
+
+watchEffect(() => {
+  formData.value.m2Totales = (formData.value.terrenoAncho || 0) * (formData.value.terrenoLargo || 0);
 });
 
 const {
@@ -115,35 +107,38 @@ watch(
 let debounceTimer = null;
 const isProgrammaticUpdate = ref(false);
 
+// Watch formData BUT skip materialEstructuralId changes to preserve manual rooms
+let prevMaterialId = formData.value.materialEstructuralId;
 watch(
   formData,
   async (newVal) => {
-    await nextTick(); // Esperamos que useTokenCounter actualice 'estado'
+    await nextTick();
 
-    if (estado.value === "danger") {
-      // Si excede el límite de tokens, abortar regeneración para no corromper el modelo 3D
+    // If only materialEstructuralId changed, update metadata but DON'T reset layout
+    if (newVal.materialEstructuralId !== prevMaterialId) {
+      prevMaterialId = newVal.materialEstructuralId;
+      recintosStore.configMetadata.materialEstructuralId = newVal.materialEstructuralId;
+      // If nothing else changed, skip initializeLayout entirely
       return;
     }
 
+    if (estado.value === "danger") return;
     if (isProgrammaticUpdate.value) return;
 
-    if (hasRecintos.value) {
-      if (debounceTimer) clearTimeout(debounceTimer);
-
-      debounceTimer = setTimeout(() => {
-        const totalHabitaciones =
-          newVal.habitacionesSimples +
-          newVal.habitacionesDobles +
-          newVal.habitacionesTriples;
-        recintosStore.initializeLayout(
-          newVal.m2Totales,
-          totalHabitaciones,
-          newVal.banios,
-          newVal.areasComunes,
-          newVal.materialEstructuralId,
-        );
-      }, 400); // Debounce de 400ms para evitar congelamientos en cambios continuos (sliders/flechas)
-    }
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      const totalHabitaciones =
+        newVal.habitacionesSimples +
+        newVal.habitacionesDobles +
+        newVal.habitacionesTriples;
+      recintosStore.initializeLayout(
+        newVal.m2Totales,
+        totalHabitaciones,
+        newVal.banios,
+        newVal.areasComunes,
+        newVal.materialEstructuralId,
+      );
+    }, 400);
   },
   { deep: true },
 );
@@ -182,6 +177,8 @@ const quoteWithLightweightMaterials = () => {
 const loadPreset = (preset) => {
   isProgrammaticUpdate.value = true;
   formData.value = {
+    terrenoAncho: preset.terrenoAncho || Math.round(Math.sqrt((preset.m2Totales || 105) / 2)),
+    terrenoLargo: preset.terrenoLargo || Math.round(Math.sqrt((preset.m2Totales || 105) * 2)),
     m2Totales: preset.m2Totales,
     materialEstructuralId: preset.materialEstructuralId,
     habitacionesSimples: preset.habitacionesSimples || 0,
@@ -211,6 +208,8 @@ const loadPreset = (preset) => {
 const loadLayout = (layout) => {
   isProgrammaticUpdate.value = true;
   formData.value = {
+    terrenoAncho: layout.terrenoAncho || Math.round(Math.sqrt((layout.m2Totales || 105) / 2)),
+    terrenoLargo: layout.terrenoLargo || Math.round(Math.sqrt((layout.m2Totales || 105) * 2)),
     m2Totales: layout.m2Totales,
     materialEstructuralId: layout.materialEstructuralId,
     habitacionesSimples: layout.habitacionesSimples || 0,
@@ -258,22 +257,6 @@ const submitForm = async () => {
     return;
   }
 
-  // SCRUM-97: Validación Ley 21.725 (Ley del Mono) — bloqueo previo a generación
-  try {
-    const resultadoLey = await validarLey21725(formData.value.m2Totales);
-    if (resultadoLey?.bloqueante) {
-      // El modal bloqueante ya fue activado dentro de validarLey21725()
-      return;
-    }
-  } catch (err) {
-    // Si el backend no está disponible, aplicar validación local de emergencia
-    if (excedeLimiteLocal(formData.value.m2Totales)) {
-      return; // El composable ya activó el modal de fallback
-    }
-    // En cualquier otro error de red, continuar con advertencia en consola
-    console.warn("Validación Ley 21.725 no disponible:", err.message);
-  }
-
   isSubmitting.value = true;
 
   try {
@@ -308,7 +291,9 @@ const handleNewEstimate = () => {
     isProgrammaticUpdate.value = true;
     workspaceStore.resetWorkspace();
     formData.value = {
-      m2Totales: 50,
+      terrenoAncho: 15,
+      terrenoLargo: 7,
+      m2Totales: 105,
       habitacionesSimples: 0,
       habitacionesDobles: 0,
       habitacionesTriples: 0,
@@ -317,6 +302,10 @@ const handleNewEstimate = () => {
       materialEstructuralId: 1
     };
     recintosStore.configMetadata = null;
+    recintosStore.recintos = [];
+    recintosStore.selectedForBudget = new Set();
+    recintosStore.clearActiveRecinto();
+    prevMaterialId = 1;
     setTimeout(() => { isProgrammaticUpdate.value = false; }, 500);
   }
 };
@@ -335,15 +324,15 @@ const startTutorial = () => {
       { 
         popover: { 
           title: 'Bienvenido a SIEC', 
-          description: 'Esta es tu plataforma de inteligencia constructiva. Te daremos un breve recorrido por el simulador.',
+          description: 'Esta es tu plataforma de simulación constructiva inteligente. Te guiaremos paso a paso por el flujo de diseño.',
           side: "left", align: 'start'
         }
       },
       {
         element: '.tour-config-panel',
         popover: {
-          title: 'Configuración del Proyecto',
-          description: 'Aquí puedes definir los metros cuadrados de tu terreno, la cantidad de habitaciones, baños y el material estructural.',
+          title: 'Configuración del Terreno',
+          description: 'Define las dimensiones de tu terreno (ancho × largo) y selecciona la materialidad estructural. Cambiar la materialidad actualiza las texturas del modelo 3D sin perder tu diseño.',
           side: "right", align: 'start'
         }
       },
@@ -351,14 +340,30 @@ const startTutorial = () => {
         element: '.tour-metrics-panel',
         popover: {
           title: 'Presupuesto Espacial',
-          description: 'Este panel te muestra en tiempo real cómo se distribuye el espacio de tu terreno a medida que agregas recintos.',
+          description: 'Monitorea en tiempo real el área total construida vs. el espacio disponible en tu terreno. Se actualiza automáticamente al agregar o redimensionar recintos.',
           side: "left", align: 'start'
         }
       },
       {
+        element: '.tour-editor-2d',
         popover: {
-          title: '¡Todo listo!',
-          description: 'Haz clic en "Generar Modelo" cuando estés listo para visualizar tu proyecto en 3D.',
+          title: 'Editor 2D — Creación Manual',
+          description: 'Usa "Añadir Recinto" para crear habitaciones, baños o pasillos con medidas exactas. Arrastra para mover, usa las esquinas para redimensionar. El sistema detecta colisiones automáticamente.',
+          side: "top", align: 'start'
+        }
+      },
+      {
+        element: '.tour-scene-3d',
+        popover: {
+          title: 'Vista 3D en Tiempo Real',
+          description: 'Tu diseño se renderiza como modelo 3D con texturas procedurales según la materialidad elegida (madera, metalcon, albañilería o ferrocemento). Arrastra para mover recintos, usa las flechas para escalarlos.',
+          side: "top", align: 'start'
+        }
+      },
+      {
+        popover: {
+          title: '¡Listo para diseñar!',
+          description: 'Agrega recintos desde el editor 2D, selecciona una materialidad, y activa el icono $ en los recintos para generar un desglose de presupuesto detallado.',
           side: "top", align: 'center'
         }
       }
@@ -387,31 +392,15 @@ const startTutorial = () => {
       :class="sidebarCollapsed ? 'ml-0' : 'ml-64'"
       class="min-h-screen transition-all duration-300"
     >
-      <TopNavBar :activeTab="activeTab" :is3DMode="is3DMode" @tab-change="handleTabChange" @save-layout="showSaveDialog = true" @export-pdf="handleExportPDF" @toggle-3d="is3DMode = $event" />
+      <TopNavBar :activeTab="activeTab" @save-layout="showSaveDialog = true" @export-pdf="handleExportPDF" />
 
       <div class="p-10 max-w-7xl mx-auto grid grid-cols-12 gap-10">
         <ConfigurationPanel
           class="tour-config-panel"
-          v-show="activeTab === 'generalSpecs'"
           :formData="formData"
           :costs="costs"
           :tokensDisponibles="tokensDisponibles"
-          :isSubmitting="isSubmitting"
           @update:formData="updateFormData"
-          @submit="submitForm"
-        />
-        <MaterialsPanel
-          v-show="activeTab === 'materials'"
-          :selectedMaterialId="formData.materialEstructuralId"
-          :totalM2="formData.m2Totales"
-          @material-selected="handleMaterialSelection"
-          class="col-span-7"
-        />
-        <LogisticsPanel
-          v-show="activeTab === 'logistics'"
-          :materialEstructuralId="formData.materialEstructuralId"
-          :m2Totales="formData.m2Totales"
-          class="col-span-7"
         />
 
         <MetricsPanel
@@ -425,26 +414,38 @@ const startTutorial = () => {
         />
       </div>
 
-      <div v-if="hasRecintos" class="p-10 pt-0 max-w-7xl mx-auto space-y-6">
+      <div class="p-10 pt-0 max-w-7xl mx-auto space-y-6">
         <LayerSelectionPanel />
-        
-        <!-- Toggle 2D/3D Container -->
-        <transition name="fade" mode="out-in">
-          <KeepAlive>
-            <Scene3D v-if="is3DMode" :materialEstructuralId="formData.materialEstructuralId" />
-            <RoomEditor2D
-              v-else
-              :m2Totales="formData.m2Totales"
-              :descripcionEstado="descripcionEstado"
-            />
-          </KeepAlive>
-        </transition>
+
+        <!-- Hint: crear recintos -->
+        <div class="flex items-start gap-3 p-3 rounded-xl bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-800/30">
+          <span class="material-symbols-outlined text-indigo-500 dark:text-indigo-400 text-[18px] mt-0.5">add_home</span>
+          <div>
+            <p class="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">Agregar recintos</p>
+            <p class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+              Usa <strong class="text-indigo-400">"Añadir Recinto"</strong> en el editor 2D para crear espacios con medidas exactas.
+            </p>
+          </div>
+        </div>
+
+        <!-- Editor 2D -->
+        <RoomEditor2D
+          class="tour-editor-2d"
+          :m2Totales="formData.m2Totales"
+          v-model:terrenoAncho="formData.terrenoAncho"
+          v-model:terrenoLargo="formData.terrenoLargo"
+          :descripcionEstado="descripcionEstado"
+        />
+
+        <!-- Render 3D (siempre debajo del 2D) -->
+        <Scene3D class="tour-scene-3d" :materialEstructuralId="formData.materialEstructuralId" />
 
         <!-- Presupuesto: aparece cuando hay recintos con $ activado -->
         <BudgetBreakdownPanel
           v-if="recintosStore.selectedM2 > 0"
           :m2Totales="recintosStore.selectedM2"
           :materialEstructuralId="formData.materialEstructuralId"
+          @export-pdf="handleExportPDF"
         />
       </div>
 
@@ -470,13 +471,6 @@ const startTutorial = () => {
     />
 
     <UserManualModal :show="showManual" @close="showManual = false" />
-
-    <!-- SCRUM-97: Modal bloqueante Ley 21.725 (Ley del Mono) -->
-    <Ley21725AlertModal
-      :show="showLey21725Modal"
-      :resultado="ley21725Resultado"
-      @close="cerrarLey21725Modal"
-    />
 
     <!-- Toast Notification -->
     <transition enter-active-class="transition ease-out duration-300" enter-from-class="transform translate-y-2 opacity-0" enter-to-class="transform translate-y-0 opacity-100" leave-active-class="transition ease-in duration-200" leave-from-class="transform translate-y-0 opacity-100" leave-to-class="transform translate-y-2 opacity-0">

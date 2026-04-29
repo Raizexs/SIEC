@@ -1,7 +1,5 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
-import { useMetalconValidator } from "../composables/useMetalconValidator";
-
 // Función simple para generar IDs únicos sin dependencias externas
 const generateId = () =>
   `recinto-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -21,8 +19,72 @@ export const useRecintosStore = defineStore("recintos", () => {
   const activeRecintoId = ref(null);
   const currentFloor = ref(1);
 
-  // SCRUM-98: Validador de cruce Insumo vs Altura (Metalcon)
-  const metalconValidator = useMetalconValidator();
+  // History and Clipboard State
+  const history = ref([]);
+  const historyIndex = ref(-1);
+  const clipboard = ref(null);
+
+  const saveHistoryState = () => {
+    if (historyIndex.value < history.value.length - 1) {
+      history.value = history.value.slice(0, historyIndex.value + 1);
+    }
+    history.value.push(JSON.parse(JSON.stringify(recintos.value)));
+    if (history.value.length > 50) {
+      history.value.shift();
+    } else {
+      historyIndex.value++;
+    }
+  };
+
+  const undo = () => {
+    if (historyIndex.value > 0) {
+      historyIndex.value--;
+      recintos.value = JSON.parse(JSON.stringify(history.value[historyIndex.value]));
+    }
+  };
+
+  const redo = () => {
+    if (historyIndex.value < history.value.length - 1) {
+      historyIndex.value++;
+      recintos.value = JSON.parse(JSON.stringify(history.value[historyIndex.value]));
+    }
+  };
+
+  const copyToClipboard = (id) => {
+    const room = recintos.value.find(r => r.id === id);
+    if (room) {
+      clipboard.value = JSON.parse(JSON.stringify(room));
+    }
+  };
+
+  const cutToClipboard = (id) => {
+    copyToClipboard(id);
+    deleteRecinto(id);
+    saveHistoryState();
+  };
+
+  const pasteFromClipboard = () => {
+    if (!clipboard.value) return;
+    const c = clipboard.value;
+    const floorRecintos = recintos.value.filter(r => r.piso === currentFloor.value);
+    let maxX = 0;
+    if (floorRecintos.length > 0) {
+      maxX = Math.max(...floorRecintos.map(r => r.coords.x + r.dimensions.w));
+    }
+    
+    const newId = generateId();
+    recintos.value.push({
+      id: newId,
+      stackId: newId,
+      tipo: c.tipo,
+      nombre: c.nombre + ' (Copia)',
+      piso: currentFloor.value,
+      coords: { x: maxX + 0.15, z: 0 },
+      dimensions: { ...c.dimensions },
+    });
+    saveHistoryState();
+    return newId;
+  };
 
   // Metadata de configuración para el layout inicial
   const configMetadata = ref({
@@ -44,10 +106,19 @@ export const useRecintosStore = defineStore("recintos", () => {
    * Base dimensions for each room type (prototypical size in metres).
    */
   const BASE_DIMS = {
-    habitacion: { w: 3.5, l: 3.0 },
-    banio:      { w: 2.0, l: 2.0 },
-    areaComun:  { w: 4.5, l: 3.5 },
-    pasillo:    { w: 1.5, l: 3.0 },
+    habitacion: { w: 3.5, l: 3.0, h: 2.4 },
+    banio:      { w: 2.0, l: 2.0, h: 2.4 },
+    areaComun:  { w: 4.5, l: 3.5, h: 2.4 },
+    pasillo:    { w: 1.5, l: 3.0, h: 2.4 },
+  };
+
+  // Default values for the Add Recinto quick-create form
+  const DEFAULT_RECINTO = {
+    tipo: 'habitacion',
+    nombre: 'Habitación',
+    w: 3.5,
+    l: 3.0,
+    h: 2.4,
   };
 
   /**
@@ -145,6 +216,8 @@ export const useRecintosStore = defineStore("recintos", () => {
       });
       zCursor += stripH + GAP;
     });
+
+    saveHistoryState();
   };
 
   const addPasillo = () => {
@@ -159,10 +232,44 @@ export const useRecintosStore = defineStore("recintos", () => {
       id,
       stackId: id,
       tipo: "pasillo",
+      nombre: "Pasillo",
       piso: currentFloor.value,
       coords: { x: maxX + 0.15, z: 0 },
       dimensions: { ...BASE_DIMS.pasillo },
     });
+    saveHistoryState();
+  };
+
+  /**
+   * addRecinto — Create a single room with explicit measurements.
+   * @param {string} tipo     - 'habitacion' | 'banio' | 'areaComun' | 'pasillo'
+   * @param {string} nombre   - Display name for the room
+   * @param {number} w        - Width in metres
+   * @param {number} l        - Length in metres
+   * @param {number} h        - Height in metres (stored for future use)
+   */
+  const addRecinto = (tipo = 'habitacion', nombre = 'Habitación', w = 3.5, l = 3.0, h = 2.4) => {
+    const floorRecintos = recintos.value.filter(r => r.piso === currentFloor.value);
+    let maxX = 0;
+    if (floorRecintos.length > 0) {
+      maxX = Math.max(...floorRecintos.map(r => r.coords.x + r.dimensions.w));
+    }
+    const id = generateId();
+    recintos.value.push({
+      id,
+      stackId: id,
+      tipo,
+      nombre,
+      piso: currentFloor.value,
+      coords: { x: parseFloat((maxX + 0.15).toFixed(3)), z: 0 },
+      dimensions: {
+        w: parseFloat(w.toFixed(3)),
+        l: parseFloat(l.toFixed(3)),
+        h: parseFloat(h.toFixed(3)),
+      },
+    });
+    saveHistoryState();
+    return id;
   };
 
   const setFloor = (floor) => {
@@ -187,12 +294,38 @@ export const useRecintosStore = defineStore("recintos", () => {
       coords: { x: source.coords.x, z: source.coords.z },
       dimensions: { w: source.dimensions.w, l: source.dimensions.l }
     });
+    saveHistoryState();
+  };
 
-    // SCRUM-98: Validar cruce Insumo (Metalcon) vs Altura (pisos) tras clonar
-    metalconValidator.validarDesdeStore(
-      configMetadata.value.materialEstructuralId,
-      recintos.value
-    );
+  /**
+   * Clona TODOS los recintos del piso actual al siguiente piso.
+   * Retorna false si ya hay recintos en el piso destino (requiere confirm).
+   */
+  const cloneEntireFloor = () => {
+    const targetFloor = currentFloor.value + 1;
+    if (targetFloor > 3) return false;
+
+    const sourceRooms = recintos.value.filter(r => (r.piso || 1) === currentFloor.value);
+    if (sourceRooms.length === 0) return false;
+
+    const destRooms = recintos.value.filter(r => (r.piso || 1) === targetFloor);
+    if (destRooms.length > 0) return 'conflict'; // El llamador debe confirmar
+
+    sourceRooms.forEach(r => {
+      recintos.value.push({
+        id: generateId(),
+        stackId: r.stackId || r.id,
+        tipo: r.tipo,
+        nombre: r.nombre,
+        piso: targetFloor,
+        coords: { x: r.coords.x, z: r.coords.z },
+        dimensions: { ...r.dimensions },
+      });
+    });
+
+    currentFloor.value = targetFloor;
+    saveHistoryState();
+    return true;
   };
 
   /**
@@ -247,6 +380,7 @@ export const useRecintosStore = defineStore("recintos", () => {
   const deleteRecinto = (id) => {
     recintos.value = recintos.value.filter((r) => r.id !== id);
     selectedForBudget.value.delete(id);
+    saveHistoryState();
   };
 
   const toggleBudget = (id) => {
@@ -293,6 +427,7 @@ export const useRecintosStore = defineStore("recintos", () => {
     recintos,
     configMetadata,
     TOKEN_COSTS,
+    DEFAULT_RECINTO,
     selectedForBudget,
     activeRecintoId,
     currentFloor,
@@ -300,21 +435,46 @@ export const useRecintosStore = defineStore("recintos", () => {
     // Methods
     initializeLayout,
     addPasillo,
+    addRecinto,
     setFloor,
     cloneToCurrentFloor,
+    cloneEntireFloor,
     updateRecinto,
     deleteRecinto,
     toggleBudget,
     setActiveRecinto,
     clearActiveRecinto,
 
+    rotateMatrix: (direction, oldW, oldH) => {
+      recintos.value.forEach(r => {
+        let nx, nz, nw = r.dimensions.l, nl = r.dimensions.w;
+        if (direction === 'right') { // 90 deg clockwise
+          nx = oldH - r.coords.z - r.dimensions.l;
+          nz = r.coords.x;
+        } else { // 90 deg counter-clockwise
+          nx = r.coords.z;
+          nz = oldW - r.coords.x - r.dimensions.w;
+        }
+        r.coords.x = nx;
+        r.coords.z = nz;
+        r.dimensions.w = nw;
+        r.dimensions.l = nl;
+      });
+      saveHistoryState();
+    },
+
+    // History & Clipboard Methods
+    saveHistoryState,
+    undo,
+    redo,
+    copyToClipboard,
+    cutToClipboard,
+    pasteFromClipboard,
+
     // Computed
     totalArea,
     recintosByType,
     selectedM2,
     activeRecinto,
-
-    // SCRUM-98: Validador Metalcon vs Altura
-    metalconValidator,
   };
 });
