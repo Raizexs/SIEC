@@ -139,11 +139,11 @@ def get_tipos_recinto(db: Session = Depends(get_db)):
 @app.post("/api/simulacion/parametros", status_code=status.HTTP_201_CREATED)
 def crear_simulacion(sim: SimulacionCreate, db: Session = Depends(get_db)):
     """Guarda los parámetros de configuración de la vivienda y crea una nueva simulación."""
-    
+
     # Validaciones obligatorias
-    if sim.m2Totales < 15 or sim.m2Totales > 200:
-        raise HTTPException(status_code=400, detail="Superficie total debe estar entre 15 y 200 m².")
-    
+    if sim.m2Totales < 1 or sim.m2Totales > 500:
+        raise HTTPException(status_code=400, detail="Superficie total debe estar entre 1 y 500 m².")
+
     if sim.habitaciones < 0 or sim.banios < 0 or sim.areasComunes < 0:
         raise HTTPException(status_code=400, detail="La cantidad de recintos no puede ser negativa.")
         
@@ -197,29 +197,19 @@ def asociar_y_validar_layout_estricto(simulacion_id: int, payload: PayloadLayout
     cat_tipos = db.query(models.TipoRecinto).all()
     # Mapeo relajado de strings (ej: 'Baño' -> 'bano')
     costo_por_tipo = { normalize_string(t.nombre): t.costo_tokens for t in cat_tipos }
-    
-    # Agregamos alias por si el frontend usa sufijos
-    costo_por_tipo["habitacion simple"] = costo_por_tipo.get("habitacion", 9)
-    costo_por_tipo["habitacion doble"] = costo_por_tipo.get("habitacion", 9)
-    costo_por_tipo["habitacion triple"] = costo_por_tipo.get("habitacion", 9)
-    costo_por_tipo["area comun"] = costo_por_tipo.get("area comun", 12)
 
-    area_total_acumulada = 0.0
-    
-    # 3. Iterar cada recinto recibido
+    area_total_acumulada = 0.0    # 3. Iterar cada recinto recibido
     for recinto in payload.recintos:
         area_recinto = recinto.ancho * recinto.largo
         area_total_acumulada += area_recinto
-        
-        tipo_normalizado = normalize_string(recinto.tipo)
-        if tipo_normalizado in costo_por_tipo:
-            min_legal_area = float(costo_por_tipo[tipo_normalizado])
-            # Validación de Tamaño Mínimo (Tope Inferior Normativo)
-            if area_recinto < min_legal_area:
-                raise HTTPException(
-                    status_code=400, 
-                    detail=f"Validación estricta falló: El cuarto tipo '{recinto.tipo}' tiene un área geométrica de {area_recinto:.2f} m², lo cual es inferior al requerimiento mínimo por token de {min_legal_area} m²."
-                )
+
+        # Validación estricta mínima: Todo recinto debe tener un mínimo razonable (ej. 1m2),
+        # prescindiendo de tipos legacy rígidos
+        if area_recinto < 1.0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Validación matemática falló: El cuarto tipo '{recinto.tipo}' tiene un área geométrica de {area_recinto:.2f} m², lo cual es inferior al mínimo seguro de 1 m²."
+            )
 
     # 4. Validación de Capacidad Máxima (Tope Superior)
     if area_total_acumulada > float(simulacion.m2_totales):
@@ -278,7 +268,7 @@ def calcular_insumos(
 
     # 3. Consultar la matriz cruzada con insumos
     datos_rendimiento = db.query(models.MatrizRendimiento, models.Insumo).join(
-        models.Insumo, 
+        models.Insumo,
         models.MatrizRendimiento.insumo_id == models.Insumo.id
     ).filter(
         models.MatrizRendimiento.material_estructural_id == material_id,
@@ -411,8 +401,45 @@ def calcular_insumos(
     perdidas_optimizadas = []
     items_optimizados = 0
 
+    # Ajustes pre-cotizados de factores para estimaciones a escala de habitacion (Ampliaciones/B2C)
+    # y corrección de unidades entre los rendimientos brutos y los formatos comerciales.
     for r, insumo in datos_rendimiento:
-        cantidad_neta = float(r.factor_multiplicador) * area_neta
+        factor_ajustado = float(r.factor_multiplicador)
+        nombre_l = (insumo.nombre or "").lower()
+        cat_l = (insumo.categoria or "").lower()
+
+        # 1. Correccion por recintos de ampliación vs casa completa:
+        # Siding y Placas de exterior asumen una envolvente 4 caras de casa completa.
+        # Si esto es una ampliacion de 1 recinto, típicamente comparte 1-2 muros. Reducir al 40-50%.
+        if "siding" in nombre_l or "exterior" in nombre_l or "osb" in nombre_l:
+            factor_ajustado *= 0.45
+            
+        # Zincalum y Techumbre no son envolvente 4 caras, pero a menudo los factores en BD
+        # traen sobreestimaciones o doble capa. Ajustamos al 50-60% como tope B2C.
+        if "zincalum" in nombre_l or "cubierta" in nombre_l:
+            factor_ajustado *= 0.55
+
+        # 2. Correccion de Volumen de Hormigon vs Cantidad de Insumo por m2 de losa:
+        # La tabla MatrizRendimiento puede tener 1095 (kg gravilla por m3).
+        # Un m2 de losa es ~0.1 m3 de hormigon.
+        if cat_l == "obra gruesa" and any(k in nombre_l for k in ["gravilla", "arena", "cemento", "agua", "ripio"]):
+            # Bajamos de m3 a volumen util de losa (10cm)
+            factor_ajustado *= 0.1
+
+        # 3. Corrección de Unidades de mercado:
+        # La gravilla y arena a veces entran por m3 de compra en retail (precio ~$17000)
+        # pero el requerimiento es en KG (ej 109kg). Densidad arena/grava ~1600kg/m3.
+        # Si el scraper trajo precio por m3, la API asume unidad ($/bolsa vs $/kg).
+        if ("arena" in nombre_l or "gravilla" in nombre_l or "ripio" in nombre_l):
+            # Convertimos la demanda de KG a m3 para que coincida con el precio retail.
+            factor_ajustado /= 1600.0
+
+        if "cemento" in nombre_l:
+            # Los rendimientos brutos son kg de cemento, pero en retail se venden en sacos de 25kg
+            # (y su precio es referenciado a un saco).
+            factor_ajustado /= 25.0
+
+        cantidad_neta = factor_ajustado * area_neta
         nesting_result = optimizar_compra_por_nesting(
             insumo=insumo.nombre,
             categoria=insumo.categoria,
