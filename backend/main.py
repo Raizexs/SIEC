@@ -516,12 +516,42 @@ def calcular_insumos(
             if perdidas_optimizadas else None
         ),
     )
+## SCRUM-96
+## Interceptor Normativo LOSCAL/LOSCAA - Aislamientos Acústicos y Cortafuegos
+try:
+    from interceptor_loscal_loscaa import (
+        ValidacionInterceptorRequest,
+        ValidacionInterceptorResponse,
+        validar_interceptor_loscal_loscaa,
+    )
+except ModuleNotFoundError:
+    from backend.interceptor_loscal_loscaa import (
+        ValidacionInterceptorRequest,
+        ValidacionInterceptorResponse,
+        validar_interceptor_loscal_loscaa,
+    )
+
+@app.post("/api/validar-interceptor-loscal-loscaa", response_model=ValidacionInterceptorResponse)
+def endpoint_validar_interceptor(payload: ValidacionInterceptorRequest):
+    """
+    Valida la aplicación de normativas LOSCAL/LOSCAA según material estructural.
+    Si no es SIP, inyecta insumos obligatorios de aislamiento térmico (LOSCAT)
+    y aislamiento acústico con resistencia al fuego (LOSCAA).
+    """
+    return validar_interceptor_loscal_loscaa(
+        material_estructural=payload.material_estructural,
+        es_sip=payload.es_sip,
+        area_muros_perimetrales_m2=payload.area_muros_perimetrales_m2,
+        tipo_terreno=payload.tipo_terreno,
+        profundidad_cimentacion_cm=payload.profundidad_cimentacion_cm,
+    )
+
 ## SCRUM-97
 ## Ley 21.725 - Validación de Cumplimiento Normativo (Ley del Mono)
 try:
-    from ley21725 import ValidacionLeyMonoRequest, ValidacionLeyMonoResponse, validar_ley_21725
+    from Ley21725 import ValidacionLeyMonoRequest, ValidacionLeyMonoResponse, validar_ley_21725
 except ModuleNotFoundError:
-    from backend.ley21725 import ValidacionLeyMonoRequest, ValidacionLeyMonoResponse, validar_ley_21725
+    from backend.Ley21725 import ValidacionLeyMonoRequest, ValidacionLeyMonoResponse, validar_ley_21725
 
 @app.post("/api/validar-ley-mono", response_model=ValidacionLeyMonoResponse)
 def endpoint_validar_ley_mono(payload: ValidacionLeyMonoRequest):

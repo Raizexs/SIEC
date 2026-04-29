@@ -5,21 +5,18 @@ SCRUM-97
 """
 
 import pytest
+import sys
+from pathlib import Path
 
-try:
-    from ley21725 import (
-        validar_ley_21725,
-        AREA_UMBRAL_MIN_M2,
-        AREA_UMBRAL_MAX_M2,
-        TASACION_LIMITE_UF,
-    )
-except ModuleNotFoundError:
-    from backend.ley21725 import (
-        validar_ley_21725,
-        AREA_UMBRAL_MIN_M2,
-        AREA_UMBRAL_MAX_M2,
-        TASACION_LIMITE_UF,
-    )
+# Añadir el directorio backend al path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from Ley21725 import (
+    validar_ley_21725,
+    AREA_UMBRAL_MIN_M2,
+    AREA_UMBRAL_MAX_M2,
+    TASACION_LIMITE_UF,
+)
 
 VALOR_UF_TEST = 38500.0  # CLP de referencia para tests
 
