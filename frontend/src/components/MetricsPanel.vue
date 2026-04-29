@@ -31,6 +31,16 @@ const props = defineProps({
   },
 });
 
+// m² disponibles = presupuesto total - área real ocupada por recintos
+const m2Disponible = computed(() =>
+  Math.max(0, (props.formData.m2Totales || 0) - props.totalAreaUsado)
+);
+const usagePct = computed(() =>
+  props.formData.m2Totales > 0
+    ? Math.min((props.totalAreaUsado / props.formData.m2Totales) * 100, 100)
+    : 0
+);
+
 const materialNamesES = {
   1: "Estructura de Madera",
   2: "Acero Galvanizado",
@@ -89,41 +99,6 @@ const formatCurrency = (value) => {
   }).format(Math.round(value));
 };
 
-const materials = computed(() => [
-  {
-    nameES: "Hierro y Refuerzos",
-    nameEN: "Iron & Reinforcements",
-    icon: "construction",
-    amountES: "242 Toneladas Estimadas",
-    amountEN: "242 Tons Estimated",
-    cost: 345000000,
-    statusES: "Alta Volatilidad",
-    statusEN: "High Volatility",
-    statusColor: "text-secondary",
-  },
-  {
-    nameES: "Cemento Premezclado",
-    nameEN: "Ready-Mix Cement",
-    icon: "opacity",
-    amountES: "1.840 m³ Requeridos",
-    amountEN: "1,840 m³ Required",
-    cost: 192000000,
-    statusES: "Estable",
-    statusEN: "Stable",
-    statusColor: "text-primary-container",
-  },
-  {
-    nameES: "Acabados y Vidrio",
-    nameEN: "Finishing & Glass",
-    icon: "window",
-    amountES: "Especificaciones Arquitectónicas",
-    amountEN: "Custom Architectural Specs",
-    cost: 512000000,
-    statusES: "Premium",
-    statusEN: "Premium",
-    statusColor: "text-primary-container",
-  },
-]);
 </script>
 
 <template>
@@ -161,7 +136,7 @@ const materials = computed(() => [
               class="text-3xl font-headline font-black flex items-end gap-1"
               :style="{ color: descripcionEstado.color }"
             >
-              <span>{{ tokensDisponibles.toFixed(1) }}</span>
+              <span>{{ m2Disponible.toFixed(1) }}</span>
               <span class="text-base font-semibold mb-1 opacity-70">m²</span>
             </div>
           </div>
@@ -170,7 +145,7 @@ const materials = computed(() => [
               t("used")
             }}</span>
             <div class="text-2xl font-headline font-bold text-slate-600">
-              {{ tokensUsados.toFixed(1) }}
+              {{ totalAreaUsado.toFixed(1) }}
               <span class="text-sm font-medium">m²</span>
             </div>
           </div>
@@ -179,7 +154,7 @@ const materials = computed(() => [
               t("total")
             }}</span>
             <div class="text-2xl font-headline font-bold text-slate-600">
-              {{ tokensTotales.toFixed(1) }}
+              {{ (formData.m2Totales || 0).toFixed(1) }}
               <span class="text-sm font-medium">m²</span>
             </div>
           </div>
@@ -191,10 +166,7 @@ const materials = computed(() => [
           <div
             class="h-full rounded-full transition-all duration-300"
             :style="{
-              width:
-                (tokensTotales > 0
-                  ? Math.min((tokensUsados / tokensTotales) * 100, 100)
-                  : 0) + '%',
+              width: usagePct + '%',
               backgroundColor: descripcionEstado.color,
             }"
           ></div>

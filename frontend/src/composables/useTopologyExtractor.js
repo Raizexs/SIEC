@@ -65,6 +65,11 @@ function touchingOrOverlap(a1, a2, b1, b2) {
 function mergeIfPossible(base, candidate) {
   if (base.tipo !== candidate.tipo) return null
 
+  // DO NOT merge walls if they belong to different rooms. This allows independent wall colors later.
+  if (base.recintosAdyacentes.length !== candidate.recintosAdyacentes.length) return null;
+  const sameRooms = base.recintosAdyacentes.every(id => candidate.recintosAdyacentes.includes(id));
+  if (!sameRooms) return null;
+
   const infoA = axisAndConst(base.segmento)
   const infoB = axisAndConst(candidate.segmento)
   if (infoA.axis !== infoB.axis) return null

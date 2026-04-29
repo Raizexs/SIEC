@@ -10,11 +10,11 @@ import { useTopologyComputed } from "../composables/useTopologyComputed";
 import { useRecintosStore } from "../stores/recintos";
 import { useConstructionLayersStore } from "../stores/constructionLayers";
 import PropertiesSidebar from "./PropertiesSidebar.vue";
-import MetalconAlertModal from "./MetalconAlertModal.vue";
 import {
   createLayerVisibilityState,
   isLayerMeshVisible,
 } from "../utils/layerVisibilityEngine";
+import MaterialLibrary from "../utils/MaterialLibrary.js";
 
 const containerRef = ref(null);
 const rootRef     = ref(null);
@@ -27,24 +27,9 @@ const recintosStore = useRecintosStore();
 const layersStore  = useConstructionLayersStore();
 const { constructionModeEnabled, layerVisibility } = storeToRefs(layersStore);
 
-// SCRUM-98: Validador de cruce Metalcon vs Altura — accedido desde el store
-const metalconValidator = recintosStore.metalconValidator;
-
 const props = defineProps({
   materialEstructuralId: { type: Number, default: 4 }
 });
-
-// SCRUM-98: Vigilar cambios de material o pisos para re-validar Metalcon
-watch(
-  () => [props.materialEstructuralId, recintosStore.recintos.map(r => r.piso)],
-  () => {
-    metalconValidator.validarDesdeStore(
-      props.materialEstructuralId,
-      recintosStore.recintos
-    );
-  },
-  { deep: true }
-);
 
 let renderer, scene, camera, controls, dragControls;
 let transformControl;
@@ -60,92 +45,31 @@ const bouncingMeshes = new Map();
 
 const WALL_HEIGHT = 2.4;
 
-// ── Texturas ─────────────────────────────────────────────────────────────────
-// Se asignan DIRECTAMENTE al material (comportamiento rápido anterior).
-// wrapS/wrapT se configura en el callback onLoad del TextureLoader.
-// No usamos .clone() porque no funciona bien con texturas no cargadas.
+// ── Texturas procedurales ─────────────────────────────────────────────────────
+// MaterialLibrary genera texturas via Canvas API — sin archivos externos.
 const textureLoader = new THREE.TextureLoader();
+const matLib = new MaterialLibrary();
 
-const loadTex = (url) => {
-  const t = textureLoader.load(url, (tex) => {
-    tex.wrapS = THREE.RepeatWrapping;
-    tex.wrapT = THREE.RepeatWrapping;
-  });
-  return t;
+// Mapa materialEstructuralId → tipo de materialidad
+const MAT_TYPE_MAP = {
+  1: 'wood_frame',
+  2: 'steel_framed',
+  3: 'masonry',
+  4: 'concrete',
 };
 
-const materialsPBR = {
-  1: {
-    map:          'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/plywood/plywood_diff_1k.jpg',
-    normalMap:    'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/plywood/plywood_nor_gl_1k.jpg',
-    roughnessMap: 'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/plywood/plywood_rough_1k.jpg',
-  },
-  2: {
-    map:          'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/corrugated_iron_02/corrugated_iron_02_diff_1k.jpg',
-    normalMap:    'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/corrugated_iron_02/corrugated_iron_02_nor_gl_1k.jpg',
-    roughnessMap: 'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/corrugated_iron_02/corrugated_iron_02_rough_1k.jpg',
-  },
-  3: {
-    map:          'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/castle_wall_slates/castle_wall_slates_diff_1k.jpg',
-    normalMap:    'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/castle_wall_slates/castle_wall_slates_nor_gl_1k.jpg',
-    roughnessMap: 'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/castle_wall_slates/castle_wall_slates_rough_1k.jpg',
-  },
-  4: {
-    map:          'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/concrete_wall_004/concrete_wall_004_diff_1k.jpg',
-    normalMap:    'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/concrete_wall_004/concrete_wall_004_nor_gl_1k.jpg',
-    roughnessMap: 'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/concrete_wall_004/concrete_wall_004_rough_1k.jpg',
-  },
+// Mapa tipo de recinto → tipo de piso
+const FLOOR_MAT_MAP = {
+  habitacion: 'wood_frame',
+  banio:      'masonry',    // cerámica
+  comun:      'wood_frame',
+  areaComun:  'wood_frame', // same as comun — warm wood floor
+  pasillo:    'steel_framed',
 };
-
-const floorPBR = {
-  habitacion: {
-    map:          'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_cabinet_worn_long/wood_cabinet_worn_long_diff_1k.jpg',
-    normalMap:    'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_cabinet_worn_long/wood_cabinet_worn_long_nor_gl_1k.jpg',
-    roughnessMap: 'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_cabinet_worn_long/wood_cabinet_worn_long_rough_1k.jpg',
-  },
-  banio: {
-    map:          'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/large_floor_tiles_02/large_floor_tiles_02_diff_1k.jpg',
-    normalMap:    'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/large_floor_tiles_02/large_floor_tiles_02_nor_gl_1k.jpg',
-    roughnessMap: 'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/large_floor_tiles_02/large_floor_tiles_02_rough_1k.jpg',
-  },
-  comun: {
-    map:          'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/smooth_concrete_floor/smooth_concrete_floor_diff_1k.jpg',
-    normalMap:    'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/smooth_concrete_floor/smooth_concrete_floor_nor_gl_1k.jpg',
-    roughnessMap: 'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/smooth_concrete_floor/smooth_concrete_floor_rough_1k.jpg',
-  },
-  pasillo: {
-    map:          'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/laminate_floor_02/laminate_floor_02_diff_1k.jpg',
-    normalMap:    'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/laminate_floor_02/laminate_floor_02_nor_gl_1k.jpg',
-    roughnessMap: 'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/laminate_floor_02/laminate_floor_02_rough_1k.jpg',
-  },
-};
-
-// Pre-cargar todas las texturas al iniciar (asignación directa = rápida)
-const loadedTextures = {};
-Object.keys(materialsPBR).forEach(id => {
-  const u = materialsPBR[id];
-  loadedTextures[id] = { map: loadTex(u.map), normalMap: loadTex(u.normalMap), roughnessMap: loadTex(u.roughnessMap) };
-});
-
-const loadedFloorTextures = {};
-Object.keys(floorPBR).forEach(tipo => {
-  const u = floorPBR[tipo];
-  loadedFloorTextures[tipo] = { map: loadTex(u.map), normalMap: loadTex(u.normalMap), roughnessMap: loadTex(u.roughnessMap) };
-});
 
 // ── Color helpers ─────────────────────────────────────────────────────────────
-const getRoomColor = (tipo, isBudgeted) => {
-  if (isBudgeted) return "#ef4444";
-  if (tipo === "habitacion") return "#3b82f6";
-  if (tipo === "banio") return "#14b8a6";
-  if (tipo === "pasillo") return "#64748b";
-  return "#f59e0b";
-};
-
-const getWallColor = (wall, selectedForBudget) => {
-  if (wall.recintosAdyacentes.some(id => selectedForBudget.has(id))) return "#ef4444";
-  return wall.tipo === "interior" ? "#60a5fa" : "#93c5fd";
-};
+// Walls: always use material textures, no colored overlays.
+// Rooms: yellow tint when budgeted, white otherwise.
 
 const getCurrentLayerState = () =>
   createLayerVisibilityState(constructionModeEnabled.value, layerVisibility.value);
@@ -174,11 +98,16 @@ const toMeshTransform = (wall) => {
 const ensureScene = () => {
   scene = new THREE.Scene();
   scene.background = new THREE.Color("#0b1220");
-  scene.fog = new THREE.FogExp2("#0b1220", 0.015);
+  scene.fog = new THREE.FogExp2("#0b1220", 0.004);
 
-  new HDRLoader().load(
-    'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/belfast_farmhouse_1k.hdr',
-    (tex) => { tex.mapping = THREE.EquirectangularReflectionMapping; scene.environment = tex; }
+  textureLoader.load(
+    '/textures/sky/sky_118_2k.png',
+    (tex) => { 
+      tex.mapping = THREE.EquirectangularReflectionMapping; 
+      tex.colorSpace = THREE.SRGBColorSpace;
+      scene.environment = tex; 
+      scene.background = tex; 
+    }
   );
 
   const w = containerRef.value.clientWidth;
@@ -187,7 +116,7 @@ const ensureScene = () => {
   camera = new THREE.PerspectiveCamera(60, w / Math.max(h, 1), 0.1, 3000);
   camera.position.set(12, 16, 12);
 
-  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
   renderer.setSize(w, h);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
@@ -199,6 +128,7 @@ const ensureScene = () => {
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.target.set(0, 0, 0);
+  controls.maxPolarAngle = Math.PI / 2 - 0.02; // can't look from below
 
   buildingGroup = new THREE.Group(); buildingGroup.name = "building-root";
   wallsGroup    = new THREE.Group(); wallsGroup.name = "walls-group";
@@ -209,35 +139,32 @@ const ensureScene = () => {
   scene.add(new THREE.AmbientLight("#ffffff", 0.45));
 
   const dir = new THREE.DirectionalLight("#ffffff", 1.2);
-  dir.position.set(15, 25, 10);
+  dir.position.set(-15, 25, -10);
   dir.castShadow = true;
   Object.assign(dir.shadow.mapSize, { width: 2048, height: 2048 });
   Object.assign(dir.shadow.camera, { near: 0.5, far: 100, left: -25, right: 25, top: 25, bottom: -25 });
   dir.shadow.bias = -0.001;
   scene.add(dir);
 
-  const grassMap = textureLoader.load('https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/aerial_grass_rock/aerial_grass_rock_diff_1k.jpg', (tex) => {
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(40, 40);
+  // Grass ground — tile texture for realistic lawn
+  const grassTex = textureLoader.load('/textures/Grass/Grass_08-256x256.png', (tex) => {
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(80, 80);
+    tex.colorSpace = THREE.SRGBColorSpace;
   });
-  const grassNormal = textureLoader.load('https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/aerial_grass_rock/aerial_grass_rock_nor_gl_1k.jpg', (tex) => {
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(40, 40);
-  });
-
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(200, 200),
     new THREE.MeshStandardMaterial({ 
-      color: "#888888", 
-      map: grassMap,
-      normalMap: grassNormal,
-      roughness: 0.9, 
+      map: grassTex,
+      roughness: 0.95, 
       metalness: 0.0 
     })
   );
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = -0.005;
   floor.receiveShadow = true;
+  floor.raycast = () => {}; // Floor is non-interactive
   scene.add(floor);
 
   const grid = new THREE.GridHelper(200, 200, "#ffffff", "#ffffff");
@@ -248,7 +175,18 @@ const ensureScene = () => {
   // ── Drag Controls ─────────────────────────────────────────────────────────
   dragControls = new DragControls(roomsGroup.children, camera, renderer.domElement);
   
+  // Disable drag on right/middle mouse button BEFORE dragControls processes it
+  renderer.domElement.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) {
+      dragControls.enabled = false;
+    } else if (currentTool.value === 'move') {
+      dragControls.enabled = true;
+    }
+  }, { capture: true });
 
+  renderer.domElement.addEventListener('pointerup', () => {
+    if (currentTool.value === 'move') dragControls.enabled = true;
+  });
   
   dragControls.addEventListener('hoveron', (event) => {
     if (containerRef.value && !isManipulating) containerRef.value.style.cursor = 'pointer';
@@ -469,15 +407,19 @@ const syncWalls = (walls, selectedForBudget) => {
     }
   }
 
-  walls.forEach(wall => {
+  // upsert meshes
+  walls.forEach((wall) => {
     const tf = toMeshTransform(wall);
     let mesh = wallMeshes.get(wall.id);
 
     if (!mesh) {
-      mesh = new THREE.Mesh(
-        new THREE.BoxGeometry(1, WALL_HEIGHT, wall.thickness),
-        new THREE.MeshStandardMaterial({ color: getWallColor(wall, selectedForBudget), roughness: 0.8, metalness: 0.1 })
-      );
+      const geometry = new THREE.BoxGeometry(1, WALL_HEIGHT, wall.thickness);
+      const material = new THREE.MeshStandardMaterial({
+        color: "#ffffff",
+        roughness: 0.55,
+        metalness: 0.1,
+      });
+      mesh = new THREE.Mesh(geometry, material);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       mesh.userData.layerTags = wall.tipo === "interior"
@@ -487,38 +429,31 @@ const syncWalls = (walls, selectedForBudget) => {
       wallMeshes.set(wall.id, mesh);
     }
 
-    // Asignar texturas PBR directamente (rápido — aparecen en cuanto llegan)
-    if (wall.tipo !== "interior") {
-      const pbr = loadedTextures[props.materialEstructuralId] || loadedTextures[4];
-      if (mesh.material.userData.matId !== props.materialEstructuralId) {
+    // Asignar texturas procedurales via MaterialLibrary
+    const matTypeKey = MAT_TYPE_MAP[props.materialEstructuralId] || 'concrete';
+    const wallPart = wall.tipo === 'interior' ? 'interior_wall' : 'exterior_wall';
+    const matCacheKey = `${matTypeKey}_${wallPart}_${props.materialEstructuralId}`;
+    if (mesh.material.userData.matCacheKey !== matCacheKey) {
+      mesh.material.dispose();
+      mesh.material = matLib.getMaterial(matTypeKey, wallPart);
+      mesh.material.userData.matCacheKey = matCacheKey;
+      if (mesh.material.map) {
         const rx = Math.max(1, tf.length / 2.5);
         const ry = Math.max(1, WALL_HEIGHT / 2.5);
-        mesh.material.map          = pbr.map;
-        mesh.material.normalMap    = pbr.normalMap;
-        mesh.material.roughnessMap = pbr.roughnessMap;
         mesh.material.map.repeat.set(rx, ry);
-        mesh.material.normalMap.repeat.set(rx, ry);
-        mesh.material.roughnessMap.repeat.set(rx, ry);
-        mesh.material.userData.matId = props.materialEstructuralId;
-        mesh.material.needsUpdate = true;
       }
-      mesh.material.color.set(
-        wall.recintosAdyacentes.some(id => selectedForBudget.has(id)) ? "#ef4444" : "#ffffff"
-      );
-    } else {
-      mesh.material.color.set(getWallColor(wall, selectedForBudget));
     }
-
-    const isGhost = selectedForBudget.size > 0 && !wall.recintosAdyacentes.some(id => selectedForBudget.has(id));
-    mesh.castShadow = !isGhost;
-    mesh.receiveShadow = !isGhost;
-    mesh.material.transparent = isGhost;
-    mesh.material.opacity = isGhost ? 0.15 : 1.0;
-    mesh.material.depthWrite = !isGhost;
+    // Walls always use white tint — textures provide all the color
+    mesh.material.color.set("#ffffff");
+    mesh.material.transparent = false;
+    mesh.material.opacity = 1.0;
+    mesh.material.depthWrite = true;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
 
     const piso = wall.piso || 1;
     mesh.scale.set(tf.length, 1, 1);
-    mesh.position.set(tf.centerX, (WALL_HEIGHT / 2) + (piso - 1) * WALL_HEIGHT, tf.centerZ);
+    mesh.position.set(tf.centerX, WALL_HEIGHT / 2 + (piso - 1) * WALL_HEIGHT, tf.centerZ);
     mesh.rotation.set(0, -tf.angle, 0);
     
     // Ocultar si el muro es de un piso superior al actual
@@ -549,7 +484,7 @@ const syncRooms = (recintos, selectedForBudget) => {
     if (!mesh) {
       mesh = new THREE.Mesh(
         new THREE.BoxGeometry(1, 0.08, 1),
-        new THREE.MeshStandardMaterial({ color: getRoomColor(recinto.tipo, selectedForBudget.has(recinto.id)), roughness: 0.8, metalness: 0.05 })
+        new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.8, metalness: 0.05 })
       );
       mesh.castShadow = true;
       mesh.receiveShadow = true;
@@ -560,7 +495,7 @@ const syncRooms = (recintos, selectedForBudget) => {
       // Edges Helper para aspecto de "Plano"
       const edges = new THREE.EdgesGeometry(mesh.geometry);
       const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xaaaaaa, transparent: true, opacity: 0.15, depthTest: false }));
-      line.raycast = () => {}; // Ignorar en Raycaster para no romper DragControls
+      line.raycast = () => {};
       mesh.add(line);
       mesh.userData.edgesHelper = line;
       
@@ -568,31 +503,30 @@ const syncRooms = (recintos, selectedForBudget) => {
       roomMeshes.set(recinto.id, mesh);
     }
 
-    // Texturas de piso — asignación directa
-    if (mesh.material.userData.roomType !== recinto.tipo) {
-      const fp = loadedFloorTextures[recinto.tipo] || loadedFloorTextures['comun'];
-      const rx = Math.max(1, recinto.dimensions.w / 2);
-      const rz = Math.max(1, recinto.dimensions.l / 2);
-      mesh.material.map          = fp.map;
-      mesh.material.normalMap    = fp.normalMap;
-      mesh.material.roughnessMap = fp.roughnessMap;
-      mesh.material.map.repeat.set(rx, rz);
-      mesh.material.normalMap.repeat.set(rx, rz);
-      mesh.material.roughnessMap.repeat.set(rx, rz);
+    // Texturas de piso procedurales
+    const floorMatType = FLOOR_MAT_MAP[recinto.tipo] || 'wood_frame';
+    const floorCacheKey = `${floorMatType}_floor_${recinto.tipo}`;
+    if (mesh.material.userData.floorCacheKey !== floorCacheKey) {
+      mesh.material.dispose();
+      mesh.material = matLib.getMaterial(floorMatType, 'floor');
+      mesh.material.userData.floorCacheKey = floorCacheKey;
       mesh.material.userData.roomType = recinto.tipo;
-      mesh.material.needsUpdate = true;
+      if (mesh.material.map) {
+        const rx = Math.max(1, recinto.dimensions.w / 2);
+        const rz = Math.max(1, recinto.dimensions.l / 2);
+        mesh.material.map.repeat.set(rx, rz);
+      }
     }
 
+    // Yellow tint when budgeted, white otherwise — no red, no ghost
     mesh.material.color.set(
-      selectedForBudget.has(recinto.id) ? "#ef4444" : (mesh.material.map ? "#ffffff" : getRoomColor(recinto.tipo, false))
+      selectedForBudget.has(recinto.id) ? "#f5c842" : "#ffffff"
     );
-
-    const isGhost = selectedForBudget.size > 0 && !selectedForBudget.has(recinto.id);
-    mesh.castShadow = !isGhost;
-    mesh.receiveShadow = !isGhost;
-    mesh.material.transparent = isGhost;
-    mesh.material.opacity = isGhost ? 0.15 : 1.0;
-    mesh.material.depthWrite = !isGhost;
+    mesh.material.transparent = false;
+    mesh.material.opacity = 1.0;
+    mesh.material.depthWrite = true;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
 
     const piso = recinto.piso || 1;
     const isCurrentlyActive = isManipulating && recinto.id === recintosStore.activeRecintoId;
@@ -625,6 +559,34 @@ const fitCameraToWalls = (walls) => {
   camera.position.set(cx + d * 0.8, Math.max(d, 8), cz + d * 0.8);
   controls.target.set(cx, 0, cz);
   controls.update();
+};
+
+const centerCamera = () => {
+  if (topology.value && topology.value.walls && topology.value.walls.length > 0) {
+    fitCameraToWalls(topology.value.walls);
+  } else {
+    controls.target.set(0, 0, 0);
+    camera.position.set(10, 10, 10);
+    controls.update();
+  }
+};
+
+const handleCloneFloor = () => {
+  const result = recintosStore.cloneEntireFloor();
+  if (result === 'conflict') {
+    const ok = window.confirm(
+      `El Piso ${recintosStore.currentFloor + 1} ya tiene recintos.\n¿Deseas igualmente clonar el piso ${recintosStore.currentFloor} encima?`
+    );
+    if (ok) {
+      // Forzar clonación eliminando recintos del piso destino primero
+      const target = recintosStore.currentFloor + 1;
+      const toRemove = recintosStore.recintos
+        .filter(r => (r.piso || 1) === target)
+        .map(r => r.id);
+      toRemove.forEach(id => recintosStore.deleteRecinto(id));
+      recintosStore.cloneEntireFloor();
+    }
+  }
 };
 
 // ── Resize ────────────────────────────────────────────────────────────────────
@@ -713,6 +675,9 @@ onMounted(() => {
   ensureScene();
 
   renderer.domElement.addEventListener('pointerdown', (e) => {
+    // Only process left click for selection
+    if (e.button !== 0) return;
+
     // Si el usuario está interactuando con las flechas, ignorar el clic
     if (transformControl && transformControl.axis !== null) return;
 
@@ -875,31 +840,44 @@ onBeforeUnmount(() => {
         <div class="flex items-center gap-2 bg-slate-800/80 backdrop-blur-sm rounded-lg p-1 border border-slate-700/80 shadow-inner">
           <button @click="recintosStore.setFloor(recintosStore.currentFloor - 1)" :disabled="recintosStore.currentFloor <= 1" class="text-slate-300 hover:text-white hover:bg-slate-700 px-2 rounded disabled:opacity-30 transition-colors font-bold text-sm">-</button>
           <span class="text-[11px] font-black text-white px-2 tracking-widest uppercase">Piso {{ recintosStore.currentFloor }}</span>
-          <button @click="recintosStore.setFloor(recintosStore.currentFloor + 1)" class="text-slate-300 hover:text-white hover:bg-slate-700 px-2 rounded transition-colors font-bold text-sm">+</button>
+          <button @click="recintosStore.setFloor(recintosStore.currentFloor + 1)" :disabled="recintosStore.currentFloor >= 3" class="text-slate-300 hover:text-white hover:bg-slate-700 px-2 rounded disabled:opacity-30 transition-colors font-bold text-sm">+</button>
         </div>
+        <!-- Clone Floor button -->
+        <button
+          v-if="recintosStore.currentFloor < 3"
+          @click="handleCloneFloor"
+          class="flex items-center gap-1 px-2 py-1 rounded text-xs font-bold bg-blue-900/50 hover:bg-blue-800/70 text-blue-300 hover:text-white border border-blue-700/50 transition-all"
+          title="Duplicar piso actual al siguiente piso"
+        >
+          <span class="material-symbols-outlined text-[14px]">content_copy</span>
+          Clonar Piso
+        </button>
       </div>
 
-      <button
-        @click="toggleFullScreen"
-        class="text-slate-400 hover:text-white transition-colors flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-700 shadow-sm"
-      >
-        <span class="material-symbols-outlined text-[18px]">
-          {{ isFullScreen ? 'fullscreen_exit' : 'fullscreen' }}
-        </span>
-        <span class="text-xs font-bold uppercase tracking-wider">
-          {{ isFullScreen ? 'Salir de Pantalla Completa' : 'Pantalla Completa' }}
-        </span>
-      </button>
+      <div class="flex items-center gap-2">
+        <button
+          @click="centerCamera"
+          class="text-slate-400 hover:text-white transition-colors flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-700 shadow-sm"
+          title="Centrar Cámara"
+        >
+          <span class="material-symbols-outlined text-[18px]">my_location</span>
+        </button>
+
+        <button
+          @click="toggleFullScreen"
+          class="text-slate-400 hover:text-white transition-colors flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-700 shadow-sm"
+        >
+          <span class="material-symbols-outlined text-[18px]">
+            {{ isFullScreen ? 'fullscreen_exit' : 'fullscreen' }}
+          </span>
+          <span class="text-xs font-bold uppercase tracking-wider">
+            {{ isFullScreen ? 'Salir de Pantalla Completa' : 'Pantalla Completa' }}
+          </span>
+        </button>
+      </div>
     </div>
 
     <div ref="containerRef" class="scene3d-canvas" />
-
-    <!-- SCRUM-98: Modal de excepción severa Metalcon vs Altura (MINVU) -->
-    <MetalconAlertModal
-      :show="metalconValidator.showModal.value"
-      :excepcion="metalconValidator.detalleExcepcion.value"
-      @close="metalconValidator.cerrarModal()"
-    />
   </div>
 </template>
 
