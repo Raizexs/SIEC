@@ -87,6 +87,7 @@ function validarCruceInsumoAltura(materialEstructuralId, pisosOcupados) {
     // Configuración válida: limpiar cualquier excepción previa
     excepcionActiva.value = false;
     detalleExcepcion.value = null;
+    showModal.value = false; // Fix: clear the modal state
     return { valido: true, excepcion: null };
   }
 
