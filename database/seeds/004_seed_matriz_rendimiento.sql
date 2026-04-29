@@ -4,7 +4,8 @@
 
 INSERT INTO Matriz_Rendimiento (Material_Estructural_ID, Insumo_ID, Factor_Multiplicador, Descripcion, Activo) VALUES
   -- MADERA (Material_ID = 1)
-  (1, 3, 0.08, 'Fierro A63 para refuerzo en estructura de madera', TRUE),
+  (1, 22, 0.51, 'Pino MSD Construccion 2x3 para pies derechos', TRUE),
+  (1, 23, 0.18, 'Pino MSD Construccion 2x4 para soleras', TRUE),
   (1, 16, 0.02, 'Cable eléctrico 1x2.5mm para instalaciones', TRUE),
   (1, 19, 0.015, 'Tubo PVC agua 75mm para tuberías de agua', TRUE),
   

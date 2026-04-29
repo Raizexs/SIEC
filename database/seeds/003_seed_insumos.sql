@@ -9,7 +9,9 @@ INSERT INTO Insumo (Nombre, Categoria, Unidad_Medida, Descripcion, Activo) VALUE
   ('Fierro A63-42H', 'Obra Gruesa', 'kg', 'Acero laminado en caliente para refuerzo estructural', TRUE),
   ('Arena Gruesa', 'Obra Gruesa', 'metro cuadrado', 'Arena gruesa para hormigones y morteros', TRUE),
   ('Ripio', 'Obra Gruesa', 'metro cuadrado', 'Ripio o grava para hormigones', TRUE),
-  ('Agua', 'Obra Gruesa', 'litro', 'Agua para obras civiles', TRUE)
+  ('Agua', 'Obra Gruesa', 'litro', 'Agua para obras civiles', TRUE),
+  ('Pino MSD Construccion 2x3', 'Obra Gruesa', 'unidad', 'Pie Derecho 2x3 para estructura de madera', TRUE),
+  ('Pino MSD Construccion 2x4', 'Obra Gruesa', 'unidad', 'Solera 2x4 para estructura de madera', TRUE)
 ON CONFLICT (Nombre) DO NOTHING;
 
 -- TERMINACIONES (4+ insumos mínimos)
