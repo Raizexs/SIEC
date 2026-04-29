@@ -517,6 +517,21 @@ def calcular_insumos(
         ),
     )
 
+## SCRUM-97
+## Ley 21.725 - Validación de Cumplimiento Normativo (Ley del Mono)
+try:
+    from ley21725 import ValidacionLeyMonoRequest, ValidacionLeyMonoResponse, validar_ley_21725
+except ModuleNotFoundError:
+    from backend.ley21725 import ValidacionLeyMonoRequest, ValidacionLeyMonoResponse, validar_ley_21725
+
+@app.post("/api/validar-ley-mono", response_model=ValidacionLeyMonoResponse)
+def endpoint_validar_ley_mono(payload: ValidacionLeyMonoRequest):
+    return validar_ley_21725(
+        area_m2=payload.area_m2,
+        costo_total_clp=payload.costo_total_clp,
+        valor_uf_actual=payload.valor_uf_actual,
+    )
+
 
 if __name__ == "__main__":
     import uvicorn
