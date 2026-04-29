@@ -520,9 +520,9 @@ def calcular_insumos(
 ## SCRUM-97
 ## Ley 21.725 - Validación de Cumplimiento Normativo (Ley del Mono)
 try:
-    from ley21725 import ValidacionLeyMonoRequest, ValidacionLeyMonoResponse, validar_ley_21725
+    from Ley21725 import ValidacionLeyMonoRequest, ValidacionLeyMonoResponse, validar_ley_21725
 except ModuleNotFoundError:
-    from backend.ley21725 import ValidacionLeyMonoRequest, ValidacionLeyMonoResponse, validar_ley_21725
+    from backend.Ley21725 import ValidacionLeyMonoRequest, ValidacionLeyMonoResponse, validar_ley_21725
 
 @app.post("/api/validar-ley-mono", response_model=ValidacionLeyMonoResponse)
 def endpoint_validar_ley_mono(payload: ValidacionLeyMonoRequest):
