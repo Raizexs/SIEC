@@ -895,10 +895,9 @@ onBeforeUnmount(() => {
 
     <div ref="containerRef" class="scene3d-canvas" />
 
-    <!-- SCRUM-98: Modal de excepción severa Metalcon vs Altura (MINVU) -->
     <MetalconAlertModal
-      :show="metalconValidator.showModal.value"
-      :excepcion="metalconValidator.detalleExcepcion.value"
+      :show="metalconValidator.showModal"
+      :excepcion="metalconValidator.detalleExcepcion"
       @close="metalconValidator.cerrarModal()"
     />
   </div>
