@@ -33,16 +33,7 @@ const sidebarCollapsed = ref(false);
 onMounted(() => {
   authStore.initializeAuth();
   workspaceStore.loadWorkspace();
-  // Auto-inicializar layout al montar (sin necesidad de clic en "Generar")
-  const fd = formData.value;
-  const totalHabitaciones = fd.habitacionesSimples + fd.habitacionesDobles + fd.habitacionesTriples;
-  recintosStore.initializeLayout(
-    fd.m2Totales,
-    totalHabitaciones,
-    fd.banios,
-    fd.areasComunes,
-    fd.materialEstructuralId,
-  );
+  // No auto-generate rooms — user creates them manually via editor 2D
 });
 const showPreventiveLogisticsModal = ref(false);
 const showManual = ref(false);
@@ -55,15 +46,15 @@ const appKey = computed(() => `app-${currentLanguage.value}`);
 
 const showToast = ref(false);
 const formData = ref({
-  terrenoAncho: 7,
-  terrenoLargo: 15,
+  terrenoAncho: 15,
+  terrenoLargo: 7,
   m2Totales: 105,
   materialEstructuralId: 4,
-  habitacionesSimples: 2,
+  habitacionesSimples: 0,
   habitacionesDobles: 0,
   habitacionesTriples: 0,
-  banios: 1,
-  areasComunes: 1,
+  banios: 0,
+  areasComunes: 0,
 });
 
 watchEffect(() => {
@@ -116,10 +107,20 @@ watch(
 let debounceTimer = null;
 const isProgrammaticUpdate = ref(false);
 
+// Watch formData BUT skip materialEstructuralId changes to preserve manual rooms
+let prevMaterialId = formData.value.materialEstructuralId;
 watch(
   formData,
   async (newVal) => {
     await nextTick();
+
+    // If only materialEstructuralId changed, update metadata but DON'T reset layout
+    if (newVal.materialEstructuralId !== prevMaterialId) {
+      prevMaterialId = newVal.materialEstructuralId;
+      recintosStore.configMetadata.materialEstructuralId = newVal.materialEstructuralId;
+      // If nothing else changed, skip initializeLayout entirely
+      return;
+    }
 
     if (estado.value === "danger") return;
     if (isProgrammaticUpdate.value) return;
@@ -290,8 +291,8 @@ const handleNewEstimate = () => {
     isProgrammaticUpdate.value = true;
     workspaceStore.resetWorkspace();
     formData.value = {
-      terrenoAncho: 7,
-      terrenoLargo: 15,
+      terrenoAncho: 15,
+      terrenoLargo: 7,
       m2Totales: 105,
       habitacionesSimples: 0,
       habitacionesDobles: 0,
@@ -301,6 +302,10 @@ const handleNewEstimate = () => {
       materialEstructuralId: 1
     };
     recintosStore.configMetadata = null;
+    recintosStore.recintos = [];
+    recintosStore.selectedForBudget = new Set();
+    recintosStore.clearActiveRecinto();
+    prevMaterialId = 1;
     setTimeout(() => { isProgrammaticUpdate.value = false; }, 500);
   }
 };
@@ -319,15 +324,15 @@ const startTutorial = () => {
       { 
         popover: { 
           title: 'Bienvenido a SIEC', 
-          description: 'Esta es tu plataforma de inteligencia constructiva. Te daremos un breve recorrido por el simulador.',
+          description: 'Esta es tu plataforma de simulación constructiva inteligente. Te guiaremos paso a paso por el flujo de diseño.',
           side: "left", align: 'start'
         }
       },
       {
         element: '.tour-config-panel',
         popover: {
-          title: 'Configuración del Proyecto',
-          description: 'Aquí puedes definir los metros cuadrados de tu terreno, la cantidad de habitaciones, baños y el material estructural.',
+          title: 'Configuración del Terreno',
+          description: 'Define las dimensiones de tu terreno (ancho × largo) y selecciona la materialidad estructural. Cambiar la materialidad actualiza las texturas del modelo 3D sin perder tu diseño.',
           side: "right", align: 'start'
         }
       },
@@ -335,14 +340,30 @@ const startTutorial = () => {
         element: '.tour-metrics-panel',
         popover: {
           title: 'Presupuesto Espacial',
-          description: 'Este panel te muestra en tiempo real cómo se distribuye el espacio de tu terreno a medida que agregas recintos.',
+          description: 'Monitorea en tiempo real el área total construida vs. el espacio disponible en tu terreno. Se actualiza automáticamente al agregar o redimensionar recintos.',
           side: "left", align: 'start'
         }
       },
       {
+        element: '.tour-editor-2d',
         popover: {
-          title: '¡Todo listo!',
-          description: 'Haz clic en "Generar Modelo" cuando estés listo para visualizar tu proyecto en 3D.',
+          title: 'Editor 2D — Creación Manual',
+          description: 'Usa "Añadir Recinto" para crear habitaciones, baños o pasillos con medidas exactas. Arrastra para mover, usa las esquinas para redimensionar. El sistema detecta colisiones automáticamente.',
+          side: "top", align: 'start'
+        }
+      },
+      {
+        element: '.tour-scene-3d',
+        popover: {
+          title: 'Vista 3D en Tiempo Real',
+          description: 'Tu diseño se renderiza como modelo 3D con texturas procedurales según la materialidad elegida (madera, metalcon, albañilería o ferrocemento). Arrastra para mover recintos, usa las flechas para escalarlos.',
+          side: "top", align: 'start'
+        }
+      },
+      {
+        popover: {
+          title: '¡Listo para diseñar!',
+          description: 'Agrega recintos desde el editor 2D, selecciona una materialidad, y activa el icono $ en los recintos para generar un desglose de presupuesto detallado.',
           side: "top", align: 'center'
         }
       }
@@ -409,6 +430,7 @@ const startTutorial = () => {
 
         <!-- Editor 2D -->
         <RoomEditor2D
+          class="tour-editor-2d"
           :m2Totales="formData.m2Totales"
           v-model:terrenoAncho="formData.terrenoAncho"
           v-model:terrenoLargo="formData.terrenoLargo"
@@ -416,7 +438,7 @@ const startTutorial = () => {
         />
 
         <!-- Render 3D (siempre debajo del 2D) -->
-        <Scene3D :materialEstructuralId="formData.materialEstructuralId" />
+        <Scene3D class="tour-scene-3d" :materialEstructuralId="formData.materialEstructuralId" />
 
         <!-- Presupuesto: aparece cuando hay recintos con $ activado -->
         <BudgetBreakdownPanel

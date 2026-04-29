@@ -15,6 +15,7 @@ __pycache__/
 SCRUM-*.md
 
 # Agentes
-.agent
+.agents
 .vercel
 .env*.local
+skills-lock.json

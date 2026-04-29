@@ -14,6 +14,7 @@ import {
   createLayerVisibilityState,
   isLayerMeshVisible,
 } from "../utils/layerVisibilityEngine";
+import MaterialLibrary from "../utils/MaterialLibrary.js";
 
 const containerRef = ref(null);
 const rootRef     = ref(null);
@@ -44,60 +45,31 @@ const bouncingMeshes = new Map();
 
 const WALL_HEIGHT = 2.4;
 
-// ── Texturas ─────────────────────────────────────────────────────────────────
-// Se asignan DIRECTAMENTE al material (comportamiento rápido anterior).
-// wrapS/wrapT se configura en el callback onLoad del TextureLoader.
-// No usamos .clone() porque no funciona bien con texturas no cargadas.
+// ── Texturas procedurales ─────────────────────────────────────────────────────
+// MaterialLibrary genera texturas via Canvas API — sin archivos externos.
 const textureLoader = new THREE.TextureLoader();
+const matLib = new MaterialLibrary();
 
-const loadTex = (url) => {
-  const t = textureLoader.load(url, (tex) => {
-    tex.wrapS = THREE.RepeatWrapping;
-    tex.wrapT = THREE.RepeatWrapping;
-  });
-  return t;
+// Mapa materialEstructuralId → tipo de materialidad
+const MAT_TYPE_MAP = {
+  1: 'wood_frame',
+  2: 'steel_framed',
+  3: 'masonry',
+  4: 'concrete',
 };
 
-const materialsPBR = {
-  1: { map: '/textures/Wood_17-256x256.png' },
-  2: { map: '/textures/Plaster_20-256x256.png' },
-  3: { map: '/textures/Brick_02-256x256.png' },
-  4: { map: '/textures/Bricks_22-256x256.png' },
+// Mapa tipo de recinto → tipo de piso
+const FLOOR_MAT_MAP = {
+  habitacion: 'wood_frame',
+  banio:      'masonry',    // cerámica
+  comun:      'wood_frame',
+  areaComun:  'wood_frame', // same as comun — warm wood floor
+  pasillo:    'steel_framed',
 };
-
-const floorPBR = {
-  habitacion: { map: '/textures/Wood_17-256x256.png' },
-  banio:      { map: '/textures/Tile_15-256x256.png' },
-  comun:      { map: '/textures/Wood_17-256x256.png' },
-  pasillo:    { map: '/textures/Tile_15-256x256.png' },
-};
-
-// Pre-cargar todas las texturas al iniciar (asignación directa = rápida)
-const loadedTextures = {};
-Object.keys(materialsPBR).forEach(id => {
-  const u = materialsPBR[id];
-  loadedTextures[id] = { map: loadTex(u.map) };
-});
-
-const loadedFloorTextures = {};
-Object.keys(floorPBR).forEach(tipo => {
-  const u = floorPBR[tipo];
-  loadedFloorTextures[tipo] = { map: loadTex(u.map) };
-});
 
 // ── Color helpers ─────────────────────────────────────────────────────────────
-const getRoomColor = (tipo, isBudgeted) => {
-  if (isBudgeted) return "#ef4444";
-  if (tipo === "habitacion") return "#3b82f6";
-  if (tipo === "banio") return "#14b8a6";
-  if (tipo === "pasillo") return "#64748b";
-  return "#f59e0b";
-};
-
-const getWallColor = (wall, selectedForBudget) => {
-  if (wall.recintosAdyacentes.some(id => selectedForBudget.has(id))) return "#ef4444";
-  return wall.tipo === "interior" ? "#60a5fa" : "#93c5fd";
-};
+// Walls: always use material textures, no colored overlays.
+// Rooms: yellow tint when budgeted, white otherwise.
 
 const getCurrentLayerState = () =>
   createLayerVisibilityState(constructionModeEnabled.value, layerVisibility.value);
@@ -126,7 +98,7 @@ const toMeshTransform = (wall) => {
 const ensureScene = () => {
   scene = new THREE.Scene();
   scene.background = new THREE.Color("#0b1220");
-  scene.fog = new THREE.FogExp2("#0b1220", 0.015);
+  scene.fog = new THREE.FogExp2("#0b1220", 0.004);
 
   textureLoader.load(
     '/textures/sky/sky_118_2k.png',
@@ -167,18 +139,25 @@ const ensureScene = () => {
   scene.add(new THREE.AmbientLight("#ffffff", 0.45));
 
   const dir = new THREE.DirectionalLight("#ffffff", 1.2);
-  dir.position.set(15, 25, 10);
+  dir.position.set(-15, 25, -10);
   dir.castShadow = true;
   Object.assign(dir.shadow.mapSize, { width: 2048, height: 2048 });
   Object.assign(dir.shadow.camera, { near: 0.5, far: 100, left: -25, right: 25, top: 25, bottom: -25 });
   dir.shadow.bias = -0.001;
   scene.add(dir);
 
+  // Grass ground — tile texture for realistic lawn
+  const grassTex = textureLoader.load('/textures/Grass/Grass_08-256x256.png', (tex) => {
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(80, 80);
+    tex.colorSpace = THREE.SRGBColorSpace;
+  });
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(200, 200),
     new THREE.MeshStandardMaterial({ 
-      color: "#4ade80", 
-      roughness: 0.9, 
+      map: grassTex,
+      roughness: 0.95, 
       metalness: 0.0 
     })
   );
@@ -431,14 +410,12 @@ const syncWalls = (walls, selectedForBudget) => {
   // upsert meshes
   walls.forEach((wall) => {
     const tf = toMeshTransform(wall);
-    const isBudgeted = wall.recintosAdyacentes.every(id => selectedForBudget.has(id));
-    const targetColor = isBudgeted ? "#ef4444" : "#60a5fa"; // Red if budgeted, blue otherwise
     let mesh = wallMeshes.get(wall.id);
 
     if (!mesh) {
       const geometry = new THREE.BoxGeometry(1, WALL_HEIGHT, wall.thickness);
       const material = new THREE.MeshStandardMaterial({
-        color: targetColor,
+        color: "#ffffff",
         roughness: 0.55,
         metalness: 0.1,
       });
@@ -450,42 +427,33 @@ const syncWalls = (walls, selectedForBudget) => {
         : ["structure", "facade", "insulation"];
       wallsGroup.add(mesh);
       wallMeshes.set(wall.id, mesh);
-    } else {
-      mesh.material.color.set(targetColor);
     }
 
-    // Asignar texturas PBR directamente (rápido — aparecen en cuanto llegan)
-    if (wall.tipo !== "interior") {
-      const pbr = loadedTextures[props.materialEstructuralId] || loadedTextures[4];
-      if (mesh.material.userData.matId !== props.materialEstructuralId) {
+    // Asignar texturas procedurales via MaterialLibrary
+    const matTypeKey = MAT_TYPE_MAP[props.materialEstructuralId] || 'concrete';
+    const wallPart = wall.tipo === 'interior' ? 'interior_wall' : 'exterior_wall';
+    const matCacheKey = `${matTypeKey}_${wallPart}_${props.materialEstructuralId}`;
+    if (mesh.material.userData.matCacheKey !== matCacheKey) {
+      mesh.material.dispose();
+      mesh.material = matLib.getMaterial(matTypeKey, wallPart);
+      mesh.material.userData.matCacheKey = matCacheKey;
+      if (mesh.material.map) {
         const rx = Math.max(1, tf.length / 2.5);
         const ry = Math.max(1, WALL_HEIGHT / 2.5);
-        mesh.material.map          = pbr.map;
-        mesh.material.normalMap    = null;
-        mesh.material.roughnessMap = null;
         mesh.material.map.repeat.set(rx, ry);
-        mesh.material.userData.matId = props.materialEstructuralId;
-        mesh.material.needsUpdate = true;
       }
-      mesh.material.color.set(
-        wall.recintosAdyacentes.some(id => selectedForBudget.has(id)) ? "#ef4444" : "#ffffff"
-      );
-    } else {
-      mesh.material.color.set(targetColor);
     }
+    // Walls always use white tint — textures provide all the color
+    mesh.material.color.set("#ffffff");
+    mesh.material.transparent = false;
+    mesh.material.opacity = 1.0;
+    mesh.material.depthWrite = true;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
 
-    const isGhost = selectedForBudget.size > 0 && !wall.recintosAdyacentes.some(id => selectedForBudget.has(id));
-    mesh.castShadow = !isGhost;
-    mesh.receiveShadow = !isGhost;
-    mesh.material.transparent = isGhost;
-    mesh.material.opacity = isGhost ? 0.15 : 1.0;
-    mesh.material.depthWrite = !isGhost;
-
-    // Shrink budgeted walls slightly to avoid Z-fighting and let blue predominate
-    const scaleFactor = isBudgeted ? 0.99 : 1.0;
     const piso = wall.piso || 1;
-    mesh.scale.set(tf.length, scaleFactor, scaleFactor);
-    mesh.position.set(tf.centerX, (WALL_HEIGHT * scaleFactor) / 2 + (piso - 1) * WALL_HEIGHT, tf.centerZ);
+    mesh.scale.set(tf.length, 1, 1);
+    mesh.position.set(tf.centerX, WALL_HEIGHT / 2 + (piso - 1) * WALL_HEIGHT, tf.centerZ);
     mesh.rotation.set(0, -tf.angle, 0);
     
     // Ocultar si el muro es de un piso superior al actual
@@ -516,7 +484,7 @@ const syncRooms = (recintos, selectedForBudget) => {
     if (!mesh) {
       mesh = new THREE.Mesh(
         new THREE.BoxGeometry(1, 0.08, 1),
-        new THREE.MeshStandardMaterial({ color: getRoomColor(recinto.tipo, selectedForBudget.has(recinto.id)), roughness: 0.8, metalness: 0.05 })
+        new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.8, metalness: 0.05 })
       );
       mesh.castShadow = true;
       mesh.receiveShadow = true;
@@ -527,7 +495,7 @@ const syncRooms = (recintos, selectedForBudget) => {
       // Edges Helper para aspecto de "Plano"
       const edges = new THREE.EdgesGeometry(mesh.geometry);
       const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xaaaaaa, transparent: true, opacity: 0.15, depthTest: false }));
-      line.raycast = () => {}; // Ignorar en Raycaster para no romper DragControls
+      line.raycast = () => {};
       mesh.add(line);
       mesh.userData.edgesHelper = line;
       
@@ -535,29 +503,30 @@ const syncRooms = (recintos, selectedForBudget) => {
       roomMeshes.set(recinto.id, mesh);
     }
 
-    // Texturas de piso — asignación directa
-    if (mesh.material.userData.roomType !== recinto.tipo) {
-      const fp = loadedFloorTextures[recinto.tipo] || loadedFloorTextures['comun'];
-      const rx = Math.max(1, recinto.dimensions.w / 2);
-      const rz = Math.max(1, recinto.dimensions.l / 2);
-      mesh.material.map          = fp.map;
-      mesh.material.normalMap    = null;
-      mesh.material.roughnessMap = null;
-      mesh.material.map.repeat.set(rx, rz);
+    // Texturas de piso procedurales
+    const floorMatType = FLOOR_MAT_MAP[recinto.tipo] || 'wood_frame';
+    const floorCacheKey = `${floorMatType}_floor_${recinto.tipo}`;
+    if (mesh.material.userData.floorCacheKey !== floorCacheKey) {
+      mesh.material.dispose();
+      mesh.material = matLib.getMaterial(floorMatType, 'floor');
+      mesh.material.userData.floorCacheKey = floorCacheKey;
       mesh.material.userData.roomType = recinto.tipo;
-      mesh.material.needsUpdate = true;
+      if (mesh.material.map) {
+        const rx = Math.max(1, recinto.dimensions.w / 2);
+        const rz = Math.max(1, recinto.dimensions.l / 2);
+        mesh.material.map.repeat.set(rx, rz);
+      }
     }
 
+    // Yellow tint when budgeted, white otherwise — no red, no ghost
     mesh.material.color.set(
-      selectedForBudget.has(recinto.id) ? "#ef4444" : (mesh.material.map ? "#ffffff" : getRoomColor(recinto.tipo, false))
+      selectedForBudget.has(recinto.id) ? "#f5c842" : "#ffffff"
     );
-
-    const isGhost = selectedForBudget.size > 0 && !selectedForBudget.has(recinto.id);
-    mesh.castShadow = !isGhost;
-    mesh.receiveShadow = !isGhost;
-    mesh.material.transparent = isGhost;
-    mesh.material.opacity = isGhost ? 0.15 : 1.0;
-    mesh.material.depthWrite = !isGhost;
+    mesh.material.transparent = false;
+    mesh.material.opacity = 1.0;
+    mesh.material.depthWrite = true;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
 
     const piso = recinto.piso || 1;
     const isCurrentlyActive = isManipulating && recinto.id === recintosStore.activeRecintoId;
