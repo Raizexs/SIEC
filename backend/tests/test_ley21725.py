@@ -7,14 +7,14 @@ SCRUM-97
 import pytest
 
 try:
-    from ley21725 import (
+    from Ley21725 import (
         validar_ley_21725,
         AREA_UMBRAL_MIN_M2,
         AREA_UMBRAL_MAX_M2,
         TASACION_LIMITE_UF,
     )
 except ModuleNotFoundError:
-    from backend.ley21725 import (
+    from backend.Ley21725 import (
         validar_ley_21725,
         AREA_UMBRAL_MIN_M2,
         AREA_UMBRAL_MAX_M2,

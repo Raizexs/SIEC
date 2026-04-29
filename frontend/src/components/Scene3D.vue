@@ -10,6 +10,7 @@ import { useTopologyComputed } from "../composables/useTopologyComputed";
 import { useRecintosStore } from "../stores/recintos";
 import { useConstructionLayersStore } from "../stores/constructionLayers";
 import PropertiesSidebar from "./PropertiesSidebar.vue";
+import MetalconAlertModal from "./MetalconAlertModal.vue";
 import {
   createLayerVisibilityState,
   isLayerMeshVisible,
@@ -30,6 +31,21 @@ const { constructionModeEnabled, layerVisibility } = storeToRefs(layersStore);
 const props = defineProps({
   materialEstructuralId: { type: Number, default: 4 }
 });
+
+// SCRUM-98: Validador de cruce Metalcon vs Altura — accedido desde el store
+const metalconValidator = recintosStore.metalconValidator;
+
+// SCRUM-98: Vigilar cambios de material o pisos para re-validar Metalcon
+watch(
+  () => [props.materialEstructuralId, recintosStore.recintos.map(r => r.piso)],
+  () => {
+    metalconValidator.validarDesdeStore(
+      props.materialEstructuralId,
+      recintosStore.recintos
+    );
+  },
+  { deep: true }
+);
 
 let renderer, scene, camera, controls, dragControls;
 let transformControl;
@@ -878,6 +894,13 @@ onBeforeUnmount(() => {
     </div>
 
     <div ref="containerRef" class="scene3d-canvas" />
+
+    <!-- SCRUM-98: Modal de excepción severa Metalcon vs Altura (MINVU) -->
+    <MetalconAlertModal
+      :show="metalconValidator.showModal.value"
+      :excepcion="metalconValidator.detalleExcepcion.value"
+      @close="metalconValidator.cerrarModal()"
+    />
   </div>
 </template>
 
