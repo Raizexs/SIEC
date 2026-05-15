@@ -7,6 +7,11 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "node",
+    exclude: [
+      "**/node_modules/**",
+      "**/cypress/**",
+      "**/composables/__tests__/test_metalcon_validator.test.cjs",
+    ],
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],
