@@ -126,6 +126,70 @@ export const useRecintosStore = defineStore("recintos", () => {
     h: 2.4,
   };
 
+  const normalizeTipo = (tipo) => {
+    if (tipo === "comun") return "areaComun";
+    if (tipo === "area_comun") return "areaComun";
+    if (tipo === "baño") return "banio";
+    if (tipo === "bano") return "banio";
+
+    return tipo || "habitacion";
+  };
+
+  const toNumber = (value, fallback = 0) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+
+  const round3 = (value) => Number(toNumber(value).toFixed(3));
+
+  const normalizeIncomingRecinto = (recinto, index = 0) => {
+    const tipo = normalizeTipo(recinto.tipo);
+    const fallbackDims = BASE_DIMS[tipo] || BASE_DIMS.habitacion;
+
+    const id = recinto.id || generateId();
+    const width = toNumber(
+      recinto.dimensions?.w ?? recinto.w ?? recinto.width,
+      fallbackDims.w,
+    );
+
+    const length = toNumber(
+      recinto.dimensions?.l ?? recinto.l ?? recinto.length,
+      fallbackDims.l,
+    );
+
+    const height = toNumber(
+      recinto.dimensions?.h ?? recinto.h ?? recinto.height,
+      fallbackDims.h,
+    );
+
+    return {
+      ...recinto,
+      id,
+      stackId: recinto.stackId || id,
+      tipo,
+      nombre:
+        recinto.nombre ||
+        recinto.name ||
+        (tipo === "banio"
+          ? "Baño"
+          : tipo === "areaComun"
+            ? "Área común"
+            : tipo === "pasillo"
+              ? "Pasillo"
+              : `Recinto ${index + 1}`),
+      piso: toNumber(recinto.piso ?? recinto.floor, 1),
+      coords: {
+        x: round3(recinto.coords?.x ?? recinto.x ?? 0),
+        z: round3(recinto.coords?.z ?? recinto.z ?? 0),
+      },
+      dimensions: {
+        w: round3(Math.max(width, 0.5)),
+        l: round3(Math.max(length, 0.5)),
+        h: round3(Math.max(height, 2.1)),
+      },
+    };
+  };
+
   /**
    * initializeLayout — Rectangle-first strip packing
    *
@@ -225,6 +289,36 @@ export const useRecintosStore = defineStore("recintos", () => {
     saveHistoryState();
   };
 
+  const replaceRecintos = (incomingRecintos = [], options = {}) => {
+    const {
+      currentFloor: nextFloor = 1,
+      resetHistory = true,
+      metadata = null,
+    } = options;
+
+    recintos.value = incomingRecintos.map((recinto, index) =>
+      normalizeIncomingRecinto(recinto, index),
+    );
+
+    selectedForBudget.value = new Set();
+    activeRecintoId.value = null;
+    currentFloor.value = Math.min(3, Math.max(1, toNumber(nextFloor, 1)));
+
+    if (metadata) {
+      configMetadata.value = {
+        ...configMetadata.value,
+        ...metadata,
+      };
+    }
+
+    if (resetHistory) {
+      history.value = [];
+      historyIndex.value = -1;
+    }
+
+    saveHistoryState();
+  };
+
   const addPasillo = () => {
     const floorRecintos = recintos.value.filter(r => r.piso === currentFloor.value);
     let maxX = 0;
@@ -297,7 +391,7 @@ export const useRecintosStore = defineStore("recintos", () => {
       tipo: source.tipo,
       piso: currentFloor.value,
       coords: { x: source.coords.x, z: source.coords.z },
-      dimensions: { w: source.dimensions.w, l: source.dimensions.l }
+      dimensions: { ...source.dimensions },
     });
 
     // SCRUM-98: Validar cruce Insumo (Metalcon) vs Altura (pisos) tras clonar
@@ -349,27 +443,62 @@ export const useRecintosStore = defineStore("recintos", () => {
       const target = recintos.value[targetIndex];
       const stackId = target.stackId || target.id;
       
-      const hasDims = updates.dimensions || updates.w !== undefined || updates.l !== undefined;
+      const hasDims =
+        updates.dimensions ||
+        updates.w !== undefined ||
+        updates.l !== undefined ||
+        updates.h !== undefined;
+
       if (hasDims) {
         const newW = updates.dimensions?.w ?? updates.w ?? target.dimensions.w;
         const newL = updates.dimensions?.l ?? updates.l ?? target.dimensions.l;
-        const proposedDims = { w: newW, l: newL };
+        const newH =
+          updates.dimensions?.h ??
+          updates.h ??
+          target.dimensions.h ??
+          BASE_DIMS[target.tipo]?.h ??
+          2.4;
 
-        const roomBelow = recintos.value.find(r => (r.stackId || r.id) === stackId && r.piso === target.piso - 1);
+        const proposedDims = {
+          ...target.dimensions,
+          w: round3(Math.max(newW, 0.5)),
+          l: round3(Math.max(newL, 0.5)),
+          h: round3(Math.max(newH, 2.1)),
+        };
+
+        const roomBelow = recintos.value.find(
+          (r) => (r.stackId || r.id) === stackId && r.piso === target.piso - 1,
+        );
+
         if (roomBelow) {
           proposedDims.w = Math.min(proposedDims.w, roomBelow.dimensions.w);
           proposedDims.l = Math.min(proposedDims.l, roomBelow.dimensions.l);
         }
-        
+
         target.dimensions = { ...proposedDims };
-        
-        const stack = recintos.value.filter(r => (r.stackId || r.id) === stackId).sort((a,b) => a.piso - b.piso);
+
+        const stack = recintos.value
+          .filter((r) => (r.stackId || r.id) === stackId)
+          .sort((a, b) => a.piso - b.piso);
+
         for (let i = 1; i < stack.length; i++) {
-          const lower = stack[i-1];
+          const lower = stack[i - 1];
           const upper = stack[i];
-          if (upper.dimensions.w > lower.dimensions.w || upper.dimensions.l > lower.dimensions.l) {
-            upper.dimensions.w = Math.min(upper.dimensions.w, lower.dimensions.w);
-            upper.dimensions.l = Math.min(upper.dimensions.l, lower.dimensions.l);
+
+          if (
+            upper.dimensions.w > lower.dimensions.w ||
+            upper.dimensions.l > lower.dimensions.l
+          ) {
+            upper.dimensions = {
+              ...upper.dimensions,
+              w: Math.min(upper.dimensions.w, lower.dimensions.w),
+              l: Math.min(upper.dimensions.l, lower.dimensions.l),
+              h:
+                upper.dimensions.h ??
+                lower.dimensions.h ??
+                BASE_DIMS[upper.tipo]?.h ??
+                2.4,
+            };
           }
         }
       }
@@ -378,11 +507,18 @@ export const useRecintosStore = defineStore("recintos", () => {
       if (hasCoords) {
         const newX = updates.coords?.x ?? updates.x ?? target.coords.x;
         const newZ = updates.coords?.z ?? updates.z ?? target.coords.z;
-        target.coords = { x: newX, z: newZ };
+
+        target.coords = {
+          x: round3(newX),
+          z: round3(newZ),
+        };
         
         const stack = recintos.value.filter(r => (r.stackId || r.id) === stackId);
         stack.forEach(r => {
-          r.coords = { x: newX, z: newZ };
+          r.coords = {
+            x: round3(newX),
+            z: round3(newZ),
+          };
         });
       }
     }
@@ -445,6 +581,7 @@ export const useRecintosStore = defineStore("recintos", () => {
 
     // Methods
     initializeLayout,
+    replaceRecintos,
     addPasillo,
     addRecinto,
     setFloor,

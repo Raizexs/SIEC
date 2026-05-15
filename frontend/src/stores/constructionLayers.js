@@ -14,6 +14,7 @@ export const useConstructionLayersStore = defineStore(
   () => {
     const constructionModeEnabled = ref(false);
     const layerVisibility = ref(defaultLayerVisibility());
+    const selectedLayerId = ref(null);
 
     const layers = [
       {
@@ -63,6 +64,12 @@ export const useConstructionLayersStore = defineStore(
         ...layerVisibility.value,
         [layerId]: !layerVisibility.value[layerId],
       };
+      if (
+        !layerVisibility.value[layerId] &&
+        selectedLayerId.value === layerId
+      ) {
+        selectedLayerId.value = null;
+      }
     };
 
     const setLayerVisibility = (layerId, value) => {
@@ -76,11 +83,24 @@ export const useConstructionLayersStore = defineStore(
     const resetLayers = () => {
       layerVisibility.value = defaultLayerVisibility();
       constructionModeEnabled.value = false;
+      selectedLayerId.value = null;
+    };
+
+    const setSelectedLayer = (layerId) => {
+      if (!layerId || !(layerId in layerVisibility.value)) {
+        selectedLayerId.value = null;
+        return;
+      }
+      selectedLayerId.value = layerId;
+      if (!layerVisibility.value[layerId]) {
+        setLayerVisibility(layerId, true);
+      }
     };
 
     return {
       constructionModeEnabled,
       layerVisibility,
+      selectedLayerId,
       layers,
       visibleLayerIds,
       activeLayerCount,
@@ -88,6 +108,7 @@ export const useConstructionLayersStore = defineStore(
       setConstructionMode,
       toggleLayer,
       setLayerVisibility,
+      setSelectedLayer,
       resetLayers,
     };
   },
