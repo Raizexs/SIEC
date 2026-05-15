@@ -37,9 +37,6 @@ const estimatedCost = computed(() => {
   return calculateCost(props.formData.m2Totales, props.formData.materialEstructuralId)
 })
 
-const materialName = computed(() => {
-  return MATERIAL_COSTS[props.formData.materialEstructuralId]?.name || 'Unknown'
-})
 </script>
 
 <template>

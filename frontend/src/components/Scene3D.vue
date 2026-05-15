@@ -83,13 +83,8 @@ const FLOOR_MAT_MAP = {
   pasillo:    'steel_framed',
 };
 
-// ── Color helpers ─────────────────────────────────────────────────────────────
-// Walls: always use material textures, no colored overlays.
-// Rooms: yellow tint when budgeted, white otherwise.
-
 const getCurrentLayerState = () =>
   createLayerVisibilityState(constructionModeEnabled.value, layerVisibility.value);
-
 const isMeshVisible = (mesh, ls = getCurrentLayerState()) =>
   isLayerMeshVisible(mesh.userData.layerTags, ls);
 
@@ -885,9 +880,6 @@ onBeforeUnmount(() => {
         >
           <span class="material-symbols-outlined text-[18px]">
             {{ isFullScreen ? 'fullscreen_exit' : 'fullscreen' }}
-          </span>
-          <span class="text-xs font-bold uppercase tracking-wider">
-            {{ isFullScreen ? 'Salir de Pantalla Completa' : 'Pantalla Completa' }}
           </span>
         </button>
       </div>

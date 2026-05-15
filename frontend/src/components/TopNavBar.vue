@@ -37,10 +37,6 @@ const handleTabClick = (tabName) => {
   // reserved for future tabs
 }
 
-const logout = () => {
-  authStore.logout()
-  showProfileMenu.value = false
-}
 </script>
 
 <template>
@@ -71,7 +67,6 @@ const logout = () => {
           <span class="material-symbols-outlined text-[16px] text-slate-400">expand_more</span>
         </button>
 
-        <!-- Dropdown Menu -->
         <Transition name="fade-scale">
           <div 
             v-if="showProfileMenu" 
