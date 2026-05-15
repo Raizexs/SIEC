@@ -22,7 +22,7 @@ import {
   enqueue,
   flushOutbox,
   projectsDb,
-} from "../lib/offlineCache";
+} from "../lib/OfflineCache";
 
 const isOnline = ref(
   typeof navigator !== "undefined" ? navigator.onLine : true,
