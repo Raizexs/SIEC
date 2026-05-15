@@ -3,20 +3,168 @@
 @tailwind utilities;
 
 /* ═══════════════════════════════════════════════════════════════════════
-   SIEC — Design System
-   
-   PALETA LIGHT:  blanco/gris muy suave + navy #031632 como primary
-   PALETA DARK:   GitHub-dark (#0d1117) + azul medio como accent
-   
-   JERARQUÍA DE TEXTO (ambos modos):
-     L1 — Headings:  máximo contraste
-     L2 — Body:      contraste normal
-     L3 — Muted:     contraste reducido (labels, captions)
+   SIEC v2 — Design System "Precisión Arquitectónica"
+
+   Ancla visual:  navy.DEFAULT (#1A2B48)
+   CTA / acento:  orange.DEFAULT (#f39c12)
+   Rail nav:      #f2f4f7
+   Canvas:        #ffffff
+   Tonal layer:   #f7f9fc / #fbfcfd
+
+   Tipografía:    Manrope (geométrica) — font-semibold tracking-tight para H,
+                  text-sm font-medium para etiquetas técnicas
+   Forma:         rounded-md (4-8px), shadow-sm (planas)
+   Capas:         capas tonales en lugar de líneas divisorias fuertes
 ═══════════════════════════════════════════════════════════════════════ */
 
 @layer base {
+  :root {
+    --siec-navy: #102a43;
+    --siec-navy-tint: #1f4466;
+    --siec-orange: #f59e0b;
+    --siec-rail: #f4f7fb;
+    --siec-canvas: #ffffff;
+    --siec-tonal: #f7faff;
+    --siec-border: #d7e2ee;
+    --siec-border-strong: #b6c6d8;
+    --siec-text: #102a43;
+    --siec-text-muted: #486581;
+    --siec-text-soft: #829ab1;
+  }
 
-  /* ── Material Symbols ─────────────────────────────────────────────── */
+  html {
+    color-scheme: light;
+    font-feature-settings: "cv02", "cv03", "cv04", "ss01";
+  }
+  html.dark { color-scheme: dark; }
+
+  body {
+    background: radial-gradient(circle at top right, #eef4ff 0%, var(--siec-rail) 45%, #f7faff 100%);
+    color: var(--siec-text);
+    font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /*
+   * Cursors — UI tipo aplicación: sin cursor de texto (I-beam) sobre titulares,
+   * párrafos o layout; solo donde se escribe o en controles explícitos.
+   * Las utilidades Tailwind cursor-* siguen ganando por capa utilities.
+   */
+  * {
+    cursor: default;
+  }
+
+  canvas {
+    cursor: auto;
+  }
+
+  a,
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [type="button"]:not(:disabled),
+  [type="submit"]:not(:disabled),
+  [type="reset"]:not(:disabled),
+  summary,
+  select,
+  option,
+  label[for],
+  input[type="checkbox"]:enabled,
+  input[type="radio"]:enabled,
+  input[type="file"]:enabled,
+  input[type="range"]:enabled,
+  input[type="color"]:enabled {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [aria-disabled="true"],
+  :disabled {
+    cursor: not-allowed;
+  }
+
+  input:where(
+      [type="text"],
+      [type="email"],
+      [type="password"],
+      [type="search"],
+      [type="tel"],
+      [type="url"],
+      [type="number"]
+    ):enabled,
+  textarea:enabled,
+  [contenteditable="true"],
+  [contenteditable=""] {
+    cursor: text;
+  }
+
+  [contenteditable="false"] {
+    cursor: default;
+  }
+
+  input:where(
+      [type="text"],
+      [type="email"],
+      [type="password"],
+      [type="search"],
+      [type="tel"],
+      [type="url"],
+      [type="number"]
+    ):disabled,
+  textarea:disabled {
+    cursor: not-allowed;
+  }
+
+  /*
+   * Selección de texto: sin I-beam ni arrastre de selección en copy de UI.
+   * Reactivar con utilidad Tailwind `select-text` en manuales, comentarios, etc.
+   */
+  html,
+  body,
+  #app {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    user-select: none;
+  }
+
+  input:where(
+      [type="text"],
+      [type="email"],
+      [type="password"],
+      [type="search"],
+      [type="tel"],
+      [type="url"],
+      [type="number"]
+    ):enabled,
+  textarea:enabled,
+  [contenteditable="true"],
+  [contenteditable=""] {
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    user-select: text;
+  }
+
+  [contenteditable="false"] {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    user-select: none;
+  }
+
+  pre,
+  code {
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    user-select: text;
+    cursor: text;
+  }
+
+  /* Headings: tight tracking + semibold weight (per design tokens) */
+  h1, h2, h3, h4 {
+    letter-spacing: -0.02em;
+    font-weight: 600;
+  }
+
+  /* Material Symbols fallback (kept while migrating to Lucide) */
   .material-symbols-outlined {
     font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
     display: inline-block;
@@ -28,214 +176,351 @@
     direction: ltr;
   }
 
-  /* ── Base transition ──────────────────────────────────────────────── */
-  html { color-scheme: light; }
-  html.dark { color-scheme: dark; }
-
-  body {
-    transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Selection */
+  ::selection {
+    background-color: rgba(243, 156, 18, 0.25);
+    color: var(--siec-navy);
   }
 
-  /* ── View Transitions API ─────────────────────────────────────────── */
-  ::view-transition-old(root),
-  ::view-transition-new(root) {
-    animation-duration: 0.5s;
-    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  /* Form controls */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="search"],
+  textarea,
+  select {
+    font-family: inherit;
   }
 
-
-  /* ╔══════════════════════════════════════════════════════════╗
-     ║  DARK MODE — Token overrides completos                  ║
-     ║  Se aplican cuando <html class="dark"> está activo.     ║
-     ╚══════════════════════════════════════════════════════════╝ */
-
-  /* ── Fondos ───────────────────────────────────────────────────────── */
-  .dark body,
-  .dark .min-h-screen,
-  .dark .bg-background       { background-color: #0d1117; }
-
-  .dark .bg-surface-container-lowest { background-color: #0d1117; }
-  .dark .bg-surface-container-low    { background-color: #161b22; }
-  .dark .bg-surface-container        { background-color: #1c2128; }
-  .dark .bg-surface-container-highest { background-color: #2d333b; }
-  .dark .bg-surface-container-highest\/30 { background-color: rgba(45,51,59,0.3); }
-
-  /* Cards y paneles blancos */
-  .dark .bg-white            { background-color: #161b22 !important; }
-  .dark .bg-white\/80        { background-color: rgba(22,27,34,0.92) !important; }
-  .dark .bg-white\/50        { background-color: rgba(22,27,34,0.6) !important; }
-  .dark .bg-slate-50         { background-color: #21262d !important; }
-  .dark .bg-slate-800        { background-color: #21262d !important; }
-  .dark .bg-slate-900        { background-color: #0d1117 !important; }
-
-  /* Secondary chip (el badge naranja en la metric card) */
-  .dark .bg-secondary        { background-color: #b45309; } /* amber-700, más legible */
-
-  /* Hover states */
-  .dark .hover\:bg-slate-50:hover    { background-color: #21262d; }
-  .dark .hover\:bg-slate-200\/50:hover { background-color: #21262d; }
-  .dark .hover\:bg-surface-container-low:hover { background-color: #1c2128; }
-  .dark .hover\:bg-white\/50:hover   { background-color: rgba(22,27,34,0.6); }
-  .dark .hover\:opacity-90:hover     { opacity: 0.85; }
-
-
-  /* ── JERARQUÍA DE TEXTO ───────────────────────────────────────────── */
-  
-  /* L1 — Titulares (máximo contraste) */
-  .dark .text-on-surface     { color: #e6edf3; }
-  .dark .text-on-background  { color: #e6edf3; }
-  .dark h1, .dark h2, .dark h3, .dark h4 { color: #e6edf3; }
-
-  /* L2 — Acento / Primarios de brand (azul claro, readable) */
-  .dark .text-primary        { color: #7aaddb; }         /* azul claro legible */
-  .dark .text-primary-container { color: #93b4d8; }      /* azul medio */
-  .dark .text-on-primary-container { color: #93b4d8; }
-
-  /* L2 — Secundario (antes era naranja oscuro #904d00, imposible en dark) */
-  .dark .text-secondary      { color: #f0a868; }         /* naranja claro, warm */
-
-  /* L2 — Terciario */
-  .dark .text-tertiary       { color: #d4b896; }
-
-  /* L3 — Muted (texto de apoyo) */
-  .dark .text-slate-800      { color: #cdd5de; }
-  .dark .text-slate-700      { color: #b1bac4; }
-  .dark .text-slate-600      { color: #8b949e; }
-  .dark .text-slate-500      { color: #6e7681; }
-  .dark .text-slate-400      { color: #565d68; }
-
-  /* Outline y variantes de surface-text */
-  .dark .text-outline        { color: #8b949e; }
-  .dark .text-outline-variant { color: #6e7681; }
-  .dark .text-on-surface-variant { color: #8b949e; }
-
-  /* White permanece blanco (sobre fondos de color) */
-  .dark .text-white          { color: #ffffff; }
-
-  /* Emerald se mantiene */
-  .dark .text-emerald-500    { color: #34d399; }
-  .dark .text-emerald-600    { color: #10b981; }
-
-  /* Amber para badges especiales */
-  .dark .text-amber-400      { color: #fbbf24; }
-
-
-  /* ── BORDES ───────────────────────────────────────────────────────── */
-  .dark .border-slate-200        { border-color: #30363d; }
-  .dark .border-slate-200\/50    { border-color: rgba(48,54,61,0.5); }
-  .dark .border-outline-variant\/20,
-  .dark .border-outline-variant\/10,
-  .dark .border-outline-variant  { border-color: #2d333b; }
-  .dark .border-surface-container-highest { border-color: #2d333b; }
-  .dark .border-t               { border-top-color: #30363d; }
-
-
-  /* ── COMPONENTES ─────────────────────────────────────────────────── */
-
-  /* TopNav */
-  .dark header.sticky {
-    background-color: rgba(13,17,23,0.95) !important;
-    border-bottom-color: #21262d !important;
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: var(--siec-navy);
+    cursor: pointer;
+    border-radius: 50%;
+    border: 2px solid #ffffff;
+    box-shadow: 0 1px 3px rgba(15, 26, 46, 0.2);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: var(--siec-navy);
+    cursor: pointer;
+    border-radius: 50%;
+    border: 2px solid #ffffff;
+    box-shadow: 0 1px 3px rgba(15, 26, 46, 0.2);
   }
 
-  /* Botones circulares blancos (stepper - / +) */
-  .dark .bg-white.shadow-sm,
-  .dark [class*="bg-white"][class*="rounded-full"] {
-    background-color: #21262d !important;
+  :focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--siec-orange) 70%, white);
+    outline-offset: 2px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   COMPONENTS — reusable patterns
+═══════════════════════════════════════════════════════════════════════ */
+
+@layer components {
+  .shell-header {
+    @apply sticky top-0 z-20 border-b border-slate-200/70;
+    background: color-mix(in oklab, var(--siec-canvas) 88%, transparent);
+    backdrop-filter: blur(12px);
+  }
+  .surface-panel {
+    @apply bg-canvas border border-slate-200/70 rounded-xl shadow-card;
+  }
+  .surface-subtle {
+    @apply rounded-lg border border-slate-200/60;
+    background: color-mix(in oklab, var(--siec-tonal) 82%, var(--siec-canvas));
   }
 
-  /* Select */
-  .dark select {
-    background-color: #21262d;
-    color: #e6edf3;
-    border-color: #30363d;
+  /* Primary CTA — sin transition:transform (GSAP micro-press en #app) */
+  .btn-primary {
+    @apply inline-flex items-center gap-2 px-4 py-2.5 rounded-md
+           bg-navy text-white font-semibold text-sm tracking-tight
+           shadow-card disabled:opacity-50 disabled:cursor-not-allowed;
+    transition:
+      color 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+      background-color 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+      box-shadow 0.26s cubic-bezier(0.4, 0, 0.2, 1),
+      filter 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    @apply hover:bg-navy-800 hover:shadow-card-hover;
   }
-  .dark option {
-    background-color: #161b22;
-    color: #e6edf3;
-  }
-
-  /* Input text transparente */
-  .dark input[type="text"],
-  .dark input[type="number"] {
-    color: #e6edf3;
-  }
-
-  /* Range track */
-  .dark input[type="range"] {
-    background-color: #30363d;
+  .btn-primary:hover {
+    filter: brightness(1.03);
   }
 
-  /* Glass panel */
-  .dark .glass-panel {
-    background: rgba(22,27,34,0.88);
-    border-color: rgba(48,54,61,0.4);
+  /* Accent CTA (orange — high-volatility actions: New Estimate, Generate report) */
+  .btn-accent {
+    @apply inline-flex items-center gap-2 px-4 py-2.5 rounded-md
+           bg-orange text-white font-semibold text-sm tracking-tight
+           shadow-card disabled:opacity-50 disabled:cursor-not-allowed;
+    transition:
+      color 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+      background-color 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+      box-shadow 0.26s cubic-bezier(0.4, 0, 0.2, 1),
+      filter 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    @apply hover:bg-orange-600 hover:shadow-card-hover;
+  }
+  .btn-accent:hover {
+    filter: brightness(1.04);
   }
 
-  /* SVG 2D editor */
-  .dark .bg-gradient-to-br.from-slate-800.to-slate-900 {
-    background: linear-gradient(to bottom right, #161b22, #0d1117) !important;
+  /* Tertiary / ghost */
+  .btn-ghost {
+    @apply inline-flex items-center gap-2 px-3 py-2 rounded-md
+           text-navy-700 font-medium text-sm
+           hover:bg-navy-50 hover:text-navy-900;
+    transition:
+      color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+      background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+      box-shadow 0.24s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  /* Emerald backgrounds (auto-save dot, etc) */
-  .dark .bg-emerald-400        { background-color: #34d399; }
-  .dark .bg-emerald-500        { background-color: #10b981; }
+  .btn-ghost-soft {
+    @apply inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm font-semibold text-slate-600 transition duration-200;
+    background: color-mix(in oklab, var(--siec-tonal) 76%, transparent);
+  }
+  .btn-ghost-soft:hover {
+    @apply text-navy-900;
+    background: color-mix(in oklab, var(--siec-tonal) 96%, var(--siec-canvas));
+  }
 
-  /* Tertiary-fixed para el badge "PROYECCIÓN EN VIVO" */
-  .dark .bg-tertiary-fixed     { background-color: #533e00; }
-  .dark .text-on-tertiary-fixed { color: #fde68a; }
+  /* Tonal card (no harsh borders) */
+  .card {
+    @apply bg-canvas rounded-lg shadow-card border border-slate-200/70;
+    backdrop-filter: saturate(1.06);
+  }
+  .card-tonal {
+    @apply bg-tonal rounded-lg border border-slate-200/50;
+  }
 
-  /* Secondary container (chip de la metric hero card) */
-  .dark .bg-secondary-container { background-color: #9a3412; }
+  /* Field input */
+  .field {
+    @apply w-full px-3 py-2.5 rounded-md
+           bg-canvas border border-slate-200
+           text-sm font-medium text-navy-900
+           placeholder:text-slate-400
+           focus:outline-none focus:border-navy-400 focus:ring-2 focus:ring-navy-100;
+    transition:
+      border-color 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+      box-shadow 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+      background-color 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .field-label {
+    @apply text-2xs font-semibold uppercase tracking-tightest text-slate-500 mb-1.5 block;
+  }
 
-} /* end @layer base */
+  /* Section navigation rail (64px) */
+  .rail-link {
+    @apply relative w-10 h-10 flex items-center justify-center rounded-md
+           text-navy-500 hover:bg-navy-50 hover:text-navy-900;
+    transition:
+      color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+      background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+      box-shadow 0.24s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .rail-link:hover {
+    box-shadow: 0 1px 0 rgba(15, 42, 67, 0.06);
+  }
+  .rail-link.active {
+    @apply bg-navy text-white shadow-card;
+  }
 
+  .input-focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-orange/30 focus:border-orange-400;
+  }
+
+  /* Data label (technical, used everywhere in dashboards) */
+  .data-label {
+    @apply text-2xs font-semibold uppercase tracking-tightest text-slate-500;
+  }
+  .data-value {
+    @apply text-2xl font-semibold tracking-tight text-navy-900 tabular-nums;
+  }
+
+  /* Badge */
+  .badge {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md
+           text-2xs font-semibold uppercase tracking-tightest;
+  }
+  .badge-navy   { @apply bg-navy-50 text-navy-700; }
+  .badge-orange { @apply bg-orange-50 text-orange-700; }
+  .badge-success { @apply bg-success-soft text-success; }
+  .badge-warning { @apply bg-warning-soft text-warning; }
+  .badge-danger  { @apply bg-danger-soft text-danger; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   DARK MODE — token overrides
+═══════════════════════════════════════════════════════════════════════ */
+
+@layer base {
+  .dark {
+    --siec-rail: #060d18;
+    --siec-canvas: #0c1828;
+    --siec-tonal: #102135;
+    --siec-border: #17304b;
+    --siec-border-strong: #20405f;
+    --siec-text: #e8f1fb;
+    --siec-text-muted: #b5c7da;
+    --siec-text-soft: #8ca5bf;
+  }
+
+  .dark body {
+    background: radial-gradient(circle at top right, #0c1728 0%, #060d18 48%, #050a12 100%);
+    color: var(--siec-text);
+  }
+  .dark .bg-rail     { background-color: #060d18 !important; }
+  .dark .bg-canvas   { background-color: #0c1828 !important; }
+  .dark .bg-tonal    { background-color: #102135 !important; }
+  .dark .bg-elevated { background-color: #102135 !important; }
+  .dark .bg-white    { background-color: #102135 !important; }
+  .dark .bg-slate-50 { background-color: #102135 !important; }
+  .dark .border-slate-200    { border-color: #17304b !important; }
+  .dark .border-slate-200\/50 { border-color: rgba(23, 48, 75, 0.5) !important; }
+  .dark .border-slate-200\/70 { border-color: rgba(23, 48, 75, 0.7) !important; }
+  .dark .text-slate-700      { color: #d2deeb; }
+  .dark .text-slate-600      { color: #b5c7da; }
+  .dark .text-slate-500      { color: #8ca5bf; }
+  .dark .text-slate-400      { color: #6f8eaf; }
+  .dark .text-navy-900       { color: #e8f1fb; }
+  .dark .text-navy-700       { color: #c8daed; }
+  .dark .text-navy-500       { color: #9fb8d2; }
+  .dark .shell-header {
+    background: color-mix(in oklab, #0c1828 84%, transparent);
+    border-bottom-color: rgba(32, 64, 95, 0.72) !important;
+  }
+  .dark .surface-subtle {
+    background: color-mix(in oklab, #102135 90%, #0c1828);
+    border-color: rgba(32, 64, 95, 0.72) !important;
+  }
+  .dark .rail-link:hover {
+    box-shadow: 0 1px 0 rgba(200, 218, 237, 0.08);
+  }
+
+  /* Botones ghost / soft — legibles sobre canvas oscuro */
+  .dark .btn-ghost {
+    color: #c8daed;
+  }
+  .dark .btn-ghost:hover {
+    color: #f1f5f9;
+    background-color: rgba(30, 58, 95, 0.5);
+  }
+  .dark .btn-ghost-soft {
+    color: #b5c7da;
+    background: color-mix(in oklab, #102135 72%, transparent);
+  }
+  .dark .btn-ghost-soft:hover {
+    color: #f1f5f9;
+    background: rgba(30, 58, 95, 0.55);
+  }
+
+  /* Superficies “suaves” (navy-50 / orange-50) en modo oscuro */
+  .dark .bg-navy-50,
+  .dark .bg-navy-50\/60 {
+    background-color: rgba(23, 48, 75, 0.72) !important;
+  }
+  .dark .bg-orange-50,
+  .dark .bg-orange-50\/50 {
+    background-color: rgba(154, 52, 18, 0.35) !important;
+  }
+  .dark .border-orange-200 {
+    border-color: rgba(251, 191, 36, 0.35) !important;
+  }
+
+  /* Naranjas de acento: más claros sobre fondos oscuros */
+  .dark .text-orange-600 {
+    color: #fbbf24 !important;
+  }
+  .dark .text-orange-700 {
+    color: #fcd34d !important;
+  }
+  .dark .text-orange-800 {
+    color: #fde68a !important;
+  }
+
+  /* Badges y chips */
+  .dark .badge-navy {
+    background-color: rgba(30, 58, 95, 0.9);
+    color: #e8f1fb;
+  }
+  .dark .badge-orange {
+    background-color: rgba(180, 83, 9, 0.45);
+    color: #fef3c7;
+  }
+
+  /* Separadores tipo “grid con gap-px” en menús */
+  .dark .bg-slate-200\/70 {
+    background-color: rgba(51, 65, 85, 0.65) !important;
+  }
+
+  /* Tarjetas con acento naranja seleccionado (ConfigurationPanel, etc.) */
+  .dark .border-orange {
+    border-color: #f59e0b !important;
+  }
+
+  .dark .hover\:bg-orange-50:hover {
+    background-color: rgba(154, 52, 18, 0.28) !important;
+  }
+  .dark .hover\:bg-navy-50:hover {
+    background-color: rgba(30, 58, 95, 0.45) !important;
+  }
+
+  .dark input[type="range"]::-webkit-slider-thumb { background: var(--siec-orange); }
+  .dark input[type="range"]::-moz-range-thumb     { background: var(--siec-orange); }
+}
 
 /* ═══════════════════════════════════════════════════════════════════════
    UTILITIES
 ═══════════════════════════════════════════════════════════════════════ */
-@layer utilities {
 
+@layer utilities {
   .glass-panel {
-    background: rgba(255,255,255,0.8);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
   }
+  .dark .glass-panel {
+    background: rgba(15, 26, 46, 0.85);
+  }
+
+  .tabular-nums { font-variant-numeric: tabular-nums; }
+
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .animate-fade-in { animation: fade-in 0.35s ease forwards; }
 
   @keyframes pulse-soft {
     0%, 100% { opacity: 1; }
-    50%       { opacity: 0.5; }
+    50%       { opacity: 0.55; }
   }
-  .animate-pulse-soft {
-    animation: pulse-soft 2s cubic-bezier(0.4,0,0.6,1) infinite;
-  }
+  .animate-pulse-soft { animation: pulse-soft 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+}
 
-  @keyframes fade-in {
-    from { opacity: 0; transform: translateY(8px); }
-    to   { opacity: 1; transform: translateY(0); }
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
-  .animate-fade-in {
-    animation: fade-in 0.35s ease forwards;
-  }
+}
 
-  /* Range slider thumb — light */
-  input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 18px; height: 18px;
-    background: #031632;
-    cursor: pointer;
-    border-radius: 50%;
-  }
-  input[type="range"]::-moz-range-thumb {
-    width: 18px; height: 18px;
-    background: #031632;
-    cursor: pointer;
-    border-radius: 50%;
-    border: none;
-  }
-
-  /* Range slider thumb — dark */
-  .dark input[type="range"]::-webkit-slider-thumb { background: #7aaddb; }
-  .dark input[type="range"]::-moz-range-thumb     { background: #7aaddb; }
+/* Preferencia SIEC "Movimiento mínimo" (sin depender solo del OS) */
+html.siec-motion-reduced *,
+html.siec-motion-reduced *::before,
+html.siec-motion-reduced *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
 }
