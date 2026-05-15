@@ -245,3 +245,9 @@ CREATE TABLE IF NOT EXISTS indicador_economico (
 );
 
 CREATE INDEX IF NOT EXISTS idx_ie_nombre_fecha ON indicador_economico (nombre, fecha DESC);
+
+-- ========== MIGRACIÓN 003 (Phase 1.5): Multi-tenant ==========
+-- Users, projects, collaborators, versions, comments, audit, notifications.
+-- Loaded from migrations/003_create_users_and_projects.sql via psql.
+\i /migrations/003_create_users_and_projects.sql
+
