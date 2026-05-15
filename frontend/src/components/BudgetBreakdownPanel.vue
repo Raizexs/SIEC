@@ -1,14 +1,24 @@
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { useI18n } from '../composables/useI18n';
+import { useRecintosStore } from '../stores/recintos';
+import { useProductPreferences } from '../composables/useProductPreferences';
+import {
+  withContingency,
+  ivaOnAmount,
+  formatMoneyByPreference,
+  CHILE_IVA_RATE,
+} from '../utils/budgetPreferenceMath';
 
 const { t } = useI18n();
+const recintosStore = useRecintosStore();
+const { productPreferences } = useProductPreferences();
 
 const emit = defineEmits(['export-pdf']);
 
 const props = defineProps({
   m2Totales: { type: Number, required: true },
-  materialEstructuralId: { type: Number, required: true }
+  materialEstructuralId: { type: Number, required: true },
 });
 
 const isLoading = ref(false);
@@ -19,21 +29,58 @@ const fechaPrecios = ref(null);
 const hasGenerated = ref(false);
 
 const formatCurrency = (value) => {
-  if (value == null) return "Precios de mercado no disponibles aún";
-  return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(value);
+  if (value == null) return 'Precios de mercado no disponibles aún';
+
+  return new Intl.NumberFormat('es-CL', {
+    style: 'currency',
+    currency: 'CLP',
+  }).format(value);
 };
 
+/** Total devuelto por el motor (CLP). */
+const motorTotal = computed(() => costoTotal.value);
+
+const subtotalConContingencia = computed(() =>
+  withContingency(motorTotal.value, productPreferences.value.contingency),
+);
+
+const montoIva = computed(() =>
+  ivaOnAmount(subtotalConContingencia.value, productPreferences.value.includeTax),
+);
+
+/** Total referencial: subtotal con contingencia + IVA (si aplica), misma base numérica en CLP. */
+const totalPreferido = computed(() => {
+  const sub = subtotalConContingencia.value;
+  if (sub == null || !Number.isFinite(sub)) return null;
+  return sub + montoIva.value;
+});
+
+const monedaPreferida = computed(() => productPreferences.value.currency);
+
+const deltaContingencia = computed(() => {
+  const m = motorTotal.value;
+  const s = subtotalConContingencia.value;
+  if (m == null || s == null || !Number.isFinite(m) || !Number.isFinite(s)) return null;
+  return s - m;
+});
+
 const formatCurrencyCell = (value) => {
-  if (value == null) return "N/D";
-  return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(value);
+  if (value == null) return 'N/D';
+
+  return new Intl.NumberFormat('es-CL', {
+    style: 'currency',
+    currency: 'CLP',
+  }).format(value);
 };
 
 const formatDate = (dateString) => {
   if (!dateString) return null;
+
   const date = new Date(dateString);
   const day = String(date.getDate()).padStart(2, '0');
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const year = date.getFullYear();
+
   return `${day}/${month}/${year}`;
 };
 
@@ -42,8 +89,36 @@ const handleGenerateBudget = () => {
   fetchBudget();
 };
 
+const buildSelectedCounts = () => {
+  const selected = recintosStore.recintos.filter((room) =>
+    recintosStore.selectedForBudget.has(room.id),
+  );
+
+  const counts = {
+    habitaciones: 0,
+    banios: 0,
+    areasComunes: 0,
+  };
+
+  for (const room of selected) {
+    if (room.tipo === 'banio') {
+      counts.banios += 1;
+    } else if (
+      room.tipo === 'comun' ||
+      room.tipo === 'areaComun' ||
+      room.tipo === 'pasillo'
+    ) {
+      counts.areasComunes += 1;
+    } else {
+      counts.habitaciones += 1;
+    }
+  }
+
+  return counts;
+};
+
 const fetchBudget = async () => {
-  if (!hasGenerated.value) return; // Prevent automatic loading unless triggered
+  if (!hasGenerated.value) return;
 
   if (props.m2Totales <= 0) {
     desglose.value = [];
@@ -56,26 +131,37 @@ const fetchBudget = async () => {
   error.value = null;
 
   try {
-    const baseUrl = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000' : '');
+    const baseUrl =
+      import.meta.env.VITE_API_URL ||
+      (import.meta.env.DEV ? 'http://localhost:8000' : '');
 
-    // 1. Crear simulación temporal
+    const counts = buildSelectedCounts();
+
     const simRes = await fetch(`${baseUrl}/api/simulacion/parametros`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         m2Totales: Math.round(props.m2Totales),
         materialEstructuralId: props.materialEstructuralId,
-        habitaciones: 0, banios: 0, areasComunes: 0
-      })
+        habitaciones: counts.habitaciones,
+        banios: counts.banios,
+        areasComunes: counts.areasComunes,
+      }),
     });
-    if (!simRes.ok) throw new Error("Error al crear simulación");
+
+    if (!simRes.ok) throw new Error('Error al crear simulación');
+
     const simData = await simRes.json();
 
-    // 2. Calcular insumos
-    const calcRes = await fetch(`${baseUrl}/api/simulacion/${simData.idSimulacion}/calcular-insumos`, {
-      method: 'POST'
-    });
-    if (!calcRes.ok) throw new Error("Error al calcular insumos");
+    const calcRes = await fetch(
+      `${baseUrl}/api/simulacion/${simData.idSimulacion}/calcular-insumos`,
+      {
+        method: 'POST',
+      },
+    );
+
+    if (!calcRes.ok) throw new Error('Error al calcular insumos');
+
     const data = await calcRes.json();
 
     desglose.value = data.desglose || [];
@@ -88,133 +174,405 @@ const fetchBudget = async () => {
   }
 };
 
-watch(() => [props.m2Totales, props.materialEstructuralId], () => {
-  hasGenerated.value = false; // Reset when params change
-}, { immediate: true });
+watch(
+  () => [props.m2Totales, props.materialEstructuralId],
+  () => {
+    hasGenerated.value = false;
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
-  <div class="bg-surface/80 dark:bg-[#151c27]/80 backdrop-blur-xl border border-outline/20 p-8 rounded-[2rem] shadow-2xl relative overflow-hidden">
-    <!-- Premium background glow -->
-    <div class="absolute -top-40 -right-40 w-80 h-80 bg-primary/20 rounded-full blur-[100px] pointer-events-none"></div>
+  <section
+    class="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl transition-colors duration-300 dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30 sm:p-6 lg:p-8"
+  >
+    <!-- Subtle background accent -->
+    <div
+      class="pointer-events-none absolute -right-32 -top-32 h-72 w-72 rounded-full bg-orange-500/10 blur-3xl dark:bg-orange-400/10"
+    ></div>
 
-    <h2 class="text-2xl font-black flex items-center gap-3 mb-8 relative z-10">
-      <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-        <span class="material-symbols-outlined text-primary">request_quote</span>
-      </div>
-      Presupuesto Detallado
-      <span class="text-sm font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500 px-3 py-1 rounded-full ml-auto shadow-inner">{{ Math.round(m2Totales) }} m² calculados</span>
-    </h2>
+    <!-- Header -->
+    <header class="relative z-10 mb-7 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div class="flex items-start gap-3">
+        <div
+          class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-orange-200 bg-orange-50 text-orange-600 shadow-sm dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
+        >
+          <span class="material-symbols-outlined text-[23px]">
+            request_quote
+          </span>
+        </div>
 
-    <div v-if="!hasGenerated" class="flex flex-col items-center justify-center py-12 text-center relative z-10">
-      <div class="w-20 h-20 bg-primary/5 rounded-full flex items-center justify-center mb-6">
-        <span class="material-symbols-outlined text-4xl text-primary/50">calculate</span>
+        <div>
+          <p
+            class="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
+          >
+            Estimación económica
+          </p>
+
+          <h2
+            class="mt-1 text-2xl font-black tracking-tight text-slate-950 dark:text-slate-100"
+          >
+            Presupuesto detallado
+          </h2>
+
+          <p class="mt-1 max-w-2xl text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400">
+            Calcula insumos, cantidades y subtotales según los recintos seleccionados y el material estructural actual.
+          </p>
+        </div>
       </div>
-      <h3 class="text-xl font-bold text-slate-800 dark:text-slate-200 mb-2">Presupuesto inactivo</h3>
-      <p class="text-slate-500 text-sm max-w-md mb-8">Calcula el presupuesto exacto basado en la selección de recintos actuales y el material estructural de tu proyecto.</p>
-      
-      <button 
-        @click="handleGenerateBudget"
-        class="bg-gradient-to-r from-primary to-primary-container text-white px-8 py-4 rounded-xl font-bold tracking-wide shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:scale-[1.02] transition-all"
+
+      <div
+        class="inline-flex w-fit items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
       >
-        <span class="material-symbols-outlined text-[18px] align-middle mr-1">calculate</span>
-        Calcular Presupuesto Real
+        <span class="material-symbols-outlined text-[15px] text-slate-400">
+          square_foot
+        </span>
+        {{ Math.round(m2Totales) }} m² calculados
+      </div>
+    </header>
+
+    <!-- Initial state -->
+    <div
+      v-if="!hasGenerated"
+      class="relative z-10 flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-slate-50/70 px-5 py-14 text-center dark:border-slate-700 dark:bg-slate-900/50"
+    >
+      <div
+        class="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-slate-200 bg-white text-orange-500 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-orange-300"
+      >
+        <span class="material-symbols-outlined text-[32px]">
+          calculate
+        </span>
+      </div>
+
+      <h3 class="text-lg font-black tracking-tight text-slate-950 dark:text-slate-100">
+        Presupuesto inactivo
+      </h3>
+
+      <p class="mt-2 max-w-md text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400">
+        Genera un presupuesto usando la selección actual de recintos, superficie calculada y material estructural del proyecto.
+      </p>
+
+      <button
+        type="button"
+        class="mt-7 inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-950 bg-slate-950 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-slate-950/15 transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-800 hover:shadow-xl hover:shadow-slate-950/20 active:scale-[0.98] dark:border-white dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
+        @click="handleGenerateBudget"
+      >
+        <span class="material-symbols-outlined text-[18px]">
+          calculate
+        </span>
+        Calcular presupuesto real
       </button>
-      <p class="text-xs text-slate-400 mt-3">Consulta los precios de mercado actualizados vía scraper</p>
+
+      <p class="mt-3 text-xs font-medium text-slate-400 dark:text-slate-500">
+        Consulta precios de mercado actualizados vía scraper.
+      </p>
     </div>
 
+    <!-- Generated state -->
     <div v-else class="relative z-10">
-      <div v-if="isLoading" class="flex flex-col items-center justify-center py-16">
-        <div class="animate-spin rounded-full h-12 w-12 border-b-4 border-primary mb-4"></div>
-        <p class="text-sm text-slate-500 font-semibold animate-pulse">Analizando insumos y materiales...</p>
+      <!-- Loading -->
+      <div
+        v-if="isLoading"
+        class="flex flex-col items-center justify-center rounded-3xl border border-slate-200 bg-slate-50/70 py-16 dark:border-slate-800 dark:bg-slate-900/50"
+      >
+        <div
+          class="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950"
+        >
+          <div
+            class="h-7 w-7 animate-spin rounded-full border-2 border-slate-200 border-t-orange-500 dark:border-slate-700 dark:border-t-orange-300"
+          ></div>
+        </div>
+
+        <p class="text-sm font-bold text-slate-700 dark:text-slate-200">
+          Analizando insumos y materiales...
+        </p>
+
+        <p class="mt-1 text-xs font-medium text-slate-400 dark:text-slate-500">
+          Esto puede depender del backend y del scraper de precios.
+        </p>
       </div>
 
-      <div v-else-if="error" class="p-6 bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 rounded-2xl flex items-center gap-4 text-sm font-semibold">
-        <span class="material-symbols-outlined text-2xl">error</span>
-        {{ error }}
+      <!-- Error -->
+      <div
+        v-else-if="error"
+        class="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50/80 p-4 text-red-700 dark:border-red-900/70 dark:bg-red-950/25 dark:text-red-300"
+      >
+        <div
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-red-200 bg-white text-red-600 shadow-sm dark:border-red-800 dark:bg-red-950/40 dark:text-red-300"
+        >
+          <span class="material-symbols-outlined text-[20px]">
+            error
+          </span>
+        </div>
+
+        <div>
+          <p class="text-sm font-bold leading-snug">
+            No se pudo generar el presupuesto
+          </p>
+          <p class="mt-1 text-xs font-medium leading-relaxed">
+            {{ error }}
+          </p>
+        </div>
       </div>
 
-      <div v-else class="space-y-8">
-        <!-- Costo Total Card (Premium) -->
-        <div class="relative overflow-hidden bg-gradient-to-br from-slate-900 via-[#1a2333] to-[#121824] text-white p-8 rounded-3xl shadow-xl border border-white/5">
-          <div class="absolute top-0 right-0 w-64 h-64 bg-primary/20 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/3"></div>
-          
-          <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 relative z-10">
+      <!-- Content -->
+      <div v-else class="space-y-6">
+        <!-- Total cost card -->
+        <section
+          class="relative overflow-hidden rounded-3xl border border-slate-800 bg-slate-950 p-6 text-white shadow-xl shadow-slate-950/20 dark:border-slate-700 dark:bg-slate-900 sm:p-7"
+        >
+          <div
+            class="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-orange-500/20 blur-3xl"
+          ></div>
+
+          <div class="relative z-10 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
             <div>
-              <p class="text-xs uppercase tracking-[0.2em] font-bold text-primary-container mb-2">Costo Total Estimado</p>
-              <div class="text-4xl md:text-5xl font-black tracking-tight" :class="costoTotal == null ? 'text-2xl font-semibold opacity-90' : ''">
-                {{ formatCurrency(costoTotal) }}
+              <p
+                class="text-[11px] font-bold uppercase tracking-[0.18em] text-orange-300"
+              >
+                Costo total estimado
+              </p>
+
+              <div
+                class="mt-2 font-mono text-3xl font-black leading-tight tracking-tight sm:text-4xl md:text-5xl"
+                :class="costoTotal == null ? 'font-sans text-lg opacity-90 sm:text-xl' : ''"
+              >
+                {{
+                  totalPreferido != null
+                    ? formatMoneyByPreference(totalPreferido, monedaPreferida)
+                    : formatCurrency(costoTotal)
+                }}
               </div>
+
+              <div
+                v-if="costoTotal != null"
+                class="mt-3 space-y-1.5 text-xs font-medium leading-relaxed text-slate-400"
+              >
+                <p>
+                  Subtotal motor (CLP, API):
+                  <span class="font-mono font-bold text-slate-200">{{ formatCurrencyCell(motorTotal) }}</span>
+                </p>
+                <p v-if="productPreferences.contingency > 0 && deltaContingencia != null">
+                  Contingencia {{ productPreferences.contingency }}%:
+                  <span class="font-mono font-bold text-slate-200">+{{ formatCurrencyCell(deltaContingencia) }}</span>
+                  (referencial sobre el total del motor).
+                </p>
+                <p v-if="productPreferences.includeTax && montoIva > 0">
+                  IVA referencial ({{ Math.round(CHILE_IVA_RATE * 100) }}%):
+                  <span class="font-mono font-bold text-slate-200">+{{ formatCurrencyCell(montoIva) }}</span>
+                  sobre subtotal con contingencia (CLP).
+                </p>
+                <p v-if="monedaPreferida !== 'CLP'" class="text-[11px] text-slate-500">
+                  La moneda mostrada arriba es vista; el cálculo sigue en CLP hasta integrar tipo de cambio.
+                </p>
+              </div>
+
+              <p class="mt-2 text-xs font-medium text-slate-400">
+                Valor referencial sujeto a disponibilidad y actualización de precios.
+              </p>
             </div>
-            <div class="flex flex-col items-end gap-3">
-              <div v-if="fechaPrecios" class="text-xs bg-white/10 px-4 py-2 rounded-full font-semibold inline-flex items-center gap-2 backdrop-blur-md border border-white/10">
-                <span class="material-symbols-outlined text-[14px]">update</span>
+
+            <div class="flex flex-col items-start gap-3 md:items-end">
+              <div
+                v-if="fechaPrecios"
+                class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-xs font-semibold text-slate-200 backdrop-blur-md"
+              >
+                <span class="material-symbols-outlined text-[14px] text-orange-300">
+                  update
+                </span>
                 Actualizado: {{ formatDate(fechaPrecios) }}
               </div>
-              <!-- Export PDF button — solo visible tras generar presupuesto -->
+
               <button
+                type="button"
+                class="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-400/30 bg-emerald-500 px-4 py-2.5 text-xs font-bold uppercase tracking-tight text-white shadow-lg shadow-emerald-500/20 transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-400 hover:shadow-emerald-500/30 active:scale-[0.98]"
                 @click="emit('export-pdf')"
-                class="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white px-5 py-2.5 rounded-full font-bold text-xs uppercase tracking-wide transition-all shadow-lg shadow-emerald-500/30 hover:scale-[1.03]"
               >
-                <span class="material-symbols-outlined text-[16px]">picture_as_pdf</span>
+                <span class="material-symbols-outlined text-[16px]">
+                  picture_as_pdf
+                </span>
                 Exportar PDF
               </button>
             </div>
           </div>
-        </div>
+        </section>
 
-        <!-- Tabla por Categorías con Cards Expandibles (Glassmorphism) -->
-        <div class="space-y-4">
-          <transition-group name="list" tag="div" class="space-y-4">
-            <div v-for="cat in desglose" :key="cat.categoria" class="bg-white/50 dark:bg-[#1a2130]/50 backdrop-blur-sm border border-outline/10 rounded-2xl overflow-hidden hover:border-primary/30 transition-colors">
-              <div class="px-6 py-5 flex justify-between items-center bg-gradient-to-r from-transparent to-surface-variant/30">
+        <!-- Breakdown -->
+        <section class="space-y-3">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <h3 class="text-sm font-black tracking-tight text-slate-950 dark:text-slate-100">
+                Desglose por categorías
+              </h3>
+              <p class="mt-0.5 text-xs font-medium text-slate-500 dark:text-slate-400">
+                Detalle de insumos, cantidades, precio unitario y subtotal.
+              </p>
+            </div>
+
+            <span
+              class="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-tight text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400"
+            >
+              {{ desglose.length }} categorías
+            </span>
+          </div>
+
+          <transition-group name="budget-list" tag="div" class="space-y-4">
+            <article
+              v-for="cat in desglose"
+              :key="cat.categoria"
+              class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md hover:shadow-slate-950/5 dark:border-slate-800 dark:bg-slate-900/70 dark:hover:border-slate-700 dark:hover:shadow-black/20"
+            >
+              <!-- Category header -->
+              <header
+                class="flex flex-col gap-3 border-b border-slate-200/80 bg-slate-50/80 px-4 py-4 dark:border-slate-800/80 dark:bg-slate-950/50 sm:flex-row sm:items-center sm:justify-between sm:px-5"
+              >
                 <div class="flex items-center gap-3">
-                  <div class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                    <span class="material-symbols-outlined text-sm">category</span>
+                  <div
+                    class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-orange-500 shadow-sm dark:border-slate-700 dark:bg-slate-950 dark:text-orange-300"
+                  >
+                    <span class="material-symbols-outlined text-[18px]">
+                      category
+                    </span>
                   </div>
-                  <span class="font-bold text-slate-800 dark:text-slate-200">{{ cat.categoria }}</span>
+
+                  <div>
+                    <p class="font-bold tracking-tight text-slate-900 dark:text-slate-100">
+                      {{ cat.categoria }}
+                    </p>
+                    <p class="text-xs font-medium text-slate-400 dark:text-slate-500">
+                      {{ cat.items?.length || 0 }} insumos asociados
+                    </p>
+                  </div>
                 </div>
-                <span class="font-black text-primary">{{ formatCurrencyCell(cat.subtotal_categoria) }}</span>
-              </div>
-              
-              <div class="px-6 pb-6 pt-2">
-                <div class="grid grid-cols-12 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3 px-2">
+
+                <div class="text-left sm:text-right">
+                  <p class="text-[10px] font-bold uppercase tracking-tight text-slate-400 dark:text-slate-500">
+                    Subtotal
+                  </p>
+                  <p class="font-mono text-sm font-black text-orange-600 dark:text-orange-300">
+                    {{ formatCurrencyCell(cat.subtotal_categoria) }}
+                  </p>
+                </div>
+              </header>
+
+              <!-- Desktop table -->
+              <div class="hidden p-4 md:block">
+                <div
+                  class="grid grid-cols-12 px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500"
+                >
                   <div class="col-span-5">Insumo</div>
                   <div class="col-span-2 text-right">Cant.</div>
-                  <div class="col-span-2 text-right">Precio Unit.</div>
+                  <div class="col-span-2 text-right">Precio unit.</div>
                   <div class="col-span-3 text-right">Subtotal</div>
                 </div>
-                
+
                 <div class="space-y-2">
-                  <div v-for="item in cat.items" :key="item.insumo" class="grid grid-cols-12 items-center text-xs bg-surface/50 dark:bg-surface-container/30 px-4 py-3 rounded-xl hover:bg-white dark:hover:bg-slate-800 transition-colors shadow-sm border border-transparent hover:border-outline/5">
-                    <div class="col-span-5 font-semibold text-slate-700 dark:text-slate-300 pr-2">{{ item.insumo }}</div>
-                    <div class="col-span-2 text-right font-mono bg-slate-100 dark:bg-slate-800/50 py-1 px-2 rounded">{{ item.cantidad.toLocaleString('es-CL', {maximumFractionDigits: 2}) }} <span class="text-[9px] text-slate-400 ml-1">{{ item.unidad }}</span></div>
-                    <div class="col-span-2 text-right font-mono text-slate-500">{{ formatCurrencyCell(item.precio_unitario) }}</div>
-                    <div class="col-span-3 text-right font-bold text-primary font-mono">{{ formatCurrencyCell(item.subtotal) }}</div>
+                  <div
+                    v-for="item in cat.items"
+                    :key="item.insumo"
+                    class="grid grid-cols-12 items-center rounded-xl border border-transparent bg-slate-50/80 px-3 py-3 text-xs transition-colors duration-200 hover:border-slate-200 hover:bg-white dark:bg-slate-950/50 dark:hover:border-slate-800 dark:hover:bg-slate-950"
+                  >
+                    <div class="col-span-5 pr-3 font-semibold leading-snug text-slate-700 dark:text-slate-300">
+                      {{ item.insumo }}
+                    </div>
+
+                    <div class="col-span-2 text-right">
+                      <span
+                        class="inline-flex rounded-lg border border-slate-200 bg-white px-2 py-1 font-mono font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                      >
+                        {{ item.cantidad.toLocaleString('es-CL', { maximumFractionDigits: 2 }) }}
+                        <span class="ml-1 text-[9px] text-slate-400">
+                          {{ item.unidad }}
+                        </span>
+                      </span>
+                    </div>
+
+                    <div class="col-span-2 text-right font-mono font-semibold text-slate-500 dark:text-slate-400">
+                      {{ formatCurrencyCell(item.precio_unitario) }}
+                    </div>
+
+                    <div class="col-span-3 text-right font-mono font-black text-slate-950 dark:text-slate-100">
+                      {{ formatCurrencyCell(item.subtotal) }}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+
+              <!-- Mobile cards -->
+              <div class="space-y-2 p-4 md:hidden">
+                <div
+                  v-for="item in cat.items"
+                  :key="item.insumo"
+                  class="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-950/50"
+                >
+                  <p class="text-sm font-bold leading-snug text-slate-800 dark:text-slate-200">
+                    {{ item.insumo }}
+                  </p>
+
+                  <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <p class="text-[10px] font-bold uppercase tracking-tight text-slate-400">
+                        Cantidad
+                      </p>
+                      <p class="mt-1 font-mono font-semibold text-slate-700 dark:text-slate-300">
+                        {{ item.cantidad.toLocaleString('es-CL', { maximumFractionDigits: 2 }) }}
+                        {{ item.unidad }}
+                      </p>
+                    </div>
+
+                    <div class="text-right">
+                      <p class="text-[10px] font-bold uppercase tracking-tight text-slate-400">
+                        Subtotal
+                      </p>
+                      <p class="mt-1 font-mono font-black text-slate-950 dark:text-slate-100">
+                        {{ formatCurrencyCell(item.subtotal) }}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </article>
           </transition-group>
 
-          <div v-if="desglose.length === 0" class="text-center py-12 opacity-60 flex flex-col items-center gap-3 bg-surface-variant/20 rounded-2xl border border-dashed border-outline/30">
-            <span class="material-symbols-outlined text-4xl">inventory_2</span>
-            <p class="font-medium">No se encontraron insumos para este material.</p>
+          <!-- Empty -->
+          <div
+            v-if="desglose.length === 0"
+            class="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-slate-300 bg-slate-50/70 px-5 py-12 text-center dark:border-slate-700 dark:bg-slate-900/50"
+          >
+            <div
+              class="flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-400 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-500"
+            >
+              <span class="material-symbols-outlined text-[30px]">
+                inventory_2
+              </span>
+            </div>
+
+            <p class="font-bold text-slate-700 dark:text-slate-200">
+              No se encontraron insumos para este material.
+            </p>
+
+            <p class="max-w-sm text-xs font-medium text-slate-400 dark:text-slate-500">
+              Revisa la selección de recintos o la materialidad estructural antes de volver a calcular.
+            </p>
           </div>
-        </div>
+        </section>
       </div>
     </div>
-  </div>
+  </section>
 </template>
 
 <style scoped>
-.list-enter-active,
-.list-leave-active {
-  transition: all 0.5s ease;
+.budget-list-enter-active,
+.budget-list-leave-active {
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s ease;
 }
-.list-enter-from,
-.list-leave-to {
+
+.budget-list-enter-from,
+.budget-list-leave-to {
   opacity: 0;
-  transform: translateY(20px);
+  transform: translateY(10px);
 }
 </style>

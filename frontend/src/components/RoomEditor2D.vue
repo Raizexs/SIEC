@@ -2,12 +2,18 @@
 import { computed, onBeforeUnmount, ref, reactive, watch, onMounted, onUnmounted } from "vue";
 import { useRecintosStore } from "../stores/recintos";
 import { useInteractiveEditor } from "../composables/useInteractiveEditor";
+import { useTheme } from "../composables/useTheme";
 
 const props = defineProps({
   m2Totales:         { type: Number, default: 100 },
   terrenoAncho:      { type: Number, default: 7 },
   terrenoLargo:      { type: Number, default: 15 },
   descripcionEstado: { type: Object, default: () => ({ color: '#22c55e', message: 'OK' }) },
+  showGrid:          { type: Boolean, default: true },
+  snapToGrid:        { type: Boolean, default: true },
+  gridSize:          { type: Number, default: 0.5 },
+  showLabels:        { type: Boolean, default: true },
+  defaultRoomHeight: { type: Number, default: 2.4 },
 });
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -38,7 +44,7 @@ const openAddModal = () => {
   addForm.nombre = 'Recinto';
   addForm.w = 3.5;
   addForm.l = 3.0;
-  addForm.h = 2.4;
+  addForm.h = Math.max(1.0, Number(props.defaultRoomHeight) || 2.4);
   showAddModal.value = true;
 };
 
@@ -54,9 +60,32 @@ const confirmAdd = () => {
 };
 
 const quickAdd = () => {
-  store.addRecinto('habitacion', 'Recinto', 3.5, 3.0, 2.4);
+  store.addRecinto(
+    'habitacion',
+    'Recinto',
+    3.5,
+    3.0,
+    Math.max(1.0, Number(props.defaultRoomHeight) || 2.4),
+  );
 };
-const editor = useInteractiveEditor();
+
+const { isDark } = useTheme();
+
+const DEFAULT_FINE_STEP = 0.1;
+
+const gridMajorM = computed(() => {
+  const g = Number(props.gridSize);
+  return Number.isFinite(g) && g > 0 ? g : 0.5;
+});
+
+const showEditorGrid = computed(() => Boolean(props.showGrid));
+
+const editorSnapStep = computed(() => {
+  if (!props.snapToGrid) return DEFAULT_FINE_STEP;
+  return gridMajorM.value;
+});
+
+const editor = useInteractiveEditor({ snapStep: editorSnapStep });
 
 // ── Corridor Mode ─────────────────────────────────────────────────────────────
 const corridorMode = ref(false);
@@ -206,7 +235,13 @@ const buildCorridor = (zone) => {
   const rects = zone.groupRects;
   rects.forEach((rect, idx) => {
     const nombre = rects.length > 1 ? `Pasillo ${String.fromCharCode(65 + idx)}` : 'Pasillo';
-    const id = store.addRecinto('pasillo', nombre, rect.w, rect.l, 2.4);
+    const id = store.addRecinto(
+      'pasillo',
+      nombre,
+      rect.w,
+      rect.l,
+      Math.max(1.0, Number(props.defaultRoomHeight) || 2.4),
+    );
     store.updateRecinto(id, { coords: { x: rect.x0, z: rect.z0 } });
   });
 };
@@ -312,8 +347,26 @@ const vbW = computed(() => svgW.value);
 const vbH = computed(() => svgH.value);
 
 // Grid offset: shift pattern so that world integer-metre lines land on grid lines
-const gridOffsetX = computed(() => ((-activeBounds.value.minX) % 1) * PPM);
-const gridOffsetZ = computed(() => ((-activeBounds.value.minZ) % 1) * PPM);
+const gridOffsetX = computed(() => {
+  const m = gridMajorM.value;
+  const minX = activeBounds.value.minX;
+  const mod = ((-minX % m) + m) % m;
+  return mod * PPM;
+});
+const gridOffsetZ = computed(() => {
+  const m = gridMajorM.value;
+  const minZ = activeBounds.value.minZ;
+  const mod = ((-minZ % m) + m) % m;
+  return mod * PPM;
+});
+
+const patternMajorPx = computed(() => gridMajorM.value * PPM);
+const patternMinorPx = computed(() => patternMajorPx.value / 2);
+
+const canvasBaseFill = computed(() => {
+  if (showEditorGrid.value) return "url(#grid-major)";
+  return isDark.value ? "rgb(15 23 42 / 0.96)" : "rgb(248 250 252)";
+});
 
 const toSX = (x) => (x - activeBounds.value.minX) * PPM;
 const toSZ = (z) => (z - activeBounds.value.minZ) * PPM;
@@ -578,800 +631,1074 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div ref="rootRef" class="w-full relative bg-slate-900 rounded-xl border border-primary/30 overflow-hidden flex flex-col shadow-2xl transition-all duration-300" :class="isFullScreen ? 'h-screen border-none rounded-none' : ''">
+  <div
+    ref="rootRef"
+    class="relative flex w-full flex-col overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 shadow-2xl shadow-slate-950/10 backdrop-blur-xl transition-all duration-300 dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/35"
+    :class="isFullScreen ? 'h-screen rounded-none border-none' : ''"
+  >
+    <!-- Top accent -->
+    <div class="h-1 w-full shrink-0 bg-gradient-to-r from-orange-400 via-orange-500 to-slate-900 dark:to-orange-300"></div>
 
-      <!-- ── Header ─────────────────────────────────────────────────────────── -->
-      <div class="px-4 py-3 border-b border-slate-700/50 bg-slate-800/50 flex justify-between items-center">
-        <div class="flex flex-col gap-1">
-          <div class="flex items-center gap-3">
-            <h3 class="text-white font-bold text-sm uppercase tracking-wider flex items-center gap-2">
-              <span class="material-symbols-outlined text-primary text-sm">architecture</span>
-              Editor Espacial 2D
-            </h3>
-            <div class="flex items-center gap-2 text-[11px] font-bold tabular-nums">
+    <!-- Header -->
+    <header
+      class="shrink-0 border-b border-slate-200/80 bg-slate-50/80 px-4 py-4 dark:border-slate-800/80 dark:bg-slate-900/60"
+    >
+      <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <!-- Identity + metrics -->
+        <div class="flex min-w-0 flex-col gap-3">
+          <div class="flex flex-wrap items-center gap-3">
+            <div class="flex items-center gap-3">
+              <div
+                class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-orange-200 bg-orange-50 text-orange-600 shadow-sm dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
+              >
+                <span class="material-symbols-outlined text-[22px]">
+                  architecture
+                </span>
+              </div>
+
+              <div>
+                <p
+                  class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
+                >
+                  Editor espacial
+                </p>
+
+                <h3 class="mt-0.5 text-base font-black tracking-tight text-slate-950 dark:text-slate-100">
+                  Editor 2D
+                </h3>
+              </div>
+            </div>
+
+            <div
+              class="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-black tabular-nums shadow-sm dark:border-slate-800 dark:bg-slate-950"
+            >
+              <span
+                class="h-2 w-2 rounded-full"
+                :style="{ backgroundColor: descripcionEstado.color }"
+              ></span>
+
               <span :style="{ color: descripcionEstado.color }">
                 {{ freeArea.toFixed(1) }} m² libres
               </span>
-              <span class="text-slate-600">·</span>
-              <span class="text-slate-400">{{ usedArea.toFixed(1) }} / {{ m2Totales }} m²</span>
+
+              <span class="text-slate-300 dark:text-slate-700">·</span>
+
+              <span class="text-slate-500 dark:text-slate-400">
+                {{ usedArea.toFixed(1) }} / {{ m2Totales }} m²
+              </span>
             </div>
-            <!-- Floor Selector -->
-            <div class="flex items-center gap-1 bg-slate-800/80 backdrop-blur-sm rounded-md p-0.5 border border-slate-700/80 shadow-inner ml-2">
-              <button @click="store.setFloor(store.currentFloor - 1)" :disabled="store.currentFloor <= 1" class="text-slate-300 hover:text-white hover:bg-slate-700 px-1.5 rounded disabled:opacity-30 transition-colors font-bold text-[10px]">-</button>
-              <span class="text-[9px] font-black uppercase tracking-widest px-1 text-indigo-300">
+
+            <!-- Floor selector -->
+            <div
+              class="inline-flex items-center gap-1 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm dark:border-slate-800 dark:bg-slate-950"
+            >
+              <button
+                type="button"
+                class="flex h-7 w-7 items-center justify-center rounded-xl text-xs font-black text-slate-500 transition-all duration-200 hover:bg-slate-100 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-30 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                :disabled="store.currentFloor <= 1"
+                @click="store.setFloor(store.currentFloor - 1)"
+              >
+                -
+              </button>
+
+              <span
+                class="rounded-xl border border-orange-200 bg-orange-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-orange-700 dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
+              >
                 Piso {{ store.currentFloor }}
               </span>
-              <button @click="store.setFloor(store.currentFloor + 1)" :disabled="store.currentFloor >= 3" class="text-slate-300 hover:text-white hover:bg-slate-700 px-1.5 rounded disabled:opacity-30 transition-colors font-bold text-[10px]">+</button>
+
+              <button
+                type="button"
+                class="flex h-7 w-7 items-center justify-center rounded-xl text-xs font-black text-slate-500 transition-all duration-200 hover:bg-slate-100 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-30 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                :disabled="store.currentFloor >= 3"
+                @click="store.setFloor(store.currentFloor + 1)"
+              >
+                +
+              </button>
             </div>
           </div>
-          <!-- Add Recinto row -->
-          <div class="flex items-center gap-2 mt-1">
-            <!-- Quick-add button (single click) -->
+
+          <!-- Tools row -->
+          <div class="flex flex-wrap items-center gap-2">
             <button
-              @click="openAddModal"
-              class="add-recinto-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all"
+              type="button"
+              class="tool-btn tool-btn-primary"
               title="Añadir recinto con medidas"
+              @click="openAddModal"
             >
-              <span class="material-symbols-outlined text-[14px]">add_home</span>
-              Añadir Recinto
+              <span class="material-symbols-outlined text-[16px]">add_home</span>
+              Añadir recinto
             </button>
-            <!-- Lock toggle -->
+
             <button
-              @click="resizeLocked = !resizeLocked"
+              type="button"
+              class="tool-btn"
+              :class="resizeLocked ? 'tool-btn-danger' : 'tool-btn-neutral'"
               :title="resizeLocked ? 'Desbloquear redimensionado' : 'Bloquear redimensionado'"
-              class="lock-toggle-btn flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-bold transition-all"
-              :class="resizeLocked ? 'locked' : 'unlocked'"
+              @click="resizeLocked = !resizeLocked"
             >
-              <span class="material-symbols-outlined text-[14px]">
+              <span class="material-symbols-outlined text-[16px]">
                 {{ resizeLocked ? 'lock' : 'lock_open' }}
               </span>
-              Redimensionar
+              {{ resizeLocked ? 'Bloqueado' : 'Redimensionar' }}
             </button>
-            <!-- Corridor mode toggle -->
+
             <button
-              @click="corridorMode = !corridorMode"
+              type="button"
+              class="tool-btn"
+              :class="corridorMode ? 'tool-btn-success' : 'tool-btn-neutral'"
               :title="corridorMode ? 'Desactivar modo pasillos' : 'Detectar pasillos automáticamente'"
-              class="corridor-btn flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-bold transition-all"
-              :class="corridorMode ? 'active' : 'inactive'"
+              @click="corridorMode = !corridorMode"
             >
-              <span class="material-symbols-outlined text-[14px]">add_road</span>
+              <span class="material-symbols-outlined text-[16px]">add_road</span>
               Pasillos
             </button>
           </div>
         </div>
-        
-        <button @click="toggleFullScreen" class="text-slate-400 hover:text-white transition-colors flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-700 shadow-sm shrink-0">
-          <span class="material-symbols-outlined text-[18px]">{{ isFullScreen ? 'fullscreen_exit' : 'fullscreen' }}</span>
-          <span class="text-xs font-bold uppercase tracking-wider">{{ isFullScreen ? 'Salir de Pantalla Completa' : 'Pantalla Completa' }}</span>
+
+        <!-- Fullscreen -->
+        <button
+          type="button"
+          class="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-slate-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 hover:shadow-md active:scale-[0.98] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200 dark:hover:border-slate-700 dark:hover:bg-slate-900"
+          @click="toggleFullScreen"
+        >
+          <span class="material-symbols-outlined text-[18px]">
+            {{ isFullScreen ? 'fullscreen_exit' : 'fullscreen' }}
+          </span>
+
+          <span>
+            {{ isFullScreen ? 'Salir' : 'Pantalla completa' }}
+          </span>
         </button>
       </div>
-      <!-- Barra de uso pegada al borde del canvas -->
-      <div class="h-[2px] bg-slate-700/50 w-full overflow-hidden shrink-0">
-        <div
-          class="h-full transition-all duration-200"
-          :style="{ width: freePct + '%', backgroundColor: descripcionEstado.color }"
-        />
-      </div>
+    </header>
 
-      <!-- ── SVG and Side Panel Wrapper ─────────────── -->
-      <div class="flex flex-row flex-1 overflow-hidden relative" style="perspective: 1000px;">
-        <div class="flex-1 relative flex items-center justify-center">
-          <svg
-            ref="svgRef"
-            :viewBox="viewBox"
-            width="100%"
-            :height="isFullScreen ? '100%' : '380'"
-            class="bg-gradient-to-br from-slate-800 to-slate-900 w-full"
-            :class="{ 'disable-rect-transitions': isMathUpdating }"
-            style="touch-action: none; transform-origin: center;"
-            :style="{
-              transition: isVisualAnimating ? 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)' : 'none',
-              transform: `rotate(${visualRotation}deg)`
-            }"
-            preserveAspectRatio="xMidYMid meet"
-          >
-        <defs>
-          <!-- Grid menor: 0.5 m -->
-          <pattern
-            id="grid-minor"
-            :width="PPM / 2" :height="PPM / 2"
-            patternUnits="userSpaceOnUse"
-            :patternTransform="`translate(${gridOffsetX} ${gridOffsetZ})`"
-          >
-            <path
-              :d="`M ${PPM/2} 0 L 0 0 0 ${PPM/2}`"
-              fill="none" stroke="rgba(100,116,139,0.12)" stroke-width="0.5"
-            />
-          </pattern>
-          <!-- Grid mayor: 1 m -->
-          <pattern
-            id="grid-major"
-            :width="PPM" :height="PPM"
-            patternUnits="userSpaceOnUse"
-            :patternTransform="`translate(${gridOffsetX} ${gridOffsetZ})`"
-          >
-            <rect :width="PPM" :height="PPM" fill="url(#grid-minor)" />
-            <path
-              :d="`M ${PPM} 0 L 0 0 0 ${PPM}`"
-              fill="none" stroke="rgba(100,116,139,0.38)" stroke-width="1"
-            />
-          </pattern>
-        </defs>
+    <!-- Usage bar -->
+    <div class="h-1 w-full shrink-0 overflow-hidden bg-slate-100 dark:bg-slate-800">
+      <div
+        class="h-full rounded-r-full transition-all duration-300 ease-out"
+        :style="{ width: `${freePct}%`, backgroundColor: descripcionEstado.color }"
+      ></div>
+    </div>
 
-        <!-- Grid background (clicable to clear selection) -->
-        <rect x="0" y="0" :width="vbW" :height="vbH" fill="url(#grid-major)" @pointerdown="editor.selectedRecintoId.value = null" />
-
-        <!-- ── Budget boundary rectangle (área total disponible) ──────────── -->
-        <rect
-          :x="toSX(0)" :y="toSZ(0)"
-          :width="budgetRect.w * PPM" :height="budgetRect.h * PPM"
-          fill="rgba(99,102,241,0.04)"
-          stroke="rgba(99,102,241,0.35)"
-          stroke-width="1.5"
-          stroke-dasharray="6 4"
-          rx="2"
-          style="pointer-events: none"
-        />
-        <text
-          :x="toSX(0) + 10" :y="toSZ(0) + 20"
-          fill="rgba(99,102,241,0.5)"
-          font-size="12"
-          font-weight="bold"
-          class="uppercase tracking-widest pointer-events-none select-none"
+    <!-- Canvas + side panel wrapper -->
+    <div class="relative flex min-h-[420px] flex-1 flex-row overflow-hidden" style="perspective: 1000px;">
+      <div class="relative flex flex-1 items-center justify-center overflow-hidden bg-slate-50 dark:bg-slate-950">
+        <svg
+          ref="svgRef"
+          :viewBox="viewBox"
+          width="100%"
+          :height="isFullScreen ? '100%' : '420'"
+          class="w-full editor-svg"
+          :class="{ 'disable-rect-transitions': isMathUpdating }"
+          style="touch-action: none; transform-origin: center;"
+          :style="{
+            transition: isVisualAnimating ? 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)' : 'none',
+            transform: `rotate(${visualRotation}deg)`
+          }"
+          preserveAspectRatio="xMidYMid meet"
         >
-          Límites del Terreno ({{ budgetRect.w.toFixed(1) }}m x {{ budgetRect.h.toFixed(1) }}m)
-        </text>
+          <defs>
+            <!-- Grid menor: 0.5 m -->
+            <pattern
+              id="grid-minor"
+              :width="patternMinorPx"
+              :height="patternMinorPx"
+              patternUnits="userSpaceOnUse"
+              :patternTransform="`translate(${gridOffsetX} ${gridOffsetZ})`"
+            >
+              <path
+                :d="`M ${patternMinorPx} 0 L 0 0 0 ${patternMinorPx}`"
+                fill="none"
+                stroke="rgba(148,163,184,0.16)"
+                stroke-width="0.5"
+              />
+            </pattern>
 
-        <!-- ── Ghost Trace (Auto-Fade) ────────────────────────────────────── -->
-        <g v-if="ghostRoom" class="transition-opacity duration-1000 ease-out" :class="isGhostFading ? 'opacity-0' : 'opacity-80'">
+            <!-- Grid mayor: según preferencia (p. ej. 0.5m / 1m) -->
+            <pattern
+              id="grid-major"
+              :width="patternMajorPx"
+              :height="patternMajorPx"
+              patternUnits="userSpaceOnUse"
+              :patternTransform="`translate(${gridOffsetX} ${gridOffsetZ})`"
+            >
+              <rect :width="patternMajorPx" :height="patternMajorPx" fill="url(#grid-minor)" />
+              <path
+                :d="`M ${patternMajorPx} 0 L 0 0 0 ${patternMajorPx}`"
+                fill="none"
+                stroke="rgba(148,163,184,0.38)"
+                stroke-width="1"
+              />
+            </pattern>
+
+            <filter id="room-shadow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#020617" flood-opacity="0.22" />
+            </filter>
+          </defs>
+
+          <!-- Canvas base -->
           <rect
-            :x="toSX(ghostRoom.coords.x)"
-            :y="toSZ(ghostRoom.coords.z)"
-            :width="ghostRoom.dimensions.w * PPM"
-            :height="ghostRoom.dimensions.l * PPM"
-            fill="rgba(255,255,255,0.05)"
-            stroke="#94a3b8"
-            stroke-width="2"
-            stroke-dasharray="4 4"
-            rx="4"
-            class="pointer-events-none"
+            x="0"
+            y="0"
+            :width="vbW"
+            :height="vbH"
+            :fill="canvasBaseFill"
+            @pointerdown="editor.selectedRecintoId.value = null"
           />
-        </g>
-        <!-- Label del presupuesto -->
-        <text
-          :x="toSX(budgetRect.w) - 6" :y="toSZ(0) + 14"
-          fill="rgba(129,140,248,0.7)"
-          font-size="10" font-weight="600"
-          text-anchor="end"
-          style="pointer-events: none"
-        >{{ m2Totales }} m² disponibles</text>
 
-        <!-- ── Corridor Zones (when corridorMode is active) ──────────────── -->
-        <g v-if="corridorMode">
+          <!-- Budget boundary rectangle -->
+          <rect
+            :x="toSX(0)"
+            :y="toSZ(0)"
+            :width="budgetRect.w * PPM"
+            :height="budgetRect.h * PPM"
+            fill="rgba(249,115,22,0.045)"
+            stroke="rgba(249,115,22,0.55)"
+            stroke-width="1.8"
+            stroke-dasharray="7 5"
+            rx="5"
+            style="pointer-events: none"
+          />
+
+          <text
+            :x="toSX(0) + 12"
+            :y="toSZ(0) + 22"
+            fill="rgba(249,115,22,0.78)"
+            font-size="12"
+            font-weight="800"
+            class="uppercase tracking-widest pointer-events-none select-none"
+          >
+            Límites del terreno · {{ budgetRect.w.toFixed(1) }}m × {{ budgetRect.h.toFixed(1) }}m
+          </text>
+
+          <text
+            :x="toSX(budgetRect.w) - 8"
+            :y="toSZ(0) + 18"
+            fill="rgba(249,115,22,0.68)"
+            font-size="11"
+            font-weight="700"
+            text-anchor="end"
+            style="pointer-events: none"
+          >
+            {{ m2Totales }} m² disponibles
+          </text>
+
+          <!-- Ghost Trace -->
           <g
-            v-for="(zone, idx) in corridorZones"
-            :key="'cz-' + idx"
-            class="corridor-zone-group"
-            @click="buildCorridor(zone)"
+            v-if="ghostRoom"
+            class="transition-opacity duration-1000 ease-out"
+            :class="isGhostFading ? 'opacity-0' : 'opacity-80'"
           >
             <rect
-              :x="toSX(zone.x0)"
-              :y="toSZ(zone.z0)"
-              :width="zone.w * PPM"
-              :height="zone.l * PPM"
-              fill="rgba(34,211,238,0.12)"
-              stroke="rgba(34,211,238,0.55)"
-              stroke-width="1.5"
-              stroke-dasharray="5 3"
-              rx="3"
-              class="corridor-zone-rect"
+              :x="toSX(ghostRoom.coords.x)"
+              :y="toSZ(ghostRoom.coords.z)"
+              :width="ghostRoom.dimensions.w * PPM"
+              :height="ghostRoom.dimensions.l * PPM"
+              fill="rgba(148,163,184,0.10)"
+              stroke="rgba(148,163,184,0.88)"
+              stroke-width="2"
+              stroke-dasharray="5 4"
+              rx="5"
+              class="pointer-events-none"
             />
-            <!-- Label solo en el primer segmento del grupo, centrado en el bounding box del grupo -->
-            <template v-if="zone.isFirstInGroup">
-              <text
-                :x="toSX(zone.labelX)"
-                :y="toSZ(zone.labelZ) - 8"
-                fill="rgba(34,211,238,0.9)"
-                font-size="11"
-                font-weight="700"
-                text-anchor="middle"
-                dominant-baseline="middle"
-                style="pointer-events: none; user-select: none;"
-              >{{ zone.groupArea.toFixed(1) }}m²{{ zone.groupRects.length > 1 ? ` (${zone.groupRects.length} segmentos)` : '' }}</text>
-              <text
-                :x="toSX(zone.labelX)"
-                :y="toSZ(zone.labelZ) + 8"
-                fill="rgba(34,211,238,0.65)"
-                font-size="10"
-                font-weight="600"
-                text-anchor="middle"
-                dominant-baseline="middle"
-                style="pointer-events: none; user-select: none;"
-              >↑ Clic para crear pasillo</text>
-            </template>
           </g>
-          <!-- Hint si no hay zonas -->
-          <text
-            v-if="corridorZones.length === 0"
-            :x="toSX(budgetRect.w / 2)"
-            :y="toSZ(budgetRect.h / 2)"
-            fill="rgba(34,211,238,0.5)"
-            font-size="12"
-            font-weight="600"
-            text-anchor="middle"
-            dominant-baseline="middle"
-            style="pointer-events: none;"
-          >Sin espacios ≥ 0.8m disponibles para pasillo</text>
-        </g>
 
-        <!-- ── Rooms ──────────────────────────────────────────────────────── -->
-        <g v-for="recinto in store.recintos" :key="recinto.id"
-           :class="(recinto.piso || 1) !== store.currentFloor ? 'opacity-20 pointer-events-none' : ''">
+          <!-- Corridor Zones -->
+          <g v-if="corridorMode">
+            <g
+              v-for="(zone, idx) in corridorZones"
+              :key="'cz-' + idx"
+              class="corridor-zone-group"
+              @click="buildCorridor(zone)"
+            >
+              <rect
+                :x="toSX(zone.x0)"
+                :y="toSZ(zone.z0)"
+                :width="zone.w * PPM"
+                :height="zone.l * PPM"
+                fill="rgba(20,184,166,0.13)"
+                stroke="rgba(20,184,166,0.65)"
+                stroke-width="1.6"
+                stroke-dasharray="6 4"
+                rx="5"
+                class="corridor-zone-rect"
+              />
 
-          <!-- Selection highlight ring (renders behind room body) -->
-          <rect
-            v-if="isSelected(recinto.id) && (recinto.piso || 1) === store.currentFloor"
-            :x="toSX(recinto.coords.x) - 3"
-            :y="toSZ(recinto.coords.z) - 3"
-            :width="recinto.dimensions.w * PPM + 6"
-            :height="recinto.dimensions.l * PPM + 6"
-            fill="none"
-            stroke="#a5b4fc"
-            stroke-width="2.5"
-            stroke-dasharray="6 3"
-            rx="5"
-            style="pointer-events:none"
-          />
-          <!-- Animated glow when selected but not active -->
-          <rect
-            v-if="isSelected(recinto.id) && !isActive(recinto.id)"
-            :x="toSX(recinto.coords.x) - 5"
-            :y="toSZ(recinto.coords.z) - 5"
-            :width="recinto.dimensions.w * PPM + 10"
-            :height="recinto.dimensions.l * PPM + 10"
-            fill="rgba(99,102,241,0.12)"
-            stroke="rgba(165,180,252,0.35)"
-            stroke-width="1"
-            rx="7"
-            style="pointer-events:none"
-          />
+              <template v-if="zone.isFirstInGroup">
+                <text
+                  :x="toSX(zone.labelX)"
+                  :y="toSZ(zone.labelZ) - 8"
+                  fill="rgba(20,184,166,0.95)"
+                  font-size="11"
+                  font-weight="800"
+                  text-anchor="middle"
+                  dominant-baseline="middle"
+                  style="pointer-events: none; user-select: none;"
+                >
+                  {{ zone.groupArea.toFixed(1) }}m²{{ zone.groupRects.length > 1 ? ` (${zone.groupRects.length} segmentos)` : '' }}
+                </text>
 
-          <!-- Room body -->
-          <rect
-            :x="toSX(recinto.coords.x)"
-            :y="toSZ(recinto.coords.z)"
-            :width="recinto.dimensions.w * PPM"
-            :height="recinto.dimensions.l * PPM"
-            :fill="roomFill(recinto.tipo)"
-            :fill-opacity="isActive(recinto.id) ? 0.95 : isSelected(recinto.id) ? 0.85 : 0.72"
-            :stroke="isActive(recinto.id) ? '#ffffff' : isSelected(recinto.id) ? '#a5b4fc' : roomEdge(recinto.tipo)"
-            :stroke-width="isActive(recinto.id) ? 2.5 : isSelected(recinto.id) ? 2 : 1.5"
-            rx="3"
-            class="cursor-grab"
-            :class="{ 'cursor-grabbing': isActive(recinto.id) && editor.activeMode.value === 'drag' }"
-            @pointerdown="(e) => startDrag(e, recinto.id)"
-          />
+                <text
+                  :x="toSX(zone.labelX)"
+                  :y="toSZ(zone.labelZ) + 9"
+                  fill="rgba(20,184,166,0.72)"
+                  font-size="10"
+                  font-weight="700"
+                  text-anchor="middle"
+                  dominant-baseline="middle"
+                  style="pointer-events: none; user-select: none;"
+                >
+                  Clic para crear pasillo
+                </text>
+              </template>
+            </g>
 
-          <!-- Room label (tamaño adaptado al recinto) -->
-          <text
-            :x="toSX(recinto.coords.x) + (recinto.dimensions.w * PPM) / 2"
-            :y="toSZ(recinto.coords.z) + (recinto.dimensions.l * PPM) / 2 - labelFontSize(recinto) * 0.65"
-            fill="#fff"
-            :font-size="labelFontSize(recinto)"
-            font-weight="700"
-            text-anchor="middle" dominant-baseline="middle"
-            style="pointer-events: none"
-          >{{ recinto.nombre || (recinto.tipo === "habitacion" ? "Hab." : recinto.tipo === "banio" ? "Baño" : "Común") }}</text>
-          <text
-            :x="toSX(recinto.coords.x) + (recinto.dimensions.w * PPM) / 2"
-            :y="toSZ(recinto.coords.z) + (recinto.dimensions.l * PPM) / 2 + areaFontSize(recinto) * 0.85"
-            fill="rgba(255,255,255,0.65)"
-            :font-size="areaFontSize(recinto)"
-            font-weight="500"
-            text-anchor="middle" dominant-baseline="middle"
-            style="pointer-events: none"
-          >{{ (recinto.dimensions.w * recinto.dimensions.l).toFixed(1) }}m²</text>
-
-          <!-- Budget toggle icon (top-right corner) -->
-          <g
-            v-if="(recinto.piso || 1) === store.currentFloor"
-            class="cursor-pointer"
-            @pointerdown.stop.prevent="(e) => onToggleBudget(e, recinto.id)"
-          >
-            <circle
-              :cx="toSX(recinto.coords.x + recinto.dimensions.w) - 12"
-              :cy="toSZ(recinto.coords.z) + 12"
-              r="10"
-              :fill="isBudgeted(recinto.id) ? '#22c55e' : 'rgba(0,0,0,0.5)'"
-              :stroke="isBudgeted(recinto.id) ? '#4ade80' : 'rgba(255,255,255,0.3)'"
-              stroke-width="1.5"
-            />
             <text
-              :x="toSX(recinto.coords.x + recinto.dimensions.w) - 12"
-              :y="toSZ(recinto.coords.z) + 12"
-              fill="white" font-size="11" font-weight="800"
-              text-anchor="middle" dominant-baseline="central"
-              style="pointer-events: none"
-            >$</text>
+              v-if="corridorZones.length === 0"
+              :x="toSX(budgetRect.w / 2)"
+              :y="toSZ(budgetRect.h / 2)"
+              fill="rgba(20,184,166,0.65)"
+              font-size="12"
+              font-weight="700"
+              text-anchor="middle"
+              dominant-baseline="middle"
+              style="pointer-events: none;"
+            >
+              Sin espacios ≥ 0.8m disponibles para pasillo
+            </text>
           </g>
 
-          <!-- Resize hit area (invisible) — hidden when locked -->
-          <rect
-            v-if="!resizeLocked && (recinto.piso || 1) === store.currentFloor"
-            :x="toSX(recinto.coords.x + recinto.dimensions.w) - 18"
-            :y="toSZ(recinto.coords.z + recinto.dimensions.l) - 18"
-            width="28" height="28" fill="transparent"
-            class="cursor-nwse-resize"
-            @pointerdown="(e) => startResize(e, recinto.id)"
-          />
-          <!-- Resize handle triangle — dim when locked -->
-          <path
-            v-if="(recinto.piso || 1) === store.currentFloor"
-            :d="`
-              M ${toSX(recinto.coords.x + recinto.dimensions.w)}
-                ${toSZ(recinto.coords.z + recinto.dimensions.l) - 14}
-              L ${toSX(recinto.coords.x + recinto.dimensions.w)}
-                ${toSZ(recinto.coords.z + recinto.dimensions.l)}
-              L ${toSX(recinto.coords.x + recinto.dimensions.w) - 14}
-                ${toSZ(recinto.coords.z + recinto.dimensions.l)} Z`"
-            :fill="resizeLocked ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.75)'"
-            style="pointer-events: none"
-          />
+          <!-- Rooms -->
+          <g
+            v-for="recinto in store.recintos"
+            :key="recinto.id"
+            :class="(recinto.piso || 1) !== store.currentFloor ? 'opacity-20 pointer-events-none' : ''"
+          >
+            <!-- Selection highlight ring -->
+            <rect
+              v-if="isSelected(recinto.id) && (recinto.piso || 1) === store.currentFloor"
+              :x="toSX(recinto.coords.x) - 4"
+              :y="toSZ(recinto.coords.z) - 4"
+              :width="recinto.dimensions.w * PPM + 8"
+              :height="recinto.dimensions.l * PPM + 8"
+              fill="none"
+              stroke="rgba(249,115,22,0.88)"
+              stroke-width="2.5"
+              stroke-dasharray="7 4"
+              rx="7"
+              style="pointer-events:none"
+            />
 
-          <!-- ── Dimension lines (only while RESIZING) ────────────────────── -->
-          <g v-if="isResizing(recinto.id)" style="pointer-events: none">
+            <!-- Animated glow -->
+            <rect
+              v-if="isSelected(recinto.id) && !isActive(recinto.id)"
+              :x="toSX(recinto.coords.x) - 6"
+              :y="toSZ(recinto.coords.z) - 6"
+              :width="recinto.dimensions.w * PPM + 12"
+              :height="recinto.dimensions.l * PPM + 12"
+              fill="rgba(249,115,22,0.10)"
+              stroke="rgba(249,115,22,0.28)"
+              stroke-width="1"
+              rx="9"
+              style="pointer-events:none"
+            />
 
-              <!-- ── ANCHO (bottom edge) ────────────────────────────────── -->
+            <!-- Room body -->
+            <rect
+              :x="toSX(recinto.coords.x)"
+              :y="toSZ(recinto.coords.z)"
+              :width="recinto.dimensions.w * PPM"
+              :height="recinto.dimensions.l * PPM"
+              :fill="roomFill(recinto.tipo)"
+              :fill-opacity="isActive(recinto.id) ? 0.96 : isSelected(recinto.id) ? 0.88 : 0.76"
+              :stroke="isActive(recinto.id) ? '#ffffff' : isSelected(recinto.id) ? '#fb923c' : roomEdge(recinto.tipo)"
+              :stroke-width="isActive(recinto.id) ? 2.6 : isSelected(recinto.id) ? 2.2 : 1.5"
+              rx="5"
+              filter="url(#room-shadow)"
+              class="cursor-grab"
+              :class="{ 'cursor-grabbing': isActive(recinto.id) && editor.activeMode.value === 'drag' }"
+              @pointerdown="(e) => startDrag(e, recinto.id)"
+            />
+
+            <g v-if="showLabels">
+            <!-- Room label -->
+            <text
+              :x="toSX(recinto.coords.x) + (recinto.dimensions.w * PPM) / 2"
+              :y="toSZ(recinto.coords.z) + (recinto.dimensions.l * PPM) / 2 - labelFontSize(recinto) * 0.65"
+              fill="#fff"
+              :font-size="labelFontSize(recinto)"
+              font-weight="850"
+              text-anchor="middle"
+              dominant-baseline="middle"
+              style="pointer-events: none"
+            >
+              {{ recinto.nombre || (recinto.tipo === 'habitacion' ? 'Hab.' : recinto.tipo === 'banio' ? 'Baño' : 'Común') }}
+            </text>
+
+            <text
+              :x="toSX(recinto.coords.x) + (recinto.dimensions.w * PPM) / 2"
+              :y="toSZ(recinto.coords.z) + (recinto.dimensions.l * PPM) / 2 + areaFontSize(recinto) * 0.85"
+              fill="rgba(255,255,255,0.72)"
+              :font-size="areaFontSize(recinto)"
+              font-weight="650"
+              text-anchor="middle"
+              dominant-baseline="middle"
+              style="pointer-events: none"
+            >
+              {{ (recinto.dimensions.w * recinto.dimensions.l).toFixed(1) }}m²
+            </text>
+            </g>
+
+            <!-- Budget toggle -->
+            <g
+              v-if="(recinto.piso || 1) === store.currentFloor"
+              class="cursor-pointer"
+              @pointerdown.stop.prevent="(e) => onToggleBudget(e, recinto.id)"
+            >
+              <circle
+                :cx="toSX(recinto.coords.x + recinto.dimensions.w) - 13"
+                :cy="toSZ(recinto.coords.z) + 13"
+                r="10.5"
+                :fill="isBudgeted(recinto.id) ? '#22c55e' : 'rgba(15,23,42,0.72)'"
+                :stroke="isBudgeted(recinto.id) ? '#86efac' : 'rgba(255,255,255,0.42)'"
+                stroke-width="1.5"
+              />
+              <text
+                :x="toSX(recinto.coords.x + recinto.dimensions.w) - 13"
+                :y="toSZ(recinto.coords.z) + 13"
+                fill="white"
+                font-size="11"
+                font-weight="900"
+                text-anchor="middle"
+                dominant-baseline="central"
+                style="pointer-events: none"
+              >
+                $
+              </text>
+            </g>
+
+            <!-- Resize hit area -->
+            <rect
+              v-if="!resizeLocked && (recinto.piso || 1) === store.currentFloor"
+              :x="toSX(recinto.coords.x + recinto.dimensions.w) - 18"
+              :y="toSZ(recinto.coords.z + recinto.dimensions.l) - 18"
+              width="30"
+              height="30"
+              fill="transparent"
+              class="cursor-nwse-resize"
+              @pointerdown="(e) => startResize(e, recinto.id)"
+            />
+
+            <!-- Resize handle -->
+            <path
+              v-if="(recinto.piso || 1) === store.currentFloor"
+              :d="`
+                M ${toSX(recinto.coords.x + recinto.dimensions.w)}
+                  ${toSZ(recinto.coords.z + recinto.dimensions.l) - 15}
+                L ${toSX(recinto.coords.x + recinto.dimensions.w)}
+                  ${toSZ(recinto.coords.z + recinto.dimensions.l)}
+                L ${toSX(recinto.coords.x + recinto.dimensions.w) - 15}
+                  ${toSZ(recinto.coords.z + recinto.dimensions.l)} Z`"
+              :fill="resizeLocked ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.86)'"
+              style="pointer-events: none"
+            />
+
+            <!-- Dimension lines -->
+            <g v-if="isResizing(recinto.id)" style="pointer-events: none">
               <line
-                :x1="dimLines(recinto).width.x0" :y1="dimLines(recinto).width.lineY"
-                :x2="dimLines(recinto).width.x1" :y2="dimLines(recinto).width.lineY"
-                stroke="#fbbf24" stroke-width="1.5"
+                :x1="dimLines(recinto).width.x0"
+                :y1="dimLines(recinto).width.lineY"
+                :x2="dimLines(recinto).width.x1"
+                :y2="dimLines(recinto).width.lineY"
+                stroke="#fb923c"
+                stroke-width="1.7"
               />
               <line
-                :x1="dimLines(recinto).width.x0" :y1="dimLines(recinto).width.lineY - TICK_LEN"
-                :x2="dimLines(recinto).width.x0" :y2="dimLines(recinto).width.lineY + TICK_LEN"
-                stroke="#fbbf24" stroke-width="1.5"
+                :x1="dimLines(recinto).width.x0"
+                :y1="dimLines(recinto).width.lineY - TICK_LEN"
+                :x2="dimLines(recinto).width.x0"
+                :y2="dimLines(recinto).width.lineY + TICK_LEN"
+                stroke="#fb923c"
+                stroke-width="1.7"
               />
               <line
-                :x1="dimLines(recinto).width.x1" :y1="dimLines(recinto).width.lineY - TICK_LEN"
-                :x2="dimLines(recinto).width.x1" :y2="dimLines(recinto).width.lineY + TICK_LEN"
-                stroke="#fbbf24" stroke-width="1.5"
+                :x1="dimLines(recinto).width.x1"
+                :y1="dimLines(recinto).width.lineY - TICK_LEN"
+                :x2="dimLines(recinto).width.x1"
+                :y2="dimLines(recinto).width.lineY + TICK_LEN"
+                stroke="#fb923c"
+                stroke-width="1.7"
               />
               <line
-                :x1="dimLines(recinto).width.x0" :y1="toSZ(recinto.coords.z + recinto.dimensions.l)"
-                :x2="dimLines(recinto).width.x0" :y2="dimLines(recinto).width.lineY"
-                stroke="#fbbf24" stroke-width="0.75" stroke-dasharray="3 3"
+                :x1="dimLines(recinto).width.x0"
+                :y1="toSZ(recinto.coords.z + recinto.dimensions.l)"
+                :x2="dimLines(recinto).width.x0"
+                :y2="dimLines(recinto).width.lineY"
+                stroke="#fb923c"
+                stroke-width="0.8"
+                stroke-dasharray="3 3"
               />
               <line
-                :x1="dimLines(recinto).width.x1" :y1="toSZ(recinto.coords.z + recinto.dimensions.l)"
-                :x2="dimLines(recinto).width.x1" :y2="dimLines(recinto).width.lineY"
-                stroke="#fbbf24" stroke-width="0.75" stroke-dasharray="3 3"
+                :x1="dimLines(recinto).width.x1"
+                :y1="toSZ(recinto.coords.z + recinto.dimensions.l)"
+                :x2="dimLines(recinto).width.x1"
+                :y2="dimLines(recinto).width.lineY"
+                stroke="#fb923c"
+                stroke-width="0.8"
+                stroke-dasharray="3 3"
               />
               <rect
-                :x="dimLines(recinto).width.textX - 24" :y="dimLines(recinto).width.textY - 10"
-                width="48" height="16" rx="3" fill="rgba(0,0,0,0.85)"
+                :x="dimLines(recinto).width.textX - 25"
+                :y="dimLines(recinto).width.textY - 10"
+                width="50"
+                height="17"
+                rx="5"
+                fill="rgba(15,23,42,0.92)"
               />
               <text
-                :x="dimLines(recinto).width.textX" :y="dimLines(recinto).width.textY + 1"
-                fill="#fbbf24" font-size="11" font-weight="700"
-                text-anchor="middle" dominant-baseline="middle"
-              >{{ dimLines(recinto).width.label }}</text>
+                :x="dimLines(recinto).width.textX"
+                :y="dimLines(recinto).width.textY + 1"
+                fill="#fdba74"
+                font-size="11"
+                font-weight="850"
+                text-anchor="middle"
+                dominant-baseline="middle"
+              >
+                {{ dimLines(recinto).width.label }}
+              </text>
 
-              <!-- ── ALTO (right edge) ──────────────────────────────────── -->
               <line
-                :x1="dimLines(recinto).height.lineX" :y1="dimLines(recinto).height.z0"
-                :x2="dimLines(recinto).height.lineX" :y2="dimLines(recinto).height.z1"
-                stroke="#fbbf24" stroke-width="1.5"
+                :x1="dimLines(recinto).height.lineX"
+                :y1="dimLines(recinto).height.z0"
+                :x2="dimLines(recinto).height.lineX"
+                :y2="dimLines(recinto).height.z1"
+                stroke="#fb923c"
+                stroke-width="1.7"
               />
               <line
-                :x1="dimLines(recinto).height.lineX - TICK_LEN" :y1="dimLines(recinto).height.z0"
-                :x2="dimLines(recinto).height.lineX + TICK_LEN" :y2="dimLines(recinto).height.z0"
-                stroke="#fbbf24" stroke-width="1.5"
+                :x1="dimLines(recinto).height.lineX - TICK_LEN"
+                :y1="dimLines(recinto).height.z0"
+                :x2="dimLines(recinto).height.lineX + TICK_LEN"
+                :y2="dimLines(recinto).height.z0"
+                stroke="#fb923c"
+                stroke-width="1.7"
               />
               <line
-                :x1="dimLines(recinto).height.lineX - TICK_LEN" :y1="dimLines(recinto).height.z1"
-                :x2="dimLines(recinto).height.lineX + TICK_LEN" :y2="dimLines(recinto).height.z1"
-                stroke="#fbbf24" stroke-width="1.5"
+                :x1="dimLines(recinto).height.lineX - TICK_LEN"
+                :y1="dimLines(recinto).height.z1"
+                :x2="dimLines(recinto).height.lineX + TICK_LEN"
+                :y2="dimLines(recinto).height.z1"
+                stroke="#fb923c"
+                stroke-width="1.7"
               />
               <line
-                :x1="toSX(recinto.coords.x + recinto.dimensions.w)" :y1="dimLines(recinto).height.z0"
-                :x2="dimLines(recinto).height.lineX"                :y2="dimLines(recinto).height.z0"
-                stroke="#fbbf24" stroke-width="0.75" stroke-dasharray="3 3"
+                :x1="toSX(recinto.coords.x + recinto.dimensions.w)"
+                :y1="dimLines(recinto).height.z0"
+                :x2="dimLines(recinto).height.lineX"
+                :y2="dimLines(recinto).height.z0"
+                stroke="#fb923c"
+                stroke-width="0.8"
+                stroke-dasharray="3 3"
               />
               <line
-                :x1="toSX(recinto.coords.x + recinto.dimensions.w)" :y1="dimLines(recinto).height.z1"
-                :x2="dimLines(recinto).height.lineX"                :y2="dimLines(recinto).height.z1"
-                stroke="#fbbf24" stroke-width="0.75" stroke-dasharray="3 3"
+                :x1="toSX(recinto.coords.x + recinto.dimensions.w)"
+                :y1="dimLines(recinto).height.z1"
+                :x2="dimLines(recinto).height.lineX"
+                :y2="dimLines(recinto).height.z1"
+                stroke="#fb923c"
+                stroke-width="0.8"
+                stroke-dasharray="3 3"
               />
-              <!-- Height label rotado 90° paralelo a la pared -->
               <g :transform="`translate(${dimLines(recinto).height.textX + 10}, ${dimLines(recinto).height.textZ})`">
-                <rect x="-24" y="-8" width="48" height="16" rx="3" fill="rgba(0,0,0,0.85)"
+                <rect
+                  x="-25"
+                  y="-8"
+                  width="50"
+                  height="17"
+                  rx="5"
+                  fill="rgba(15,23,42,0.92)"
                   transform="rotate(-90)"
                 />
                 <text
-                  fill="#fbbf24" font-size="11" font-weight="700"
-                  text-anchor="middle" dominant-baseline="middle"
+                  fill="#fdba74"
+                  font-size="11"
+                  font-weight="850"
+                  text-anchor="middle"
+                  dominant-baseline="middle"
                   transform="rotate(-90)"
-                >{{ dimLines(recinto).height.label }}</text>
+                >
+                  {{ dimLines(recinto).height.label }}
+                </text>
               </g>
-
+            </g>
           </g>
-
-        </g><!-- /rooms -->
-      </svg>
+        </svg>
       </div>
-      
-      <!-- ── Manual Dimensions Side Panel ───────────────────────────────── -->
+
+      <!-- Manual Dimensions Side Panel -->
       <transition name="slide-right">
-        <div v-if="editor.selectedRecintoId.value" class="w-64 shrink-0 bg-slate-800 border-l border-slate-700 p-4 flex flex-col gap-4 overflow-y-auto">
-          <div class="flex justify-between items-center mb-1">
-            <h4 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1">
-              <span class="material-symbols-outlined text-[14px]">edit</span> Propiedades
-            </h4>
-            <button @click="editor.selectedRecintoId.value = null" class="text-slate-500 hover:text-white">
-              <span class="material-symbols-outlined text-[14px]">close</span>
+        <aside
+          v-if="editor.selectedRecintoId.value"
+          class="w-72 shrink-0 overflow-y-auto border-l border-slate-200/80 bg-white/90 p-4 backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-950/90"
+        >
+          <div class="mb-4 flex items-start justify-between gap-3">
+            <div class="flex items-start gap-3">
+              <div
+                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-orange-200 bg-orange-50 text-orange-600 shadow-sm dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
+              >
+                <span class="material-symbols-outlined text-[19px]">edit</span>
+              </div>
+
+              <div>
+                <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+                  Inspector
+                </p>
+                <h4 class="mt-0.5 text-sm font-black tracking-tight text-slate-950 dark:text-slate-100">
+                  Propiedades
+                </h4>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              class="group flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 transition-all duration-200 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+              @click="editor.selectedRecintoId.value = null"
+            >
+              <span class="material-symbols-outlined text-[18px] transition-transform duration-200 group-hover:rotate-90">
+                close
+              </span>
             </button>
           </div>
-          
-          <div class="flex flex-col gap-1">
-            <label class="text-[10px] text-slate-400 font-bold uppercase">Nombre</label>
-            <input type="text" v-model="selectedRoomName" class="w-full px-2 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white font-medium focus:border-primary outline-none transition-colors" placeholder="Ej. Baño 1" />
-          </div>
 
-          <div class="flex flex-col gap-3">
-            <div class="flex flex-col gap-1">
-              <label class="text-[10px] text-slate-400 font-bold uppercase">Ancho (m)</label>
-              <input type="number" v-model.number="selectedRoomWidth" class="w-full px-2 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white font-mono text-center focus:border-primary outline-none transition-colors" step="0.5" :disabled="resizeLocked" />
+          <div class="space-y-4">
+            <div class="space-y-2">
+              <label class="editor-label">Nombre</label>
+              <input
+                v-model="selectedRoomName"
+                type="text"
+                class="editor-input text-left"
+                placeholder="Ej. Baño 1"
+              />
             </div>
-            <div class="flex flex-col gap-1">
-              <label class="text-[10px] text-slate-400 font-bold uppercase">Largo (m)</label>
-              <input type="number" v-model.number="selectedRoomLength" class="w-full px-2 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white font-mono text-center focus:border-primary outline-none transition-colors" step="0.5" :disabled="resizeLocked" />
+
+            <div class="grid grid-cols-1 gap-3">
+              <div class="space-y-2">
+                <label class="editor-label">Ancho (m)</label>
+                <input
+                  v-model.number="selectedRoomWidth"
+                  type="number"
+                  class="editor-input text-center font-mono"
+                  step="0.5"
+                  :disabled="resizeLocked"
+                />
+              </div>
+
+              <div class="space-y-2">
+                <label class="editor-label">Largo (m)</label>
+                <input
+                  v-model.number="selectedRoomLength"
+                  type="number"
+                  class="editor-input text-center font-mono"
+                  step="0.5"
+                  :disabled="resizeLocked"
+                />
+              </div>
+
+              <div class="space-y-2">
+                <label class="editor-label">Alto (m)</label>
+                <input
+                  v-model.number="selectedRoomHeight"
+                  type="number"
+                  class="editor-input text-center font-mono"
+                  step="0.1"
+                />
+              </div>
             </div>
-            <div class="flex flex-col gap-1">
-              <label class="text-[10px] text-slate-400 font-bold uppercase">Alto (m)</label>
-              <input type="number" v-model.number="selectedRoomHeight" class="w-full px-2 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white font-mono text-center focus:border-primary outline-none transition-colors" step="0.1" />
+
+            <div
+              v-if="resizeLocked"
+              class="rounded-2xl border border-red-200 bg-red-50 p-3 text-xs font-semibold leading-relaxed text-red-700 dark:border-red-900/70 dark:bg-red-950/25 dark:text-red-300"
+            >
+              Redimensionado bloqueado. Desbloquéalo desde la barra superior para editar ancho y largo.
             </div>
           </div>
-        </div>
+        </aside>
       </transition>
     </div>
 
-      <!-- ── Add Recinto Modal ───────────────────────────────────────────────── -->
-      <transition name="modal-fade">
-        <div v-if="showAddModal" class="add-modal-overlay" @click.self="showAddModal = false">
-          <div class="add-modal-box">
-            <!-- Header -->
-            <div class="add-modal-header">
-              <span class="material-symbols-outlined text-primary text-[20px]">add_home</span>
-              <h4>Añadir Recinto</h4>
-              <button @click="showAddModal = false" class="add-modal-close">
-                <span class="material-symbols-outlined text-[16px]">close</span>
-              </button>
+    <!-- Add Recinto Modal -->
+    <transition name="modal-fade">
+      <div
+        v-if="showAddModal"
+        class="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-md dark:bg-black/60"
+        @click.self="showAddModal = false"
+      >
+        <section
+          class="w-full max-w-md overflow-hidden rounded-3xl border border-slate-200/90 bg-white/95 shadow-2xl shadow-slate-950/20 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/40"
+        >
+          <div class="h-1 w-full bg-gradient-to-r from-orange-400 via-orange-500 to-slate-900 dark:to-orange-300"></div>
+
+          <header
+            class="flex items-start justify-between gap-4 border-b border-slate-200/80 bg-slate-50/80 px-5 py-5 dark:border-slate-800/80 dark:bg-slate-900/60"
+          >
+            <div class="flex items-start gap-3">
+              <div
+                class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-orange-200 bg-orange-50 text-orange-600 shadow-sm dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
+              >
+                <span class="material-symbols-outlined text-[23px]">add_home</span>
+              </div>
+
+              <div>
+                <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+                  Nuevo espacio
+                </p>
+                <h4 class="mt-0.5 text-xl font-black tracking-tight text-slate-950 dark:text-slate-100">
+                  Añadir recinto
+                </h4>
+                <p class="mt-1 text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400">
+                  Define nombre y dimensiones iniciales.
+                </p>
+              </div>
             </div>
 
+            <button
+              type="button"
+              class="group flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-transparent text-slate-400 transition-all duration-200 hover:border-slate-300 hover:bg-white hover:text-slate-950 active:scale-95 dark:text-slate-500 dark:hover:border-slate-700 dark:hover:bg-slate-900 dark:hover:text-slate-100"
+              @click="showAddModal = false"
+            >
+              <span class="material-symbols-outlined text-[20px] transition-transform duration-200 group-hover:rotate-90">
+                close
+              </span>
+            </button>
+          </header>
 
-
-            <!-- Nombre -->
-            <div class="add-modal-section">
-              <label class="add-modal-label">Nombre</label>
+          <div class="space-y-5 px-5 py-5">
+            <div class="space-y-2">
+              <label class="editor-label">Nombre</label>
               <input
                 v-model="addForm.nombre"
                 type="text"
-                placeholder="Ej. Dormitorio Principal"
-                class="add-modal-input"
+                placeholder="Ej. Dormitorio principal"
+                class="add-room-input"
                 @keyup.enter="confirmAdd"
               />
             </div>
 
-            <!-- Medidas -->
-            <div class="add-modal-section">
-              <label class="add-modal-label">Medidas</label>
-              <div class="dim-row">
-                <div class="dim-field">
-                  <span class="dim-icon material-symbols-outlined text-[14px]">width</span>
-                  <label class="dim-label">Ancho</label>
-                  <input v-model.number="addForm.w" type="number" step="0.5" min="0.5" class="dim-input" />
-                  <span class="dim-unit">m</span>
+            <div class="space-y-3">
+              <label class="editor-label">Medidas</label>
+
+              <div class="grid grid-cols-3 gap-2">
+                <div class="add-room-dim-card">
+                  <span class="material-symbols-outlined text-[16px] text-orange-500 dark:text-orange-300">
+                    width
+                  </span>
+                  <label>Ancho</label>
+                  <input v-model.number="addForm.w" type="number" step="0.5" min="0.5" />
+                  <span>m</span>
                 </div>
-                <div class="dim-field">
-                  <span class="dim-icon material-symbols-outlined text-[14px]">height</span>
-                  <label class="dim-label">Largo</label>
-                  <input v-model.number="addForm.l" type="number" step="0.5" min="0.5" class="dim-input" />
-                  <span class="dim-unit">m</span>
+
+                <div class="add-room-dim-card">
+                  <span class="material-symbols-outlined text-[16px] text-orange-500 dark:text-orange-300">
+                    height
+                  </span>
+                  <label>Largo</label>
+                  <input v-model.number="addForm.l" type="number" step="0.5" min="0.5" />
+                  <span>m</span>
                 </div>
-                <div class="dim-field">
-                  <span class="dim-icon material-symbols-outlined text-[14px]">vertical_align_top</span>
-                  <label class="dim-label">Alto</label>
-                  <input v-model.number="addForm.h" type="number" step="0.1" min="1" class="dim-input" />
-                  <span class="dim-unit">m</span>
+
+                <div class="add-room-dim-card">
+                  <span class="material-symbols-outlined text-[16px] text-orange-500 dark:text-orange-300">
+                    vertical_align_top
+                  </span>
+                  <label>Alto</label>
+                  <input v-model.number="addForm.h" type="number" step="0.1" min="1" />
+                  <span>m</span>
                 </div>
               </div>
-              <p class="add-modal-hint">Área: {{ (addForm.w * addForm.l).toFixed(2) }} m²</p>
-            </div>
 
-            <!-- Actions -->
-            <div class="add-modal-actions">
-              <button @click="showAddModal = false" class="add-modal-cancel">Cancelar</button>
-              <button @click="confirmAdd" class="add-modal-confirm">
-                <span class="material-symbols-outlined text-[16px]">add</span>
-                Crear Recinto
-              </button>
+              <p class="add-room-area-pill">
+                Área: {{ (addForm.w * addForm.l).toFixed(2) }} m²
+              </p>
             </div>
           </div>
-        </div>
-      </transition>
-    </div>
+
+          <footer
+            class="flex flex-col-reverse gap-2 border-t border-slate-200/80 bg-slate-50/80 px-5 py-4 dark:border-slate-800/80 dark:bg-slate-900/60 sm:flex-row sm:justify-end"
+          >
+            <button
+              type="button"
+              class="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-slate-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 hover:shadow-md active:scale-[0.98] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200 dark:hover:border-slate-700 dark:hover:bg-slate-900"
+              @click="showAddModal = false"
+            >
+              Cancelar
+            </button>
+
+            <button
+              type="button"
+              class="add-room-primary-btn"
+              @click="confirmAdd"
+            >
+              <span class="material-symbols-outlined text-[17px]">add</span>
+              Crear recinto
+            </button>
+          </footer>
+        </section>
+      </div>
+    </transition>
+  </div>
 </template>
 
 <style scoped>
-svg rect.cursor-grab:hover {
-  filter: brightness(1.18);
+.editor-svg {
+  background:
+    radial-gradient(circle at top left, rgba(249, 115, 22, 0.08), transparent 28%),
+    linear-gradient(135deg, #f8fafc, #eef2f7);
 }
+
+.dark .editor-svg {
+  background:
+    radial-gradient(circle at top left, rgba(251, 146, 60, 0.08), transparent 28%),
+    linear-gradient(135deg, #0f172a, #020617);
+}
+
+svg rect.cursor-grab:hover {
+  filter: brightness(1.12);
+}
+
 svg rect.cursor-grabbing {
   cursor: grabbing;
 }
 
-/* ── Corridor Button ─────────────────────────────────────────────────────── */
-.corridor-btn { border: 1px solid transparent; }
-.corridor-btn.inactive {
-  background: linear-gradient(135deg, rgba(20,184,166,0.18), rgba(20,184,166,0.06));
-  border-color: rgba(20,184,166,0.35);
-  color: #5eead4;
-}
-.corridor-btn.inactive:hover {
-  background: linear-gradient(135deg, rgba(20,184,166,0.32), rgba(20,184,166,0.15));
-  border-color: rgba(20,184,166,0.65);
-  color: #fff;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(20,184,166,0.2);
-}
-.corridor-btn.active {
-  background: rgba(20,184,166,0.25);
-  border-color: rgba(20,184,166,0.7);
-  color: #2dd4bf;
-  box-shadow: 0 0 10px rgba(20,184,166,0.3);
-}
-
-/* ── Corridor Zone hover ─────────────────────────────────────────────────── */
-.corridor-zone-group { cursor: pointer; }
-.corridor-zone-rect { transition: fill 0.15s; }
-.corridor-zone-group:hover .corridor-zone-rect { fill: rgba(34,211,238,0.28); }
-
-/* ── Add Recinto Button ───────────────────────────────────────────────────── */
-.add-recinto-btn {
-  background: linear-gradient(135deg, rgba(99,102,241,0.25), rgba(99,102,241,0.1));
-  border: 1px solid rgba(99,102,241,0.45);
-  color: #a5b4fc;
-}
-.add-recinto-btn:hover {
-  background: linear-gradient(135deg, rgba(99,102,241,0.4), rgba(99,102,241,0.2));
-  border-color: rgba(99,102,241,0.7);
-  color: #fff;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(99,102,241,0.25);
-}
-.add-recinto-btn:active { transform: scale(0.97); }
-
-/* ── Lock Toggle ──────────────────────────────────────────────────────────── */
-.lock-toggle-btn { border: 1px solid transparent; }
-.lock-toggle-btn.unlocked {
-  background: linear-gradient(135deg, rgba(99,102,241,0.25), rgba(99,102,241,0.1));
-  border-color: rgba(99,102,241,0.45);
-  color: #a5b4fc;
-}
-.lock-toggle-btn.unlocked:hover {
-  background: linear-gradient(135deg, rgba(99,102,241,0.4), rgba(99,102,241,0.2));
-  border-color: rgba(99,102,241,0.7);
-  color: #fff;
-}
-.lock-toggle-btn.locked {
-  background: rgba(239, 68, 68, 0.15);
-  border-color: rgba(239, 68, 68, 0.4);
-  color: #ef4444;
-}
-.lock-toggle-btn.locked:hover {
-  background: rgba(239, 68, 68, 0.25);
-  color: #fca5a5;
-}
-
-/* ── Add Recinto Modal ────────────────────────────────────────────────────── */
-.add-modal-overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(11,18,32,0.82);
-  backdrop-filter: blur(6px);
-  display: flex;
+.tool-btn {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  z-index: 50;
-}
-
-.add-modal-box {
-  background: linear-gradient(135deg, #1e293b, #0f172a);
-  border: 1px solid rgba(99,102,241,0.35);
+  gap: 0.45rem;
   border-radius: 1rem;
-  padding: 1.5rem;
-  width: min(420px, 90%);
-  box-shadow: 0 25px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(99,102,241,0.1);
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.add-modal-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-.add-modal-header h4 {
-  flex: 1;
-  font-size: 0.875rem;
-  font-weight: 800;
-  color: #e2e8f0;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-}
-.add-modal-close {
-  color: #64748b;
-  transition: color 0.15s;
-  line-height: 1;
-}
-.add-modal-close:hover { color: #fff; }
-
-.add-modal-section { display: flex; flex-direction: column; gap: 0.5rem; }
-.add-modal-label {
-  font-size: 0.625rem;
-  font-weight: 700;
-  color: #94a3b8;
-  text-transform: uppercase;
+  border: 1px solid;
+  padding: 0.55rem 0.8rem;
+  font-size: 0.68rem;
+  font-weight: 900;
   letter-spacing: 0.12em;
+  text-transform: uppercase;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    background-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease;
 }
 
-/* Tipo grid */
-.tipo-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 0.4rem;
+.tool-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
 }
-.tipo-btn {
+
+.tool-btn:active {
+  transform: scale(0.98);
+}
+
+.tool-btn-primary {
+  border-color: rgb(254 215 170);
+  background: rgb(255 247 237);
+  color: rgb(194 65 12);
+}
+
+.dark .tool-btn-primary {
+  border-color: rgba(154, 52, 18, 0.7);
+  background: rgba(67, 20, 7, 0.32);
+  color: rgb(253 186 116);
+}
+
+.tool-btn-neutral {
+  border-color: rgb(226 232 240);
+  background: white;
+  color: rgb(71 85 105);
+}
+
+.dark .tool-btn-neutral {
+  border-color: rgb(30 41 59);
+  background: rgb(15 23 42);
+  color: rgb(203 213 225);
+}
+
+.tool-btn-success {
+  border-color: rgb(167 243 208);
+  background: rgb(236 253 245);
+  color: rgb(4 120 87);
+}
+
+.dark .tool-btn-success {
+  border-color: rgba(6, 78, 59, 0.75);
+  background: rgba(6, 78, 59, 0.25);
+  color: rgb(110 231 183);
+}
+
+.tool-btn-danger {
+  border-color: rgb(254 202 202);
+  background: rgb(254 242 242);
+  color: rgb(220 38 38);
+}
+
+.dark .tool-btn-danger {
+  border-color: rgba(127, 29, 29, 0.75);
+  background: rgba(127, 29, 29, 0.25);
+  color: rgb(252 165 165);
+}
+
+/* Corridor zone hover */
+.corridor-zone-group {
+  cursor: pointer;
+}
+
+.corridor-zone-rect {
+  transition: fill 0.15s ease, stroke 0.15s ease;
+}
+
+.corridor-zone-group:hover .corridor-zone-rect {
+  fill: rgba(20, 184, 166, 0.25);
+  stroke: rgba(20, 184, 166, 0.9);
+}
+
+/* Inspector inputs */
+.editor-label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgb(100 116 139);
+}
+
+.dark .editor-label {
+  color: rgb(148 163 184);
+}
+
+.editor-input {
+  height: 2.75rem;
+  width: 100%;
+  border-radius: 1rem;
+  border: 1px solid rgb(226 232 240);
+  background: rgba(248, 250, 252, 0.8);
+  padding: 0 0.9rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: rgb(15 23 42);
+  outline: none;
+  transition:
+    border-color 0.18s ease,
+    background-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.editor-input:focus {
+  border-color: rgb(251 146 60);
+  background: white;
+  box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.1);
+}
+
+.editor-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.dark .editor-input {
+  border-color: rgb(30 41 59);
+  background: rgba(15, 23, 42, 0.72);
+  color: rgb(241 245 249);
+}
+
+.dark .editor-input:focus {
+  border-color: rgb(249 115 22);
+  background: rgb(15 23 42);
+  box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.15);
+}
+
+/* Add modal dimension cards */
+.dim-card {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.5rem 0.25rem;
-  border-radius: 0.5rem;
-  border: 1px solid rgba(100,116,139,0.3);
-  background: rgba(30,41,59,0.6);
-  color: #94a3b8;
-  transition: all 0.15s;
-}
-.tipo-btn:hover {
-  border-color: rgba(99,102,241,0.5);
-  color: #a5b4fc;
-  background: rgba(99,102,241,0.1);
-}
-.tipo-btn--active {
-  border-color: rgba(99,102,241,0.7) !important;
-  background: rgba(99,102,241,0.2) !important;
-  color: #a5b4fc !important;
-}
-
-/* Name input */
-.add-modal-input {
-  background: rgba(15,23,42,0.8);
-  border: 1px solid rgba(100,116,139,0.3);
-  border-radius: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  color: #e2e8f0;
-  font-size: 0.875rem;
-  outline: none;
-  transition: border-color 0.15s;
-  width: 100%;
-}
-.add-modal-input:focus { border-color: rgba(99,102,241,0.6); }
-
-/* Dimension row */
-.dim-row { display: flex; gap: 0.5rem; }
-.dim-field {
-  flex: 1;
-  display: grid;
-  grid-template-columns: auto 1fr;
-  grid-template-rows: auto auto;
-  gap: 0.15rem 0.3rem;
-  background: rgba(15,23,42,0.7);
-  border: 1px solid rgba(100,116,139,0.25);
-  border-radius: 0.5rem;
-  padding: 0.4rem 0.5rem;
-  align-items: center;
-}
-.dim-icon { grid-row: 1; grid-column: 1; color: #6366f1; }
-.dim-label {
-  grid-row: 1; grid-column: 2;
-  font-size: 0.55rem;
-  color: #64748b;
-  text-transform: uppercase;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
-.dim-input {
-  grid-row: 2; grid-column: 1 / span 2;
-  background: transparent;
-  border: none;
-  outline: none;
-  color: #e2e8f0;
-  font-size: 0.9rem;
-  font-weight: 700;
-  font-family: 'Courier New', monospace;
-  width: 100%;
-  text-align: center;
-}
-.dim-unit { display: none; } /* shown inline by dim-input */
-
-.add-modal-hint {
-  font-size: 0.625rem;
-  color: #6366f1;
-  font-weight: 600;
-  text-align: right;
-}
-
-/* Actions */
-.add-modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
-.add-modal-cancel {
-  padding: 0.5rem 1rem;
-  border-radius: 0.5rem;
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: #94a3b8;
-  border: 1px solid rgba(100,116,139,0.3);
-  background: transparent;
-  transition: all 0.15s;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-.add-modal-cancel:hover { color: #e2e8f0; border-color: rgba(100,116,139,0.6); }
-.add-modal-confirm {
-  display: flex;
-  align-items: center;
   gap: 0.35rem;
-  padding: 0.5rem 1.25rem;
-  border-radius: 0.5rem;
-  font-size: 0.75rem;
-  font-weight: 800;
-  color: #fff;
-  background: linear-gradient(135deg, #6366f1, #4f46e5);
-  border: 1px solid rgba(99,102,241,0.5);
-  transition: all 0.15s;
+  border-radius: 1rem;
+  border: 1px solid rgb(226 232 240);
+  background: rgba(248, 250, 252, 0.8);
+  padding: 0.75rem;
+}
+
+.dark .dim-card {
+  border-color: rgb(30 41 59);
+  background: rgba(15, 23, 42, 0.72);
+}
+
+.dim-card label {
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  box-shadow: 0 4px 12px rgba(99,102,241,0.3);
+  color: rgb(100 116 139);
 }
-.add-modal-confirm:hover {
-  background: linear-gradient(135deg, #7c3aed, #6366f1);
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(99,102,241,0.4);
+
+.dark .dim-card label {
+  color: rgb(148 163 184);
 }
-.add-modal-confirm:active { transform: scale(0.97); }
+
+.dim-card input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 1rem;
+  font-weight: 900;
+  color: rgb(15 23 42);
+  outline: none;
+}
+
+.dark .dim-card input {
+  color: rgb(241 245 249);
+}
+
+.dim-card span:last-child {
+  text-align: center;
+  font-size: 0.65rem;
+  font-weight: 900;
+  color: rgb(148 163 184);
+}
 
 /* Modal transitions */
-.modal-fade-enter-active, .modal-fade-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-.modal-fade-enter-from, .modal-fade-leave-to {
-  opacity: 0;
-}
-.modal-fade-enter-from .add-modal-box,
-.modal-fade-leave-to .add-modal-box {
-  transform: scale(0.95) translateY(-8px);
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
 }
 
-/* Slide right transition for side panel */
-.slide-right-enter-active, .slide-right-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease, width 0.2s ease;
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
 }
-.slide-right-enter-from, .slide-right-leave-to {
+
+.modal-fade-enter-from section,
+.modal-fade-leave-to section {
+  transform: translateY(10px) scale(0.98);
+}
+
+/* Slide right transition */
+.slide-right-enter-active,
+.slide-right-leave-active {
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease,
+    width 0.2s ease;
+}
+
+.slide-right-enter-from,
+.slide-right-leave-to {
+  width: 0;
   opacity: 0;
   transform: translateX(20px);
-  width: 0;
 }
 
 /* Disable transitions during mathematical rotation to prevent sliding chaos */
@@ -1382,5 +1709,172 @@ svg rect.cursor-grabbing {
 .disable-rect-transitions path,
 .disable-rect-transitions g {
   transition: none !important;
+}
+
+/* Add room modal — brighter premium controls */
+.add-room-input {
+  height: 2.75rem;
+  width: 100%;
+  border-radius: 1rem;
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  background: rgba(248, 250, 252, 0.92);
+  padding: 0 0.95rem;
+  font-size: 0.875rem;
+  font-weight: 800;
+  color: rgb(15 23 42);
+  outline: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    0 1px 2px rgba(15, 23, 42, 0.04);
+  transition:
+    border-color 0.18s ease,
+    background-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.add-room-input::placeholder {
+  color: rgb(148 163 184);
+}
+
+.add-room-input:focus {
+  border-color: rgb(251 146 60);
+  background: #ffffff;
+  box-shadow:
+    0 0 0 4px rgba(249, 115, 22, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.dark .add-room-input {
+  border-color: rgba(148, 163, 184, 0.26);
+  background: rgba(30, 41, 59, 0.86);
+  color: rgb(248 250 252);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 1px 2px rgba(0, 0, 0, 0.18);
+}
+
+.dark .add-room-input:focus {
+  border-color: rgb(251 146 60);
+  background: rgba(30, 41, 59, 0.96);
+  box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.16);
+}
+
+.add-room-dim-card {
+  display: flex;
+  min-height: 7.25rem;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.35rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.9));
+  padding: 0.75rem;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    0 8px 20px rgba(15, 23, 42, 0.06);
+}
+
+.dark .add-room-dim-card {
+  border-color: rgba(148, 163, 184, 0.22);
+  background:
+    linear-gradient(180deg, rgba(30, 41, 59, 0.92), rgba(15, 23, 42, 0.88));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 10px 24px rgba(0, 0, 0, 0.2);
+}
+
+.add-room-dim-card label {
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgb(100 116 139);
+}
+
+.dark .add-room-dim-card label {
+  color: rgb(203 213 225);
+}
+
+.add-room-dim-card input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: rgb(15 23 42);
+  outline: none;
+}
+
+.dark .add-room-dim-card input {
+  color: rgb(248 250 252);
+}
+
+.add-room-dim-card span:last-child {
+  text-align: center;
+  font-size: 0.65rem;
+  font-weight: 900;
+  color: rgb(100 116 139);
+}
+
+.dark .add-room-dim-card span:last-child {
+  color: rgb(203 213 225);
+}
+
+.add-room-area-pill {
+  border-radius: 1rem;
+  border: 1px solid rgba(251, 146, 60, 0.65);
+  background: rgba(249, 115, 22, 0.12);
+  padding: 0.55rem 0.85rem;
+  text-align: right;
+  color: rgb(194 65 12);
+  font-size: 0.75rem;
+  font-weight: 900;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.dark .add-room-area-pill {
+  border-color: rgba(251, 146, 60, 0.58);
+  background: rgba(249, 115, 22, 0.2);
+  color: rgb(253 186 116);
+}
+
+.add-room-primary-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 2.5rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(251, 146, 60, 0.7);
+  background: linear-gradient(135deg, #fb923c, #f97316);
+  padding: 0.625rem 1rem;
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  box-shadow:
+    0 14px 32px rgba(249, 115, 22, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24);
+  transition:
+    transform 0.18s ease,
+    filter 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.add-room-primary-btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.04);
+  box-shadow:
+    0 18px 40px rgba(249, 115, 22, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.add-room-primary-btn:active {
+  transform: scale(0.98);
 }
 </style>

@@ -1,217 +1,415 @@
 <script setup>
-import { ref, onMounted } from 'vue'
-import { useLayoutManager } from '../composables/useLayoutManager'
-import { useI18n } from '../composables/useI18n'
+/**
+ * Editor Sidebar — contextual panel sitting next to AppRail in the workspace.
+ * Houses: presets, saved layouts, language + dark mode toggles, help, new-estimate CTA.
+ *
+ * Premium language:
+ * - Slate/orange visual system.
+ * - Soft borders, controlled shadows, rounded-2xl/3xl.
+ * - Clear hierarchy between templates, saved layouts and utility actions.
+ * - Dark mode consistency.
+ */
 
-const { t, currentLanguage, setLanguage } = useI18n()
-const { presets, savedLayouts, deleteLayout } = useLayoutManager()
+import { ref, computed, onMounted } from 'vue';
+import { useLayoutManager } from '../composables/useLayoutManager';
+import { useI18n } from '../composables/useI18n';
+import { useTheme } from '../composables/useTheme';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Sparkles,
+  Bookmark,
+  Trash2,
+  ExternalLink,
+  Sun,
+  Moon,
+  Languages,
+  GraduationCap,
+  BookOpen,
+  Plus,
+  CircleDot,
+  CheckCircle2,
+} from 'lucide-vue-next';
 
-const emit = defineEmits(['loadPreset', 'loadLayout', 'collapse-change', 'open-manual', 'new-estimate', 'start-tutorial'])
+const { t, currentLanguage, setLanguage } = useI18n();
+const theme = useTheme();
 
-// ── Collapse ──────────────────────────────────────────────────────────
-const collapsed = ref(false)
+const { presets, savedLayouts, deleteLayout } = useLayoutManager();
+
+const emit = defineEmits([
+  'loadPreset',
+  'loadLayout',
+  'collapse-change',
+  'open-manual',
+  'new-estimate',
+  'start-tutorial',
+]);
+
+const collapsed = ref(false);
+
+onMounted(() => {
+  if (theme.userPref.value === 'system') {
+    theme.setTheme(theme.isDark.value ? 'dark' : 'light');
+  }
+});
+
+const isSpanish = computed(() => currentLanguage.value === 'es');
+
+const themeLabel = computed(() => {
+  if (isSpanish.value) {
+    return theme.isDark.value ? 'Oscuro' : 'Claro';
+  }
+
+  return theme.isDark.value ? 'Dark' : 'Light';
+});
+
+const themeTitle = computed(() => {
+  if (isSpanish.value) {
+    return theme.isDark.value
+      ? 'Cambiar a modo claro'
+      : 'Cambiar a modo oscuro';
+  }
+
+  return theme.isDark.value
+    ? 'Switch to light mode'
+    : 'Switch to dark mode';
+});
+
+const ThemeIcon = computed(() => {
+  return theme.isDark.value ? Moon : Sun;
+});
+
 const toggleCollapse = () => {
-  collapsed.value = !collapsed.value
-  emit('collapse-change', collapsed.value)
-}
+  collapsed.value = !collapsed.value;
+  emit('collapse-change', collapsed.value);
+};
 
-// ── Dark mode ─────────────────────────────────────────────────────────
-const getInitialTheme = () => {
-  const saved = localStorage.getItem('siec_dark')
-  if (saved !== null) {
-    return saved === 'true'
-  }
-  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
-}
-
-const isDark = ref(getInitialTheme())
-
-const applyDark = (value) => {
-  if (value) {
-    document.documentElement.classList.add('dark')
-  } else {
-    document.documentElement.classList.remove('dark')
-  }
-}
-
-const toggleDark = () => {
+const cycleTheme = () => {
   const switchTheme = () => {
-    isDark.value = !isDark.value
-    localStorage.setItem('siec_dark', String(isDark.value))
-    applyDark(isDark.value)
-  }
+    const next = theme.isDark.value ? 'light' : 'dark';
+    theme.setTheme(next);
+  };
 
-  if (document.startViewTransition) {
-    document.startViewTransition(switchTheme)
+  if (typeof document !== 'undefined' && document.startViewTransition) {
+    document.startViewTransition(switchTheme);
   } else {
-    switchTheme()
+    switchTheme();
   }
-}
-
-onMounted(() => { applyDark(isDark.value) })
-
-// ── Language ──────────────────────────────────────────────────────────
-const loadPreset = (preset) => emit('loadPreset', preset)
-const loadSavedLayout = (layout) => emit('loadLayout', layout)
-const deleteSavedLayout = (id) => deleteLayout(id)
+};
 
 const toggleLanguage = () => {
   const switchLang = () => {
-    setLanguage(currentLanguage.value === 'es' ? 'en' : 'es')
-  }
-  
-  if (document.startViewTransition) {
-    document.startViewTransition(switchLang)
-  } else {
-    switchLang()
-  }
-}
+    setLanguage(currentLanguage.value === 'es' ? 'en' : 'es');
+  };
 
+  if (typeof document !== 'undefined' && document.startViewTransition) {
+    document.startViewTransition(switchLang);
+  } else {
+    switchLang();
+  }
+};
+
+const loadPreset = (preset) => {
+  emit('loadPreset', preset);
+};
+
+const loadSavedLayout = (layout) => {
+  emit('loadLayout', layout);
+};
+
+const deleteSavedLayout = (id) => {
+  if (!id) return;
+  deleteLayout(id);
+};
+
+const formatDate = (value) => {
+  if (!value) return 'Sin fecha';
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+
+  return date.toLocaleDateString('es-CL', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+};
 </script>
 
 <template>
-  <!-- Collapse button — always visible, floats over edge -->
+  <!-- Collapse handle -->
   <button
+    type="button"
+    class="fixed top-20 z-40 flex h-12 w-7 items-center justify-center rounded-r-2xl border border-l-0 border-slate-200 bg-white/90 text-slate-600 shadow-lg shadow-slate-950/10 backdrop-blur-xl transition-all duration-200 hover:w-8 hover:border-slate-300 hover:text-slate-950 active:scale-95 dark:border-slate-800 dark:bg-slate-950/90 dark:text-slate-300 dark:shadow-black/30 dark:hover:border-slate-700 dark:hover:text-slate-100"
+    :style="{ left: collapsed ? '4rem' : 'calc(4rem + 240px)' }"
+    :title="collapsed ? 'Expandir panel contextual' : 'Colapsar panel'"
+    :aria-label="collapsed ? 'Expandir panel contextual' : 'Colapsar panel'"
     @click="toggleCollapse"
-    class="fixed top-4 z-50 flex items-center justify-center w-6 h-6 rounded-full bg-primary text-white shadow-lg transition-all duration-300 hover:scale-110"
-    :style="{ left: collapsed ? '0.75rem' : '15rem' }"
-    :title="collapsed ? 'Expandir panel' : 'Colapsar panel'"
   >
-    <span class="material-symbols-outlined text-sm leading-none">
-      {{ collapsed ? 'chevron_right' : 'chevron_left' }}
-    </span>
+    <ChevronLeft
+      v-if="!collapsed"
+      class="h-3.5 w-3.5"
+      :stroke-width="2.6"
+    />
+
+    <ChevronRight
+      v-else
+      class="h-3.5 w-3.5"
+      :stroke-width="2.6"
+    />
   </button>
 
-  <!-- Sidebar -->
   <aside
-    class="h-screen fixed left-0 top-0 bg-surface-container-low dark:bg-[#0d1117] flex flex-col z-40 overflow-hidden transition-all duration-300 ease-in-out border-r border-slate-200/50 dark:border-[#21262d]"
-    :class="collapsed ? 'w-0 opacity-0 pointer-events-none' : 'w-64 opacity-100 p-4 space-y-2'"
+    class="sticky top-0 z-30 flex h-screen flex-col overflow-hidden border-r border-slate-200/80 bg-white/85 shadow-sm shadow-slate-950/[0.03] backdrop-blur-xl transition-all duration-300 dark:border-slate-800/80 dark:bg-slate-950/85 dark:shadow-black/20"
+    :class="collapsed ? 'w-0 opacity-0 pointer-events-none' : 'w-60 opacity-100'"
   >
-    <!-- Logo -->
-    <div class="mb-6 px-2 shrink-0">
-      <div class="flex items-center gap-3">
-        <div class="w-8 h-8 bg-primary rounded-md flex items-center justify-center shrink-0">
-          <span class="material-symbols-outlined text-white text-sm">architecture</span>
+    <!-- Header -->
+    <header class="shrink-0 border-b border-slate-200/80 px-4 pb-4 pt-5 dark:border-slate-800/80">
+      <div class="mb-3 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <span
+            class="flex h-7 w-7 items-center justify-center rounded-xl border border-orange-200 bg-orange-50 text-orange-600 shadow-sm dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
+          >
+            <CircleDot class="h-3.5 w-3.5" :stroke-width="2.6" />
+          </span>
+
+          <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+            Workspace
+          </p>
         </div>
-        <div class="overflow-hidden">
-          <h1 class="text-lg font-bold text-primary-container dark:text-white font-headline tracking-tight truncate">{{ t('siec') }}</h1>
-          <p class="text-[10px] text-slate-500 dark:text-slate-300 font-medium uppercase tracking-[0.1em] truncate">{{ t('constructionIntelligence') }}</p>
-        </div>
+
+        <span
+          class="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[9px] font-black uppercase tracking-tight text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/25 dark:text-emerald-300"
+        >
+          <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+          Live
+        </span>
       </div>
-    </div>
 
-    <!-- Navigation -->
-    <nav class="flex-1 space-y-1 overflow-y-auto">
+      <h2 class="truncate text-lg font-black tracking-tight text-slate-950 dark:text-slate-100">
+        {{ t('siec') }}
+      </h2>
 
+      <p class="mt-1 text-xs font-medium leading-relaxed text-slate-500 dark:text-slate-400">
+        {{ t('constructionIntelligence') }}
+      </p>
+    </header>
+
+    <!-- Content -->
+    <nav class="min-h-0 flex-1 space-y-5 overflow-y-auto px-3 py-4">
+      <!-- Presets -->
+      <section>
+        <div class="mb-2 flex items-center justify-between px-1">
+          <h3
+            class="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
+          >
+            <Sparkles class="h-3.5 w-3.5" :stroke-width="2.2" />
+            {{ isSpanish ? 'Plantillas' : 'Templates' }}
+          </h3>
+
+          <span
+            class="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[9px] font-bold text-slate-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-500"
+          >
+            {{ presets.length }}
+          </span>
+        </div>
+
+        <div class="space-y-1.5">
+          <button
+            v-for="preset in presets"
+            :key="preset.id"
+            type="button"
+            class="group flex w-full items-center justify-between gap-3 rounded-2xl border border-transparent bg-transparent px-3 py-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-200 hover:bg-slate-50 hover:shadow-sm active:scale-[0.99] dark:hover:border-slate-800 dark:hover:bg-slate-900/70"
+            @click="loadPreset(preset)"
+          >
+            <span class="min-w-0">
+              <span class="block truncate text-sm font-bold tracking-tight text-slate-800 dark:text-slate-200">
+                {{ isSpanish ? preset.name : preset.nameEn }}
+              </span>
+
+              <span class="mt-0.5 block text-[10px] font-semibold uppercase tracking-tight text-slate-400 dark:text-slate-500">
+                Plantilla base
+              </span>
+            </span>
+
+            <span
+              class="shrink-0 rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-black text-slate-500 shadow-sm transition-colors duration-200 group-hover:border-orange-200 group-hover:text-orange-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400 dark:group-hover:border-orange-900/60 dark:group-hover:text-orange-300"
+            >
+              {{ preset.m2Totales }} m²
+            </span>
+          </button>
+        </div>
+      </section>
 
       <!-- Saved Layouts -->
-      <div v-if="savedLayouts.length > 0" class="pt-4 pb-2">
-        <h4 class="text-[10px] font-extrabold text-emerald-600 uppercase tracking-widest px-3 mb-3 flex items-center gap-1">
-          <span class="material-symbols-outlined text-[14px]">save</span>
-          {{ t('savedLayouts') }}
-        </h4>
-        <div class="space-y-2 px-2">
+      <section>
+        <div class="mb-2 flex items-center justify-between px-1">
+          <h3
+            class="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
+          >
+            <Bookmark class="h-3.5 w-3.5" :stroke-width="2.2" />
+            {{ t('savedLayouts') }}
+          </h3>
+
+          <span
+            class="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[9px] font-bold text-slate-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-500"
+          >
+            {{ savedLayouts.length }}
+          </span>
+        </div>
+
+        <div
+          v-if="savedLayouts.length === 0"
+          class="rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 p-4 text-center dark:border-slate-700 dark:bg-slate-900/50"
+        >
           <div
+            class="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-400 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-500"
+          >
+            <Bookmark class="h-4.5 w-4.5" :stroke-width="2" />
+          </div>
+
+          <p class="text-xs font-bold text-slate-600 dark:text-slate-300">
+            Sin diseños guardados
+          </p>
+
+          <p class="mt-1 text-[11px] font-medium leading-relaxed text-slate-400 dark:text-slate-500">
+            Guarda una estimación para verla aquí.
+          </p>
+        </div>
+
+        <div v-else class="space-y-2">
+          <article
             v-for="layout in savedLayouts"
             :key="layout.id"
-            class="w-full text-left flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-700/50 hover:border-emerald-200 dark:hover:border-emerald-800/50 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all group shadow-sm"
+            class="group overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/80 p-2.5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-300 hover:bg-white hover:shadow-md hover:shadow-slate-950/5 dark:border-slate-800 dark:bg-slate-900/60 dark:hover:border-orange-900/70 dark:hover:bg-slate-900 dark:hover:shadow-black/20"
           >
-            <button @click="loadSavedLayout(layout)" class="flex-1 overflow-hidden">
-              <div class="flex items-center gap-2 mb-1">
-                <span class="block text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{{ layout.name }}</span>
-                <span v-if="layout.recintos && layout.recintos.length > 0" class="text-[8px] font-bold bg-primary/10 text-primary px-1.5 py-0.5 rounded uppercase tracking-wider">3D</span>
+            <div class="flex items-start justify-between gap-2">
+              <button
+                type="button"
+                class="min-w-0 flex-1 cursor-pointer text-left"
+                @click="loadSavedLayout(layout)"
+              >
+                <div class="flex items-center gap-1.5">
+                  <span class="truncate text-xs font-black tracking-tight text-slate-900 dark:text-slate-100">
+                    {{ layout.name || 'Layout sin nombre' }}
+                  </span>
+
+                  <span
+                    v-if="layout.recintos?.length"
+                    class="shrink-0 rounded-full border border-orange-200 bg-orange-50 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-tight text-orange-700 dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
+                  >
+                    3D
+                  </span>
+                </div>
+
+                <span class="mt-1 block text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                  {{ layout.m2Totales || 0 }} m² · {{ formatDate(layout.createdAt) }}
+                </span>
+              </button>
+
+              <div class="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                <button
+                  type="button"
+                  class="flex h-7 w-7 items-center justify-center rounded-xl text-orange-600 transition-colors duration-200 hover:bg-orange-50 dark:text-orange-300 dark:hover:bg-orange-950/30"
+                  title="Cargar"
+                  aria-label="Cargar layout"
+                  @click="loadSavedLayout(layout)"
+                >
+                  <ExternalLink class="h-3.5 w-3.5" :stroke-width="2.3" />
+                </button>
+
+                <button
+                  type="button"
+                  class="flex h-7 w-7 items-center justify-center rounded-xl text-red-500 transition-colors duration-200 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/30"
+                  title="Eliminar"
+                  aria-label="Eliminar layout"
+                  @click="deleteSavedLayout(layout.id)"
+                >
+                  <Trash2 class="h-3.5 w-3.5" :stroke-width="2.3" />
+                </button>
               </div>
-              <span class="block text-[10px] text-slate-500 dark:text-slate-400 font-medium">
-                {{ layout.m2Totales }} m² • {{ new Date(layout.createdAt).toLocaleDateString() }}
-              </span>
-            </button>
-            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-              <button @click="loadSavedLayout(layout)" class="p-1.5 text-emerald-600 hover:bg-emerald-100 dark:hover:bg-emerald-800/50 rounded-lg transition-colors" title="Cargar">
-                <span class="material-symbols-outlined text-[14px]">open_in_new</span>
-              </button>
-              <button @click="deleteSavedLayout(layout.id)" class="p-1.5 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors" title="Eliminar">
-                <span class="material-symbols-outlined text-[14px]">delete</span>
-              </button>
             </div>
-          </div>
+          </article>
         </div>
-      </div>
+      </section>
     </nav>
 
-    <!-- Bottom: toggles + CTA -->
-    <div class="mt-auto space-y-3 border-t border-slate-200 dark:border-[#21262d] pt-4 shrink-0">
+    <!-- Footer: toggles + CTA -->
+    <footer
+      class="shrink-0 space-y-3 border-t border-slate-200/80 bg-slate-50/80 p-3 dark:border-slate-800/80 dark:bg-slate-900/50"
+    >
+      <!-- Toggles row -->
+      <div class="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          class="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-2 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-600 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:text-slate-950 hover:shadow-md active:scale-[0.98] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:text-slate-100"
+          title="Cambiar idioma"
+          @click="toggleLanguage"
+        >
+          <Languages class="h-3.5 w-3.5" :stroke-width="2.2" />
+          {{ currentLanguage.toUpperCase() }}
+        </button>
 
-      <!-- Language + Dark mode row -->
-      <div class="px-3 flex items-center justify-between gap-3">
-        <!-- Language toggle -->
-        <div class="flex items-center gap-2">
-          <span class="text-[10px] font-bold text-slate-500 dark:text-slate-300 uppercase">ES</span>
-          <button
-            @click="toggleLanguage"
-            class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none"
-            :class="currentLanguage === 'en' ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-600'"
-            title="Cambiar idioma"
-          >
-            <span
-              class="inline-block h-3 w-3 transform rounded-full bg-white transition-transform"
-              :class="currentLanguage === 'en' ? 'translate-x-5' : 'translate-x-1'"
-            />
-          </button>
-          <span class="text-[10px] font-bold text-slate-500 dark:text-slate-300 uppercase">EN</span>
-        </div>
-
-        <!-- Dark mode toggle -->
-        <div class="flex items-center gap-2">
-          <span class="material-symbols-outlined text-[14px] text-slate-400 dark:text-slate-300">light_mode</span>
-          <button
-            @click="toggleDark"
-            class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none"
-            :class="isDark ? 'bg-[#7aaddb]' : 'bg-slate-300'"
-            title="Modo oscuro"
-          >
-            <span
-              class="inline-block h-3 w-3 transform rounded-full bg-white transition-transform"
-              :class="isDark ? 'translate-x-5' : 'translate-x-1'"
-            />
-          </button>
-          <span class="material-symbols-outlined text-[14px] text-slate-400 dark:text-slate-300">dark_mode</span>
-        </div>
+        <button
+          type="button"
+          class="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-2 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-600 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:text-slate-950 hover:shadow-md active:scale-[0.98] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:text-slate-100"
+          :title="themeTitle"
+          @click="cycleTheme"
+        >
+          <component :is="ThemeIcon" class="h-3.5 w-3.5" :stroke-width="2.2" />
+          {{ themeLabel }}
+        </button>
       </div>
 
-      <!-- Ayuda y Tutorial -->
-      <div class="px-3 pt-2 flex flex-col gap-2">
-        <button 
+      <!-- Help links -->
+      <div class="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          class="flex items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-2 py-2.5 text-[10px] font-black uppercase tracking-[0.12em] text-slate-600 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-300 hover:text-orange-700 hover:shadow-md active:scale-[0.98] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:border-orange-900/70 dark:hover:text-orange-300"
           @click="$emit('start-tutorial')"
-          class="w-full flex items-center justify-center gap-2 py-2 rounded-md bg-emerald-100 dark:bg-emerald-900/30 hover:bg-emerald-200 dark:hover:bg-emerald-800/50 transition-colors text-xs font-bold text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
         >
-          <span class="material-symbols-outlined text-[16px]">school</span>
-          Tutorial Interactivo
+          <GraduationCap class="h-3.5 w-3.5" :stroke-width="2.2" />
+          Tutorial
         </button>
 
-        <button 
+        <button
+          type="button"
+          class="flex items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-2 py-2.5 text-[10px] font-black uppercase tracking-[0.12em] text-slate-600 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:text-slate-950 hover:shadow-md active:scale-[0.98] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:text-slate-100"
           @click="$emit('open-manual')"
-          class="w-full flex items-center justify-center gap-2 py-2 rounded-md bg-slate-100 dark:bg-slate-800/50 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-xs font-bold text-slate-600 dark:text-slate-300"
         >
-          <span class="material-symbols-outlined text-[16px]">help</span>
-          Ver Guía Manual
+          <BookOpen class="h-3.5 w-3.5" :stroke-width="2.2" />
+          Manual
         </button>
       </div>
 
-      <!-- Auto-save indicator -->
-      <div class="px-3 flex items-center gap-2 text-[10px] font-bold text-slate-400 dark:text-slate-300 uppercase tracking-tight">
-        <span class="flex h-2 w-2 relative">
-          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-          <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+      <!-- Auto-save chip -->
+      <div
+        class="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/25 dark:text-emerald-300"
+      >
+        <span class="relative flex h-2 w-2">
+          <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/60"></span>
+          <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
         </span>
-        {{ t('autoSaveActive') }}
+
+        <span class="truncate">
+          {{ t('autoSaveActive') }}
+        </span>
+
+        <CheckCircle2 class="ml-auto h-3.5 w-3.5" :stroke-width="2.4" />
       </div>
 
-      <button @click="$emit('new-estimate')" class="w-full bg-gradient-to-br from-primary to-primary-container text-white py-3 rounded-md font-bold text-sm shadow-sm hover:scale-[1.02] hover:opacity-90 transition-all duration-300">
-        {{ t('newEstimate') }}
+      <!-- Primary CTA -->
+      <button
+      type="button"
+      class="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-slate-800 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-300 hover:bg-orange-50 hover:text-orange-700 hover:shadow-md active:scale-[0.98] dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-orange-400 dark:hover:bg-orange-950/30 dark:hover:text-orange-300"
+      @click="$emit('new-estimate')"
+      >
+      <Plus class="h-4 w-4" :stroke-width="2.5" />
+      {{ t('newEstimate') }}
       </button>
-    </div>
+    </footer>
   </aside>
-
-  <!-- Main offset: se ajusta cuando la sidebar se colapsa -->
-  <!-- (el main usa ml-64 en App.vue, lo overrideamos con una clase dinámica via CSS var si se necesita, pero por ahora el collapse es overlay) -->
 </template>

@@ -1,99 +1,236 @@
 <script setup>
-import { computed } from 'vue'
-import { useRecintosStore } from '../stores/recintos'
+import { computed } from 'vue';
+import { useRecintosStore } from '../stores/recintos';
 
-const recintosStore = useRecintosStore()
+const recintosStore = useRecintosStore();
 
-const activeRecinto = computed(() => recintosStore.activeRecinto)
+const activeRecinto = computed(() => recintosStore.activeRecinto);
+
+const canCloneToCurrentFloor = computed(() => {
+  if (!activeRecinto.value) return false;
+
+  return (
+    activeRecinto.value.piso === recintosStore.currentFloor - 1 &&
+    recintosStore.currentFloor <= 3
+  );
+});
+
+const areaTotal = computed(() => {
+  if (!activeRecinto.value) return 0;
+
+  return activeRecinto.value.dimensions.w * activeRecinto.value.dimensions.l;
+});
 
 const formatTipo = (tipo) => {
-  if (tipo === 'habitacion') return 'Habitación'
-  if (tipo === 'banio') return 'Baño'
-  if (tipo === 'areaComun') return 'Área Común'
-  if (tipo === 'pasillo') return 'Pasillo'
-  return tipo
-}
+  if (tipo === 'habitacion') return 'Habitación';
+  if (tipo === 'banio') return 'Baño';
+  if (tipo === 'areaComun') return 'Área común';
+  if (tipo === 'pasillo') return 'Pasillo';
+
+  return tipo;
+};
 </script>
 
 <template>
   <transition
     enter-active-class="transition-all duration-300 ease-out"
-    enter-from-class="translate-x-full opacity-0"
-    enter-to-class="translate-x-0 opacity-100"
+    enter-from-class="translate-x-6 opacity-0 scale-[0.98]"
+    enter-to-class="translate-x-0 opacity-100 scale-100"
     leave-active-class="transition-all duration-200 ease-in"
-    leave-from-class="translate-x-0 opacity-100"
-    leave-to-class="translate-x-full opacity-0"
+    leave-from-class="translate-x-0 opacity-100 scale-100"
+    leave-to-class="translate-x-6 opacity-0 scale-[0.98]"
   >
-    <div
+    <aside
       v-if="activeRecinto"
-      class="absolute right-4 top-[70px] w-80 bg-white/90 dark:bg-[#0d1117]/90 backdrop-blur-xl border border-slate-200 dark:border-slate-800/80 rounded-2xl shadow-2xl p-6 z-50 flex flex-col gap-6"
+      class="absolute right-4 top-[70px] z-50 flex w-80 flex-col overflow-hidden rounded-3xl border border-slate-200/90 bg-white/95 shadow-2xl shadow-slate-950/15 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/40"
     >
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-primary/10 text-primary">
-            <span class="material-symbols-outlined text-sm">straighten</span>
-          </div>
-          <div>
-            <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 font-headline tracking-tight leading-none">
-              Propiedades
-            </h3>
-            <span class="text-[10px] text-slate-500 font-medium uppercase tracking-widest mt-1 block">
-              {{ formatTipo(activeRecinto.tipo) }} • Piso {{ activeRecinto.piso || 1 }}
+      <!-- Top accent -->
+      <div class="h-1 w-full bg-gradient-to-r from-orange-400 via-orange-500 to-slate-900 dark:to-orange-300"></div>
+
+      <!-- Header -->
+      <header
+        class="flex items-start justify-between gap-3 border-b border-slate-200/80 bg-slate-50/80 px-4 py-4 dark:border-slate-800/80 dark:bg-slate-900/60"
+      >
+        <div class="flex min-w-0 items-start gap-3">
+          <div
+            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-orange-200 bg-orange-50 text-orange-600 shadow-sm dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
+          >
+            <span class="material-symbols-outlined text-[22px]">
+              straighten
             </span>
           </div>
-        </div>
-        <div class="flex items-center gap-2">
-          <button
-            v-if="activeRecinto.piso === recintosStore.currentFloor - 1 && recintosStore.currentFloor <= 3"
-            @click="recintosStore.cloneToCurrentFloor(activeRecinto.id)"
-            class="h-8 px-3 flex items-center justify-center rounded-full bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 text-blue-600 transition-colors text-xs font-bold gap-1"
-            title="Clonar a este piso"
-          >
-            <span class="material-symbols-outlined text-[14px]">content_copy</span>
-            Clonar al Piso {{ recintosStore.currentFloor }}
-          </button>
-          <button
-            @click="recintosStore.deleteRecinto(activeRecinto.id)"
-            class="w-8 h-8 flex items-center justify-center rounded-full bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 text-red-500 transition-colors"
-            title="Eliminar recinto"
-          >
-            <span class="material-symbols-outlined text-[16px]">delete</span>
-          </button>
-          <button
-            @click="recintosStore.clearActiveRecinto()"
-            class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-colors"
-          >
-            <span class="material-symbols-outlined text-[18px]">close</span>
-          </button>
-        </div>
-      </div>
 
-      <div class="grid grid-cols-2 gap-3">
-        <div class="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-700/50">
-          <span class="text-[10px] text-slate-500 font-bold uppercase tracking-widest block mb-1">Ancho (X)</span>
-          <span class="text-sm font-black text-slate-700 dark:text-slate-200">{{ activeRecinto.dimensions.w.toFixed(2) }} m</span>
-        </div>
-        <div class="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-700/50">
-          <span class="text-[10px] text-slate-500 font-bold uppercase tracking-widest block mb-1">Largo (Z)</span>
-          <span class="text-sm font-black text-slate-700 dark:text-slate-200">{{ activeRecinto.dimensions.l.toFixed(2) }} m</span>
-        </div>
-        <div class="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-700/50 col-span-2 flex justify-between items-center">
-          <div>
-            <span class="text-[10px] text-slate-500 font-bold uppercase tracking-widest block mb-1">Área Total</span>
-            <span class="text-lg font-black text-primary">{{ (activeRecinto.dimensions.w * activeRecinto.dimensions.l).toFixed(2) }} m²</span>
+          <div class="min-w-0">
+            <p
+              class="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
+            >
+              Inspector
+            </p>
+
+            <h3 class="mt-0.5 truncate text-base font-black tracking-tight text-slate-950 dark:text-slate-100">
+              Propiedades
+            </h3>
+
+            <p class="mt-1 truncate text-[11px] font-semibold uppercase tracking-tight text-slate-500 dark:text-slate-400">
+              {{ formatTipo(activeRecinto.tipo) }} · Piso {{ activeRecinto.piso || 1 }}
+            </p>
           </div>
-          <span class="material-symbols-outlined text-primary/20 text-3xl">aspect_ratio</span>
         </div>
-      </div>
-      
-      <div class="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-900/30">
-        <div class="flex items-start gap-2">
-          <span class="material-symbols-outlined text-blue-500 text-[16px] mt-0.5">tips_and_updates</span>
-          <p class="text-[10px] text-blue-700 dark:text-blue-300 font-medium leading-relaxed">
-            <strong>Edición Libre 3D:</strong> Utiliza las flechas rojas y azules directamente sobre la habitación en el plano para estirarla interactivamente.
+
+        <button
+          type="button"
+          class="group flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-transparent text-slate-400 transition-all duration-200 hover:border-slate-300 hover:bg-white hover:text-slate-950 active:scale-95 dark:text-slate-500 dark:hover:border-slate-700 dark:hover:bg-slate-900 dark:hover:text-slate-100"
+          aria-label="Cerrar panel de propiedades"
+          @click="recintosStore.clearActiveRecinto()"
+        >
+          <span
+            class="material-symbols-outlined text-[20px] transition-transform duration-200 group-hover:rotate-90"
+          >
+            close
+          </span>
+        </button>
+      </header>
+
+      <!-- Body -->
+      <div class="space-y-4 p-4">
+        <!-- Actions -->
+        <section class="grid gap-2" :class="canCloneToCurrentFloor ? 'grid-cols-2' : 'grid-cols-1'">
+          <button
+            v-if="canCloneToCurrentFloor"
+            type="button"
+            class="inline-flex items-center justify-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-[10px] font-black uppercase tracking-[0.12em] text-blue-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-100 hover:shadow-md active:scale-[0.98] dark:border-blue-900/70 dark:bg-blue-950/25 dark:text-blue-300 dark:hover:bg-blue-950/40"
+            title="Clonar a este piso"
+            @click="recintosStore.cloneToCurrentFloor(activeRecinto.id)"
+          >
+            <span class="material-symbols-outlined text-[16px]">
+              content_copy
+            </span>
+            Piso {{ recintosStore.currentFloor }}
+          </button>
+
+          <button
+            type="button"
+            class="inline-flex items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-3 py-2.5 text-[10px] font-black uppercase tracking-[0.12em] text-red-600 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-red-300 hover:bg-red-100 hover:shadow-md active:scale-[0.98] dark:border-red-900/70 dark:bg-red-950/25 dark:text-red-300 dark:hover:bg-red-950/40"
+            title="Eliminar recinto"
+            @click="recintosStore.deleteRecinto(activeRecinto.id)"
+          >
+            <span class="material-symbols-outlined text-[16px]">
+              delete
+            </span>
+            Eliminar
+          </button>
+        </section>
+
+        <!-- Dimensions -->
+        <section class="space-y-3">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <p
+                class="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
+              >
+                Dimensiones
+              </p>
+              <p class="mt-0.5 text-xs font-medium text-slate-500 dark:text-slate-400">
+                Medidas actuales del recinto seleccionado.
+              </p>
+            </div>
+
+            <span
+              class="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-tight text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400"
+            >
+              m
+            </span>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div
+              class="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900/60"
+            >
+              <span
+                class="block text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500"
+              >
+                Ancho (X)
+              </span>
+
+              <span class="mt-1 block font-mono text-lg font-black text-slate-950 dark:text-slate-100">
+                {{ activeRecinto.dimensions.w.toFixed(2) }}
+                <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500">
+                  m
+                </span>
+              </span>
+            </div>
+
+            <div
+              class="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900/60"
+            >
+              <span
+                class="block text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500"
+              >
+                Largo (Z)
+              </span>
+
+              <span class="mt-1 block font-mono text-lg font-black text-slate-950 dark:text-slate-100">
+                {{ activeRecinto.dimensions.l.toFixed(2) }}
+                <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500">
+                  m
+                </span>
+              </span>
+            </div>
+          </div>
+
+          <!-- Area -->
+          <div
+            class="relative overflow-hidden rounded-3xl border border-orange-200 bg-orange-50/70 p-4 shadow-sm dark:border-orange-900/60 dark:bg-orange-950/20"
+          >
+            <div
+              class="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full bg-orange-400/20 blur-2xl"
+            ></div>
+
+            <div class="relative z-10 flex items-center justify-between gap-3">
+              <div>
+                <span
+                  class="block text-[10px] font-bold uppercase tracking-[0.14em] text-orange-700 dark:text-orange-300"
+                >
+                  Área total
+                </span>
+
+                <span class="mt-1 block font-mono text-2xl font-black tracking-tight text-orange-900 dark:text-orange-100">
+                  {{ areaTotal.toFixed(2) }}
+                  <span class="text-xs font-bold text-orange-600 dark:text-orange-300">
+                    m²
+                  </span>
+                </span>
+              </div>
+
+              <div
+                class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-orange-200 bg-white text-orange-500 shadow-sm dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-300"
+              >
+                <span class="material-symbols-outlined text-[27px]">
+                  aspect_ratio
+                </span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Tip -->
+        <section
+          class="flex items-start gap-3 rounded-2xl border border-blue-200 bg-blue-50/80 p-3 dark:border-blue-900/70 dark:bg-blue-950/25"
+        >
+          <div
+            class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-blue-200 bg-white text-blue-600 shadow-sm dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300"
+          >
+            <span class="material-symbols-outlined text-[18px]">
+              tips_and_updates
+            </span>
+          </div>
+
+          <p class="text-xs font-medium leading-relaxed text-blue-800 dark:text-blue-200">
+            <strong class="font-black">Edición libre 3D:</strong>
+            utiliza las flechas rojas y azules directamente sobre la habitación en el plano para estirarla interactivamente.
           </p>
-        </div>
+        </section>
       </div>
-    </div>
+    </aside>
   </transition>
 </template>
