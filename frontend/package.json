@@ -30,7 +30,6 @@
     "vue-sonner": "^2.0.9"
   },
   "devDependencies": {
-    "@cypress/schematic": "^5.0.0",
     "@vitejs/plugin-vue": "^6.0.5",
     "autoprefixer": "^10.4.27",
     "cypress": "^15.13.0",
