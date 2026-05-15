@@ -1,19 +1,26 @@
-import { computed, ref } from 'vue'
+import { computed, ref, unref } from 'vue'
 import { useRecintosStore } from '../stores/recintos'
 
-const GRID_STEP = 0.1   // Fine-grained snap for fluid feel
 const EPS = 1e-6
 
-function snap(value) {
-  return Math.round(value / GRID_STEP) * GRID_STEP
-}
+const DEFAULT_FINE_STEP = 0.1
 
 function overlaps(a, b) {
   return a.x < b.x + b.w - EPS && a.x + a.w > b.x + EPS && a.z < b.z + b.l - EPS && a.z + a.l > b.z + EPS
 }
 
-export function useInteractiveEditor() {
+/**
+ * @param {{ snapStep?: import('vue').Ref<number> | number | import('vue').ComputedRef<number> }} [opts]
+ */
+export function useInteractiveEditor(opts = {}) {
   const store = useRecintosStore()
+  const snapStepSource = opts.snapStep ?? ref(DEFAULT_FINE_STEP)
+
+  const snap = (value) => {
+    const step = Number(unref(snapStepSource))
+    const s = Number.isFinite(step) && step > 0 ? step : DEFAULT_FINE_STEP
+    return Math.round(value / s) * s
+  }
   const selectedRecintoId = ref(null)
   const activeMode = ref(null)
   const dragOffset = ref({ x: 0, z: 0 })
@@ -257,7 +264,7 @@ export function useInteractiveEditor() {
   }
 
   return {
-    GRID_STEP,
+    GRID_STEP: DEFAULT_FINE_STEP,
     selectedRecintoId,
     selectedRecinto,
     activeMode,

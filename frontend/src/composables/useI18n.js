@@ -81,8 +81,8 @@ const translations = {
 
     // Status messages
     safeSpace: "Espacio OK",
-    limitedSpace: "⚠️ Espacio limitado",
-    noSpace: "❌ Sin espacio",
+    limitedSpace: "Espacio limitado",
+    noSpace: "Sin espacio",
     tokensFree: "m² libres",
     tokensExcess: "m² en exceso",
 
@@ -100,7 +100,7 @@ const translations = {
     supportPortal: "Portal de Soporte",
 
     // Save Dialog
-    saveLayoutTitle: "💾 Guardar Layout",
+    saveLayoutTitle: "Guardar Layout",
     layoutNameLabel: "Nombre del Layout",
     layoutNamePlaceholder: "Ej: Casa Familiar 3 Pisos",
 
@@ -213,8 +213,8 @@ const translations = {
 
     // Status messages
     safeSpace: "Space OK",
-    limitedSpace: "⚠️ Limited space",
-    noSpace: "❌ No space",
+    limitedSpace: "Limited space",
+    noSpace: "No space",
     tokensFree: "m² free",
     tokensExcess: "m² excess",
 
@@ -232,7 +232,7 @@ const translations = {
     supportPortal: "Support Portal",
 
     // Save Dialog
-    saveLayoutTitle: "💾 Save Layout",
+    saveLayoutTitle: "Save Layout",
     layoutNameLabel: "Layout Name",
     layoutNamePlaceholder: "e.g., Family House 3 Floors",
 
