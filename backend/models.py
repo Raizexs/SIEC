@@ -1,5 +1,5 @@
-from sqlalchemy import Column, Integer, String, Boolean, Numeric, ForeignKey, DateTime, Text, JSON, ARRAY, Index, BigInteger
-from sqlalchemy.dialects.postgresql import UUID, JSONB, INET
+from sqlalchemy import Column, Integer, String, Boolean, Numeric, ForeignKey, DateTime, Text, JSON, Index, BigInteger
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from database import Base
 import uuid
@@ -112,7 +112,7 @@ class AppUser(Base):
     company = Column(Text)
     avatar_url = Column(Text)
     role = Column(Text, nullable=False, default="architect")
-    preferences = Column(JSONB, nullable=False, default=dict)
+    preferences = Column(JSON, nullable=False, default=dict)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -126,8 +126,8 @@ class Proyecto(Base):
     description = Column(Text)
     cliente = Column(Text)
     ubicacion = Column(Text)
-    tags = Column(ARRAY(Text), default=list)
-    payload = Column(JSONB, nullable=False, default=dict)
+    tags = Column(JSON, default=list)
+    payload = Column(JSON, nullable=False, default=dict)
     thumbnail_url = Column(Text)
     estimated_cost = Column(Numeric(14, 2))
     m2_totales = Column(Integer)
@@ -157,7 +157,7 @@ class ProyectoVersion(Base):
     proyecto_id = Column(UUID(as_uuid=True), ForeignKey("proyecto.id", ondelete="CASCADE"), nullable=False)
     version_number = Column(Integer, nullable=False)
     author_id = Column(UUID(as_uuid=True), nullable=False)
-    payload = Column(JSONB, nullable=False)
+    payload = Column(JSON, nullable=False)
     summary = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -170,7 +170,7 @@ class ProyectoComentario(Base):
     parent_id = Column(UUID(as_uuid=True), ForeignKey("proyecto_comentario.id", ondelete="CASCADE"))
     author_id = Column(UUID(as_uuid=True), nullable=False)
     body = Column(Text, nullable=False)
-    anchor = Column(JSONB)
+    anchor = Column(JSON)
     resolved = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -184,8 +184,8 @@ class Auditoria(Base):
     action = Column(Text, nullable=False)
     entity_type = Column(Text)
     entity_id = Column(Text)
-    extra = Column("metadata", JSONB, default=dict)
-    ip_address = Column(INET)
+    extra = Column("metadata", JSON, default=dict)
+    ip_address = Column(Text)
     user_agent = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -198,6 +198,6 @@ class Notificacion(Base):
     type = Column(Text, nullable=False)
     title = Column(Text, nullable=False)
     body = Column(Text)
-    payload = Column(JSONB, default=dict)
+    payload = Column(JSON, default=dict)
     read_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now())

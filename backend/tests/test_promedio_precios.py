@@ -101,11 +101,11 @@ def test_promedio_precios_logic():
     items = response.desglose[0].items
     assert len(items) == 3
     
-    # Insumo 1: Cemento (3 tiendas)
-    # 50 sacos * 5000
+    # Insumo 1: Cemento (3 tiendas) — factor bruto 0.5/m2; main aplica corrección obra gruesa (*0.1 volumen losa)
+    # y conversión kg→sacos de 25kg (/25): 0.5 * 0.1 / 25 * 100 m2 = 0.2 sacos * 5000
     assert items[0].insumo == "Cemento Especial"
     assert items[0].precio_unitario == 5000.0
-    assert items[0].subtotal == 250000.0
+    assert items[0].subtotal == 1000.0
     
     # Insumo 2: Ladrillo (1 tienda)
     # 1000 unidades * factor pérdida 1.05 * 1200
@@ -119,7 +119,7 @@ def test_promedio_precios_logic():
     assert items[2].precio_unitario is None
     assert items[2].subtotal is None
     
-    # Totales Finales
-    assert response.costo_total == 1510000.0
+    # Totales Finales (1000 cemento + 1260000 ladrillo)
+    assert response.costo_total == 1261000.0
     assert response.fecha_precios == dt1.isoformat()
-    assert response.desglose[0].subtotal_categoria == 1510000.0
+    assert response.desglose[0].subtotal_categoria == 1261000.0
