@@ -1,297 +1,226 @@
-# 🏗️ SIEC - Sistema Inteligente de Estimación de Costos
+# SIEC — Intelligent Construction Estimation System
 
-</div>
+![Vue](https://img.shields.io/badge/Vue-3.x-42b883?logo=vue.js&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-Frontend-646CFF?logo=vite&logoColor=white)
+![Three.js](https://img.shields.io/badge/Three.js-3D-black?logo=three.js&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-Backend-009688?logo=fastapi&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-4169E1?logo=postgresql&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)
+![Status](https://img.shields.io/badge/Status-Beta-orange)
+![License](https://img.shields.io/badge/License-All%20Rights%20Reserved-lightgrey)
 
-![Three.js](https://img.shields.io/badge/Three.js-000000?style=for-the-badge&logo=three.js&logoColor=white)
-![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
-![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
-![Status](https://img.shields.io/badge/Status-In%20Development-warning?style=for-the-badge)
-![Scrum](https://img.shields.io/badge/Methodology-Scrum-blue?style=for-the-badge&logo=scrumalliance&logoColor=white)
-![Jira Tracking](https://img.shields.io/badge/Tracked_by-Jira-0052CC?style=for-the-badge&logo=jira&logoColor=white)
+SIEC is a web platform for intelligent construction estimation, 2D/3D spatial planning, material analysis, layout management, and project portfolio analytics.
 
-**Sistema orientado a la estimación automática de costos de construcción de viviendas basado en métricas por metro cuadrado y configuración estructural.**
+The platform is designed to help construction, architecture, and engineering teams model spaces, validate available area, visualize projects in real time, and support cost estimation workflows through a modern SaaS-style interface.
 
----
+## Table of Contents
 
-## 🎯 Sobre el Proyecto
+- [Overview](#overview)
+- [Core Features](#core-features)
+- [Product Modules](#product-modules)
+- [Technology Stack](#technology-stack)
+- [Architecture](#architecture)
+- [Repository Structure](#repository-structure)
+- [Quick Start](#quick-start)
+- [Project Status](#project-status)
+- [Roadmap](#roadmap)
+- [Team](#team)
+- [License](#license)
 
-**SIEC** es un sistema inteligente desarrollado para empresas constructoras que automatiza el desglose y cálculo de los insumos requeridos para la edificación de viviendas.
+## Overview
 
-> 🎓 **Contexto Académico:** Este proyecto está siendo desarrollado para la asignatura de **Ingeniería de Software II**.
+SIEC combines a 2D room editor, a real-time 3D viewer, area validation, material configuration, project dashboards, and analytics into a single construction estimation workflow.
 
-### 🔍 El Problema
+The system focuses on turning early-stage spatial decisions into measurable project data. Users can create rooms, apply base layouts, review available area, visualize the project in 3D, and prepare the foundation for cost estimation and technical reporting.
 
-La estimación de costos y materiales en proyectos de construcción residencial a menudo implica:
-- Procesos manuales propensos a errores en el cálculo de insumos.
-- Dificultad para visualizar rápidamente cómo los cambios estructurales o de diseño impactan en los requerimientos.
-- Tiempos de respuesta lentos para la generación de presupuestos iniciales precisos.
+## Core Features
 
-### ✨ La Solución
+### Design and Simulation
 
-Un **sistema interactivo** que permite:
-- ✅ **Configuración dinámica:** Ajuste de metros cuadrados totales, número de habitaciones (simples, dobles, triples), baños, áreas comunes y tipo de material estructural.
-- ✅ **Cálculo automático:** Determinación precisa de los insumos base como **Fierro, Cemento, Agua, Cableado, Tuberías y Mano de Obra**.
-- ✅ **Visualización 3D Web:** Una interfaz interactiva basada en **Three.js** (WebGL nativo) que permite pre-visualización instantánea sin necesidad de plugins externos.
-- ✅ **Reglas de negocio robustas:** Motor de cálculo paramétrico y validación de reglas constructivas en el backend.
-- ✅ **Optimización de Recursos:** Sistema de validación espacial por tokens para asegurar la viabilidad del diseño.
+- 2D room editor for spatial planning.
+- Real-time 3D visualization powered by WebGL.
+- Room creation, resizing, positioning, and layout management.
+- Base templates and saved layouts.
+- Surface usage validation and available area tracking.
 
----
+### Estimation and Analysis
 
-## 📐 Arquitectura Base
+- Material-based project configuration.
+- Construction cost estimation workflow.
+- Budget-oriented project breakdowns.
+- Project dashboard for saved simulations.
+- Portfolio analytics for cost, materiality, risks, and activity.
 
-El sistema está planteado con una arquitectura moderna que separa la interfaz de los robustos motores de reglas:
+### Product Experience
 
-* **Frontend:** Interfaz web SPA (Single Page Application) desarrollada con **JavaScript/TypeScript** y **Three.js**, optimizada para visualización 3D procedimental en tiempo real.
-* **Backend (Aplicación):** 
-  * Motor de cálculo paramétrico encargado de las matemáticas del proyecto.
-  * Motor de reglas constructivas que valida las coherencias estructurales.
-* **Base de Datos:** Estructura relacional preparada para manejar métricas base y precios actualizables.
+- Premium dashboard and workspace interface.
+- Product preferences for editor, estimation, and export behavior.
+- Dark mode support.
+- Authentication and account settings when configured.
+- Modular frontend architecture based on views, components, stores, and composables.
 
----
+## Product Modules
 
-## ⚙️ Mecánicas Core
+| Module | Purpose |
+| --- | --- |
+| Workspace | Main 2D/3D construction simulation environment. |
+| Dashboard | Project access, overview, and quick project management. |
+| Analytics | Portfolio-level insights, cost distribution, risks, and activity. |
+| Settings | Account, security, product preferences, integrations, and plan overview. |
+| Backend API | Business logic, data access, and service integration layer. |
+| Database | Relational persistence for structured project and system data. |
+| Scraper | Price collection and normalization module, when enabled. |
 
-El sistema implementa lógicas avanzadas para garantizar una estimación precisa y una experiencia interactiva:
+## Technology Stack
 
-*   **Sistema de Tokens:** Cada m² equivale a 1 token. Los recintos (baños, habitaciones) consumen tokens, validando que el diseño sea viable en el espacio total.
-*   **Matriz de Rendimiento:** El motor de cálculo utiliza factores dinámicos desde la base de datos (ej. sacos de cemento por m² de albañilería) para evitar valores fijos en el código.
-*   **Web Scraping de Precios:** Un proceso automatizado extrae precios reales cada 24 horas de tiendas retail (Sodimac, Easy, Construmart) centradas en la Región de Valparaíso.
+| Area | Technology |
+| --- | --- |
+| Frontend | Vue 3, Vite, TailwindCSS |
+| State Management | Pinia |
+| Routing | Vue Router |
+| 3D Rendering | Three.js |
+| Backend | FastAPI |
+| Database | PostgreSQL |
+| Authentication | Supabase |
+| Infrastructure | Docker, Vercel, Railway |
+| UI Icons | Lucide Icons |
 
----
-
-## ⚡ Desempeño y RNF
-
-*   **Renderizado 3D:** Actualización del modelo en Three.js en **< 20 segundos**.
-*   **Velocidad de Respuesta:** Cálculos y desgloses de la API en **< 2.5 segundos**.
-*   **Caché Local:** Historial de simulaciones (máximo 3) accesible en **< 500ms**.
-
----
-
-## 🛤️ Líneas de Mejora y Futuro (Roadmap)
-
-Con miras a convertir la aplicación en una solución de nivel empresarial, se planean las siguientes evoluciones:
-
-- 🛠️ **Técnicas:** Integración con APIs de proveedores para actualización de tarifas de materiales, Simulación de escenarios y Exportación a sistemas ERP.
-- 🏛️ **Arquitectónicas:** Arquitectura orientada a dominio (DDD) y extracción del motor de cálculo en un microservicio escalable e independiente.
-- 💼 **De Negocio:** Modelo SaaS (Software as a Service) para alojar a múltiples firmas constructoras, Comparación histórica de presupuestos y Control automatizado de desviaciones de material.
-
----
-
-## 🚀 Cómo Ejecutar el Proyecto (Local)
-
-El proyecto actual se encuentra dockerizado para facilitar el despliegue de todos los servicios simultáneamente.
-
-### Prerrequisitos
-- [Docker](https://www.docker.com/) instalado y ejecutándose
-- Git
-
-### Pasos de Ejecución
-1. Clona este repositorio.
-2. Abre una terminal en la raíz del proyecto.
-3. Ejecuta el siguiente comando para levantar los servicios:
-   ```bash
-   docker-compose up --build
-   ```
-
-### 🔌 Puertos y Servicios
-Una vez levantado, los servicios estarán disponibles en los siguientes puertos locales configurables desde el archivo `docker-compose.yml`:
-- **Frontend (Vue 3 / Vite):** `http://localhost:5173`
-- **Backend (FastAPI):** `http://localhost:8000` (Swagger UI: `http://localhost:8000/docs`)
-- **Base de Datos (PostgreSQL):** Puerto `5432`
-
----
-
-## 📂 Estructura del Proyecto Actual
+## Architecture
 
 ```text
-├── 📁 backend
-│   ├── 🐍 database.py
-│   ├── 🐍 main.py
-│   ├── 🐍 models.py
-│   └── 📄 requirements.txt
-├── 📁 database
-│   ├── 📁 migrations
-│   │   ├── 📄 001_create_material_estructural.sql
-│   │   └── 📄 002_create_configuracion_simulacion.sql
-│   └── 📁 seeds
-│       ├── 📄 001_seed_material_estructural.sql
-│       ├── 📄 001_verify_material_estructural.sql
-│       ├── 📄 002_seed_configuracion_simulacion.sql
-│       └── 📄 002_verify_configuracion_simulacion.sql
-├── 📁 docs
-│   └── 📝 context.md
-├── 📁 frontend
-│   ├── 📁 cypress
-│   │   ├── 📁 e2e
-│   │   │   └── 📄 stress-test-3d-renderer.cy.js
-│   │   └── 📁 support
-│   │       ├── 📄 e2e.js
-│   │       └── 📄 performance-monitor.js
-│   ├── 📁 public
-│   │   ├── 🖼️ favicon.svg
-│   │   └── 🖼️ icons.svg
-│   ├── 📁 src
-│   │   ├── 📁 assets
-│   │   │   ├── 🖼️ hero.png
-│   │   │   ├── 🖼️ vite.svg
-│   │   │   └── 🖼️ vue.svg
-│   │   ├── 📁 components
-│   │   │   ├── 📄 ConfigurationPanel.vue
-│   │   │   ├── 📄 HelloWorld.vue
-│   │   │   ├── 📄 MaterialSelector.vue
-│   │   │   ├── 📄 MaterialsPanel.vue
-│   │   │   ├── 📄 MetricsPanel.vue
-│   │   │   ├── 📄 RoomEditor2D.vue
-│   │   │   ├── 📄 SaveLayoutDialog.vue
-│   │   │   ├── 📄 Scene3D.vue
-│   │   │   ├── 📄 Sidebar.vue
-│   │   │   └── 📄 TopNavBar.vue
-│   │   ├── 📁 composables
-│   │   │   ├── 📁 __tests__
-│   │   │   │   └── 📄 useTokenCounter.spec.js
-│   │   │   ├── 📄 useI18n.js
-│   │   │   ├── 📄 useInteractiveEditor.js
-│   │   │   ├── 📄 useLayoutManager.js
-│   │   │   ├── 📄 useTokenCounter.js
-│   │   │   ├── 📄 useTopologyComputed.js
-│   │   │   └── 📄 useTopologyExtractor.js
-│   │   ├── 📁 stores
-│   │   │   └── 📄 recintos.js
-│   │   ├── 📁 utils
-│   │   │   ├── 📁 __tests__
-│   │   │   │   └── 📄 tokenMath.spec.js
-│   │   │   └── 📄 tokenMath.js
-│   │   ├── 📄 App.vue
-│   │   ├── 📄 main.js
-│   │   └── 🎨 style.css
-│   ├── ⚙️ .gitignore
-│   ├── 📝 README.md
-│   ├── 📄 cypress.config.js
-│   ├── 🌐 index.html
-│   ├── ⚙️ package-lock.json
-│   ├── ⚙️ package.json
-│   ├── 📄 postcss.config.js
-│   ├── 📄 tailwind.config.js
-│   └── 📄 vite.config.js
-├── 📁 poc
-│   ├── 📁 __tests__
-│   │   └── 📄 poc-logic.test.js
-│   ├── 🌐 house-generator-poc.html
-│   ├── ⚙️ package-lock.json
-│   ├── ⚙️ package.json
-│   └── 📄 poc-logic.js
-├── ⚙️ .gitignore
-├── 📝 README.md
-├── ⚙️ docker-compose.yml
-└── ⚙️ package.json
+Frontend Vue/Vite
+    -> FastAPI Backend
+        -> PostgreSQL
+
+Frontend Vue/Vite
+    -> Supabase Auth, when configured
+
+Scraper
+    -> PostgreSQL
 ```
 
----
+SIEC follows a modular architecture where the frontend handles the interactive editor, visualization, dashboard, analytics, and settings experience. The backend is responsible for API logic and data workflows. PostgreSQL supports structured persistence, while the scraper module can be used to prepare or update external pricing data.
 
-## 🛠️ Tecnologías
+## Repository Structure
+
+```text
+SIEC/
+├── frontend/
+├── backend/
+├── database/
+├── scraper/
+├── docs/
+├── poc/
+├── docker-compose.yml
+├── railway.toml
+├── vercel.json
+├── package.json
+└── README.md
+```
+
+## Quick Start
+
+### Clone the repository
+
+```bash
+git clone https://github.com/Raizexs/SIEC.git
+cd SIEC
+```
+
+### Run with Docker
+
+```bash
+docker-compose up --build
+```
+
+### Run the frontend manually
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### Run the backend manually
+
+```bash
+cd backend
+pip install -r requirements.txt
+uvicorn main:app --reload
+```
+
+Environment configuration depends on the module being executed.
+
+## Project Status
+
+SIEC is currently in beta / advanced prototype stage.
+
+The main product experience, including the workspace, layout flow, visual editor, project dashboard, analytics, and settings modules, is under active development. Some integrations, export workflows, and external pricing sources may still be evolving.
+
+## Roadmap
+
+### Short Term
+
+- Connect product preferences directly to the editor and estimation flow.
+- Improve PDF, IFC, and GLB export behavior.
+- Refine base templates and saved layout management.
+- Strengthen visual QA across dark and light modes.
+
+### Medium Term
+
+- Integrate real pricing APIs and structured cost sources.
+- Add customizable commercial reports.
+- Improve version history and project recovery.
+- Expand project analytics and risk detection.
+
+### Long Term
+
+- Advanced BIM integration.
+- Multi-user collaboration.
+- Cloud synchronization.
+- Predictive cost analysis.
+
+## Team
 
 <table>
-<tr>
-<td align="center" width="20%">
-<img src="https://raw.githubusercontent.com/mrdoob/three.js/master/files/icon.svg" width="48" height="48" alt="Three.js" /><br>
-<b>Three.js</b><br>
-<sub>Motor 3D WebGL</sub>
-</td>
-<td align="center" width="20%">
-<img src="https://upload.wikimedia.org/wikipedia/commons/6/6a/JavaScript-logo.png" width="48" height="48" alt="JavaScript" /><br>
-<b>JavaScript / TS</b><br>
-<sub>Lógica Frontend</sub>
-</td>
-<td align="center" width="20%">
-<img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/Postgresql_elephant.svg/960px-Postgresql_elephant.svg.png" width="48" height="48" alt="DB" /><br>
-<b>Postgres / MySQL</b><br>
-<sub>Almacenamiento Relacional</sub>
-</td>
-<td align="center" width="20%">
-<img src="https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Octicons-mark-github.svg/500px-Octicons-mark-github.svg.png" width="48" height="48" alt="GitHub" /><br>
-<b>GitHub</b><br>
-<sub>Control de Versiones</sub>
-</td>
-<td align="center" width="20%">
-<img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Jira_Logo.svg/3840px-Jira_Logo.svg.png" width="48" height="48" alt="Jira" /><br>
-<b>Jira</b><br>
-<sub>Gestión Ágil (Scrum)</sub>
-</td>
-</tr>
+  <tr>
+    <td align="center" width="20%">
+      <img src="https://avatars.githubusercontent.com/u/105559567?v=4" width="96" height="96" style="border-radius:50%" alt="Andres Tapia" /><br>
+      <strong>Andres Tapia</strong><br>
+      <sub>Product Manager</sub><br>
+      <a href="mailto:a.tapialpez@uandresbello.edu">Email</a>
+    </td>
+    <td align="center" width="20%">
+      <img src="https://avatars.githubusercontent.com/u/128178198?v=4" width="96" height="96" style="border-radius:50%" alt="Lukas Flores" /><br>
+      <strong>Lukas Flores</strong><br>
+      <sub>Technical Lead</sub><br>
+      <a href="mailto:l.floreszuiga@uandresbello.edu">Email</a>
+    </td>
+    <td align="center" width="20%">
+      <img src="https://avatars.githubusercontent.com/u/190417123?v=4" width="96" height="96" style="border-radius:50%" alt="Gonzalo Jara" /><br>
+      <strong>Gonzalo Jara</strong><br>
+      <sub>Scrum Master</sub><br>
+      <a href="mailto:g.jaravrsalovic@uandresbello.edu">Email</a>
+    </td>
+    <td align="center" width="20%">
+      <img src="https://avatars.githubusercontent.com/u/128172645?v=4" width="96" height="96" style="border-radius:50%" alt="Felipe Figueroa" /><br>
+      <strong>Felipe Figueroa</strong><br>
+      <sub>Developer</sub><br>
+      <a href="mailto:f.figueroadaz2@uandresbello.edu">Email</a>
+    </td>
+    <td align="center" width="20%">
+      <img src="https://avatars.githubusercontent.com/u/185566076?v=4" width="96" height="96" style="border-radius:50%" alt="Fernando Salazar" /><br>
+      <strong>Fernando Salazar</strong><br>
+      <sub>Developer</sub><br>
+      <a href="mailto:f.salazarcartes@uandresbello.edu">Email</a>
+    </td>
+  </tr>
 </table>
 
-## 👥 Equipo
+## License
 
-<table>
-<tr>
+All rights reserved.
 
-<td align="center" width="20%">
-<img src="https://avatars.githubusercontent.com/u/105559567?v=4" width="100" height="100" style="border-radius:50%" alt="Andres Tapia" /><br>
-<b>Andres Tapia</b><br>
-<sub>Product Manager</sub><br>
-<a href="mailto:a.tapialpez@uandresbello.edu">📧 Email</a>
-</td>
+This project is proprietary. No part of this repository may be copied, modified, distributed, sublicensed, or used for commercial purposes without prior written permission from the project owners.
 
-<td align="center" width="20%">
-<img src="https://avatars.githubusercontent.com/u/128178198?v=4" width="100" height="100" style="border-radius:50%" alt="Lukas Flores" /><br>
-<b>Lukas Flores</b><br>
-<sub>Líder Técnico</sub><br>
-<a href="mailto:l.floreszuiga@uandresbello.edu">📧 Email</a>
-</td>
-
-<td align="center" width="20%">
-<img src="https://avatars.githubusercontent.com/u/190417123?v=4" width="100" height="100" style="border-radius:50%" alt="Gonzalo Jara" /><br>
-<b>Gonzalo Jara</b><br>
-<sub>Developer</sub><br>
-<a href="mailto:g.jaravrsalovic@uandresbello.edu">📧 Email</a>
-</td>
-
-<td align="center" width="20%">
-<img src="https://avatars.githubusercontent.com/u/128172645?v=4" width="100" height="100" style="border-radius:50%" alt="Felipe Figueroa" /><br>
-<b>Felipe Figueroa</b><br>
-<sub>Developer</sub><br>
-<a href="mailto:f.figueroadaz2@uandresbello.edu">📧 Email</a>
-</td>
-
-<td align="center" width="20%">
-<img src="https://avatars.githubusercontent.com/u/185566076?v=4" width="100" height="100" style="border-radius:50%" alt="Fernando Salazar" /><br>
-<b>Fernando Salazar</b><br>
-<sub>Developer</sub><br>
-<a href="mailto:f.salazarcartes@uandresbello.edu">📧 Email</a>
-</td>
-</tr>
-
-<tr>
-<td colspan="5" align="center">
-<br>
-<b>Compromiso del equipo:</b> 6-8 hrs/semana por integrante<br>
-<b>Ceremonias:</b> Planning, Dailies, Review, Retro, Refinement<br>
-<b>Comunicación:</b> Discord + Jira + GitHub
-</td>
-</tr>
-</table>
-
-### Roles y Responsabilidades
-
-| Rol | Responsabilidades |
-|------|-------------------|
-| **Product Manager** | Definir visión y prioridades del producto, validar requerimientos, gestionar backlog y coordinar objetivos del equipo |
-| **Líder Técnico** | Definir arquitectura técnica, apoyar decisiones de implementación, revisar código y supervisar integración técnica |
-| **Developers** | Implementar historias de usuario, realizar pruebas, apoyar documentación técnica y colaborar en la entrega incremental del producto |
-
-## 🙏 Agradecimientos
-
-- **Universidad:** Por el apoyo y recursos para desarrollar este proyecto dentro de la malla académica.
-- **Asignatura de Ingeniería de Software II:** Por la guía metodológica y formativa durante el ciclo de vida del desarrollo.
-- **Equipo de desarrollo:** Por el firme compromiso, colaboración y dedicación constante a lo largo de los sprints.
-
----
-
-<div align="center">
-
-Hecho con ❤️ por el equipo de SIEC
-
-![Made with Three.js](https://img.shields.io/badge/Made%20with-Three.js-000000?style=flat-square&logo=three.js)
-![Scrum](https://img.shields.io/badge/Powered%20by-Scrum-blue?style=flat-square&logo=scrumalliance)
-
-</div>
+Copyright (c) 2026 SIEC Team.
