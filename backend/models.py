@@ -1,5 +1,8 @@
-from sqlalchemy import Column, Integer, String, Boolean, Numeric, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Boolean, Numeric, ForeignKey, DateTime, Text, JSON, ARRAY, Index, BigInteger
+from sqlalchemy.dialects.postgresql import UUID, JSONB, INET
+from sqlalchemy.sql import func
 from database import Base
+import uuid
 
 class TipoRecinto(Base):
     __tablename__ = "tipo_recinto"
@@ -94,3 +97,107 @@ class CatalogoRendimiento(Base):
     rendimiento_neto_x_unidad = Column("Rendimiento_Neto_x_Unidad", Numeric(12, 4), nullable=False)
     referencia = Column("Referencia", String, nullable=True)
     activo = Column("Activo", Boolean, default=True)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Multi-tenant: users, projects, collaboration, audit (Phases 1.5 + 3.x)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class AppUser(Base):
+    __tablename__ = "app_user"
+
+    id = Column(UUID(as_uuid=True), primary_key=True)
+    email = Column(Text, unique=True, nullable=False)
+    full_name = Column(Text)
+    company = Column(Text)
+    avatar_url = Column(Text)
+    role = Column(Text, nullable=False, default="architect")
+    preferences = Column(JSONB, nullable=False, default=dict)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class Proyecto(Base):
+    __tablename__ = "proyecto"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    owner_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    name = Column(Text, nullable=False)
+    description = Column(Text)
+    cliente = Column(Text)
+    ubicacion = Column(Text)
+    tags = Column(ARRAY(Text), default=list)
+    payload = Column(JSONB, nullable=False, default=dict)
+    thumbnail_url = Column(Text)
+    estimated_cost = Column(Numeric(14, 2))
+    m2_totales = Column(Integer)
+    material_id = Column(Integer)
+    archived = Column(Boolean, nullable=False, default=False)
+    is_public = Column(Boolean, nullable=False, default=False)
+    public_token = Column(Text, unique=True)
+    public_expires_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class ProyectoColaborador(Base):
+    __tablename__ = "proyecto_colaborador"
+
+    proyecto_id = Column(UUID(as_uuid=True), ForeignKey("proyecto.id", ondelete="CASCADE"), primary_key=True)
+    usuario_id = Column(UUID(as_uuid=True), primary_key=True)
+    rol = Column(Text, nullable=False, default="viewer")
+    invited_at = Column(DateTime(timezone=True), server_default=func.now())
+    accepted_at = Column(DateTime(timezone=True))
+
+
+class ProyectoVersion(Base):
+    __tablename__ = "proyecto_version"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    proyecto_id = Column(UUID(as_uuid=True), ForeignKey("proyecto.id", ondelete="CASCADE"), nullable=False)
+    version_number = Column(Integer, nullable=False)
+    author_id = Column(UUID(as_uuid=True), nullable=False)
+    payload = Column(JSONB, nullable=False)
+    summary = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ProyectoComentario(Base):
+    __tablename__ = "proyecto_comentario"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    proyecto_id = Column(UUID(as_uuid=True), ForeignKey("proyecto.id", ondelete="CASCADE"), nullable=False)
+    parent_id = Column(UUID(as_uuid=True), ForeignKey("proyecto_comentario.id", ondelete="CASCADE"))
+    author_id = Column(UUID(as_uuid=True), nullable=False)
+    body = Column(Text, nullable=False)
+    anchor = Column(JSONB)
+    resolved = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class Auditoria(Base):
+    __tablename__ = "auditoria"
+
+    id = Column(BigInteger, primary_key=True)
+    actor_id = Column(UUID(as_uuid=True))
+    action = Column(Text, nullable=False)
+    entity_type = Column(Text)
+    entity_id = Column(Text)
+    extra = Column("metadata", JSONB, default=dict)
+    ip_address = Column(INET)
+    user_agent = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Notificacion(Base):
+    __tablename__ = "notificacion"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    type = Column(Text, nullable=False)
+    title = Column(Text, nullable=False)
+    body = Column(Text)
+    payload = Column(JSONB, default=dict)
+    read_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

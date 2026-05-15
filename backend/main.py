@@ -35,20 +35,113 @@ import models
 # Crear tablas
 # Crear tablas (movido a startup)
 
-app = FastAPI(title="SIEC API", version="1.0.0")
+app = FastAPI(
+    title="SIEC API",
+    version="1.0.0",
+    description="""
+SIEC backend — Sistema Inteligente de Estimación de Costos.
 
-# CORS — permite que el frontend en localhost:5173 llame a la API
+Provides:
+  * Cost estimation engine for residential construction projects.
+  * Project management with versioning, comments, and collaboration.
+  * AI assistant with tool-calling (price history, optimization).
+  * Real-time price ingestion from Sodimac/Easy/Construmart scraper.
+
+Authentication: Bearer JWT issued by Supabase Auth (HS256 default; RS256 via JWKS).
+""",
+    contact={"name": "SIEC Team", "email": "team@siec.app"},
+    openapi_tags=[
+        {"name": "auth", "description": "Identity (Supabase JWT validation)."},
+        {"name": "projects", "description": "Multi-tenant project CRUD + collaboration."},
+        {"name": "ai", "description": "AI assistant + price intelligence."},
+        {"name": "meta", "description": "Health checks and metadata."},
+    ],
+)
+
+try:
+    import observability
+    observability.install(app)
+except Exception as _obs_exc:
+    print(f"[main] observability.install failed: {_obs_exc}")
+
+# CORS — origins are configurable via env to support staging/production.
+# In dev, defaults cover localhost + LAN IP from previous setup.
+_default_origins = "http://localhost:5173,http://127.0.0.1:5173,http://10.51.0.26:5173"
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("ALLOWED_ORIGINS", _default_origins).split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173", 
-        "http://127.0.0.1:5173", 
-        "http://10.51.0.26:5173"  # IP del Frontend en el servidor de despliegue
-    ],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Auth dependencies
+try:
+    from auth import get_current_user, get_optional_user, require_role, CurrentUser
+except ModuleNotFoundError:
+    from backend.auth import get_current_user, get_optional_user, require_role, CurrentUser  # type: ignore
+
+
+@app.get("/me", tags=["auth"])
+def get_me(user: CurrentUser = Depends(get_current_user)):
+    """Return the authenticated user's profile, derived from the Supabase JWT."""
+    metadata = user.raw_claims.get("user_metadata", {}) or {}
+    app_metadata = user.raw_claims.get("app_metadata", {}) or {}
+    return {
+        "id": user.id,
+        "email": user.email,
+        "role": user.role,
+        "aal": user.aal,
+        "full_name": metadata.get("full_name"),
+        "company": metadata.get("company"),
+        "avatar_url": metadata.get("avatar_url"),
+        "preferences": {
+            "units": metadata.get("units", "metric"),
+            "currency": metadata.get("currency", "CLP"),
+        },
+        "providers": app_metadata.get("providers", []),
+        "onboarded": metadata.get("onboarded", False),
+    }
+
+
+@app.get("/health", tags=["meta"])
+def healthcheck():
+    return {"status": "ok", "service": "siec-api"}
+
+
+# Mount Phase 3 routers (projects, versions, collaboration, comments)
+try:
+    from routers.projects import router as projects_router
+    app.include_router(projects_router)
+except Exception as exc:  # pragma: no cover
+    print(f"[main] Could not mount /projects router: {exc}")
+
+# Mount Phase 5 routers (AI assistant + price intelligence)
+try:
+    from routers.ai import router as ai_router
+    app.include_router(ai_router)
+except Exception as exc:  # pragma: no cover
+    print(f"[main] Could not mount /ai router: {exc}")
+
+# Mount Phase 7 routers (marketplace of presets)
+try:
+    from routers.marketplace import router as marketplace_router
+    app.include_router(marketplace_router)
+except Exception as exc:  # pragma: no cover
+    print(f"[main] Could not mount /marketplace router: {exc}")
+
+# Mount Phase 8 routers (settings/integrations/billing/site-profile)
+try:
+    from routers.settings import router as settings_router
+    app.include_router(settings_router)
+except Exception as exc:  # pragma: no cover
+    print(f"[main] Could not mount settings router: {exc}")
 
 
 # Seeding de datos iniciales
