@@ -3,11 +3,16 @@ import { computed, onBeforeUnmount, ref, reactive, watch, onMounted, onUnmounted
 import { useRecintosStore } from "../stores/recintos";
 import { useInteractiveEditor } from "../composables/useInteractiveEditor";
 import { useTheme } from "../composables/useTheme";
+import {
+  clampRectToTerrain,
+  normalizeRoomRect,
+  terrainFromEditor,
+} from "../composables/useSpatialConstraints.js";
 
 const props = defineProps({
   m2Totales:         { type: Number, default: 100 },
-  terrenoAncho:      { type: Number, default: 7 },
-  terrenoLargo:      { type: Number, default: 15 },
+  terrenoAncho:      { type: Number, default: 15 },
+  terrenoLargo:      { type: Number, default: 7 },
   descripcionEstado: { type: Object, default: () => ({ color: '#22c55e', message: 'OK' }) },
   showGrid:          { type: Boolean, default: true },
   snapToGrid:        { type: Boolean, default: true },
@@ -22,11 +27,67 @@ const VIEW_PAD    = 1;    // 1 m padding around everything (integer keeps grid s
 const DIM_OFFSET  = 22;   // pixels from the wall to the dimension line
 const TICK_LEN    = 6;    // half-length of dimension ticks
 
+const MIN_ROOM_DIM = 0.5;
+const MIN_ROOM_HEIGHT = 1.0;
+const DEFAULT_FINE_STEP = 0.1;
+const MOVE_OVERFLOW_MARGIN = 0; // misma regla que 3D: el recinto no sale del terreno
+const OVERLAP_EPS = 0.001; // evita falsos positivos cuando dos recintos quedan exactamente pegados
+
+const SNAP_STORAGE_KEY = 'siec-editor-snap-settings';
+const SNAP_PRESETS = [
+  { id: 0, label: 'Snap: Off', step: DEFAULT_FINE_STEP },
+  { id: 10, label: 'Snap: 10cm', step: 0.1 },
+  { id: 25, label: 'Snap: 25cm', step: 0.25 },
+  { id: 50, label: 'Snap: 50cm', step: 0.5 },
+];
+
+const clampNumber = (value, min, max) => {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return min;
+  return Math.min(Math.max(n, min), max);
+};
+
+const nearestSnapPresetId = (step) => {
+  const n = Number(step);
+  if (!Number.isFinite(n) || n <= 0) return 25;
+
+  return SNAP_PRESETS
+    .filter((preset) => preset.id !== 0)
+    .reduce((best, preset) => {
+      const bestStep = SNAP_PRESETS.find((item) => item.id === best)?.step ?? 0.25;
+      return Math.abs(preset.step - n) < Math.abs(bestStep - n) ? preset.id : best;
+    }, 25);
+};
+
+const readSharedSnapStepId = (fallbackId) => {
+  if (typeof window === 'undefined') return fallbackId;
+
+  try {
+    const raw = window.localStorage.getItem(SNAP_STORAGE_KEY);
+    if (!raw) return fallbackId;
+
+    const parsed = JSON.parse(raw);
+    const id = Number(parsed?.snapStepId);
+    return SNAP_PRESETS.some((preset) => preset.id === id) ? id : fallbackId;
+  } catch {
+    return fallbackId;
+  }
+};
+
+const writeSharedSnapSettings = (snapStepId) => {
+  if (typeof window === 'undefined') return;
+
+  const payload = { snapStepId };
+  window.localStorage.setItem(SNAP_STORAGE_KEY, JSON.stringify(payload));
+  window.dispatchEvent(new CustomEvent('siec-snap-settings', { detail: payload }));
+};
+
 // ── Store & editor ───────────────────────────────────────────────────────────
 const svgRef = ref(null);
 const rootRef = ref(null);
 const isFullScreen = ref(false);
 const store  = useRecintosStore();
+const snapStepId = ref(readSharedSnapStepId(props.snapToGrid ? nearestSnapPresetId(props.gridSize) : 0));
 
 // ── Resize Lock ───────────────────────────────────────────────────────────────
 const resizeLocked = ref(false);
@@ -42,38 +103,59 @@ const addForm = reactive({
 
 const openAddModal = () => {
   addForm.nombre = 'Recinto';
-  addForm.w = 3.5;
-  addForm.l = 3.0;
-  addForm.h = Math.max(1.0, Number(props.defaultRoomHeight) || 2.4);
+  addForm.w = Math.min(3.5, budgetRect.value.w);
+  addForm.l = Math.min(3.0, budgetRect.value.h);
+  addForm.h = Math.max(MIN_ROOM_HEIGHT, Number(props.defaultRoomHeight) || 2.4);
   showAddModal.value = true;
 };
 
 const confirmAdd = () => {
-  store.addRecinto(
+  const w = clampNumber(addForm.w, MIN_ROOM_DIM, budgetRect.value.w);
+  const l = clampNumber(addForm.l, MIN_ROOM_DIM, budgetRect.value.h);
+  const h = Math.max(MIN_ROOM_HEIGHT, Number(addForm.h) || props.defaultRoomHeight || 2.4);
+
+  addForm.w = w;
+  addForm.l = l;
+  addForm.h = h;
+
+  const id = store.addRecinto(
     'habitacion',
     addForm.nombre || 'Recinto',
-    Math.max(0.5, Number(addForm.w)),
-    Math.max(0.5, Number(addForm.l)),
-    Math.max(1.0, Number(addForm.h)),
+    w,
+    l,
+    h,
   );
+
+  const room = store.recintos.find((r) => r.id === id);
+  placeRoomWithoutGap(room);
+
   showAddModal.value = false;
 };
 
 const quickAdd = () => {
-  store.addRecinto(
+  const id = store.addRecinto(
     'habitacion',
     'Recinto',
-    3.5,
-    3.0,
-    Math.max(1.0, Number(props.defaultRoomHeight) || 2.4),
+    Math.min(3.5, budgetRect.value.w),
+    Math.min(3.0, budgetRect.value.h),
+    Math.max(MIN_ROOM_HEIGHT, Number(props.defaultRoomHeight) || 2.4),
   );
+
+  const room = store.recintos.find((r) => r.id === id);
+  placeRoomWithoutGap(room);
 };
 
 const { isDark } = useTheme();
 
-const DEFAULT_FINE_STEP = 0.1;
+const selectedSnapPreset = computed(() =>
+  SNAP_PRESETS.find((preset) => preset.id === snapStepId.value) || SNAP_PRESETS[2],
+);
+
+const snapEnabled = computed(() => snapStepId.value !== 0);
 
 const gridMajorM = computed(() => {
+  if (snapEnabled.value) return selectedSnapPreset.value.step;
+
   const g = Number(props.gridSize);
   return Number.isFinite(g) && g > 0 ? g : 0.5;
 });
@@ -81,8 +163,8 @@ const gridMajorM = computed(() => {
 const showEditorGrid = computed(() => Boolean(props.showGrid));
 
 const editorSnapStep = computed(() => {
-  if (!props.snapToGrid) return DEFAULT_FINE_STEP;
-  return gridMajorM.value;
+  if (!snapEnabled.value) return DEFAULT_FINE_STEP;
+  return selectedSnapPreset.value.step;
 });
 
 const editor = useInteractiveEditor({ snapStep: editorSnapStep });
@@ -256,36 +338,248 @@ const freePct  = computed(() =>
 
 // ── Budget rectangle (shows the "size" of the project) ───────────────────────
 // Area = terrenoAncho * terrenoLargo
-const budgetRect = computed(() => {
+const budgetRect = computed(() => ({
+  w: props.terrenoAncho || 15,
+  h: props.terrenoLargo || 7,
+}));
+
+// ── Movement bounds ───────────────────────────────────────────────────────────
+// El usuario puede sacar un recinto apenas del terreno para ajustar, pero no
+// arrastrarlo indefinidamente fuera del área útil.
+const movementBoundsForRoom = (room) => {
+  const bd = budgetRect.value;
+  const roomW = Math.max(MIN_ROOM_DIM, Number(room?.dimensions?.w) || MIN_ROOM_DIM);
+  const roomL = Math.max(MIN_ROOM_DIM, Number(room?.dimensions?.l) || MIN_ROOM_DIM);
+  const margin = MOVE_OVERFLOW_MARGIN;
+
   return {
-    w: props.terrenoAncho || 7,
-    h: props.terrenoLargo || 15,
+    minX: -margin,
+    minZ: -margin,
+    maxX: Math.max(-margin, bd.w - roomW + margin),
+    maxZ: Math.max(-margin, bd.h - roomL + margin),
   };
+};
+
+const clampRoomToMovementBounds = (room) => {
+  if (!room) return null;
+
+  const bounds = movementBoundsForRoom(room);
+  const currentX = Number(room.coords?.x) || 0;
+  const currentZ = Number(room.coords?.z) || 0;
+  const safeX = clampNumber(currentX, bounds.minX, bounds.maxX);
+  const safeZ = clampNumber(currentZ, bounds.minZ, bounds.maxZ);
+
+  if (safeX !== currentX || safeZ !== currentZ) {
+    store.updateRecinto(room.id, { coords: { x: safeX, z: safeZ } });
+  }
+
+  return { x: safeX, z: safeZ };
+};
+
+const clampSelectedRoomToMovementBounds = () => {
+  const id = editor.selectedRecintoId.value;
+  if (!id) return;
+
+  const room = store.recintos.find((r) => r.id === id);
+  clampRoomToMovementBounds(room);
+};
+
+const lastValidDragCoords = ref(null);
+
+const selectedDraggedRoom = () => {
+  const id = editor.selectedRecintoId.value;
+  if (!id) return null;
+  return store.recintos.find((r) => r.id === id) || null;
+};
+
+const cacheValidDragCoords = (room) => {
+  if (!room) return;
+  lastValidDragCoords.value = {
+    id: room.id,
+    x: Number(room.coords?.x) || 0,
+    z: Number(room.coords?.z) || 0,
+  };
+};
+
+const keepDraggedRoomOutOfCollisions = () => {
+  const room = selectedDraggedRoom();
+  if (!room) return;
+
+  const x = Number(room.coords?.x) || 0;
+  const z = Number(room.coords?.z) || 0;
+  const w = Math.max(MIN_ROOM_DIM, Number(room.dimensions?.w) || MIN_ROOM_DIM);
+  const l = Math.max(MIN_ROOM_DIM, Number(room.dimensions?.l) || MIN_ROOM_DIM);
+
+  if (!roomOverlapsAny(room, x, z, w, l)) {
+    cacheValidDragCoords(room);
+    return;
+  }
+
+  const previous = lastValidDragCoords.value;
+  if (previous?.id === room.id) {
+    store.updateRecinto(room.id, {
+      coords: {
+        x: Number(previous.x.toFixed(3)),
+        z: Number(previous.z.toFixed(3)),
+      },
+    });
+  }
+};
+
+const maxRoomWidthFromPosition = (room) => {
+  if (!room) return budgetRect.value.w;
+  return Math.max(
+    MIN_ROOM_DIM,
+    budgetRect.value.w - Math.max(0, Number(room.coords?.x) || 0),
+  );
+};
+
+const maxRoomLengthFromPosition = (room) => {
+  if (!room) return budgetRect.value.h;
+  return Math.max(
+    MIN_ROOM_DIM,
+    budgetRect.value.h - Math.max(0, Number(room.coords?.z) || 0),
+  );
+};
+
+const normalizeRoomInsideTerrain = (room) => {
+  if (!room) return;
+
+  const terrain = terrainFromEditor(budgetRect.value.w, budgetRect.value.h);
+  const clamped = clampRectToTerrain(
+    normalizeRoomRect(room),
+    terrain,
+    MOVE_OVERFLOW_MARGIN,
+  );
+  const safeH = Math.max(
+    MIN_ROOM_HEIGHT,
+    Number(room.dimensions?.h) || props.defaultRoomHeight || 2.4,
+  );
+
+  store.updateRecinto(room.id, {
+    dimensions: {
+      ...room.dimensions,
+      w: Number(clamped.w.toFixed(3)),
+      l: Number(clamped.l.toFixed(3)),
+      h: Number(safeH.toFixed(3)),
+    },
+    coords: {
+      x: Number(clamped.x.toFixed(3)),
+      z: Number(clamped.z.toFixed(3)),
+    },
+  });
+};
+
+const roomOverlapsAny = (room, x, z, w, l) => {
+  const piso = room.piso || store.currentFloor || 1;
+  const ax0 = x;
+  const ax1 = x + w;
+  const az0 = z;
+  const az1 = z + l;
+
+  return store.recintos.some((other) => {
+    if (!other || other.id === room.id) return false;
+    if ((other.piso || 1) !== piso) return false;
+
+    const bx0 = other.coords.x;
+    const bx1 = other.coords.x + other.dimensions.w;
+    const bz0 = other.coords.z;
+    const bz1 = other.coords.z + other.dimensions.l;
+
+    return (
+      ax0 < bx1 - OVERLAP_EPS &&
+      ax1 > bx0 + OVERLAP_EPS &&
+      az0 < bz1 - OVERLAP_EPS &&
+      az1 > bz0 + OVERLAP_EPS
+    );
+  });
+};
+
+const canPlaceRoomAt = (room, x, z, w, l) => (
+  x >= 0 &&
+  z >= 0 &&
+  x + w <= budgetRect.value.w &&
+  z + l <= budgetRect.value.h &&
+  !roomOverlapsAny(room, x, z, w, l)
+);
+
+const placeRoomWithoutGap = (room) => {
+  if (!room) return;
+
+  const w = clampNumber(room.dimensions?.w, MIN_ROOM_DIM, budgetRect.value.w);
+  const l = clampNumber(room.dimensions?.l, MIN_ROOM_DIM, budgetRect.value.h);
+  const sameFloorRooms = store.recintos.filter((other) =>
+    other.id !== room.id && (other.piso || 1) === (room.piso || store.currentFloor || 1),
+  );
+
+  const candidates = [];
+  const last = sameFloorRooms[sameFloorRooms.length - 1];
+
+  if (last) {
+    candidates.push(
+      { x: last.coords.x + last.dimensions.w, z: last.coords.z },
+      { x: last.coords.x - w, z: last.coords.z },
+      { x: last.coords.x, z: last.coords.z + last.dimensions.l },
+      { x: last.coords.x, z: last.coords.z - l },
+    );
+  }
+
+  candidates.push({ x: 0, z: 0 });
+
+  const scanStep = snapEnabled.value ? selectedSnapPreset.value.step : DEFAULT_FINE_STEP;
+  for (let z = 0; z <= budgetRect.value.h - l + 0.0001; z += scanStep) {
+    for (let x = 0; x <= budgetRect.value.w - w + 0.0001; x += scanStep) {
+      candidates.push({ x: Number(x.toFixed(3)), z: Number(z.toFixed(3)) });
+    }
+  }
+
+  const target = candidates.find(({ x, z }) => canPlaceRoomAt(room, x, z, w, l));
+
+  if (target) {
+    store.updateRecinto(room.id, {
+      dimensions: {
+        ...room.dimensions,
+        w: Number(w.toFixed(3)),
+        l: Number(l.toFixed(3)),
+      },
+      coords: {
+        x: Number(target.x.toFixed(3)),
+        z: Number(target.z.toFixed(3)),
+      },
+    });
+  }
+
+  normalizeRoomInsideTerrain(room);
+};
+
+const selectedRoom = computed(() => {
+  if (!editor.selectedRecintoId.value) return null;
+  return store.recintos.find((r) => r.id === editor.selectedRecintoId.value) || null;
 });
 
-// ── Canvas bounds: union of budget rect + all rooms + padding ────────────────
+// ── Canvas bounds: terreno + margen controlado ──────────────────────────────
+// Antes el canvas crecía siguiendo cualquier recinto que se arrastrara lejos.
+// Eso hacía que el usuario pudiera “perder” piezas fuera del área útil. Ahora el
+// plano tiene un rango fijo: terreno + padding visual + margen técnico de drag.
 const frozenBounds = ref(null);
 
 const liveBounds = computed(() => {
   const bd = budgetRect.value;
-  let minX = 0, minZ = 0, maxX = bd.w, maxZ = bd.h;
-
-  store.recintos.forEach((r) => {
-    minX = Math.min(minX, r.coords.x);
-    minZ = Math.min(minZ, r.coords.z);
-    maxX = Math.max(maxX, r.coords.x + r.dimensions.w);
-    maxZ = Math.max(maxZ, r.coords.z + r.dimensions.l);
-  });
+  const margin = VIEW_PAD + MOVE_OVERFLOW_MARGIN;
 
   return {
-    minX: minX - VIEW_PAD,
-    minZ: minZ - VIEW_PAD,
-    maxX: maxX + VIEW_PAD,
-    maxZ: maxZ + VIEW_PAD,
+    minX: -margin,
+    minZ: -margin,
+    maxX: bd.w + margin,
+    maxZ: bd.h + margin,
   };
 });
 
 const activeBounds = computed(() => frozenBounds.value || liveBounds.value);
+
+watch(budgetRect, () => {
+  store.recintos.forEach(normalizeRoomInsideTerrain);
+}, { deep: true });
 
 // ── SVG coordinate helpers ────────────────────────────────────────────────────
 const svgW = computed(() => (activeBounds.value.maxX - activeBounds.value.minX) * PPM);
@@ -391,12 +685,25 @@ const isGhostFading = ref(false);
 const onPointerMove = (e) => {
   if (!editor.activeMode.value) return;
   const w = toWorld(e.clientX, e.clientY);
-  if (editor.activeMode.value === "drag")   editor.dragTo(w, budgetRect.value);
-  if (editor.activeMode.value === "resize") editor.resizeTo(w, budgetRect.value);
+  if (editor.activeMode.value === "drag") {
+    editor.dragTo(w, budgetRect.value);
+    clampSelectedRoomToMovementBounds();
+    keepDraggedRoomOutOfCollisions();
+  }
+
+  if (editor.activeMode.value === "resize") {
+    editor.resizeTo(w, budgetRect.value);
+  }
 };
 
 const onPointerUp = () => {
   const mode = editor.activeMode.value;
+  if (mode === "drag") {
+    clampSelectedRoomToMovementBounds();
+    keepDraggedRoomOutOfCollisions();
+    lastValidDragCoords.value = null;
+  }
+
   editor.endInteraction();
   if (mode === "drag" || mode === "resize") {
     store.saveHistoryState();
@@ -418,7 +725,10 @@ const startDrag = (e, id) => {
   
   // Guardar snapshot para Ghost Mode
   const r = store.recintos.find(r => r.id === id);
-  if (r) ghostRoom.value = JSON.parse(JSON.stringify(r)); // deep copy
+  if (r) {
+    ghostRoom.value = JSON.parse(JSON.stringify(r)); // deep copy
+    cacheValidDragCoords(r);
+  }
   isGhostFading.value = false;
 
   editor.beginDrag(id, toWorld(e.clientX, e.clientY));
@@ -528,47 +838,65 @@ const dimLines = (r) => {
 
 // ── Manual Dimension Inputs ──────────────────────────────────────────────────
 const selectedRoomWidth = computed({
-  get: () => {
-    if (!editor.selectedRecintoId.value) return 0;
-    const r = store.recintos.find(r => r.id === editor.selectedRecintoId.value);
-    return r ? Number(r.dimensions.w.toFixed(2)) : 0;
-  },
-  set: (val) => {
-    if (!editor.selectedRecintoId.value || val < 0.5) return;
-    store.updateRecinto(editor.selectedRecintoId.value, { w: val });
-    store.saveHistoryState();
-  }
+  get: () => (selectedRoom.value ? Number(selectedRoom.value.dimensions.w.toFixed(2)) : 0),
+  set: (val) => commitSelectedRoomWidth(val),
 });
 
 const selectedRoomLength = computed({
-  get: () => {
-    if (!editor.selectedRecintoId.value) return 0;
-    const r = store.recintos.find(r => r.id === editor.selectedRecintoId.value);
-    return r ? Number(r.dimensions.l.toFixed(2)) : 0;
-  },
-  set: (val) => {
-    if (!editor.selectedRecintoId.value || val < 0.5) return;
-    store.updateRecinto(editor.selectedRecintoId.value, { l: val });
-    store.saveHistoryState();
-  }
+  get: () => (selectedRoom.value ? Number(selectedRoom.value.dimensions.l.toFixed(2)) : 0),
+  set: (val) => commitSelectedRoomLength(val),
 });
 
 const selectedRoomHeight = computed({
-  get: () => {
-    if (!editor.selectedRecintoId.value) return 0;
-    const r = store.recintos.find(r => r.id === editor.selectedRecintoId.value);
-    return r ? Number((r.dimensions.h || 2.4).toFixed(2)) : 0;
-  },
-  set: (val) => {
-    if (!editor.selectedRecintoId.value || val < 1.0) return;
-    const targetIndex = store.recintos.findIndex(r => r.id === editor.selectedRecintoId.value);
-    if (targetIndex !== -1) {
-      const r = store.recintos[targetIndex];
-      r.dimensions.h = val;
-      store.saveHistoryState();
-    }
-  }
+  get: () => (selectedRoom.value ? Number((selectedRoom.value.dimensions.h || 2.4).toFixed(2)) : 0),
+  set: (val) => commitSelectedRoomHeight(val),
 });
+
+const commitSelectedRoomWidth = (val) => {
+  const room = selectedRoom.value;
+  if (!room || resizeLocked.value) return selectedRoomWidth.value;
+
+  const safeWidth = clampNumber(val, MIN_ROOM_DIM, maxRoomWidthFromPosition(room));
+  store.updateRecinto(room.id, { w: Number(safeWidth.toFixed(3)) });
+  store.saveHistoryState();
+  return Number(safeWidth.toFixed(3));
+};
+
+const commitSelectedRoomLength = (val) => {
+  const room = selectedRoom.value;
+  if (!room || resizeLocked.value) return selectedRoomLength.value;
+
+  const safeLength = clampNumber(val, MIN_ROOM_DIM, maxRoomLengthFromPosition(room));
+  store.updateRecinto(room.id, { l: Number(safeLength.toFixed(3)) });
+  store.saveHistoryState();
+  return Number(safeLength.toFixed(3));
+};
+
+const commitSelectedRoomHeight = (val) => {
+  const room = selectedRoom.value;
+  if (!room) return selectedRoomHeight.value;
+
+  const safeHeight = Math.max(MIN_ROOM_HEIGHT, Number(val) || MIN_ROOM_HEIGHT);
+  room.dimensions.h = Number(safeHeight.toFixed(3));
+  store.saveHistoryState();
+  return Number(safeHeight.toFixed(3));
+};
+
+const forceInputValue = (event, value) => {
+  if (event?.target) event.target.value = value;
+};
+
+const handleSelectedRoomWidthInput = (event) => {
+  forceInputValue(event, commitSelectedRoomWidth(event?.target?.value));
+};
+
+const handleSelectedRoomLengthInput = (event) => {
+  forceInputValue(event, commitSelectedRoomLength(event?.target?.value));
+};
+
+const handleSelectedRoomHeightInput = (event) => {
+  forceInputValue(event, commitSelectedRoomHeight(event?.target?.value));
+};
 
 const selectedRoomName = computed({
   get: () => {
@@ -621,12 +949,25 @@ const handleKeyDown = (e) => {
   }
 };
 
+const handleSharedSnapSettings = (event) => {
+  const id = Number(event?.detail?.snapStepId);
+  if (SNAP_PRESETS.some((preset) => preset.id === id)) {
+    snapStepId.value = id;
+  }
+};
+
+watch(snapStepId, (id) => {
+  writeSharedSnapSettings(id);
+});
+
 onMounted(() => {
   window.addEventListener('keydown', handleKeyDown);
+  window.addEventListener('siec-snap-settings', handleSharedSnapSettings);
 });
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown);
+  window.removeEventListener('siec-snap-settings', handleSharedSnapSettings);
 });
 </script>
 
@@ -753,6 +1094,20 @@ onUnmounted(() => {
               <span class="material-symbols-outlined text-[16px]">add_road</span>
               Pasillos
             </button>
+
+            <select
+              v-model.number="snapStepId"
+              class="h-10 rounded-2xl border border-slate-700/70 bg-slate-950/60 px-3 text-[10px] font-black uppercase tracking-[0.12em] text-slate-200 outline-none transition-all duration-200 hover:border-orange-400/70 focus:border-orange-400 focus:ring-4 focus:ring-orange-500/10"
+              title="Snap compartido entre Editor 2D y Vista 3D"
+            >
+              <option
+                v-for="preset in SNAP_PRESETS"
+                :key="preset.id"
+                :value="preset.id"
+              >
+                {{ preset.label }}
+              </option>
+            </select>
           </div>
         </div>
 
@@ -1286,32 +1641,46 @@ onUnmounted(() => {
               <div class="space-y-2">
                 <label class="editor-label">Ancho (m)</label>
                 <input
-                  v-model.number="selectedRoomWidth"
+                  :value="selectedRoomWidth"
                   type="number"
                   class="editor-input text-center font-mono"
-                  step="0.5"
+                  :step="snapEnabled ? selectedSnapPreset.step : 0.1"
+                  min="0.5"
+                  :max="selectedRoom ? maxRoomWidthFromPosition(selectedRoom) : budgetRect.w"
                   :disabled="resizeLocked"
+                  @input="handleSelectedRoomWidthInput"
+                  @change="handleSelectedRoomWidthInput"
+                  @blur="handleSelectedRoomWidthInput"
                 />
               </div>
 
               <div class="space-y-2">
                 <label class="editor-label">Largo (m)</label>
                 <input
-                  v-model.number="selectedRoomLength"
+                  :value="selectedRoomLength"
                   type="number"
                   class="editor-input text-center font-mono"
-                  step="0.5"
+                  :step="snapEnabled ? selectedSnapPreset.step : 0.1"
+                  min="0.5"
+                  :max="selectedRoom ? maxRoomLengthFromPosition(selectedRoom) : budgetRect.h"
                   :disabled="resizeLocked"
+                  @input="handleSelectedRoomLengthInput"
+                  @change="handleSelectedRoomLengthInput"
+                  @blur="handleSelectedRoomLengthInput"
                 />
               </div>
 
               <div class="space-y-2">
                 <label class="editor-label">Alto (m)</label>
                 <input
-                  v-model.number="selectedRoomHeight"
+                  :value="selectedRoomHeight"
                   type="number"
                   class="editor-input text-center font-mono"
                   step="0.1"
+                  min="1"
+                  @input="handleSelectedRoomHeightInput"
+                  @change="handleSelectedRoomHeightInput"
+                  @blur="handleSelectedRoomHeightInput"
                 />
               </div>
             </div>
@@ -1394,7 +1763,7 @@ onUnmounted(() => {
                     width
                   </span>
                   <label>Ancho</label>
-                  <input v-model.number="addForm.w" type="number" step="0.5" min="0.5" />
+                  <input v-model.number="addForm.w" type="number" :step="snapEnabled ? selectedSnapPreset.step : 0.1" min="0.5" :max="budgetRect.w" />
                   <span>m</span>
                 </div>
 
@@ -1403,7 +1772,7 @@ onUnmounted(() => {
                     height
                   </span>
                   <label>Largo</label>
-                  <input v-model.number="addForm.l" type="number" step="0.5" min="0.5" />
+                  <input v-model.number="addForm.l" type="number" :step="snapEnabled ? selectedSnapPreset.step : 0.1" min="0.5" :max="budgetRect.h" />
                   <span>m</span>
                 </div>
 

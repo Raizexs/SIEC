@@ -272,6 +272,7 @@ watch(
 <template>
   <aside
     v-if="visible"
+    data-siec-minimap
     class="absolute bottom-4 right-4 z-20 overflow-hidden rounded-3xl border border-slate-200/80 bg-white/85 p-2 shadow-2xl shadow-slate-950/15 backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-950/85 dark:shadow-black/35"
     :style="{ width: `${size + 16}px` }"
     aria-label="Mini mapa 2D"

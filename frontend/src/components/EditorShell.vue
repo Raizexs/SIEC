@@ -658,6 +658,8 @@ const startTutorial = () => {
             <Scene3D
               class="tour-scene-3d"
               :materialEstructuralId="formData.materialEstructuralId"
+              :terreno-ancho="formData.terrenoAncho"
+              :terreno-largo="formData.terrenoLargo"
               :show-minimap="productPreferences.editor.showMinimap"
             />
 
@@ -665,7 +667,6 @@ const startTutorial = () => {
               v-if="recintosStore.selectedM2 > 0"
               :m2Totales="recintosStore.selectedM2"
               :materialEstructuralId="formData.materialEstructuralId"
-              @export-pdf="handleExportPDF"
             />
           </section>
 

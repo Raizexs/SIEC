@@ -1,7 +1,8 @@
 <script setup>
-import { ref, watch, computed } from 'vue';
+import { ref, watch, computed, nextTick, onMounted, onUnmounted } from 'vue';
 import { useI18n } from '../composables/useI18n';
 import { useRecintosStore } from '../stores/recintos';
+import { useWorkspaceStore } from '../stores/workspace';
 import { useProductPreferences } from '../composables/useProductPreferences';
 import {
   withContingency,
@@ -9,12 +10,15 @@ import {
   formatMoneyByPreference,
   CHILE_IVA_RATE,
 } from '../utils/budgetPreferenceMath';
+import { toast } from 'vue-sonner';
+import { exportBudget, getMaterialLabel } from '../utils/budgetExporter';
+import { captureSceneImage } from '../proposal/proposalSceneCapture';
+import { resolveBrandLogoUrl } from '../proposal/proposalBrand';
 
 const { t } = useI18n();
 const recintosStore = useRecintosStore();
+const workspaceStore = useWorkspaceStore();
 const { productPreferences } = useProductPreferences();
-
-const emit = defineEmits(['export-pdf']);
 
 const props = defineProps({
   m2Totales: { type: Number, required: true },
@@ -27,6 +31,24 @@ const desglose = ref([]);
 const costoTotal = ref(null);
 const fechaPrecios = ref(null);
 const hasGenerated = ref(false);
+const exportMenuOpen = ref(false);
+const exportFormat = ref(null);
+const exportMenuRef = ref(null);
+
+/** Presupuesto listo: flujo de cotización finalizado sin errores. */
+const canExport = computed(
+  () =>
+    hasGenerated.value &&
+    !isLoading.value &&
+    !error.value &&
+    (costoTotal.value != null || desglose.value.length > 0),
+);
+
+const exportOptions = [
+  { id: 'pdf', label: 'PDF', icon: 'picture_as_pdf' },
+  { id: 'xlsx', label: 'Excel', icon: 'table_chart' },
+  { id: 'csv', label: 'CSV', icon: 'table_rows' },
+];
 
 const formatCurrency = (value) => {
   if (value == null) return 'Precios de mercado no disponibles aún';
@@ -178,14 +200,105 @@ watch(
   () => [props.m2Totales, props.materialEstructuralId],
   () => {
     hasGenerated.value = false;
+    exportMenuOpen.value = false;
   },
   { immediate: true },
 );
+
+const buildExportPayload = () => {
+  const desgloseSnapshot = JSON.parse(JSON.stringify(desglose.value || []));
+
+  return {
+    projectName: workspaceStore.activePresetName,
+    businessName: productPreferences.value.export?.businessName?.trim() || '',
+    reportFooter: productPreferences.value.export?.reportFooter?.trim() || '',
+    m2Totales: props.m2Totales,
+    materialEstructuralId: props.materialEstructuralId,
+    materialNombre: getMaterialLabel(props.materialEstructuralId),
+    fechaPrecios: fechaPrecios.value,
+    fechaExportacion: new Date().toISOString(),
+    desglose: desgloseSnapshot,
+    motorTotal: motorTotal.value,
+    subtotalConContingencia: subtotalConContingencia.value,
+    deltaContingencia: deltaContingencia.value,
+    montoIva: montoIva.value,
+    totalPreferido: totalPreferido.value,
+    totalFormatted:
+      totalPreferido.value != null
+        ? formatMoneyByPreference(totalPreferido.value, monedaPreferida.value)
+        : formatCurrency(costoTotal.value),
+    contingencyPct: productPreferences.value.contingency,
+    includeTax: productPreferences.value.includeTax,
+    includeLogo: productPreferences.value.export?.includeLogo !== false,
+    logoUrl: resolveBrandLogoUrl(),
+    counts: buildSelectedCounts(),
+  };
+};
+
+const scrollToExportMenu = async () => {
+  await nextTick();
+
+  if (!exportMenuRef.value) return;
+
+  exportMenuRef.value.scrollIntoView({
+    behavior: 'smooth',
+    block: 'nearest',
+    inline: 'end',
+  });
+};
+
+const handleToggleExportMenu = async () => {
+  exportMenuOpen.value = !exportMenuOpen.value;
+
+  if (exportMenuOpen.value) {
+    await scrollToExportMenu();
+  }
+};
+
+const handleExport = async (format) => {
+  if (!canExport.value) return;
+
+  exportFormat.value = format;
+  exportMenuOpen.value = false;
+
+  const toastId = format === 'pdf' ? 'budget-pdf-export' : null;
+  try {
+    const payload = buildExportPayload();
+    if (format === 'pdf') {
+      payload.sceneImageDataUrl = await captureSceneImage();
+      toast.loading('Generando PDF profesional…', { id: toastId });
+    }
+    await exportBudget(format, payload);
+    if (toastId) toast.dismiss(toastId);
+    const labels = { pdf: 'PDF', xlsx: 'Excel', csv: 'CSV' };
+    toast.success(`Archivo ${labels[format] || format} descargado correctamente`);
+  } catch (err) {
+    if (toastId) toast.dismiss(toastId);
+    console.error('Error al exportar presupuesto:', err);
+    toast.error(err?.message || 'No se pudo exportar el presupuesto');
+  } finally {
+    exportFormat.value = null;
+  }
+};
+
+const onDocumentClick = (event) => {
+  if (!event.target.closest?.('.budget-export-menu')) {
+    exportMenuOpen.value = false;
+  }
+};
+
+onMounted(() => {
+  document.addEventListener('click', onDocumentClick);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', onDocumentClick);
+});
 </script>
 
 <template>
   <section
-    class="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl transition-colors duration-300 dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30 sm:p-6 lg:p-8"
+    class="relative overflow-visible rounded-3xl border border-slate-200/90 bg-white/85 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl transition-colors duration-300 dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30 sm:p-6 lg:p-8"
   >
     <!-- Subtle background accent -->
     <div
@@ -255,7 +368,7 @@ watch(
 
       <button
         type="button"
-        class="mt-7 inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-950 bg-slate-950 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-slate-950/15 transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-800 hover:shadow-xl hover:shadow-slate-950/20 active:scale-[0.98] dark:border-white dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
+        class="mt-7 inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-400/40 bg-amber-400 px-6 py-3 text-sm font-bold text-slate-950 shadow-lg shadow-amber-500/20 transition-all duration-200 hover:-translate-y-0.5 hover:bg-amber-300 hover:shadow-xl hover:shadow-amber-500/30 active:scale-[0.98]"
         @click="handleGenerateBudget"
       >
         <span class="material-symbols-outlined text-[18px]">
@@ -320,7 +433,7 @@ watch(
       <div v-else class="space-y-6">
         <!-- Total cost card -->
         <section
-          class="relative overflow-hidden rounded-3xl border border-slate-800 bg-slate-950 p-6 text-white shadow-xl shadow-slate-950/20 dark:border-slate-700 dark:bg-slate-900 sm:p-7"
+          class="relative overflow-visible rounded-3xl border border-slate-800 bg-slate-950 p-6 text-white shadow-xl shadow-slate-950/20 dark:border-slate-700 dark:bg-slate-900 sm:p-7"
         >
           <div
             class="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-orange-500/20 blur-3xl"
@@ -356,12 +469,12 @@ watch(
                 <p v-if="productPreferences.contingency > 0 && deltaContingencia != null">
                   Contingencia {{ productPreferences.contingency }}%:
                   <span class="font-mono font-bold text-slate-200">+{{ formatCurrencyCell(deltaContingencia) }}</span>
-                  (referencial sobre el total del motor).
+                   (referencial sobre el total del motor).
                 </p>
                 <p v-if="productPreferences.includeTax && montoIva > 0">
                   IVA referencial ({{ Math.round(CHILE_IVA_RATE * 100) }}%):
                   <span class="font-mono font-bold text-slate-200">+{{ formatCurrencyCell(montoIva) }}</span>
-                  sobre subtotal con contingencia (CLP).
+                   sobre subtotal con contingencia (CLP).
                 </p>
                 <p v-if="monedaPreferida !== 'CLP'" class="text-[11px] text-slate-500">
                   La moneda mostrada arriba es vista; el cálculo sigue en CLP hasta integrar tipo de cambio.
@@ -384,16 +497,64 @@ watch(
                 Actualizado: {{ formatDate(fechaPrecios) }}
               </div>
 
-              <button
-                type="button"
-                class="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-400/30 bg-emerald-500 px-4 py-2.5 text-xs font-bold uppercase tracking-tight text-white shadow-lg shadow-emerald-500/20 transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-400 hover:shadow-emerald-500/30 active:scale-[0.98]"
-                @click="emit('export-pdf')"
+              <div
+                v-if="canExport"
+                class="relative budget-export-menu"
               >
-                <span class="material-symbols-outlined text-[16px]">
-                  picture_as_pdf
-                </span>
-                Exportar PDF
-              </button>
+                <button
+                  type="button"
+                  title="Exportar presupuesto"
+                  aria-haspopup="menu"
+                  :aria-expanded="exportMenuOpen"
+                  class="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-400/30 bg-emerald-500 px-4 py-2.5 text-xs font-bold uppercase tracking-tight text-white shadow-lg shadow-emerald-500/20 transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-400 hover:shadow-emerald-500/30 active:scale-[0.98]"
+                  @click.stop="handleToggleExportMenu"
+                >
+                  <span class="material-symbols-outlined text-[16px]">
+                    download
+                  </span>
+                  Exportar presupuesto
+                  <span class="material-symbols-outlined text-[14px] opacity-80">
+                    expand_more
+                  </span>
+                </button>
+
+                <Transition name="export-menu">
+                  <div
+                    v-if="exportMenuOpen"
+                    ref="exportMenuRef"
+                    role="menu"
+                    class="absolute right-0 top-full z-[70] mt-2 max-h-[min(320px,60vh)] w-56 overflow-y-auto rounded-3xl border border-slate-200/90 bg-white/95 p-2 shadow-2xl shadow-slate-950/15 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/40"
+                  >
+                    <button
+                      v-for="option in exportOptions"
+                      :key="option.id"
+                      type="button"
+                      role="menuitem"
+                      class="group flex min-h-12 w-full cursor-pointer items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-xs font-bold text-slate-700 transition-all duration-200 hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70 active:scale-[0.99] dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-slate-100"
+                      @click.stop.prevent="handleExport(option.id)"
+                    >
+                      <span
+                        class="pointer-events-none flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-600 transition-colors duration-200 group-hover:border-emerald-300 group-hover:bg-emerald-100 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300 dark:group-hover:border-emerald-700 dark:group-hover:bg-emerald-950/60"
+                      >
+                        <span class="material-symbols-outlined text-[16px]">
+                          {{ option.icon }}
+                        </span>
+                      </span>
+
+                      <span class="pointer-events-none min-w-0 flex-1 select-none">
+                        {{ option.label }}
+                      </span>
+
+                      <span
+                        v-if="exportFormat === option.id"
+                        class="pointer-events-none material-symbols-outlined animate-spin text-[15px] text-emerald-500 dark:text-emerald-300"
+                      >
+                        progress_activity
+                      </span>
+                    </button>
+                  </div>
+                </Transition>
+              </div>
             </div>
           </div>
         </section>
@@ -574,5 +735,18 @@ watch(
 .budget-list-leave-to {
   opacity: 0;
   transform: translateY(10px);
+}
+
+.export-menu-enter-active,
+.export-menu-leave-active {
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+}
+
+.export-menu-enter-from,
+.export-menu-leave-to {
+  opacity: 0;
+  transform: translateY(-6px) scale(0.98);
 }
 </style>

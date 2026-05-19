@@ -31,6 +31,16 @@ import {
 } from '../utils/layerVisibilityEngine';
 
 import MaterialLibrary from '../utils/MaterialLibrary.js';
+import {
+  MIN_ROOM_DIM as SPATIAL_MIN_ROOM_DIM,
+  MOVE_OVERFLOW_MARGIN,
+  OVERLAP_EPS as SPATIAL_OVERLAP_EPS,
+  clampNumber as clampSpatialNumber,
+  clampRectToTerrain,
+  normalizeTerrain,
+  normalizeRoomRect,
+  roomOverlapsAny as spatialRoomOverlapsAny,
+} from '../composables/useSpatialConstraints.js';
 
 import { SceneManager } from '../three/SceneManager.js';
 import { WallBuilder } from '../three/WallBuilder.js';
@@ -45,9 +55,39 @@ import { SceneExporter } from '../three/SceneExporter.js';
 
 const props = defineProps({
   materialEstructuralId: { type: Number, default: 4 },
+  /** Deben venir desde el mismo estado usado por RoomEditor2D (EditorShell). */
+  terrenoAncho: { type: Number, default: 15 },
+  terrenoLargo: { type: Number, default: 7 },
   /** Alineado con preferencias de producto: mostrar minimapa 2D en la escena. */
   showMinimap: { type: Boolean, default: true },
 });
+
+const SNAP_STORAGE_KEY = 'siec-editor-snap-settings';
+
+const isValidSnapStepId = (id) => id === 0 || STEP_PRESETS.some((preset) => preset.id === id);
+
+const readSharedSnapStepId = (fallbackId = 25) => {
+  if (typeof window === 'undefined') return fallbackId;
+
+  try {
+    const raw = window.localStorage.getItem(SNAP_STORAGE_KEY);
+    if (!raw) return fallbackId;
+
+    const parsed = JSON.parse(raw);
+    const id = Number(parsed?.snapStepId);
+    return isValidSnapStepId(id) ? id : fallbackId;
+  } catch {
+    return fallbackId;
+  }
+};
+
+const writeSharedSnapSettings = (snapStepId) => {
+  if (typeof window === 'undefined') return;
+
+  const payload = { snapStepId };
+  window.localStorage.setItem(SNAP_STORAGE_KEY, JSON.stringify(payload));
+  window.dispatchEvent(new CustomEvent('siec-snap-settings', { detail: payload }));
+};
 
 const containerRef = ref(null);
 const rootRef = ref(null);
@@ -60,7 +100,7 @@ const showFurniture = ref(true);
 const sectionEnabled = ref(false);
 const sectionHeight = ref(1.2);
 const timeOfDay = ref(13);
-const snapStepId = ref(25);
+const snapStepId = ref(readSharedSnapStepId(25));
 const cameraInfo = ref({ x: 0, z: 0, yaw: 0 });
 const exportMenuOpen = ref(false);
 const exportFormat = ref(null);
@@ -98,8 +138,8 @@ const roomMeshes = new Map();
 const matLib = new MaterialLibrary();
 
 const WALL_HEIGHT = 2.4;
-const ROOM_MIN_SIZE = 0.5;
-const COLLISION_EPSILON = 0.03;
+const ROOM_MIN_SIZE = SPATIAL_MIN_ROOM_DIM;
+const COLLISION_EPSILON = Math.max(0.03, SPATIAL_OVERLAP_EPS);
 
 const MAT_TYPE_MAP = {
   1: 'wood_frame',
@@ -129,6 +169,85 @@ const getCurrentLayerState = () =>
 
 const isMeshVisible = (mesh, layerState = getCurrentLayerState()) =>
   isLayerMeshVisible(mesh.userData.layerTags, layerState);
+
+
+// ── Spatial authority: same terrain rules as Editor 2D ───────────────────────
+// 3D is a view/editor, not a separate source of truth. Every transform is
+// normalized against the same terrain limits and collision rules used in 2D.
+const terrainRect = () => normalizeTerrain({ w: props.terrenoAncho, h: props.terrenoLargo });
+
+const meshToRoomRect = (mesh) => {
+  if (!mesh?.userData?.roomId) return null;
+
+  const width = Math.max(ROOM_MIN_SIZE, Number(mesh.scale.x) || ROOM_MIN_SIZE);
+  const length = Math.max(ROOM_MIN_SIZE, Number(mesh.scale.z) || ROOM_MIN_SIZE);
+
+  return normalizeRoomRect({
+    id: mesh.userData.roomId,
+    piso: mesh.userData.piso || 1,
+    x: mesh.position.x - width / 2,
+    z: mesh.position.z - length / 2,
+    w: width,
+    l: length,
+  });
+};
+
+const roomRectToMesh = (mesh, rect) => {
+  if (!mesh || !rect) return;
+
+  mesh.scale.x = Math.max(ROOM_MIN_SIZE, Number(rect.w) || ROOM_MIN_SIZE);
+  mesh.scale.z = Math.max(ROOM_MIN_SIZE, Number(rect.l) || ROOM_MIN_SIZE);
+  mesh.scale.y = 1;
+
+  mesh.position.x = rect.x + mesh.scale.x / 2;
+  mesh.position.z = rect.z + mesh.scale.z / 2;
+  mesh.position.y = 0.04 + ((mesh.userData.piso || 1) - 1) * WALL_HEIGHT;
+  mesh.updateMatrixWorld(true);
+};
+
+const snapRectOrigin = (rect) => {
+  if (!snapEngine || !rect) return rect;
+
+  return {
+    ...rect,
+    x: snapEngine.snap(rect.x),
+    z: snapEngine.snap(rect.z),
+  };
+};
+
+const clampMeshToTerrain = (mesh) => {
+  const rect = meshToRoomRect(mesh);
+  if (!rect) return null;
+
+  const clamped = clampRectToTerrain(rect, terrainRect(), MOVE_OVERFLOW_MARGIN);
+  roomRectToMesh(mesh, clamped);
+  return clamped;
+};
+
+const clampMeshScaleToTerrain = (mesh) => {
+  const rect = meshToRoomRect(mesh);
+  if (!rect) return null;
+
+  const terrain = terrainRect();
+  const safeW = clampSpatialNumber(rect.w, ROOM_MIN_SIZE, terrain.w);
+  const safeL = clampSpatialNumber(rect.l, ROOM_MIN_SIZE, terrain.h);
+
+  const clamped = clampRectToTerrain(
+    { ...rect, w: safeW, l: safeL },
+    terrain,
+    MOVE_OVERFLOW_MARGIN,
+  );
+
+  roomRectToMesh(mesh, clamped);
+  return clamped;
+};
+
+const hasStoreCollision = (mesh) => {
+  const rect = meshToRoomRect(mesh);
+  if (!rect) return false;
+
+  return spatialRoomOverlapsAny(rect, recintosStore.recintos);
+};
 
 const normalizeRoomMesh = (object) => {
   if (!object) return null;
@@ -313,38 +432,50 @@ if (sceneManager.orbit) {
   });
 
   sceneManager.start();
+
+  sceneManager.renderer.domElement.setAttribute('data-siec-scene-canvas', '');
 };
 
 const updateRoomStoreFromMesh = (mesh) => {
-  if (!mesh?.userData?.roomId) return;
+  commitMeshRectToStore(mesh, { positionOnly: false });
+};
 
-  const width = mesh.scale.x;
-  const length = mesh.scale.z;
+/** Normaliza mesh → rect (snap + límites terreno) y opcionalmente persiste en Pinia. */
+const commitMeshRectToStore = (mesh, { positionOnly = false, persist = true } = {}) => {
+  let rect = meshToRoomRect(mesh);
+  if (!rect) return null;
 
-  recintosStore.updateRecinto(mesh.userData.roomId, {
-    dimensions: {
-      w: parseFloat(width.toFixed(3)),
-      l: parseFloat(length.toFixed(3)),
-    },
-    coords: {
-      x: parseFloat((mesh.position.x - width / 2).toFixed(3)),
-      z: parseFloat((mesh.position.z - length / 2).toFixed(3)),
-    },
-  });
+  rect = snapRectOrigin(rect);
+  rect = clampRectToTerrain(rect, terrainRect(), MOVE_OVERFLOW_MARGIN);
+  roomRectToMesh(mesh, rect);
+
+  if (persist) {
+    if (positionOnly) {
+      recintosStore.updateRecinto(mesh.userData.roomId, {
+        coords: {
+          x: parseFloat(rect.x.toFixed(3)),
+          z: parseFloat(rect.z.toFixed(3)),
+        },
+      });
+    } else {
+      recintosStore.updateRecinto(mesh.userData.roomId, {
+        dimensions: {
+          w: parseFloat(rect.w.toFixed(3)),
+          l: parseFloat(rect.l.toFixed(3)),
+        },
+        coords: {
+          x: parseFloat(rect.x.toFixed(3)),
+          z: parseFloat(rect.z.toFixed(3)),
+        },
+      });
+    }
+  }
+
+  return rect;
 };
 
 const updateRoomPositionStoreFromMesh = (mesh) => {
-  if (!mesh?.userData?.roomId) return;
-
-  const width = mesh.scale.x;
-  const length = mesh.scale.z;
-
-  recintosStore.updateRecinto(mesh.userData.roomId, {
-    coords: {
-      x: parseFloat((mesh.position.x - width / 2).toFixed(3)),
-      z: parseFloat((mesh.position.z - length / 2).toFixed(3)),
-    },
-  });
+  commitMeshRectToStore(mesh, { positionOnly: true });
 };
 
 const setupDragAndTransformControls = () => {
@@ -398,19 +529,21 @@ const setupDragAndTransformControls = () => {
 
     if (!mesh) return;
 
-    mesh.position.x = snapEngine.snap(mesh.position.x);
-    mesh.position.z = snapEngine.snap(mesh.position.z);
-    mesh.position.y = 0.04 + ((mesh.userData.piso || 1) - 1) * WALL_HEIGHT;
+    const rect = commitMeshRectToStore(mesh, { positionOnly: true, persist: false });
+    if (!rect) return;
 
-    mesh.updateMatrixWorld(true);
-
-    if (hasRoomCollision(mesh)) {
+    if (hasRoomCollision(mesh) || hasStoreCollision(mesh)) {
       restoreValidTransform(mesh);
       return;
     }
 
     rememberValidTransform(mesh);
-    updateRoomPositionStoreFromMesh(mesh);
+    recintosStore.updateRecinto(mesh.userData.roomId, {
+      coords: {
+        x: parseFloat(rect.x.toFixed(3)),
+        z: parseFloat(rect.z.toFixed(3)),
+      },
+    });
   });
 
   dragControls.addEventListener('dragend', (event) => {
@@ -423,7 +556,15 @@ const setupDragAndTransformControls = () => {
     const mesh = normalizeRoomMesh(event.object);
 
     if (mesh) {
+      clampMeshToTerrain(mesh);
+
+      if (hasRoomCollision(mesh) || hasStoreCollision(mesh)) {
+        restoreValidTransform(mesh);
+      }
+
+      updateRoomPositionStoreFromMesh(mesh);
       rememberValidTransform(mesh);
+      recintosStore.saveHistoryState?.();
     }
   });
 
@@ -451,7 +592,15 @@ const setupDragAndTransformControls = () => {
     if (event.value) {
       rememberValidTransform(mesh);
     } else {
+      clampMeshScaleToTerrain(mesh);
+
+      if (hasRoomCollision(mesh) || hasStoreCollision(mesh)) {
+        restoreValidTransform(mesh);
+      }
+
+      updateRoomStoreFromMesh(mesh);
       rememberValidTransform(mesh);
+      recintosStore.saveHistoryState?.();
     }
   });
 
@@ -470,11 +619,9 @@ const setupDragAndTransformControls = () => {
     mesh.scale.z = Math.max(ROOM_MIN_SIZE, snappedLength);
     mesh.scale.y = 1;
 
-    mesh.position.y = 0.04 + ((mesh.userData.piso || 1) - 1) * WALL_HEIGHT;
+    clampMeshScaleToTerrain(mesh);
 
-    mesh.updateMatrixWorld(true);
-
-    if (hasRoomCollision(mesh)) {
+    if (hasRoomCollision(mesh) || hasStoreCollision(mesh)) {
       restoreValidTransform(mesh);
       return;
     }
@@ -657,17 +804,54 @@ const syncRooms = () => {
   lightingRig.setupInteriorLights(recintos);
 };
 
-const centerCamera = () => {
-  if (!sceneManager) return;
-
+const computeSceneBounds = () => {
   const box = new THREE.Box3();
 
   for (const mesh of wallMeshes.values()) {
     box.expandByObject(mesh);
   }
 
+  for (const mesh of roomMeshes.values()) {
+    box.expandByObject(mesh);
+  }
+
+  if (box.isEmpty() && sceneManager?.buildingGroup) {
+    box.setFromObject(sceneManager.buildingGroup);
+  }
+
+  return box;
+};
+
+const centerCamera = () => {
+  if (!sceneManager) return;
+
+  const box = computeSceneBounds();
   if (!box.isEmpty()) {
     sceneManager.fitTo(box);
+  }
+};
+
+const renderSceneFrame = () => {
+  if (!sceneManager) return;
+
+  if (sceneManager.mode === 'orbit') {
+    sceneManager.orbit.update();
+  }
+
+  if (sceneManager.options.enablePostFX && sceneManager.composer) {
+    sceneManager.composer.render(0);
+  } else {
+    sceneManager.renderer.render(sceneManager.scene, sceneManager.camera);
+  }
+};
+
+const captureSceneDataUrl = () => {
+  try {
+    const canvas = sceneManager?.renderer?.domElement;
+    if (!canvas) return null;
+    return canvas.toDataURL('image/jpeg', 0.9);
+  } catch {
+    return null;
   }
 };
 
@@ -812,7 +996,22 @@ watch(timeOfDay, (hour) => {
 watch(snapStepId, (id) => {
   const config = STEP_PRESETS.find((preset) => preset.id === id);
   snapEngine?.setStep(config?.step ?? 0);
+  writeSharedSnapSettings(id);
 });
+
+watch(
+  () => [props.terrenoAncho, props.terrenoLargo],
+  () => {
+    for (const mesh of roomMeshes.values()) {
+      clampMeshScaleToTerrain(mesh);
+      updateRoomStoreFromMesh(mesh);
+      rememberValidTransform(mesh);
+    }
+
+    recintosStore.saveHistoryState?.();
+  },
+);
+
 
 const handleExport = async (format) => {
   if (!sceneManager) return;
@@ -969,6 +1168,45 @@ const handleCanvasPointerDown = (event) => {
   layersStore.setSelectedLayer(null);
 };
 
+const handleSharedSnapSettings = (event) => {
+  const id = Number(event?.detail?.snapStepId);
+  if (isValidSnapStepId(id) && id !== snapStepId.value) {
+    snapStepId.value = id;
+  }
+};
+
+const handleSceneCaptureRequest = (event) => {
+  const complete = event?.detail?.complete;
+
+  if (typeof complete !== 'function') return;
+
+  if (!sceneManager?.renderer || !sceneManager?.scene || !sceneManager?.camera) {
+    complete(null);
+    return;
+  }
+
+  const saved = {
+    position: sceneManager.camera.position.clone(),
+    target: sceneManager.orbit.target.clone(),
+  };
+
+  centerCamera();
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      renderSceneFrame();
+      const dataUrl = captureSceneDataUrl();
+
+      sceneManager.camera.position.copy(saved.position);
+      sceneManager.orbit.target.copy(saved.target);
+      sceneManager.orbit.update();
+      renderSceneFrame();
+
+      complete(dataUrl);
+    });
+  });
+};
+
 onMounted(() => {
   initScene();
 
@@ -982,6 +1220,7 @@ onMounted(() => {
 
   document.addEventListener('click', onDocumentClick);
   document.addEventListener('fullscreenchange', handleFullscreenChange);
+  window.addEventListener('siec-snap-settings', handleSharedSnapSettings);
 
   sceneManager.renderer.domElement.addEventListener(
     'pointerdown',
@@ -1034,6 +1273,7 @@ onMounted(() => {
   }
 
   window.addEventListener('resize', onResize);
+  window.addEventListener('siec:capture-scene', handleSceneCaptureRequest);
 });
 
 onBeforeUnmount(() => {
@@ -1041,6 +1281,8 @@ onBeforeUnmount(() => {
   stopActiveRoomWatcher?.();
 
   document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  window.removeEventListener('siec-snap-settings', handleSharedSnapSettings);
+  window.removeEventListener('siec:capture-scene', handleSceneCaptureRequest);
 
   if (onDocumentClick) {
     document.removeEventListener('click', onDocumentClick);
@@ -1247,7 +1489,7 @@ onBeforeUnmount(() => {
                 class="h-1.5 w-1.5 rounded-full"
                 :class="currentTool === 'measure' ? 'bg-orange-500' : 'bg-emerald-500'"
               ></span>
-              {{ currentTool === 'measure' ? 'Medir: clic en 2 puntos' : 'Snap activo' }}
+              {{ currentTool === 'measure' ? 'Medir: clic en 2 puntos' : snapStepId === 0 ? 'Snap desactivado' : 'Snap activo' }}
             </span>
           </div>
         </div>
