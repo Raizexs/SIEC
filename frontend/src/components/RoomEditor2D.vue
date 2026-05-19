@@ -7,6 +7,7 @@ import { useTheme } from "../composables/useTheme";
 import {
   clampRectToTerrain,
   normalizeRoomRect,
+  snapRectFlushToNeighbors,
   terrainFromEditor,
 } from "../composables/useSpatialConstraints.js";
 
@@ -173,12 +174,125 @@ const editor = useInteractiveEditor({ snapStep: editorSnapStep });
 // ── Corridor Mode ─────────────────────────────────────────────────────────────
 const corridorMode = ref(false);
 const MIN_CORRIDOR_DIM = 0.8; // metros mínimos en cualquier dirección
+const CORRIDOR_MERGE_EPS = 0.001;
+
+/** Fusiona rectángulos colindantes que forman un rectángulo mayor. */
+const mergeAdjacentCorridorRects = (rects) => {
+  const out = rects.map((rect) => ({ ...rect }));
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+
+    outer:
+    for (let i = 0; i < out.length; i++) {
+      for (let j = i + 1; j < out.length; j++) {
+        const a = out[i];
+        const b = out[j];
+        let merged = null;
+
+        if (
+          Math.abs(a.z0 - b.z0) < CORRIDOR_MERGE_EPS &&
+          Math.abs(a.l - b.l) < CORRIDOR_MERGE_EPS
+        ) {
+          if (Math.abs(a.x0 + a.w - b.x0) < CORRIDOR_MERGE_EPS) {
+            merged = { x0: a.x0, z0: a.z0, w: a.w + b.w, l: a.l };
+          } else if (Math.abs(b.x0 + b.w - a.x0) < CORRIDOR_MERGE_EPS) {
+            merged = { x0: b.x0, z0: a.z0, w: a.w + b.w, l: a.l };
+          }
+        }
+
+        if (
+          !merged &&
+          Math.abs(a.x0 - b.x0) < CORRIDOR_MERGE_EPS &&
+          Math.abs(a.w - b.w) < CORRIDOR_MERGE_EPS
+        ) {
+          if (Math.abs(a.z0 + a.l - b.z0) < CORRIDOR_MERGE_EPS) {
+            merged = { x0: a.x0, z0: a.z0, w: a.w, l: a.l + b.l };
+          } else if (Math.abs(b.z0 + b.l - a.z0) < CORRIDOR_MERGE_EPS) {
+            merged = { x0: b.x0, z0: b.z0, w: a.w, l: a.l + b.l };
+          }
+        }
+
+        if (merged) {
+          out[i] = merged;
+          out.splice(j, 1);
+          changed = true;
+          break outer;
+        }
+      }
+    }
+  }
+
+  return out;
+};
+
+/**
+ * Cubre celdas de una región ortogonal con pocos rectángulos (greedy maximal).
+ * Mejor para pasillos en L/T que la descomposición por franjas horizontales.
+ */
+const decomposeCellsToCorridorRects = (cells, sortedX, sortedZ) => {
+  const remaining = new Set(cells.map(({ row, col }) => `${row},${col}`));
+  const rects = [];
+
+  const hasBlock = (row, col, wCols, hRows) => {
+    for (let r = row; r < row + hRows; r++) {
+      for (let c = col; c < col + wCols; c++) {
+        if (!remaining.has(`${r},${c}`)) return false;
+      }
+    }
+    return true;
+  };
+
+  while (remaining.size > 0) {
+    let best = null;
+    let bestArea = 0;
+
+    for (const key of remaining) {
+      const [row, col] = key.split(',').map(Number);
+      let maxW = 1;
+      while (hasBlock(row, col, maxW + 1, 1)) maxW++;
+
+      let maxH = 1;
+      let canGrow = true;
+      while (canGrow) {
+        for (let c = col; c < col + maxW; c++) {
+          if (!remaining.has(`${row + maxH},${c}`)) {
+            canGrow = false;
+            break;
+          }
+        }
+        if (canGrow) maxH++;
+      }
+
+      const area = maxW * maxH;
+      if (area > bestArea) {
+        bestArea = area;
+        best = { row, col, wCols: maxW, hRows: maxH };
+      }
+    }
+
+    if (!best) break;
+
+    for (let r = best.row; r < best.row + best.hRows; r++) {
+      for (let c = best.col; c < best.col + best.wCols; c++) {
+        remaining.delete(`${r},${c}`);
+      }
+    }
+
+    const x0 = sortedX[best.col];
+    const x1 = sortedX[best.col + best.wCols];
+    const z0 = sortedZ[best.row];
+    const z1 = sortedZ[best.row + best.hRows];
+    rects.push({ x0, z0, w: x1 - x0, l: z1 - z0 });
+  }
+
+  return mergeAdjacentCorridorRects(rects);
+};
 
 /**
  * Agrupa celdas vacías en REGIONES CONECTADAS usando flood-fill (4-vecinos).
- * Cada región se representa como una lista de rectángulos (strips por fila),
- * y cada strip tiene un groupId que identifica la región.
- * Al hacer clic en cualquier zona de un grupo, se crean todos sus rectángulos.
+ * Cada hueco libre es una zona independiente; un clic crea solo ese pasillo.
  */
 const corridorZones = computed(() => {
   if (!corridorMode.value) return [];
@@ -254,55 +368,36 @@ const corridorZones = computed(() => {
     }
   }
 
-  // 5. Por cada región, construir rectángulos por strips horizontales
-  //    (cada franja continua de celdas del mismo grupo en la misma fila)
-  const groupRects = Array.from({ length: numGroups }, () => []);
-
+  // 5. Por cada región, descomponer en pocos rectángulos (figuras complejas)
+  const groupCells = Array.from({ length: numGroups }, () => []);
   for (let row = 0; row < rows; row++) {
-    let colStart = -1;
-    let curGroup = -1;
-    for (let col = 0; col <= cols; col++) {
-      const gid = col < cols ? groupId[row][col] : -1;
-      if (gid !== -1 && gid === curGroup) {
-        // extend current strip
-      } else {
-        if (curGroup !== -1 && colStart !== -1) {
-          const x0 = sortedX[colStart];
-          const x1 = sortedX[col];
-          const z0 = sortedZ[row];
-          const z1 = sortedZ[row + 1];
-          const w  = x1 - x0;
-          const l  = z1 - z0;
-          if (w >= MIN_CORRIDOR_DIM && l >= MIN_CORRIDOR_DIM) {
-            groupRects[curGroup].push({ x0, z0, w, l, groupId: curGroup });
-          }
-        }
-        colStart = gid !== -1 ? col : -1;
-        curGroup = gid;
-      }
+    for (let col = 0; col < cols; col++) {
+      const gid = groupId[row][col];
+      if (gid >= 0) groupCells[gid].push({ row, col });
     }
   }
 
-  // 6. Filtrar grupos que no tienen ningún rectángulo válido y aplanar
+  const groupRects = Array.from({ length: numGroups }, () => []);
+  for (let gid = 0; gid < numGroups; gid++) {
+    const cells = groupCells[gid];
+    if (cells.length === 0) continue;
+
+    const rects = decomposeCellsToCorridorRects(cells, sortedX, sortedZ)
+      .filter((rect) => rect.w >= MIN_CORRIDOR_DIM && rect.l >= MIN_CORRIDOR_DIM);
+
+    groupRects[gid] = rects.map((rect) => ({ ...rect, groupId: gid }));
+  }
+
+  // 6. Una zona clickeable por rectángulo (cada hueco por separado)
   const zones = [];
   for (let gid = 0; gid < numGroups; gid++) {
     const rects = groupRects[gid];
-    if (rects.length === 0) continue;
-    // Calcular el bounding box del grupo (para el label)
-    const allX0 = Math.min(...rects.map(r => r.x0));
-    const allZ0 = Math.min(...rects.map(r => r.z0));
-    const allX1 = Math.max(...rects.map(r => r.x0 + r.w));
-    const allZ1 = Math.max(...rects.map(r => r.z0 + r.l));
-    const totalArea = rects.reduce((s, r) => s + r.w * r.l, 0);
-    rects.forEach(rect => {
+    rects.forEach((rect) => {
       zones.push({
         ...rect,
-        // info del grupo para el label y la acción de crear todos juntos
-        groupRects: rects,
-        groupArea: totalArea,
-        labelX: (allX0 + allX1) / 2,
-        labelZ: (allZ0 + allZ1) / 2,
-        isFirstInGroup: rect === rects[0],
+        labelX: rect.x0 + rect.w / 2,
+        labelZ: rect.z0 + rect.l / 2,
+        pieceArea: rect.w * rect.l,
       });
     });
   }
@@ -310,23 +405,22 @@ const corridorZones = computed(() => {
   return zones;
 });
 
-/**
- * Al hacer clic en cualquier zona, crea TODOS los rectángulos de su grupo
- * como recintos tipo 'pasillo' separados, con nombre correlativo.
- */
+/** Crea solo el pasillo de la zona en la que hiciste clic (p. ej. el hueco entre dos recintos). */
 const buildCorridor = (zone) => {
-  const rects = zone.groupRects;
-  rects.forEach((rect, idx) => {
-    const nombre = rects.length > 1 ? `Pasillo ${String.fromCharCode(65 + idx)}` : 'Pasillo';
-    const id = store.addRecinto(
-      'pasillo',
-      nombre,
-      rect.w,
-      rect.l,
-      Math.max(1.0, Number(props.defaultRoomHeight) || 2.4),
-    );
-    store.updateRecinto(id, { coords: { x: rect.x0, z: rect.z0 } });
-  });
+  const floor = store.currentFloor;
+  const pasillosEnPiso = store.recintos.filter(
+    (r) => r.tipo === 'pasillo' && (r.piso || 1) === floor,
+  ).length;
+  const nombre = pasillosEnPiso > 0 ? `Pasillo ${pasillosEnPiso + 1}` : 'Pasillo';
+
+  const id = store.addRecinto(
+    'pasillo',
+    nombre,
+    zone.w,
+    zone.l,
+    Math.max(1.0, Number(props.defaultRoomHeight) || 2.4),
+  );
+  store.updateRecinto(id, { coords: { x: zone.x0, z: zone.z0 } });
 };
 
 
@@ -443,11 +537,28 @@ const maxRoomLengthFromPosition = (room) => {
   );
 };
 
+const applyFlushSnapToRoom = (room) => {
+  if (!room) return null;
+
+  const terrain = terrainFromEditor(budgetRect.value.w, budgetRect.value.h);
+  const others = store.recintos.filter((r) => r.id !== room.id);
+
+  let rect = snapRectFlushToNeighbors(normalizeRoomRect(room), others);
+  rect = clampRectToTerrain(rect, terrain, MOVE_OVERFLOW_MARGIN);
+
+  if (roomOverlapsAny(room, rect.x, rect.z, rect.w, rect.l)) {
+    return null;
+  }
+
+  return rect;
+};
+
 const normalizeRoomInsideTerrain = (room) => {
   if (!room) return;
 
   const terrain = terrainFromEditor(budgetRect.value.w, budgetRect.value.h);
-  const clamped = clampRectToTerrain(
+  const flushed = applyFlushSnapToRoom(room);
+  const clamped = flushed || clampRectToTerrain(
     normalizeRoomRect(room),
     terrain,
     MOVE_OVERFLOW_MARGIN,
@@ -547,6 +658,14 @@ const placeRoomWithoutGap = (room) => {
         x: Number(target.x.toFixed(3)),
         z: Number(target.z.toFixed(3)),
       },
+    });
+  }
+
+  const placed = store.recintos.find((r) => r.id === room.id);
+  const flushed = placed ? applyFlushSnapToRoom(placed) : null;
+  if (flushed) {
+    store.updateRecinto(room.id, {
+      coords: { x: flushed.x, z: flushed.z },
     });
   }
 
@@ -702,7 +821,29 @@ const onPointerUp = () => {
   if (mode === "drag") {
     clampSelectedRoomToMovementBounds();
     keepDraggedRoomOutOfCollisions();
+    const dragged = selectedDraggedRoom();
+    const flushed = dragged ? applyFlushSnapToRoom(dragged) : null;
+    if (flushed) {
+      store.updateRecinto(dragged.id, {
+        coords: { x: flushed.x, z: flushed.z },
+      });
+    }
     lastValidDragCoords.value = null;
+  }
+
+  if (mode === "resize") {
+    const resized = selectedDraggedRoom();
+    const flushed = resized ? applyFlushSnapToRoom(resized) : null;
+    if (flushed) {
+      store.updateRecinto(resized.id, {
+        coords: { x: flushed.x, z: flushed.z },
+        dimensions: {
+          ...resized.dimensions,
+          w: flushed.w,
+          l: flushed.l,
+        },
+      });
+    }
   }
 
   editor.endInteraction();
@@ -1237,7 +1378,7 @@ onUnmounted(() => {
             text-anchor="end"
             style="pointer-events: none"
           >
-            {{ m2Totales }} m² disponibles
+            {{ freeArea.toFixed(1) }} m² libres
           </text>
 
           <!-- Ghost Trace -->
@@ -1281,33 +1422,31 @@ onUnmounted(() => {
                 class="corridor-zone-rect"
               />
 
-              <template v-if="zone.isFirstInGroup">
-                <text
-                  :x="toSX(zone.labelX)"
-                  :y="toSZ(zone.labelZ) - 8"
-                  fill="rgba(20,184,166,0.95)"
-                  font-size="11"
-                  font-weight="800"
-                  text-anchor="middle"
-                  dominant-baseline="middle"
-                  style="pointer-events: none; user-select: none;"
-                >
-                  {{ zone.groupArea.toFixed(1) }}m²{{ zone.groupRects.length > 1 ? ` (${zone.groupRects.length} segmentos)` : '' }}
-                </text>
+              <text
+                :x="toSX(zone.labelX)"
+                :y="toSZ(zone.labelZ) - 6"
+                fill="rgba(20,184,166,0.95)"
+                font-size="11"
+                font-weight="800"
+                text-anchor="middle"
+                dominant-baseline="middle"
+                style="pointer-events: none; user-select: none;"
+              >
+                {{ zone.pieceArea.toFixed(1) }} m²
+              </text>
 
-                <text
-                  :x="toSX(zone.labelX)"
-                  :y="toSZ(zone.labelZ) + 9"
-                  fill="rgba(20,184,166,0.72)"
-                  font-size="10"
-                  font-weight="700"
-                  text-anchor="middle"
-                  dominant-baseline="middle"
-                  style="pointer-events: none; user-select: none;"
-                >
-                  Clic para crear pasillo
-                </text>
-              </template>
+              <text
+                :x="toSX(zone.labelX)"
+                :y="toSZ(zone.labelZ) + 8"
+                fill="rgba(20,184,166,0.72)"
+                font-size="10"
+                font-weight="700"
+                text-anchor="middle"
+                dominant-baseline="middle"
+                style="pointer-events: none; user-select: none;"
+              >
+                Clic → pasillo aquí
+              </text>
             </g>
 
             <text

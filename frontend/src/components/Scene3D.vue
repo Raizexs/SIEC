@@ -4,7 +4,7 @@ import logger from '../utils/logger.js';
  * Scene3D — refactored to use modular three/ classes:
  *   - SceneManager: renderer, camera, controls, post-FX
  *   - WallBuilder: walls with CSG-cut openings
- *   - DoorWindowSystem: auto-generates doors/windows
+ *   - DoorWindowSystem: puertas/ventanas según tipo de recinto y layout
  *   - RoomFurnisher: procedural furniture per room type
  *   - LightingRig: day/night cycle (SunCalc)
  *   - Walkthrough: first-person navigation
@@ -117,6 +117,8 @@ const metalconValidator = recintosStore.metalconValidator;
 let sceneManager = null;
 let wallBuilder = null;
 let furnisher = null;
+/** Aperturas (puertas/ventanas) del último sync de muros. */
+let lastWallOpenings = new Map();
 let lightingRig = null;
 let walkthrough = null;
 let measureTool = null;
@@ -644,6 +646,7 @@ const syncWalls = () => {
 
   const walls = topology.walls.value;
   const openings = DoorWindowSystem.generate(walls, recintosStore.recintos);
+  lastWallOpenings = openings;
 
   const incomingIds = new Set(walls.map((wall) => wall.id));
 
@@ -787,11 +790,17 @@ const syncRooms = () => {
       recinto.id === recintosStore.activeRecintoId ? 0.4 : 0;
 
     if (showFurniture.value && piso <= recintosStore.currentFloor) {
-      furnisher.furnish(recinto);
+      furnisher.furnish(recinto, {
+        walls: topology.walls.value,
+        openings: lastWallOpenings,
+        recintos,
+      });
     } else {
       furnisher.clearRoom(recinto.id);
     }
   }
+
+  furnisher.setVisible(showFurniture.value);
 
   if (sceneManager.outline) {
     const active =

@@ -140,53 +140,48 @@ const formatDate = (value) => {
 </script>
 
 <template>
-  <!-- Collapse handle -->
-  <button
-    type="button"
-    class="fixed top-20 z-40 flex h-12 w-7 items-center justify-center rounded-r-2xl border border-l-0 border-slate-200 bg-white/90 text-slate-600 shadow-lg shadow-slate-950/10 backdrop-blur-xl transition-all duration-200 hover:w-8 hover:border-slate-300 hover:text-slate-950 active:scale-95 dark:border-slate-800 dark:bg-slate-950/90 dark:text-slate-300 dark:shadow-black/30 dark:hover:border-slate-700 dark:hover:text-slate-100"
-    :style="{ left: collapsed ? '4rem' : 'calc(4rem + 240px)' }"
-    :title="collapsed ? 'Expandir panel contextual' : 'Colapsar panel'"
-    :aria-label="collapsed ? 'Expandir panel contextual' : 'Colapsar panel'"
-    @click="toggleCollapse"
-  >
-    <ChevronLeft
-      v-if="!collapsed"
-      class="h-3.5 w-3.5"
-      :stroke-width="2.6"
-    />
-
-    <ChevronRight
-      v-else
-      class="h-3.5 w-3.5"
-      :stroke-width="2.6"
-    />
-  </button>
+  <!-- Colapsado: pestaña sobre el rail (no sobre el contenido principal) -->
+  <Teleport to="body">
+    <button
+      v-if="collapsed"
+      type="button"
+      class="fixed left-16 top-[4.75rem] z-50 flex h-10 w-6 items-center justify-center rounded-r-xl border border-l-0 border-slate-200 bg-white/95 text-slate-600 shadow-md backdrop-blur-xl transition-all hover:border-slate-300 hover:text-slate-950 active:scale-95 dark:border-slate-800 dark:bg-slate-950/95 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:text-slate-100"
+      title="Expandir panel contextual"
+      aria-label="Expandir panel contextual"
+      @click="toggleCollapse"
+    >
+      <ChevronRight class="h-3.5 w-3.5" :stroke-width="2.6" />
+    </button>
+  </Teleport>
 
   <aside
-    class="sticky top-0 z-30 flex h-screen flex-col overflow-hidden border-r border-slate-200/80 bg-white/85 shadow-sm shadow-slate-950/[0.03] backdrop-blur-xl transition-all duration-300 dark:border-slate-800/80 dark:bg-slate-950/85 dark:shadow-black/20"
-    :class="collapsed ? 'w-0 opacity-0 pointer-events-none' : 'w-60 opacity-100'"
+    class="sticky top-0 z-30 flex h-screen shrink-0 flex-col overflow-hidden border-r border-slate-200/80 bg-white/85 shadow-sm shadow-slate-950/[0.03] backdrop-blur-xl transition-[width,opacity] duration-300 dark:border-slate-800/80 dark:bg-slate-950/85 dark:shadow-black/20"
+    :class="collapsed ? 'w-0 border-r-0 opacity-0 pointer-events-none' : 'w-60 opacity-100'"
   >
     <!-- Header -->
     <header class="shrink-0 border-b border-slate-200/80 px-4 pb-4 pt-5 dark:border-slate-800/80">
-      <div class="mb-3 flex items-center justify-between gap-3">
-        <div class="flex items-center gap-2">
+      <div class="mb-3 flex items-center justify-between gap-2">
+        <div class="flex min-w-0 items-center gap-2">
           <span
-            class="flex h-7 w-7 items-center justify-center rounded-xl border border-orange-200 bg-orange-50 text-orange-600 shadow-sm dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
+            class="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl border border-orange-200 bg-orange-50 text-orange-600 shadow-sm dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
           >
             <CircleDot class="h-3.5 w-3.5" :stroke-width="2.6" />
           </span>
 
-          <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+          <p class="truncate text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
             Workspace
           </p>
         </div>
 
-        <span
-          class="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[9px] font-black uppercase tracking-tight text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/25 dark:text-emerald-300"
+        <button
+          type="button"
+          class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 active:scale-95 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:border-slate-600 dark:hover:text-slate-100"
+          title="Colapsar panel"
+          aria-label="Colapsar panel"
+          @click="toggleCollapse"
         >
-          <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-          Live
-        </span>
+          <ChevronLeft class="h-3.5 w-3.5" :stroke-width="2.6" />
+        </button>
       </div>
 
       <h2 class="truncate text-lg font-black tracking-tight text-slate-950 dark:text-slate-100">
