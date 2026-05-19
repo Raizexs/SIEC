@@ -24,7 +24,7 @@ import Scene3D from './Scene3D.vue';
 import LayerSelectionPanel from './LayerSelectionPanel.vue';
 import BudgetBreakdownPanel from './BudgetBreakdownPanel.vue';
 import SaveLayoutDialog from './SaveLayoutDialog.vue';
-import PreventiveLogisticsAlertModal from './PreventiveLogisticsAlertModal.vue';
+
 import UserManualModal from './UserManualModal.vue';
 import ShareDialog from './ShareDialog.vue';
 import { useRecintosStore } from '../stores/recintos';
@@ -79,13 +79,7 @@ onUnmounted(() => {
   }
 });
 
-const showPreventiveLogisticsModal = ref(false);
 const showManual = ref(false);
-
-const HEAVY_LOGISTICS_MATERIAL_ID = 4;
-const LIGHTWEIGHT_QUOTE_MATERIAL_ID = 2;
-
-const materialTriggerReady = ref(false);
 
 const appKey = computed(() => `app-${currentLanguage.value}`);
 
@@ -143,22 +137,6 @@ watchEffect(() => {
   areasComunes.value = formData.value.areasComunes;
 });
 
-watch(
-  () => formData.value.materialEstructuralId,
-  (newMaterialId, oldMaterialId) => {
-    if (!materialTriggerReady.value) {
-      materialTriggerReady.value = true;
-      return;
-    }
-
-    if (
-      newMaterialId === HEAVY_LOGISTICS_MATERIAL_ID &&
-      oldMaterialId !== HEAVY_LOGISTICS_MATERIAL_ID
-    ) {
-      showPreventiveLogisticsModal.value = true;
-    }
-  },
-);
 
 const areaUsadaReal = computed(() => {
   return Number(recintosStore.totalArea || 0);
@@ -280,18 +258,7 @@ const syncFormDataFromLayout = (layout) => {
   prevMaterialId = formData.value.materialEstructuralId;
 };
 
-const dismissPreventiveLogisticsModal = () => {
-  showPreventiveLogisticsModal.value = false;
-};
 
-const quoteWithLightweightMaterials = () => {
-  formData.value = {
-    ...formData.value,
-    materialEstructuralId: LIGHTWEIGHT_QUOTE_MATERIAL_ID,
-  };
-
-  showPreventiveLogisticsModal.value = false;
-};
 
 const loadPreset = (preset) => {
   isProgrammaticUpdate.value = true;
@@ -696,11 +663,7 @@ const startTutorial = () => {
       @close="showShareDialog = false"
     />
 
-    <PreventiveLogisticsAlertModal
-      :show="showPreventiveLogisticsModal"
-      @close="dismissPreventiveLogisticsModal"
-      @quote-light-materials="quoteWithLightweightMaterials"
-    />
+
 
     <UserManualModal
       :show="showManual"

@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 import unicodedata
 import os
+from dotenv import load_dotenv
+load_dotenv()
 from collections import defaultdict
 from schemas import (
     DesgloseResponse,
@@ -234,8 +236,8 @@ def crear_simulacion(sim: SimulacionCreate, db: Session = Depends(get_db)):
     """Guarda los parámetros de configuración de la vivienda y crea una nueva simulación."""
 
     # Validaciones obligatorias
-    if sim.m2Totales < 1 or sim.m2Totales > 500:
-        raise HTTPException(status_code=400, detail="Superficie total debe estar entre 1 y 500 m².")
+    if sim.m2Totales < 1 or sim.m2Totales > 5000:
+        raise HTTPException(status_code=400, detail="Superficie total debe estar entre 1 y 5000 m².")
 
     if sim.habitaciones < 0 or sim.banios < 0 or sim.areasComunes < 0:
         raise HTTPException(status_code=400, detail="La cantidad de recintos no puede ser negativa.")
