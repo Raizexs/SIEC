@@ -200,6 +200,12 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    try:
+        from observability import log
+    except ImportError:
+        import logging
+        log = logging.getLogger("siec_seeder")
+
     csv_path = os.path.abspath(args.csv)
     database_url = _resolve_database_url(args.database_url)
     try:
@@ -209,24 +215,25 @@ def main() -> int:
             create_tables=not args.no_create_tables,
         )
     except FileNotFoundError as exc:
-        print(f"ERROR: {exc}")
+        log.error("seeder_file_not_found", error=str(exc))
         return 1
     except ModuleNotFoundError as exc:
-        print(
-            "ERROR: dependencia de base de datos no disponible. "
-            f"Define --database-url con una URL válida o instala el driver requerido. Detalle: {exc}"
-        )
+        log.error("seeder_db_dependency_missing", error=str(exc))
         return 1
     except Exception as exc:
-        print(f"ERROR: fallo en seeding de matrices: {exc}")
+        log.error("seeder_failed", error=str(exc))
         return 1
 
-    print("Seeder Matrices CSV ejecutado correctamente.")
-    print(f"CSV procesado: {csv_path}")
-    print(f"DB usada: {result['database_url']}")
-    print(f"Filas CSV procesadas: {result['csv_rows_processed']}")
-    print(f"Catálogo total: {result['total_before']} -> {result['total_after']}")
-    print(f"Catálogo activo: {result['active_before']} -> {result['active_after']}")
+    log.info(
+        "seeder_completed",
+        csv_path=csv_path,
+        database_url=result["database_url"],
+        csv_rows_processed=result["csv_rows_processed"],
+        total_before=result["total_before"],
+        total_after=result["total_after"],
+        active_before=result["active_before"],
+        active_after=result["active_after"],
+    )
     return 0
 
 
