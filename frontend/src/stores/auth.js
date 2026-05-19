@@ -1,3 +1,4 @@
+import logger from '../utils/logger.js';
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
@@ -107,7 +108,7 @@ export const useAuthStore = defineStore('auth', () => {
               }
 
               if (event === "TOKEN_REFRESHED") {
-                console.debug("[auth] Token refreshed.");
+                logger.debug("[auth] Token refreshed.");
               }
             },
           );
@@ -116,7 +117,7 @@ export const useAuthStore = defineStore('auth', () => {
             sub?.subscription?.unsubscribe?.bind(sub.subscription) || null;
         }
       } catch (e) {
-        console.warn("[auth] No se pudo inicializar la sesión:", e);
+        logger.warn("[auth] No se pudo inicializar la sesión:", e);
       } finally {
         isLoading.value = false;
       }
@@ -137,7 +138,7 @@ export const useAuthStore = defineStore('auth', () => {
         profile.value = await res.json();
       }
     } catch (e) {
-      console.warn('[auth] No se pudo cargar perfil del backend:', e);
+      logger.warn('[auth] No se pudo cargar perfil del backend:', e);
     }
   };
 

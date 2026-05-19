@@ -1,3 +1,4 @@
+import logger from '../utils/logger.js';
 import { defineStore } from "pinia";
 import { ref, watch } from "vue";
 import { useRecintosStore } from "./recintos";
@@ -16,9 +17,9 @@ export const useWorkspaceStore = defineStore("workspace", () => {
         if (data.recintos) recintosStore.recintos = data.recintos;
         if (data.currentFloor) recintosStore.currentFloor = data.currentFloor;
         if (data.activePresetName) activePresetName.value = data.activePresetName;
-        console.log("Workspace cargado con éxito.");
+        logger.info("Workspace cargado con éxito.");
       } catch (e) {
-        console.error("Error al cargar workspace:", e);
+        logger.error("Error al cargar workspace:", e);
       }
     }
   };

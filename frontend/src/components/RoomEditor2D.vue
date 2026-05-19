@@ -1,4 +1,5 @@
 <script setup>
+import logger from '../utils/logger.js';
 import { computed, onBeforeUnmount, ref, reactive, watch, onMounted, onUnmounted } from "vue";
 import { useRecintosStore } from "../stores/recintos";
 import { useInteractiveEditor } from "../composables/useInteractiveEditor";
@@ -444,7 +445,7 @@ const toggleFullScreen = async () => {
   if (!document.fullscreenElement) {
     savedScrollY = window.scrollY;
     if (rootRef.value?.requestFullscreen) {
-      await rootRef.value.requestFullscreen().catch(err => console.error(err));
+      await rootRef.value.requestFullscreen().catch(err => logger.error(err));
     }
   } else {
     if (document.exitFullscreen) {

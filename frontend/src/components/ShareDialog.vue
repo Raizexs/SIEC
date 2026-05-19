@@ -1,4 +1,5 @@
 <script setup>
+import logger from '../utils/logger.js';
 /**
  * ShareDialog — invite collaborators by email + manage public share link.
  *
@@ -61,7 +62,7 @@ const load = async () => {
   try {
     collaborators.value = await api.listCollaborators(props.projectId);
   } catch (e) {
-    console.warn('No se pudieron cargar colaboradores:', e);
+    logger.warn('No se pudieron cargar colaboradores:', e);
   }
 };
 
