@@ -104,21 +104,21 @@ const materials = [
     >
       <div class="flex items-end justify-between gap-4 border-b border-slate-200/80 px-5 py-4 dark:border-slate-800/80">
         <div>
-          <p class="text-[11px] font-semibold uppercase tracking-tight text-slate-500 dark:text-slate-400">
+          <p class="text-sm font-bold uppercase tracking-[0.14em] text-slate-600 dark:text-slate-300">
             Medidas del terreno
           </p>
-          <p class="mt-1 text-xs font-medium text-slate-400 dark:text-slate-500">
+          <p class="mt-1 text-sm font-medium text-slate-500 dark:text-slate-400">
             Ajusta ancho y largo en metros
           </p>
         </div>
 
         <div
-          class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-right dark:border-slate-800 dark:bg-slate-900"
+          class="rounded-xl border border-orange-200 bg-orange-50 px-4 py-2.5 text-right dark:border-orange-900/60 dark:bg-orange-950/25"
         >
-          <p class="font-mono text-lg font-semibold tabular-nums text-slate-950 dark:text-slate-100">
-            {{ formData.m2Totales }}
+          <p class="font-mono text-xl font-black tabular-nums text-slate-950 dark:text-slate-100">
+            {{ Math.round(formData.m2Totales) }}
           </p>
-          <p class="text-[10px] font-semibold uppercase tracking-tight text-slate-400 dark:text-slate-500">
+          <p class="text-[10px] font-bold uppercase tracking-tight text-orange-700 dark:text-orange-300">
             m² totales
           </p>
         </div>
@@ -126,7 +126,7 @@ const materials = [
 
       <div class="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
         <div class="space-y-2">
-          <label class="text-xs font-semibold text-slate-600 dark:text-slate-300">
+          <label class="text-sm font-semibold text-slate-600 dark:text-slate-300">
             Ancho (m)
           </label>
 
@@ -136,14 +136,14 @@ const materials = [
               type="number"
               min="2"
               step="0.5"
-              class="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-center font-mono text-lg font-semibold tabular-nums text-slate-950 shadow-sm outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-500/10 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-orange-500 dark:focus:ring-orange-500/15"
+              class="h-14 w-full rounded-xl border border-slate-200 bg-white px-4 text-center font-mono text-2xl font-bold tabular-nums text-slate-950 shadow-sm outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-500/10 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-orange-500 dark:focus:ring-orange-500/15"
               @input="updateFormData('terrenoAncho', Number($event.target.value))"
             />
           </div>
         </div>
 
         <div class="space-y-2">
-          <label class="text-xs font-semibold text-slate-600 dark:text-slate-300">
+          <label class="text-sm font-semibold text-slate-600 dark:text-slate-300">
             Largo (m)
           </label>
 
@@ -153,7 +153,7 @@ const materials = [
               type="number"
               min="2"
               step="0.5"
-              class="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-center font-mono text-lg font-semibold tabular-nums text-slate-950 shadow-sm outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-500/10 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-orange-500 dark:focus:ring-orange-500/15"
+              class="h-14 w-full rounded-xl border border-slate-200 bg-white px-4 text-center font-mono text-2xl font-bold tabular-nums text-slate-950 shadow-sm outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-500/10 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-orange-500 dark:focus:ring-orange-500/15"
               @input="updateFormData('terrenoLargo', Number($event.target.value))"
             />
           </div>

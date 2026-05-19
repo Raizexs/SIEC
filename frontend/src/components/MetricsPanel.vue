@@ -43,7 +43,7 @@ const stateMeta = computed(() => {
   switch (props.descripcionEstado.status) {
     case 'safe':
       return {
-        label: cleanStatusLabel(props.descripcionEstado.message, 'Dentro del rango'),
+        label: 'ESPACIO DISPONIBLE',
         icon: CheckCircle2,
         dot: 'bg-emerald-500',
         text: 'text-emerald-700 dark:text-emerald-300',
@@ -55,7 +55,7 @@ const stateMeta = computed(() => {
 
     case 'warning':
       return {
-        label: cleanStatusLabel(props.descripcionEstado.message, 'Revisión recomendada'),
+        label: 'ESPACIO LIMITADO',
         icon: AlertTriangle,
         dot: 'bg-amber-500',
         text: 'text-amber-700 dark:text-amber-300',
@@ -67,7 +67,7 @@ const stateMeta = computed(() => {
 
     case 'danger':
       return {
-        label: cleanStatusLabel(props.descripcionEstado.message, 'Límite excedido'),
+        label: 'SIN ESPACIO DISPONIBLE',
         icon: AlertTriangle,
         dot: 'bg-orange-500',
         text: 'text-orange-700 dark:text-orange-300',
@@ -107,7 +107,7 @@ const StateIcon = computed(() => stateMeta.value.icon);
               class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
             >
               <span class="h-1.5 w-1.5 rounded-full bg-slate-900 dark:bg-slate-100"></span>
-              {{ t('step02') || 'Paso 02' }}
+              {{ t('step02') }}
             </span>
 
             <h3 class="mt-3 text-2xl font-black leading-tight tracking-tight text-slate-950 dark:text-slate-100">
@@ -115,7 +115,7 @@ const StateIcon = computed(() => stateMeta.value.icon);
             </h3>
 
             <p class="mt-1 text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400">
-              Espacio disponible en tiempo real.
+              {{ t('metricsPanelSubtitle') }}
             </p>
           </div>
 
@@ -143,7 +143,7 @@ const StateIcon = computed(() => stateMeta.value.icon);
             </p>
 
             <p class="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-              Uso del terreno respecto al diseño actual.
+              {{ t('terrainOccupancySubtitle') }}
             </p>
           </div>
 
@@ -168,7 +168,7 @@ const StateIcon = computed(() => stateMeta.value.icon);
 
             <div class="relative z-10">
               <p class="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
-                {{ t('available') }}
+                {{ t('freeAreaLabel') }}
               </p>
 
               <p
@@ -182,7 +182,7 @@ const StateIcon = computed(() => stateMeta.value.icon);
               </p>
 
               <p class="mt-2 text-xs font-medium leading-relaxed text-slate-500 dark:text-slate-400">
-                Disponible después de restar el área total usada por los recintos.
+                {{ t('metricsHeroHint') }}
               </p>
             </div>
           </section>
