@@ -4,7 +4,7 @@ const CAPTURE_TIMEOUT_MS = 1400;
  * Canvas WebGL principal (excluye el minimapa 2D, que también vive en .scene3d-canvas).
  * @returns {HTMLCanvasElement | null}
  */
-const resolveMainSceneCanvas = () => {
+export const resolveMainSceneCanvas = () => {
   const tagged = document.querySelector('[data-siec-scene-canvas]');
   if (tagged instanceof HTMLCanvasElement) return tagged;
 
