@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   db:
@@ -29,9 +29,11 @@ services:
       - ./backend:/app
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/siec
+      - ALLOW_ANONYMOUS_DEV=true
+      - ENV=development
     ports:
       - "8000:8000"
-    command: bash -c "pip install --no-cache-dir -r requirements.txt && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+    command: bash -c "pip install --no-cache-dir -r requirements.txt && (playwright install chromium 2>/dev/null || true) && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
     depends_on:
       db:
         condition: service_healthy
@@ -59,8 +61,6 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/siec
       - TZ=America/Santiago
-      # Cambia a "true" para ejecutar el scraping de inmediato (testing/demo)
-      # En PowerShell: $env:RUN_NOW="true"; docker compose up scraper --force-recreate
       - RUN_NOW=${RUN_NOW:-false}
       - CMF_API_KEY=2bea1a42f6b3d657e19f22c2b01f7ee02d69ebf4
     depends_on:
