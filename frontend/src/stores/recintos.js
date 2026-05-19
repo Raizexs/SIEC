@@ -262,7 +262,7 @@ export const useRecintosStore = defineStore("recintos", () => {
     );
 
     // ── Place rooms ────────────────────────────────────────────────────────
-    const GAP = 0.15; // small gap so rooms aren't flush
+    const GAP = 0; // recintos pegados: evita muro fantasma en 3D entre celdas
     let zCursor = 0;
     strips.forEach((strip) => {
       const rawStripW = strip.reduce((s, r) => s + r.w, 0);
@@ -360,7 +360,7 @@ export const useRecintosStore = defineStore("recintos", () => {
       tipo,
       nombre,
       piso: currentFloor.value,
-      coords: { x: parseFloat((maxX + 0.15).toFixed(3)), z: 0 },
+      coords: { x: parseFloat(maxX.toFixed(3)), z: 0 },
       dimensions: {
         w: parseFloat(w.toFixed(3)),
         l: parseFloat(l.toFixed(3)),
