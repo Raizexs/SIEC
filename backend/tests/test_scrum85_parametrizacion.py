@@ -3,16 +3,19 @@ import sys
 from importlib.machinery import SourceFileLoader
 from datetime import datetime
 
-repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
+
 # Ensure loading modules via SourceFileLoader
 os.environ['DATABASE_URL'] = 'sqlite:///./test_siec.db'
 os.environ['HOURS_PER_DAY'] = '8'
 os.environ['SOCIAL_LEY_FACTOR'] = '1.28'
 
-database = SourceFileLoader('database', os.path.join(repo_root, 'backend', 'database.py')).load_module()
-models = SourceFileLoader('models', os.path.join(repo_root, 'backend', 'models.py')).load_module()
-schemas = SourceFileLoader('schemas', os.path.join(repo_root, 'backend', 'schemas.py')).load_module()
-main = SourceFileLoader('main', os.path.join(repo_root, 'backend', 'main.py')).load_module()
+import database
+import models
+import schemas
+import main
 
 engine = database.engine
 SessionLocal = database.SessionLocal
