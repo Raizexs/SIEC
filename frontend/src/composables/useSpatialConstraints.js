@@ -7,6 +7,8 @@ export const MIN_ROOM_DIM = 0.5;
 export const MIN_ROOM_HEIGHT = 1.0;
 export const MOVE_OVERFLOW_MARGIN = 0; // 0 = no salir del terreno. Usa 0.5/0.75 si quieres tolerancia visual.
 export const OVERLAP_EPS = 0.001;
+/** Si dos bordes quedan a esta distancia o menos, se alinean sin hueco (evita “muro fantasma” en 3D). */
+export const SNAP_FLUSH_EPS = 0.12;
 
 export const toFiniteNumber = (value, fallback = 0) => {
   const n = Number(value);
@@ -123,6 +125,69 @@ export const snapCoord = (value, step) => {
   return Math.round(toFiniteNumber(value, 0) / s) * s;
 };
 
+const round3 = (value) => Number(toFiniteNumber(value, 0).toFixed(3));
+
+/**
+ * Alinea bordes casi coincidentes para que los recintos queden pegados (sin ranura).
+ */
+export const snapRectFlushToNeighbors = (
+  roomRect,
+  rooms = [],
+  epsilon = SNAP_FLUSH_EPS,
+) => {
+  let r = normalizeRoomRect(roomRect);
+  const eps = Math.max(OVERLAP_EPS, toFiniteNumber(epsilon, SNAP_FLUSH_EPS));
+
+  const neighbors = rooms.filter(
+    (room) => room && room.id !== r.id && (room.piso || 1) === r.piso,
+  );
+
+  for (const raw of neighbors) {
+    const o = normalizeRoomRect(raw);
+
+    if (Math.abs(r.x - (o.x + o.w)) <= eps) {
+      r = { ...r, x: round3(o.x + o.w) };
+    }
+    if (Math.abs((r.x + r.w) - o.x) <= eps) {
+      r = { ...r, x: round3(o.x - r.w) };
+    }
+    if (Math.abs(r.z - (o.z + o.l)) <= eps) {
+      r = { ...r, z: round3(o.z + o.l) };
+    }
+    if (Math.abs((r.z + r.l) - o.z) <= eps) {
+      r = { ...r, z: round3(o.z - r.l) };
+    }
+  }
+
+  return r;
+};
+
+/** Ajusta ancho/largo al acercarse al borde de un vecino (resize desde esquina fija). */
+export const snapResizeFlushToNeighbors = (
+  roomRect,
+  rooms = [],
+  epsilon = SNAP_FLUSH_EPS,
+) => {
+  let r = normalizeRoomRect(roomRect);
+  const eps = Math.max(OVERLAP_EPS, toFiniteNumber(epsilon, SNAP_FLUSH_EPS));
+
+  for (const raw of rooms) {
+    if (!raw || raw.id === r.id) continue;
+    if ((raw.piso || 1) !== r.piso) continue;
+
+    const o = normalizeRoomRect(raw);
+
+    if (Math.abs(r.x + r.w - o.x) <= eps) {
+      r = { ...r, w: round3(Math.max(MIN_ROOM_DIM, o.x - r.x)) };
+    }
+    if (Math.abs(r.z + r.l - o.z) <= eps) {
+      r = { ...r, l: round3(Math.max(MIN_ROOM_DIM, o.z - r.z)) };
+    }
+  }
+
+  return r;
+};
+
 /** Terreno desde props del editor (ancho = X, largo = Z). */
 export const terrainFromEditor = (terrenoAncho, terrenoLargo) =>
   normalizeTerrain({ w: terrenoAncho, h: terrenoLargo });
@@ -155,13 +220,20 @@ export const resolveRoomDragPosition = (
     return clamped;
   };
 
-  const direct = tryRect(x, z);
+  const accept = (candidate) => {
+    if (!candidate) return null;
+    const flushed = snapRectFlushToNeighbors(candidate, rooms);
+    if (roomOverlapsAny(flushed, rooms)) return null;
+    return flushed;
+  };
+
+  const direct = accept(tryRect(x, z));
   if (direct) return direct;
 
-  const slideX = tryRect(x, base.z);
+  const slideX = accept(tryRect(x, base.z));
   if (slideX) return slideX;
 
-  const slideZ = tryRect(base.x, z);
+  const slideZ = accept(tryRect(base.x, z));
   if (slideZ) return slideZ;
 
   return null;
@@ -184,7 +256,9 @@ export const resolveRoomResize = (
   const w = Math.max(MIN_ROOM_DIM, snapCoord(nextW, snapStep));
   const l = Math.max(MIN_ROOM_DIM, snapCoord(nextL, snapStep));
 
-  const clamped = clampRectToTerrain({ ...base, w, l }, terrain, margin);
+  let clamped = clampRectToTerrain({ ...base, w, l }, terrain, margin);
+  clamped = snapResizeFlushToNeighbors(clamped, rooms);
+  clamped = clampRectToTerrain(clamped, terrain, margin);
   if (roomOverlapsAny(clamped, rooms)) return null;
   return clamped;
 };

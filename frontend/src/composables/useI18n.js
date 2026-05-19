@@ -54,9 +54,14 @@ const translations = {
     dismissLogisticsAlert: "Descartar y Continuar",
 
     // Metrics Panel
-    step02: 'Paso 02 / Métricas',
-    tokenBudget: 'Espacio Disponible',
+    step02: 'Métricas',
+    metricsPanelSubtitle: 'Seguimiento del área construida frente al terreno.',
+    tokenBudget: 'Ocupación del terreno',
+    terrainOccupancySubtitle: 'Comparación entre superficie del terreno y recintos dibujados.',
+    freeAreaLabel: 'Área libre',
+    metricsHeroHint: 'Metros cuadrados del terreno que aún no ocupan recintos.',
     available: 'Disponible',
+    terrainDimensions: 'Dimensiones',
     used: 'Usado',
     total: 'Total',
 
@@ -167,9 +172,14 @@ const translations = {
     dismissLogisticsAlert: "Dismiss and Continue",
 
     // Metrics Panel
-    step02: 'Step 02 / Metrics',
-    tokenBudget: 'Available Space',
+    step02: 'Metrics',
+    metricsPanelSubtitle: 'Built area vs. total terrain footprint.',
+    tokenBudget: 'Terrain occupancy',
+    terrainOccupancySubtitle: 'Terrain surface compared to drawn rooms.',
+    freeAreaLabel: 'Free area',
+    metricsHeroHint: 'Square meters of terrain not yet used by rooms.',
     available: 'Available',
+    terrainDimensions: 'Dimensions',
     used: 'Used',
     total: 'Total',
 
