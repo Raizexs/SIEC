@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import { useRecintosStore } from '../stores/recintos';
 import { useTokenCounter } from '../composables/useTokenCounter';
 import { mergePreferences, defaultProductPreferences } from '../composables/useProductPreferences';
@@ -96,7 +96,7 @@ export const generateCommercialPDF = async (canvasElement, projectName, options 
       ];
     });
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: 28,
       head: [['Tipo de Recinto', 'Piso', 'Dimensiones (X-Z)', 'Área (m²)']],
       body: tableData,

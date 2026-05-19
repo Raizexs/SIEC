@@ -53,7 +53,7 @@ export const useAuthStore = defineStore('auth', () => {
   /* ── Mock fallback (no Supabase configured) ─────────────────────────────── */
   const mockLogin = async (email) => {
     user.value = {
-      id: 'dev-user-mock',
+      id: '00000000-0000-0000-0000-000000000000',
       email,
       user_metadata: { full_name: email.split('@')[0], role: 'architect' },
     };

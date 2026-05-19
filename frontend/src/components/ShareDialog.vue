@@ -56,7 +56,7 @@ const formatDate = (value) => {
 };
 
 const load = async () => {
-  if (!props.projectId) return;
+  if (!props.projectId || props.projectId === 'local') return;
 
   try {
     collaborators.value = await api.listCollaborators(props.projectId);
@@ -81,6 +81,11 @@ const copyShareLink = async () => {
 };
 
 const generateShareLink = async () => {
+  if (!props.projectId || props.projectId === 'local') {
+    toast.error('No puedes generar enlaces para un proyecto local.');
+    return;
+  }
+
   isLoading.value = true;
 
   try {
