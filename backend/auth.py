@@ -19,6 +19,8 @@ Usage in routes:
 from __future__ import annotations
 
 import os
+from dotenv import load_dotenv
+load_dotenv()
 import time
 from dataclasses import dataclass
 from functools import lru_cache
@@ -127,12 +129,15 @@ def get_current_user(
     """
     if not creds or not creds.credentials:
         if ALLOW_ANONYMOUS:
-            return CurrentUser(id="anon-dev", email=None, role="anonymous", aal=None, raw_claims={})
+            return CurrentUser(id="00000000-0000-0000-0000-000000000000", email=None, role="anonymous", aal=None, raw_claims={})
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Falta token de autorización",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    if ALLOW_ANONYMOUS and creds.credentials == "mock-token":
+        return CurrentUser(id="00000000-0000-0000-0000-000000000000", email="mock@local.dev", role="architect", aal=None, raw_claims={})
 
     claims = verify_supabase_jwt(creds.credentials)
     user_metadata = claims.get("user_metadata", {}) or {}
@@ -150,6 +155,8 @@ def get_optional_user(
 ) -> Optional[CurrentUser]:
     if not creds or not creds.credentials:
         return None
+    if ALLOW_ANONYMOUS and creds.credentials == "mock-token":
+        return CurrentUser(id="00000000-0000-0000-0000-000000000000", email="mock@local.dev", role="architect", aal=None, raw_claims={})
     try:
         claims = verify_supabase_jwt(creds.credentials)
     except HTTPException:
