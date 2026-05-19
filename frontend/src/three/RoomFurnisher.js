@@ -1,18 +1,11 @@
-/**
- * RoomFurnisher — populates each recinto with procedural furniture meshes
- * grouped under `furnitureGroup` so they can be toggled / hidden cheaply.
- *
- * Why procedural and not GLTF? Three reasons:
- *   1. Zero asset download / no CDN dependency.
- *   2. Lights up in the timeline of a student project without sourcing models.
- *   3. Stylized look complements the architectural feel.
- *
- * GLTF loading is supported via `loadCustomGLTF()` for future expansion.
+﻿/**
+ * Amueblado procedural por tipo de recinto, con colocación validada
+ * (sin bloquear puertas ni zonas de circulación).
  */
 import * as THREE from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
-const gltfLoader = new GLTFLoader();
+const EPS = 0.06;
+
 const PALETTES = {
   habitacion: { primary: "#94a3b8", accent: "#f59e0b", wood: "#a16207" },
   banio: { primary: "#e2e8f0", accent: "#0891b2", wood: "#cbd5e1" },
@@ -21,30 +14,113 @@ const PALETTES = {
   pasillo: { primary: "#475569", accent: "#0ea5e9", wood: "#0f172a" },
 };
 
+class PlacementPlanner {
+  constructor(w, l, doors) {
+    this.w = w;
+    this.l = l;
+    this.doors = doors;
+    this.doorZones = doors.map((d) => this._doorZone(d));
+    this.occupied = [];
+  }
+
+  _doorZone(d) {
+    const depth = d.neighborPasillo ? 1.55 : 1.2;
+    const along = d.width / 2 + (d.neighborPasillo ? 0.85 : 0.6);
+
+    if (d.side === "west") {
+      return { minX: -this.w / 2 - 0.05, maxX: -this.w / 2 + depth, minZ: d.localZ - along, maxZ: d.localZ + along };
+    }
+    if (d.side === "east") {
+      return { minX: this.w / 2 - depth, maxX: this.w / 2 + 0.05, minZ: d.localZ - along, maxZ: d.localZ + along };
+    }
+    if (d.side === "south") {
+      return { minX: d.localX - along, maxX: d.localX + along, minZ: -this.l / 2 - 0.05, maxZ: -this.l / 2 + depth };
+    }
+    return { minX: d.localX - along, maxX: d.localX + along, minZ: this.l / 2 - depth, maxZ: this.l / 2 + 0.05 };
+  }
+
+  _footprint(localX, localZ, halfW, halfD) {
+    return { minX: localX - halfW, maxX: localX + halfW, minZ: localZ - halfD, maxZ: localZ + halfD };
+  }
+
+  _overlaps(a, b) {
+    return a.minX < b.maxX - EPS && a.maxX > b.minX + EPS && a.minZ < b.maxZ - EPS && a.maxZ > b.minZ + EPS;
+  }
+
+  blocksDoor(localX, localZ, halfW, halfD) {
+    const fp = this._footprint(localX, localZ, halfW, halfD);
+    return this.doorZones.some((zone) => this._overlaps(fp, zone));
+  }
+
+  canPlace(localX, localZ, halfW, halfD) {
+    const fp = this._footprint(localX, localZ, halfW, halfD);
+    if (fp.minX < -this.w / 2 + 0.12 || fp.maxX > this.w / 2 - 0.12) return false;
+    if (fp.minZ < -this.l / 2 + 0.12 || fp.maxZ > this.l / 2 - 0.12) return false;
+    if (this.blocksDoor(localX, localZ, halfW, halfD)) return false;
+    if (this.occupied.some((o) => this._overlaps(fp, o))) return false;
+    return true;
+  }
+
+  commit(localX, localZ, halfW, halfD) {
+    this.occupied.push(this._footprint(localX, localZ, halfW, halfD));
+  }
+
+  pickBest(candidates, halfW, halfD) {
+    let best = null;
+    let bestScore = -Infinity;
+    for (const c of candidates) {
+      if (!this.canPlace(c.x, c.z, halfW, halfD)) continue;
+      let score = 0;
+      for (const d of this.doors) {
+        score += Math.hypot(c.x - d.localX, c.z - d.localZ) * (d.neighborPasillo ? 5 : 2);
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        best = c;
+      }
+    }
+    return best;
+  }
+}
+
 export class RoomFurnisher {
   constructor(group) {
     this.group = group;
-    this.byRoom = new Map(); // roomId → THREE.Group
+    this.byRoom = new Map();
   }
 
-  furnish(recinto) {
+  furnish(recinto, layout = {}) {
     this.clearRoom(recinto.id);
+
     const { dimensions, coords, tipo, piso = 1 } = recinto;
     const w = dimensions.w;
     const l = dimensions.l;
     if (w < 1 || l < 1) return;
 
+    const ctx = this._buildContext(
+      recinto,
+      layout.walls || [],
+      layout.openings || new Map(),
+      layout.recintos || [],
+    );
+
+    if (this._isCirculationSpace(tipo, w, l, ctx)) {
+      return;
+    }
+
     const group = new THREE.Group();
     group.name = `furniture-${recinto.id}`;
     group.userData.roomId = recinto.id;
+    group.userData.layerTags = ["interior"];
+
     const palette = PALETTES[tipo] || PALETTES.comun;
+    const planner = new PlacementPlanner(w, l, ctx.doors);
 
     const builders = {
-      habitacion: () => this._buildBedroom(group, w, l, palette),
-      banio: () => this._buildBathroom(group, w, l, palette),
-      comun: () => this._buildLiving(group, w, l, palette),
-      areaComun: () => this._buildLiving(group, w, l, palette),
-      pasillo: () => this._buildHallway(group, w, l, palette),
+      habitacion: () => this._buildBedroom(group, w, l, palette, planner, ctx),
+      banio: () => this._buildBathroom(group, w, l, palette, planner, ctx),
+      comun: () => this._buildLiving(group, w, l, palette, planner, ctx),
+      areaComun: () => this._buildLiving(group, w, l, palette, planner, ctx),
     };
     (builders[tipo] || builders.comun)();
 
@@ -70,32 +146,12 @@ export class RoomFurnisher {
     this.group.visible = visible;
   }
 
-  /** Optional GLTF loader for advanced scenes. */
-  async loadCustomGLTF(url, roomId, options = {}) {
-    const gltf = await gltfLoader.loadAsync(url);
-    const node = gltf.scene;
-    node.traverse((child) => {
-      if (child.isMesh) {
-        child.castShadow = true;
-        child.receiveShadow = true;
-      }
-    });
-    if (options.position) node.position.set(...options.position);
-    if (options.rotationY != null) node.rotation.y = options.rotationY;
-    if (options.scale) node.scale.setScalar(options.scale);
-    const target = this.byRoom.get(roomId) || this._ensureRoomGroup(roomId);
-    target.add(node);
-    return node;
-  }
-
-  _ensureRoomGroup(roomId) {
-    let group = this.byRoom.get(roomId);
-    if (group) return group;
-    group = new THREE.Group();
-    group.userData.roomId = roomId;
-    this.group.add(group);
-    this.byRoom.set(roomId, group);
-    return group;
+  _isCirculationSpace(tipo, w, l, ctx) {
+    if (tipo === "pasillo") return true;
+    const pasilloDoors = ctx.doors.filter((d) => d.neighborPasillo).length;
+    if (pasilloDoors >= 2) return true;
+    if (Math.min(w, l) < 2.2 && pasilloDoors >= 1) return true;
+    return false;
   }
 
   _box(w, h, d, color, opts = {}) {
@@ -103,6 +159,8 @@ export class RoomFurnisher {
       color,
       roughness: opts.roughness ?? 0.7,
       metalness: opts.metalness ?? 0.05,
+      transparent: opts.transparent ?? false,
+      opacity: opts.opacity ?? 1,
     });
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
     mesh.castShadow = true;
@@ -111,131 +169,271 @@ export class RoomFurnisher {
   }
 
   _cylinder(r, h, color) {
-    const mat = new THREE.MeshStandardMaterial({
-      color,
-      roughness: 0.4,
-      metalness: 0.1,
-    });
+    const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.1 });
     const mesh = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 24), mat);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     return mesh;
   }
 
-  _buildBedroom(group, w, l, p) {
-    // Bed
-    const bed = this._box(1.4, 0.5, 1.9, p.wood);
-    bed.position.set(-w / 2 + 1.0, 0.25, 0);
-    group.add(bed);
-    const mattress = this._box(1.35, 0.2, 1.85, "#f8fafc");
-    mattress.position.copy(bed.position);
-    mattress.position.y = 0.6;
+  _place(group, planner, mesh, x, y, z, halfW, halfD) {
+    if (!planner.canPlace(x, z, halfW, halfD)) return false;
+    mesh.position.set(x, y, z);
+    group.add(mesh);
+    planner.commit(x, z, halfW, halfD);
+    return true;
+  }
+
+  _buildBedroom(group, w, l, p, planner, ctx) {
+    const bedW = Math.min(1.4, w - 0.55);
+    const bedD = Math.min(1.9, l - 0.55);
+    if (bedW < 0.95 || bedD < 1.1) return;
+
+    const halfW = bedW / 2;
+    const halfD = bedD / 2;
+    const anchor = planner.pickBest(
+      [
+        { x: -w / 2 + halfW + 0.22, z: -l / 2 + halfD + 0.22 },
+        { x: w / 2 - halfW - 0.22, z: -l / 2 + halfD + 0.22 },
+        { x: -w / 2 + halfW + 0.22, z: l / 2 - halfD - 0.22 },
+        { x: w / 2 - halfW - 0.22, z: l / 2 - halfD - 0.22 },
+      ],
+      halfW,
+      halfD,
+    );
+    if (!anchor) return;
+
+    const bed = this._box(bedW, 0.5, bedD, p.wood);
+    if (!this._place(group, planner, bed, anchor.x, 0.25, anchor.z, halfW, halfD)) return;
+
+    const mattress = this._box(bedW - 0.05, 0.2, bedD - 0.05, "#f8fafc");
+    mattress.position.set(anchor.x, 0.6, anchor.z);
     group.add(mattress);
-    // Pillow
-    const pillow = this._box(1.2, 0.1, 0.4, p.primary);
-    pillow.position.set(bed.position.x, 0.75, -0.65);
+
+    const pillow = this._box(Math.min(1.2, bedW - 0.2), 0.1, 0.4, p.primary);
+    pillow.position.set(anchor.x, 0.75, anchor.z - bedD / 2 + 0.28);
     group.add(pillow);
-    // Bedside table
-    const table = this._box(0.4, 0.5, 0.4, p.wood);
-    table.position.set(bed.position.x, 0.25, 1.1);
-    group.add(table);
-    // Lamp
-    const lamp = this._cylinder(0.08, 0.4, p.accent);
-    lamp.position.set(table.position.x, 0.7, table.position.z);
-    group.add(lamp);
-    // Closet
-    if (w > 3) {
-      const closet = this._box(0.6, 2.0, Math.min(1.6, l - 0.5), p.wood);
-      closet.position.set(w / 2 - 0.4, 1.0, 0);
-      group.add(closet);
-    }
-  }
 
-  _buildBathroom(group, w, l, p) {
-    // Toilet
-    const toilet = this._box(0.4, 0.4, 0.6, p.primary);
-    toilet.position.set(-w / 2 + 0.3, 0.2, l / 2 - 0.4);
-    group.add(toilet);
-    const tank = this._box(0.35, 0.5, 0.18, p.primary);
-    tank.position.set(toilet.position.x, 0.65, toilet.position.z + 0.21);
-    group.add(tank);
-    // Sink
-    const sink = this._box(0.55, 0.85, 0.4, p.wood);
-    sink.position.set(w / 2 - 0.3, 0.42, l / 2 - 0.3);
-    group.add(sink);
-    const basin = this._box(0.5, 0.1, 0.35, p.primary);
-    basin.position.set(sink.position.x, 0.9, sink.position.z);
-    group.add(basin);
-    // Shower
-    if (w > 1.6 && l > 1.6) {
-      const shower = this._box(
-        Math.min(0.9, w / 2),
-        2.0,
-        Math.min(0.9, l / 2),
-        p.accent,
-        { metalness: 0.4 },
+    const tableHalf = 0.22;
+    const tableSpot = planner.pickBest(
+      [
+        { x: anchor.x, z: anchor.z + bedD / 2 + tableHalf + 0.12 },
+        { x: anchor.x - bedW / 2 - tableHalf - 0.1, z: anchor.z },
+      ],
+      tableHalf,
+      tableHalf,
+    );
+    if (tableSpot) {
+      const table = this._box(0.4, 0.5, 0.4, p.wood);
+      if (this._place(group, planner, table, tableSpot.x, 0.25, tableSpot.z, tableHalf, tableHalf)) {
+        const lamp = this._cylinder(0.08, 0.4, p.accent);
+        lamp.position.set(tableSpot.x, 0.7, tableSpot.z);
+        group.add(lamp);
+      }
+    }
+
+    if (w > 2.8) {
+      const closetHalfW = 0.32;
+      const closetHalfD = Math.min(0.8, (l - 0.5) / 2);
+      const closetSpot = planner.pickBest(
+        [
+          { x: ctx.pasilloSides.has("east") ? -w / 2 + closetHalfW + 0.2 : w / 2 - closetHalfW - 0.2, z: 0 },
+          { x: 0, z: ctx.pasilloSides.has("north") ? -l / 2 + closetHalfD + 0.2 : l / 2 - closetHalfD - 0.2 },
+        ],
+        closetHalfW,
+        closetHalfD,
       );
-      shower.material.opacity = 0.35;
-      shower.material.transparent = true;
-      shower.position.set(-w / 2 + 0.5, 1.0, -l / 2 + 0.5);
-      group.add(shower);
+      if (closetSpot) {
+        const closet = this._box(closetHalfW * 2, 2.0, closetHalfD * 2, p.wood);
+        this._place(group, planner, closet, closetSpot.x, 1.0, closetSpot.z, closetHalfW, closetHalfD);
+      }
     }
   }
 
-  _buildLiving(group, w, l, p) {
-    // Sofa
-    const sofa = this._box(Math.min(2.2, w * 0.7), 0.5, 0.9, p.primary);
-    sofa.position.set(0, 0.25, -l / 2 + 0.6);
-    group.add(sofa);
-    const back = this._box(
-      sofa.geometry.parameters.width,
-      0.6,
-      0.18,
-      p.primary,
+  _buildBathroom(group, w, l, p, planner, ctx) {
+    const toiletHalfW = 0.22;
+    const toiletHalfD = 0.32;
+    const toiletSpot = planner.pickBest(
+      [
+        { x: -w / 2 + toiletHalfW + 0.18, z: l / 2 - toiletHalfD - 0.18 },
+        { x: w / 2 - toiletHalfW - 0.18, z: l / 2 - toiletHalfD - 0.18 },
+        { x: -w / 2 + toiletHalfW + 0.18, z: -l / 2 + toiletHalfD + 0.18 },
+      ],
+      toiletHalfW,
+      toiletHalfD,
     );
-    back.position.set(0, 0.7, sofa.position.z - 0.36);
-    group.add(back);
-    // Coffee table
-    const coffee = this._box(0.9, 0.35, 0.5, p.wood);
-    coffee.position.set(0, 0.175, sofa.position.z + 0.9);
-    group.add(coffee);
-    // TV
-    const tvStand = this._box(1.6, 0.45, 0.4, p.wood);
-    tvStand.position.set(0, 0.225, l / 2 - 0.3);
-    group.add(tvStand);
-    const tv = this._box(1.4, 0.8, 0.05, "#0f172a");
-    tv.position.set(0, 0.95, tvStand.position.z);
-    group.add(tv);
-    // Rug
-    const rug = this._box(2.5, 0.02, 1.6, p.accent);
-    rug.position.set(0, 0.01, 0);
-    rug.material.opacity = 0.9;
-    rug.material.transparent = true;
-    group.add(rug);
+    if (toiletSpot) {
+      const toilet = this._box(0.4, 0.4, 0.6, p.primary);
+      if (this._place(group, planner, toilet, toiletSpot.x, 0.2, toiletSpot.z, toiletHalfW, toiletHalfD)) {
+        const tank = this._box(0.35, 0.5, 0.18, p.primary);
+        tank.position.set(toiletSpot.x, 0.65, toiletSpot.z + 0.21);
+        group.add(tank);
+      }
+    }
+
+    const sinkHalfW = 0.3;
+    const sinkHalfD = 0.22;
+    const sinkSpot = planner.pickBest(
+      [
+        { x: w / 2 - sinkHalfW - 0.18, z: l / 2 - sinkHalfD - 0.18 },
+        { x: -w / 2 + sinkHalfW + 0.18, z: -l / 2 + sinkHalfD + 0.18 },
+        { x: 0, z: ctx.pasilloSides.has("north") ? l / 2 - sinkHalfD - 0.2 : -l / 2 + sinkHalfD + 0.2 },
+      ],
+      sinkHalfW,
+      sinkHalfD,
+    );
+    if (sinkSpot) {
+      const sink = this._box(0.55, 0.85, 0.4, p.wood);
+      if (this._place(group, planner, sink, sinkSpot.x, 0.42, sinkSpot.z, sinkHalfW, sinkHalfD)) {
+        const basin = this._box(0.5, 0.1, 0.35, p.primary);
+        basin.position.set(sinkSpot.x, 0.9, sinkSpot.z);
+        group.add(basin);
+      }
+    }
+
+    if (w > 1.6 && l > 1.6) {
+      const shW = Math.min(0.45, w / 2 - 0.35);
+      const shD = Math.min(0.45, l / 2 - 0.35);
+      const showerSpot = planner.pickBest(
+        [
+          { x: -w / 2 + shW + 0.15, z: -l / 2 + shD + 0.15 },
+          { x: w / 2 - shW - 0.15, z: -l / 2 + shD + 0.15 },
+        ],
+        shW,
+        shD,
+      );
+      if (showerSpot) {
+        const shower = this._box(shW * 2, 2.0, shD * 2, p.accent, { metalness: 0.4, transparent: true, opacity: 0.35 });
+        this._place(group, planner, shower, showerSpot.x, 1.0, showerSpot.z, shW, shD);
+      }
+    }
   }
 
-  _buildHallway(group, w, l, p) {
-    // Subtle floor strip + ceiling lights only.
-    const strip = this._box(
-      Math.min(0.8, w - 0.2),
-      0.02,
-      Math.min(l - 0.4, 6),
-      p.accent,
+  _buildLiving(group, w, l, p, planner, ctx) {
+    const sofaW = Math.min(2.2, w * 0.7);
+    const halfW = sofaW / 2;
+    const halfD = 0.48;
+    const sofaSpot = planner.pickBest(
+      [
+        { x: 0, z: ctx.pasilloSides.has("north") ? -l / 2 + halfD + 0.22 : l / 2 - halfD - 0.22 },
+        { x: ctx.pasilloSides.has("east") ? -w / 2 + halfW + 0.25 : w / 2 - halfW - 0.25, z: 0 },
+        { x: 0, z: 0 },
+      ],
+      halfW,
+      halfD,
     );
-    strip.position.set(0, 0.01, 0);
-    strip.material.opacity = 0.7;
-    strip.material.transparent = true;
-    group.add(strip);
+    if (!sofaSpot) return;
+
+    const sofa = this._box(sofaW, 0.5, 0.9, p.primary);
+    if (!this._place(group, planner, sofa, sofaSpot.x, 0.25, sofaSpot.z, halfW, halfD)) return;
+
+    const back = this._box(sofaW, 0.6, 0.18, p.primary);
+    back.position.set(sofaSpot.x, 0.7, sofaSpot.z - 0.36);
+    group.add(back);
+
+    const coffeeHalfW = 0.48;
+    const coffeeHalfD = 0.28;
+    const coffeeZ = sofaSpot.z + (sofaSpot.z < 0 ? 0.95 : -0.95);
+    const coffee = this._box(0.9, 0.35, 0.5, p.wood);
+    this._place(group, planner, coffee, sofaSpot.x, 0.175, coffeeZ, coffeeHalfW, coffeeHalfD);
+
+    const tvHalfW = 0.82;
+    const tvHalfD = 0.24;
+    const tvSpot = planner.pickBest(
+      [
+        { x: 0, z: ctx.pasilloSides.has("north") ? l / 2 - tvHalfD - 0.2 : -l / 2 + tvHalfD + 0.2 },
+        { x: sofaSpot.x, z: -sofaSpot.z > 0 ? l / 2 - tvHalfD - 0.2 : -l / 2 + tvHalfD + 0.2 },
+      ],
+      tvHalfW,
+      tvHalfD,
+    );
+    if (tvSpot) {
+      const tvStand = this._box(1.6, 0.45, 0.4, p.wood);
+      if (this._place(group, planner, tvStand, tvSpot.x, 0.225, tvSpot.z, tvHalfW, tvHalfD)) {
+        const tv = this._box(1.4, 0.8, 0.05, "#0f172a");
+        tv.position.set(tvSpot.x, 0.95, tvSpot.z);
+        group.add(tv);
+      }
+    }
+
+    const rugHalfW = Math.min(1.2, w / 2 - 0.2);
+    const rugHalfD = Math.min(0.85, l / 2 - 0.2);
+    const rugSpot = planner.pickBest([{ x: sofaSpot.x, z: 0 }], rugHalfW, rugHalfD);
+    if (rugSpot) {
+      const rug = this._box(rugHalfW * 2, 0.02, rugHalfD * 2, p.accent, { transparent: true, opacity: 0.9 });
+      this._place(group, planner, rug, rugSpot.x, 0.01, rugSpot.z, rugHalfW, rugHalfD);
+    }
+  }
+
+  _buildContext(recinto, walls, openingsMap, allRecintos) {
+    const byId = new Map(allRecintos.map((r) => [r.id, r]));
+    const { coords, dimensions } = recinto;
+    const w = dimensions.w;
+    const l = dimensions.l;
+    const x0 = coords.x;
+    const x1 = coords.x + w;
+    const z0 = coords.z;
+    const z1 = coords.z + l;
+    const cx = coords.x + w / 2;
+    const cz = coords.z + l / 2;
+
+    const doors = [];
+    const pasilloSides = new Set();
+
+    for (const wall of walls) {
+      if ((wall.piso || 1) !== (recinto.piso || 1)) continue;
+      if (!wall.recintosAdyacentes?.includes(recinto.id)) continue;
+
+      const neighbors = (wall.recintosAdyacentes || [])
+        .filter((id) => id !== recinto.id)
+        .map((id) => byId.get(id))
+        .filter(Boolean);
+
+      const touchesPasillo = neighbors.some((n) => n.tipo === "pasillo");
+      const side = this._wallSide(wall.segmento, x0, x1, z0, z1);
+      if (touchesPasillo && side) pasilloSides.add(side);
+
+      for (const op of (openingsMap.get(wall.id) || []).filter((o) => o.type === "door")) {
+        const door = this._doorLocal(wall, op, side, cx, cz, w, l);
+        if (door) doors.push({ ...door, neighborPasillo: touchesPasillo });
+      }
+    }
+
+    return { doors, pasilloSides };
+  }
+
+  _wallSide(seg, x0, x1, z0, z1) {
+    const midX = (seg.start.x + seg.end.x) / 2;
+    const midZ = (seg.start.z + seg.end.z) / 2;
+    if (Math.abs(midX - x0) < EPS) return "west";
+    if (Math.abs(midX - x1) < EPS) return "east";
+    if (Math.abs(midZ - z0) < EPS) return "south";
+    if (Math.abs(midZ - z1) < EPS) return "north";
+    return null;
+  }
+
+  _doorLocal(wall, op, side, cx, cz, w, l) {
+    if (!side) return null;
+    const seg = wall.segmento;
+    const isVertical = Math.abs(seg.start.x - seg.end.x) < EPS;
+    const t = op.center ?? 0.5;
+    const worldX = isVertical ? seg.start.x : seg.start.x + (seg.end.x - seg.start.x) * t;
+    const worldZ = isVertical ? seg.start.z + (seg.end.z - seg.start.z) * t : seg.start.z;
+    const width = op.width || 0.9;
+    if (side === "west") return { side, localX: -w / 2, localZ: worldZ - cz, width };
+    if (side === "east") return { side, localX: w / 2, localZ: worldZ - cz, width };
+    if (side === "south") return { side, localX: worldX - cx, localZ: -l / 2, width };
+    return { side, localX: worldX - cx, localZ: l / 2, width };
   }
 
   _disposeGroup(group) {
     group.traverse((child) => {
       if (child.isMesh) {
         child.geometry?.dispose();
-        if (Array.isArray(child.material))
-          child.material.forEach((m) => m.dispose?.());
+        if (Array.isArray(child.material)) child.material.forEach((m) => m.dispose?.());
         else child.material?.dispose?.();
       }
     });
+    group.clear();
   }
 }
