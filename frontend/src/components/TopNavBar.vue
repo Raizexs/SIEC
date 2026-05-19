@@ -22,6 +22,10 @@ const router = useRouter();
 const authStore = useAuthStore();
 const { savedLayouts } = useLayoutManager();
 
+defineProps({
+  exportBusy: { type: Boolean, default: false },
+});
+
 defineEmits(['save-layout', 'export-pdf', 'share']);
 
 const showProfileMenu = ref(false);
@@ -107,13 +111,14 @@ const logout = async () => {
       </button>
 
       <button
-      type="button"
-      class="hidden items-center justify-center gap-2 rounded-2xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-black uppercase tracking-[0.12em] text-slate-800 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-300 hover:bg-orange-50 hover:text-orange-700 hover:shadow-md active:scale-[0.98] dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-orange-400 dark:hover:bg-orange-950/30 dark:hover:text-orange-300 md:inline-flex"
-      title="Exportar PDF comercial"
-      @click="$emit('export-pdf')"
+        type="button"
+        class="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-black uppercase tracking-[0.12em] text-slate-800 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-300 hover:bg-orange-50 hover:text-orange-700 hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-orange-400 dark:hover:bg-orange-950/30 dark:hover:text-orange-300"
+        title="Exportar PDF comercial"
+        :disabled="exportBusy"
+        @click="$emit('export-pdf')"
       >
-      <Download class="h-4 w-4" :stroke-width="2.2" />
-      Exportar
+        <Download class="h-4 w-4" :stroke-width="2.2" />
+        {{ exportBusy ? 'Exportando…' : 'Exportar' }}
       </button>
 
       <!-- Profile -->

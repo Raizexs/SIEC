@@ -32,7 +32,12 @@ import { useWorkspaceStore } from '../stores/workspace';
 import { useTokenCounter } from '../composables/useTokenCounter';
 import { useLayoutManager } from '../composables/useLayoutManager';
 import { useI18n } from '../composables/useI18n';
+import { toast } from 'vue-sonner';
 import { generateCommercialPDF } from '../utils/pdfGenerator';
+import {
+  captureSceneImage,
+  resolveMainSceneCanvas,
+} from '../proposal/proposalSceneCapture.js';
 import { useAuthStore } from '../stores/auth';
 import { useProMotion } from '../composables/useProMotion';
 import {
@@ -195,38 +200,66 @@ const isProgrammaticUpdate = ref(false);
 
 let prevMaterialId = formData.value.materialEstructuralId;
 
+const layoutRoomCounts = () => ({
+  habitacionesSimples: formData.value.habitacionesSimples,
+  habitacionesDobles: formData.value.habitacionesDobles,
+  habitacionesTriples: formData.value.habitacionesTriples,
+  banios: formData.value.banios,
+  areasComunes: formData.value.areasComunes,
+});
+
+// Solo regenerar recintos cuando cambian los contadores de espacios (tokens),
+// no al redimensionar el terreno (15×7 → 15×8 conserva el diseño manual).
 watch(
-  formData,
-  async (newVal) => {
+  layoutRoomCounts,
+  async (newCounts, oldCounts) => {
     await nextTick();
-
-    if (newVal.materialEstructuralId !== prevMaterialId) {
-      prevMaterialId = newVal.materialEstructuralId;
-      recintosStore.configMetadata.materialEstructuralId = newVal.materialEstructuralId;
-      return;
-    }
-
-    if (estado.value === 'danger') return;
     if (isProgrammaticUpdate.value) return;
+    if (!oldCounts) return;
+
+    const countsChanged = Object.keys(newCounts).some(
+      (key) => newCounts[key] !== oldCounts[key],
+    );
+    if (!countsChanged) return;
+    if (estado.value === 'danger') return;
 
     if (debounceTimer) clearTimeout(debounceTimer);
 
     debounceTimer = setTimeout(() => {
       const totalHabitaciones =
-        newVal.habitacionesSimples +
-        newVal.habitacionesDobles +
-        newVal.habitacionesTriples;
+        newCounts.habitacionesSimples +
+        newCounts.habitacionesDobles +
+        newCounts.habitacionesTriples;
 
       recintosStore.initializeLayout(
-        newVal.m2Totales,
+        formData.value.m2Totales,
         totalHabitaciones,
-        newVal.banios,
-        newVal.areasComunes,
-        newVal.materialEstructuralId,
+        newCounts.banios,
+        newCounts.areasComunes,
+        formData.value.materialEstructuralId,
       );
     }, 400);
   },
-  { deep: true },
+);
+
+watch(
+  () => formData.value.materialEstructuralId,
+  (newId) => {
+    if (newId === prevMaterialId) return;
+    prevMaterialId = newId;
+    if (recintosStore.configMetadata) {
+      recintosStore.configMetadata.materialEstructuralId = newId;
+    }
+  },
+);
+
+watch(
+  () => formData.value.m2Totales,
+  (m2) => {
+    if (recintosStore.configMetadata) {
+      recintosStore.configMetadata.m2Totales = m2;
+    }
+  },
 );
 
 const isSubmitting = ref(false);
@@ -363,9 +396,31 @@ const resolveExportPrefs = (raw) =>
 
 const executePdfExport = async (exportPrefs) => {
   const exp = resolveExportPrefs(exportPrefs);
-  const canvas = document.querySelector('.scene3d-canvas canvas');
-  await generateCommercialPDF(canvas, workspaceStore.activePresetName, { export: exp });
-  authStore.addExportToHistory(workspaceStore.activePresetName);
+  const toastId = 'commercial-pdf-export';
+
+  toast.loading('Generando PDF comercial…', { id: toastId });
+
+  try {
+    // Misma captura que Propuesta premium: centra cámara vía siec:capture-scene (Scene3D).
+    const snapshotDataUrl = await captureSceneImage();
+    const canvas = resolveMainSceneCanvas();
+
+    await generateCommercialPDF(canvas, workspaceStore.activePresetName, {
+      export: exp,
+      snapshotDataUrl,
+      m2Totales: formData.value.m2Totales,
+      materialEstructuralId: formData.value.materialEstructuralId,
+      tokensUsados: tokensUsados.value,
+      tokensTotales: tokensTotales.value,
+      tokensDisponibles: tokensDisponibles.value,
+    });
+
+    authStore.addExportToHistory(workspaceStore.activePresetName);
+    toast.success('PDF exportado correctamente', { id: toastId });
+  } catch (err) {
+    toast.error(err?.message || 'No se pudo exportar el PDF', { id: toastId });
+    throw err;
+  }
 };
 
 const onSiecExport = async (e) => {
@@ -379,17 +434,18 @@ const onSiecExport = async (e) => {
   await executePdfExport(raw);
 };
 
-const handleExportPDF = () => {
-  if (typeof window === 'undefined') return;
+const exportPdfBusy = ref(false);
 
-  window.dispatchEvent(
-    new CustomEvent('siec:export', {
-      detail: {
-        type: 'pdf',
-        preferences: { ...productPreferences.value.export },
-      },
-    }),
-  );
+const handleExportPDF = async () => {
+  if (exportPdfBusy.value) return;
+  exportPdfBusy.value = true;
+  try {
+    await executePdfExport(productPreferences.value.export);
+  } catch {
+    /* toast en executePdfExport */
+  } finally {
+    exportPdfBusy.value = false;
+  }
 };
 
 const startTutorial = () => {
@@ -506,6 +562,7 @@ const startTutorial = () => {
     <main class="relative z-10 flex min-w-0 flex-1 flex-col transition-all duration-200">
       <TopNavBar
         :activeTab="activeTab"
+        :export-busy="exportPdfBusy"
         @save-layout="showSaveDialog = true"
         @export-pdf="handleExportPDF"
         @share="showShareDialog = true"
@@ -539,9 +596,9 @@ const startTutorial = () => {
                 class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
               >
                 <span class="material-symbols-outlined text-[15px] text-orange-500 dark:text-orange-300">
-                  square_foot
+                  straighten
                 </span>
-                {{ Math.round(formData.m2Totales) }} m²
+                {{ formData.terrenoAncho }} × {{ formData.terrenoLargo }} m
               </span>
 
               <span
