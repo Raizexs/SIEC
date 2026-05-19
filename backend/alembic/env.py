@@ -25,7 +25,8 @@ try:
     from database import Base  # noqa
     target_metadata = Base.metadata
 except Exception as exc:
-    print(f"[alembic env] could not import metadata: {exc}")
+    from observability import log
+    log.error("alembic_metadata_import_failed", error=str(exc))
     target_metadata = None
 
 

@@ -4,22 +4,19 @@ from importlib.machinery import SourceFileLoader
 from datetime import datetime
 
 # Prepare import path
-repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-sys.path.insert(0, repo_root)
+backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
 
 # set env for sqlite DB and HOURS_PER_DAY and SOCIAL_LEY_FACTOR
 os.environ['DATABASE_URL'] = 'sqlite:///./test_siec.db'
 os.environ['HOURS_PER_DAY'] = '8'
 os.environ['SOCIAL_LEY_FACTOR'] = '1.28'
 
-from importlib.machinery import SourceFileLoader
-
-# Load modules via SourceFileLoader to avoid package import issues
-database = SourceFileLoader('database', os.path.join(repo_root, 'backend', 'database.py')).load_module()
-models = SourceFileLoader('models', os.path.join(repo_root, 'backend', 'models.py')).load_module()
-# Ensure schemas are loadable by main
-schemas = SourceFileLoader('schemas', os.path.join(repo_root, 'backend', 'schemas.py')).load_module()
-main = SourceFileLoader('main', os.path.join(repo_root, 'backend', 'main.py')).load_module()
+import database
+import models
+import schemas
+import main
 
 # create DB and seed minimal data
 engine = database.engine

@@ -29,10 +29,12 @@ try:
     from auth import CurrentUser, get_current_user
     from database import get_db
     import models
+    from observability import log
 except ModuleNotFoundError:  # pragma: no cover
     from backend.auth import CurrentUser, get_current_user  # type: ignore
     from backend.database import get_db  # type: ignore
     from backend import models  # type: ignore
+    from backend.observability import log  # type: ignore
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
@@ -188,13 +190,13 @@ async def chat(
             reply = await _openai_chat(req.messages)
             return AIChatResponse(reply=reply)
         except Exception as exc:
-            print(f"[ai] openai failed, falling back to heuristic: {exc}")
+            log.warning("openai_fallback", error=str(exc))
     elif AI_PROVIDER == "anthropic" and ANTHROPIC_API_KEY:
         try:
             reply = await _anthropic_chat(req.messages)
             return AIChatResponse(reply=reply)
         except Exception as exc:
-            print(f"[ai] anthropic failed, falling back to heuristic: {exc}")
+            log.warning("anthropic_fallback", error=str(exc))
     return _heuristic_response(req, db)
 
 

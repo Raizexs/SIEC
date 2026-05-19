@@ -3,15 +3,19 @@ from datetime import datetime
 from importlib.machinery import SourceFileLoader
 
 
+import sys
 def _load_modules():
-    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    if backend_dir not in sys.path:
+        sys.path.insert(0, backend_dir)
+        
     os.environ["DATABASE_URL"] = "sqlite:///./test_siec.db"
 
-    database = SourceFileLoader("database", os.path.join(repo_root, "backend", "database.py")).load_module()
-    models = SourceFileLoader("models", os.path.join(repo_root, "backend", "models.py")).load_module()
-    schemas = SourceFileLoader("schemas", os.path.join(repo_root, "backend", "schemas.py")).load_module()
-    main = SourceFileLoader("main", os.path.join(repo_root, "backend", "main.py")).load_module()
-    mermas = SourceFileLoader("mermas", os.path.join(repo_root, "backend", "mermas.py")).load_module()
+    import database
+    import models
+    import schemas
+    import main
+    import mermas
     return database, models, schemas, main, mermas
 
 

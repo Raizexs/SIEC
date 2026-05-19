@@ -1,4 +1,14 @@
-from backend.apu import normalize_precio_unit, apply_social_ley_factor, compute_tarifa_pura_local
+import sys
+import os
+
+backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
+
+try:
+    from apu import normalize_precio_unit, apply_social_ley_factor, compute_tarifa_pura_local
+except ModuleNotFoundError:
+    from backend.apu import normalize_precio_unit, apply_social_ley_factor, compute_tarifa_pura_local
 
 
 def test_normalize_precio_unit_jornada_to_hh():
