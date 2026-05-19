@@ -1,0 +1,89 @@
+version: '3.8'
+
+# ─────────────────────────────────────────────────────────────────────
+#  SIEC – Production Compose (servidor UNAB 10.51.0.26)
+#  Uso: docker compose -f docker-compose.prod.yml up -d
+# ─────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────
+  db:
+    image: postgres:15-alpine
+    container_name: siec_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-siec}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-siec_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-siec}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-siec}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - siec_net
+
+  # ── FastAPI Backend ─────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: siec_backend
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-siec}:${POSTGRES_PASSWORD:-siec_secret}@db:5432/${POSTGRES_DB:-siec}
+      - SECRET_KEY=${SECRET_KEY:-cambia_esto_en_produccion}
+      - ENVIRONMENT=production
+      - ALLOWED_ORIGINS=http://10.51.0.26,http://10.51.0.26:80
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - siec_net
+
+  # ── Vue 3 Frontend (nginx) ──────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=http://10.51.0.26:8000
+    container_name: siec_frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - siec_net
+
+  # ── Scraper (cron) ──────────────────────────────────────────────────
+  scraper:
+    build:
+      context: ./scraper
+      dockerfile: Dockerfile
+    container_name: siec_scraper
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-siec}:${POSTGRES_PASSWORD:-siec_secret}@db:5432/${POSTGRES_DB:-siec}
+      - TZ=America/Santiago
+      - RUN_NOW=false
+      - CMF_API_KEY=${CMF_API_KEY:-2bea1a42f6b3d657e19f22c2b01f7ee02d69ebf4}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - siec_net
+
+volumes:
+  postgres_data:
+
+networks:
+  siec_net:
+    driver: bridge
