@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 import unicodedata
 import os
+from dotenv import load_dotenv
+load_dotenv()
 from collections import defaultdict
 from schemas import (
     DesgloseResponse,
@@ -59,10 +61,12 @@ Authentication: Bearer JWT issued by Supabase Auth (HS256 default; RS256 via JWK
 )
 
 try:
-    import observability
-    observability.install(app)
+    from observability import log, install as install_observability
+    install_observability(app)
 except Exception as _obs_exc:
-    print(f"[main] observability.install failed: {_obs_exc}")
+    import logging
+    log = logging.getLogger("siec")
+    log.error("observability_install_failed", error=str(_obs_exc))
 
 # CORS — origins are configurable via env to support staging/production.
 # In dev, defaults cover localhost + LAN IP from previous setup.
@@ -120,28 +124,28 @@ try:
     from routers.projects import router as projects_router
     app.include_router(projects_router)
 except Exception as exc:  # pragma: no cover
-    print(f"[main] Could not mount /projects router: {exc}")
+    log.error("router_mount_failed", router="projects", error=str(exc))
 
 # Mount Phase 5 routers (AI assistant + price intelligence)
 try:
     from routers.ai import router as ai_router
     app.include_router(ai_router)
 except Exception as exc:  # pragma: no cover
-    print(f"[main] Could not mount /ai router: {exc}")
+    log.error("router_mount_failed", router="ai", error=str(exc))
 
 # Mount Phase 7 routers (marketplace of presets)
 try:
     from routers.marketplace import router as marketplace_router
     app.include_router(marketplace_router)
 except Exception as exc:  # pragma: no cover
-    print(f"[main] Could not mount /marketplace router: {exc}")
+    log.error("router_mount_failed", router="marketplace", error=str(exc))
 
 # Mount Phase 8 routers (settings/integrations/billing/site-profile)
 try:
     from routers.settings import router as settings_router
     app.include_router(settings_router)
 except Exception as exc:  # pragma: no cover
-    print(f"[main] Could not mount settings router: {exc}")
+    log.error("router_mount_failed", router="settings", error=str(exc))
 
 # PDF vectorial (Playwright / Chromium print)
 try:
@@ -162,9 +166,9 @@ def startup_event():
         from scripts.normalize_unidad_mano_obra import normalize_unidad_mano_obra
         try:
             updated = normalize_unidad_mano_obra(os.getenv('DATABASE_URL', None))
-            print(f'normalize_unidad_mano_obra updated rows: {updated}')
+            log.info("normalization_completed", updated_rows=updated)
         except Exception as e:
-            print('Normalization script failed at startup:', e)
+            log.error("normalization_script_failed", error=str(e))
     except Exception:
         # If import fails (e.g., during certain test flows), continue without normalization
         pass
@@ -173,7 +177,7 @@ def startup_event():
     try:
         # Verificar si ya existen tipos de recinto
         if db.query(models.TipoRecinto).count() == 0:
-            print("Poblando Base de Datos con Tipos de Recinto...")
+            log.info("seeding_initial_recintos")
             tipos_iniciales = [
                 models.TipoRecinto(nombre="Habitación", costo_tokens=9),
                 models.TipoRecinto(nombre="Baño", costo_tokens=4),
@@ -241,8 +245,8 @@ def crear_simulacion(sim: SimulacionCreate, db: Session = Depends(get_db)):
     """Guarda los parámetros de configuración de la vivienda y crea una nueva simulación."""
 
     # Validaciones obligatorias
-    if sim.m2Totales < 1 or sim.m2Totales > 500:
-        raise HTTPException(status_code=400, detail="Superficie total debe estar entre 1 y 500 m².")
+    if sim.m2Totales < 1 or sim.m2Totales > 5000:
+        raise HTTPException(status_code=400, detail="Superficie total debe estar entre 1 y 5000 m².")
 
     if sim.habitaciones < 0 or sim.banios < 0 or sim.areasComunes < 0:
         raise HTTPException(status_code=400, detail="La cantidad de recintos no puede ser negativa.")

@@ -7,7 +7,10 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from sodimac_scraper import SodimacScraper
 from playwright.sync_api import sync_playwright
 
-logging.basicConfig(level=logging.INFO)
+from logger import setup_logging
+import logging
+setup_logging(logging.INFO)
+logger = logging.getLogger(__name__)
 
 def test_sodimac_search():
     scraper = SodimacScraper()
@@ -20,12 +23,9 @@ def test_sodimac_search():
         resultado = scraper.search_and_match(page, "Cemento Portland", insumo_id=1)
         
         if resultado:
-            print(f"\nRESULTADO ENCONTRADO:")
-            print(f"Nombre: {resultado['nombre_producto']}")
-            print(f"Precio: {resultado['precio']}")
-            print(f"URL: {resultado['url']}")
+            logger.info(f"RESULTADO ENCONTRADO - Nombre: {resultado['nombre_producto']}, Precio: {resultado['precio']}, URL: {resultado['url']}")
         else:
-            print("\nNo se encontró match.")
+            logger.warning("No se encontró match.")
             
         browser.close()
 

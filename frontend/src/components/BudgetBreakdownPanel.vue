@@ -163,7 +163,7 @@ const fetchBudget = async () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        m2Totales: Math.round(props.m2Totales),
+        m2Totales: Math.max(1, Math.round(props.m2Totales)),
         materialEstructuralId: props.materialEstructuralId,
         habitaciones: counts.habitaciones,
         banios: counts.banios,

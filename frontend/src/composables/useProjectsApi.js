@@ -1,3 +1,4 @@
+import logger from '../utils/logger.js';
 /**
  * useProjectsApi — high-level project CRUD with Dexie offline cache.
  *
@@ -41,7 +42,7 @@ export function useProjectsApi() {
       await flushOutbox(api).catch(() => {});
       return data;
     } catch (err) {
-      console.warn("[projects] list fallback to cache:", err.message);
+      logger.warn("[projects] list fallback to cache:", err.message);
       return listCachedProjects();
     }
   };

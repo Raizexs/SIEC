@@ -1,4 +1,5 @@
 <script setup>
+import logger from '../utils/logger.js';
 /**
  * ShareDialog — invite collaborators by email + manage public share link.
  *
@@ -56,12 +57,12 @@ const formatDate = (value) => {
 };
 
 const load = async () => {
-  if (!props.projectId) return;
+  if (!props.projectId || props.projectId === 'local') return;
 
   try {
     collaborators.value = await api.listCollaborators(props.projectId);
   } catch (e) {
-    console.warn('No se pudieron cargar colaboradores:', e);
+    logger.warn('No se pudieron cargar colaboradores:', e);
   }
 };
 
@@ -81,6 +82,11 @@ const copyShareLink = async () => {
 };
 
 const generateShareLink = async () => {
+  if (!props.projectId || props.projectId === 'local') {
+    toast.error('No puedes generar enlaces para un proyecto local.');
+    return;
+  }
+
   isLoading.value = true;
 
   try {

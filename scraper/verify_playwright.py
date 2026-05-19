@@ -6,7 +6,16 @@ Runs headless Chromium and extracts data using config.STORES selectors.
 
 import asyncio
 import sys
+import logging
 from playwright.async_api import async_playwright
+
+try:
+    from logger import setup_logging
+    setup_logging(logging.INFO)
+except ImportError:
+    pass
+
+logger = logging.getLogger(__name__)
 
 # Quick inline config (normally imported from config.py)
 STORES = {
@@ -50,8 +59,7 @@ async def verify_selectors():
         browser = await p.chromium.launch(headless=True)
         
         for store_name, store_config in STORES.items():
-            print(f"\n📍 Testing {store_name.upper()}")
-            print("=" * 60)
+            logger.info(f"Testing {store_name.upper()}")
             
             for url in store_config['product_urls']:
                 page = await browser.new_page()
@@ -59,21 +67,21 @@ async def verify_selectors():
                 
                 try:
                     await page.goto(url, wait_until='networkidle')
-                    print(f"\n✅ Loaded: {url[:60]}...")
+                    logger.info(f"Loaded: {url[:60]}...")
                     
                     for field, selector in store_config['selectors'].items():
                         try:
                             element = await page.query_selector(selector)
                             if element:
                                 text = await element.text_content()
-                                print(f"   ✅ {field}: {text.strip()[:80]}")
+                                logger.info(f"Field {field} found: {text.strip()[:80]}")
                             else:
-                                print(f"   ❌ {field}: Not found")
+                                logger.warning(f"Field {field}: Not found")
                         except Exception as e:
-                            print(f"   ⚠️  {field}: {str(e)[:50]}")
+                            logger.error(f"Error fetching {field}: {str(e)[:50]}")
                 
                 except Exception as e:
-                    print(f"❌ Failed to load {url[:40]}...: {str(e)[:60]}")
+                    logger.error(f"Failed to load {url[:40]}...: {str(e)[:60]}")
                 
                 finally:
                     await page.close()

@@ -2,7 +2,6 @@
 import { computed } from 'vue';
 import { useI18n } from '../composables/useI18n';
 import {
-  TrendingUp,
   Building2,
   Gauge,
   SquareStack,
@@ -10,7 +9,7 @@ import {
   CheckCircle2,
 } from 'lucide-vue-next';
 
-const { t, currentLanguage } = useI18n();
+const { t } = useI18n();
 
 const props = defineProps({
   formData: { type: Object, required: true },
@@ -31,45 +30,7 @@ const usagePct = computed(() =>
     : 0,
 );
 
-const materialNames = {
-  es: {
-    1: 'Estructura de madera',
-    2: 'Acero galvanizado',
-    3: 'Mampostería',
-    4: 'Hormigón armado',
-  },
-  en: {
-    1: 'Wood frame',
-    2: 'Galvanized steel',
-    3: 'Masonry',
-    4: 'Concrete',
-  },
-};
 
-const getMaterialName = (id) =>
-  (currentLanguage.value === 'es' ? materialNames.es : materialNames.en)[id] ||
-  'Material no definido';
-
-const COST_PER_M2 = {
-  1: 850000,
-  2: 1100000,
-  3: 950000,
-  4: 1200000,
-};
-
-const estimatedCost = computed(() =>
-  (props.formData.m2Totales || 0) *
-  (COST_PER_M2[props.formData.materialEstructuralId] || COST_PER_M2[4]),
-);
-
-const formatCurrency = (value) =>
-  new Intl.NumberFormat('es-CL', {
-    style: 'currency',
-    currency: 'CLP',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(Math.round(value));
-  
 const cleanStatusLabel = (value, fallback) => {
   const raw = value || fallback;
 
@@ -154,7 +115,7 @@ const StateIcon = computed(() => stateMeta.value.icon);
             </h3>
 
             <p class="mt-1 text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400">
-              Espacio disponible y costo estimado en tiempo real.
+              Espacio disponible en tiempo real.
             </p>
           </div>
 
@@ -285,51 +246,6 @@ const StateIcon = computed(() => stateMeta.value.icon);
         </div>
       </article>
 
-      <!-- Cost estimate card -->
-      <article
-        class="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30"
-      >
-        <div
-          class="pointer-events-none absolute -right-20 -top-20 h-52 w-52 rounded-full bg-orange-500/10 blur-3xl dark:bg-orange-400/10"
-        ></div>
-
-        <div class="relative z-10 space-y-4">
-          <div class="flex items-center justify-between gap-3">
-            <div>
-              <p
-                class="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
-              >
-                <TrendingUp class="h-3.5 w-3.5 text-orange-500 dark:text-orange-300" :stroke-width="2.2" />
-                Costo estimado
-              </p>
-
-              <p class="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-                Valor referencial según m² y materialidad.
-              </p>
-            </div>
-
-            <span
-              class="rounded-full border border-orange-200 bg-orange-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-tight text-orange-700 dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
-            >
-              CLP
-            </span>
-          </div>
-
-          <p class="font-mono text-3xl font-black tracking-tight text-orange-700 dark:text-orange-300">
-            {{ formatCurrency(estimatedCost) }}
-          </p>
-
-          <div
-            class="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/60"
-          >
-            <Building2 class="h-4 w-4 text-slate-400 dark:text-slate-500" :stroke-width="2" />
-
-            <span class="truncate text-xs font-bold text-slate-600 dark:text-slate-300">
-              {{ getMaterialName(formData.materialEstructuralId) }}
-            </span>
-          </div>
-        </div>
-      </article>
     </div>
   </section>
 </template>

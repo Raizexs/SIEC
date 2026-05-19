@@ -1,4 +1,5 @@
 <script setup>
+import logger from '../utils/logger.js';
 /**
  * Scene3D — refactored to use modular three/ classes:
  *   - SceneManager: renderer, camera, controls, post-FX
@@ -1063,7 +1064,7 @@ const toggleFullScreen = async () => {
     try {
       await rootRef.value?.requestFullscreen?.();
     } catch (error) {
-      console.error('No se pudo activar pantalla completa:', error);
+      logger.error('No se pudo activar pantalla completa:', error);
     }
 
     return;
@@ -1072,7 +1073,7 @@ const toggleFullScreen = async () => {
   try {
     await document.exitFullscreen?.();
   } catch (error) {
-    console.error('No se pudo salir de pantalla completa:', error);
+    logger.error('No se pudo salir de pantalla completa:', error);
   }
 };
 

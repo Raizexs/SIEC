@@ -1,33 +1,46 @@
 #!/usr/bin/env python3
 """Audit script for SCRUM-54 configuration validation."""
 
+import logging
+try:
+    from logger import setup_logging
+    setup_logging(logging.INFO)
+except ImportError:
+    try:
+        from scraper.logger import setup_logging
+        setup_logging(logging.INFO)
+    except ImportError:
+        pass
+
+logger = logging.getLogger(__name__)
+
 from scraper.config import STORES
 
-print("\n" + "="*60)
-print("AUDITORÍA SCRUM-54: INSPECCIÓN DE SELECTORES CSS")
-print("="*60 + "\n")
+logger.info("\n" + "="*60)
+logger.info("AUDITORÍA SCRUM-54: INSPECCIÓN DE SELECTORES CSS")
+logger.info("="*60 + "\n")
 
 REQUIRED_SELECTORS = ['name', 'price', 'price_discount', 'stock', 'category', 'pagination']
 REQUIRED_PRODUCTS = 5
 STORES_EXPECTED = 3
 
 # 1. Estructura general
-print("✓ CONFIG LOADS: OK")
-print(f"✓ STORES FOUND: {len(STORES)} (esperado: {STORES_EXPECTED})")
+logger.info("✓ CONFIG LOADS: OK")
+logger.info(f"✓ STORES FOUND: {len(STORES)} (esperado: {STORES_EXPECTED})")
 
 # 2. Validación por tienda
 for store_key, store_data in STORES.items():
-    print(f"\n📍 TIENDA: {store_data['name']}")
-    print(f"   - Base URLs: {len(store_data['base_urls'])}")
-    print(f"   - Product URLs: {len(store_data['product_urls'])}/{REQUIRED_PRODUCTS}")
-    print(f"   - Selectores: {len(store_data['selectors'])}/{len(REQUIRED_SELECTORS)}")
+    logger.info(f"\n📍 TIENDA: {store_data['name']}")
+    logger.info(f"   - Base URLs: {len(store_data['base_urls'])}")
+    logger.info(f"   - Product URLs: {len(store_data['product_urls'])}/{REQUIRED_PRODUCTS}")
+    logger.info(f"   - Selectores: {len(store_data['selectors'])}/{len(REQUIRED_SELECTORS)}")
     
     # Validar selectores
     missing_selectors = set(REQUIRED_SELECTORS) - set(store_data['selectors'].keys())
     if missing_selectors:
-        print(f"   ❌ FALTA: {missing_selectors}")
+        logger.info(f"   ❌ FALTA: {missing_selectors}")
     else:
-        print(f"   ✅ TODOS LOS SELECTORES")
+        logger.info(f"   ✅ TODOS LOS SELECTORES")
     
     # Validar ejemplos
     empty_examples = []
@@ -36,19 +49,19 @@ for store_key, store_data in STORES.items():
             empty_examples.append(sel_name)
     
     if empty_examples:
-        print(f"   ❌ SIN EXAMPLE: {empty_examples}")
+        logger.info(f"   ❌ SIN EXAMPLE: {empty_examples}")
     else:
-        print(f"   ✅ TODOS LOS EJEMPLOS DOCUMENTADOS")
+        logger.info(f"   ✅ TODOS LOS EJEMPLOS DOCUMENTADOS")
     
     # URLs
     if len(store_data['product_urls']) >= REQUIRED_PRODUCTS:
-        print(f"   ✅ URLS COMPLETAS ({len(store_data['product_urls'])} productos)")
+        logger.info(f"   ✅ URLS COMPLETAS ({len(store_data['product_urls'])} productos)")
     else:
-        print(f"   ❌ URLS INCOMPLETAS ({len(store_data['product_urls'])}/{REQUIRED_PRODUCTS})")
+        logger.info(f"   ❌ URLS INCOMPLETAS ({len(store_data['product_urls'])}/{REQUIRED_PRODUCTS})")
 
-print("\n" + "="*60)
-print("RESUMEN DE CRITERIOS DE ACEPTACIÓN (SCRUM-54)")
-print("="*60 + "\n")
+logger.info("\n" + "="*60)
+logger.info("RESUMEN DE CRITERIOS DE ACEPTACIÓN (SCRUM-54)")
+logger.info("="*60 + "\n")
 
 criteria = {
     "1. Existe scraper/config.py con base_urls y selectores": True,
@@ -70,26 +83,26 @@ criteria = {
 
 for criterion, status in criteria.items():
     icon = "✅" if status else "❌"
-    print(f"{icon} {criterion}")
+    logger.info(f"{icon} {criterion}")
 
-print("\n" + "="*60)
-print("VERIFICADORES EN verify_selectors.js")
-print("="*60 + "\n")
+logger.info("\n" + "="*60)
+logger.info("VERIFICADORES EN verify_selectors.js")
+logger.info("="*60 + "\n")
 
-print("✅ Funciones presentes:")
-print("   - testSodimac()")
-print("   - testEasy()")
-print("   - testConstrumart()")
-print("   Cada una con output visual (✅/❌) en DevTools Console.")
+logger.info("✅ Funciones presentes:")
+logger.info("   - testSodimac()")
+logger.info("   - testEasy()")
+logger.info("   - testConstrumart()")
+logger.info("   Cada una con output visual (✅/❌) en DevTools Console.")
 
-print("\n" + "="*60)
-print("ARCHIVOS GENERADOS")
-print("="*60 + "\n")
-print("✅ scraper/config.py - Configuración de selectores")
-print("✅ scraper/verify_selectors.js - Verificadores interactivos")
-print("✅ scraper/verify_playwright.py - Automatización con Playwright")
-print("✅ scraper/README.md - Documentación")
+logger.info("\n" + "="*60)
+logger.info("ARCHIVOS GENERADOS")
+logger.info("="*60 + "\n")
+logger.info("✅ scraper/config.py - Configuración de selectores")
+logger.info("✅ scraper/verify_selectors.js - Verificadores interactivos")
+logger.info("✅ scraper/verify_playwright.py - Automatización con Playwright")
+logger.info("✅ scraper/README.md - Documentación")
 
-print("\n" + "="*60)
-print("ESTADO FINAL: ✅ SCRUM-54 COMPLETADO")
-print("="*60 + "\n")
+logger.info("\n" + "="*60)
+logger.info("ESTADO FINAL: ✅ SCRUM-54 COMPLETADO")
+logger.info("="*60 + "\n")

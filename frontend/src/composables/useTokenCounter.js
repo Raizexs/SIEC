@@ -1,3 +1,4 @@
+import logger from '../utils/logger.js';
 import { ref, computed, watch } from "vue";
 import {
   calculateTokensUsedByType,
@@ -24,7 +25,7 @@ export function useTokenCounter() {
   // Watch para validar límite de m²
   watch(m2Totales, (newValue) => {
     if (newValue > MAX_M2) {
-      console.warn(`M² excede el límite máximo de ${MAX_M2}`);
+      logger.warn(`M² excede el límite máximo de ${MAX_M2}`);
     }
   });
 
