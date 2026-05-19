@@ -10,3 +10,4 @@ slowapi
 sentry-sdk[fastapi]
 redis
 alembic
+playwright>=1.44.0

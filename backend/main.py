@@ -143,6 +143,13 @@ try:
 except Exception as exc:  # pragma: no cover
     print(f"[main] Could not mount settings router: {exc}")
 
+# PDF vectorial (Playwright / Chromium print)
+try:
+    from routers.export import router as export_router
+    app.include_router(export_router)
+except Exception as exc:  # pragma: no cover
+    print(f"[main] Could not mount /export router: {exc}")
+
 
 # Seeding de datos iniciales
 @app.on_event("startup")
