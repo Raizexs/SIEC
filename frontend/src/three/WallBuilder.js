@@ -1,3 +1,4 @@
+import logger from '../utils/logger.js';
 /**
  * WallBuilder — turns wall topology into 3D meshes with REAL openings (doors,
  * windows) using CSG (Constructive Solid Geometry) via three-bvh-csg.
@@ -56,7 +57,7 @@ export class WallBuilder {
         }
         geometry = result.geometry;
       } catch (e) {
-        console.warn("[WallBuilder] CSG failed, falling back to plain wall", e);
+        logger.warn("[WallBuilder] CSG failed, falling back to plain wall", e);
         geometry = baseGeom;
       }
     }

@@ -1,4 +1,5 @@
 <script setup>
+import logger from '../utils/logger.js';
 /**
  * Workspace — wraps the existing 3D editor experience.
  *
@@ -64,7 +65,7 @@ const prepareWorkspace = async () => {
     }
 
     if (projectId.value) {
-      console.debug('[workspace] Loading project', projectId.value);
+      logger.debug('[workspace] Loading project', projectId.value);
     }
 
     // Mantiene una micro-pausa visual para evitar flash de layout

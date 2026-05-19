@@ -1,4 +1,5 @@
 <script setup>
+import logger from '../utils/logger.js';
 import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
@@ -101,7 +102,7 @@ const next = async () => {
         },
       });
     } catch (error) {
-      console.warn('No se pudo guardar onboarding:', error);
+      logger.warn('No se pudo guardar onboarding:', error);
     }
   }
 

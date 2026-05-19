@@ -1,3 +1,4 @@
+import logger from '../utils/logger.js';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import { useRecintosStore } from '../stores/recintos';
@@ -75,7 +76,7 @@ export const generateCommercialPDF = async (canvasElement, projectName, options 
 
       doc.addImage(dataUrl, 'JPEG', 14, y, pdfWidth, pdfHeight);
     } catch (e) {
-      console.warn('No se pudo capturar el canvas 3D', e);
+      logger.warn('No se pudo capturar el canvas 3D', e);
     }
   }
 

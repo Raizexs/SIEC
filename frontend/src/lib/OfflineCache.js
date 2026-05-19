@@ -1,3 +1,4 @@
+import logger from '../utils/logger.js';
 /**
  * Offline cache for projects using IndexedDB (Dexie).
  *
@@ -49,7 +50,7 @@ export async function flushOutbox(api) {
       }
       await projectsDb.outbox.delete(item.id);
     } catch (e) {
-      console.warn("[outbox] flush failed, will retry", item.kind, e);
+      logger.warn("[outbox] flush failed, will retry", item.kind, e);
       break;
     }
   }
