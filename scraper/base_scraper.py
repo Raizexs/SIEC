@@ -99,17 +99,39 @@ class BaseScraper(ABC):
         """
         Busca un material por nombre genérico, extrae resultados y aplica 
         Fuzzy Matching para encontrar el mejor producto.
+        
+        Estrategia:
+        1. HTTP directo + JSON-LD (sin browser, sin anti-bot)
+        2. Playwright + Firefox + stealth (fallback)
         """
         self.logger.info(f"[{self.store_key}] Buscando material genérico: '{query}'")
         
+        # ── Capa 1: HTTP directo ───────────────────────────────────────────
         try:
-            # 1. Obtener lista de productos candidatos desde la búsqueda
+            search_url = self._get_search_url(query)
+            candidatos = self._http_search(self.store_key, search_url, query)
+            if candidatos:
+                normalizer = FuzzyNormalizer(threshold=75, unidad_medida=unidad_medida)
+                mejor_match = normalizer.filter_results(query, candidatos)
+                if mejor_match:
+                    self.logger.info(
+                        f"[{self.store_key}] ✅ HTTP match para '{query}': "
+                        f"'{mejor_match['nombre_producto']}' (Score: {mejor_match['match_score']}, "
+                        f"Precio: ${mejor_match['precio']})"
+                    )
+                    mejor_match["insumo_id"] = insumo_id
+                    self._normalize_prices_by_insumo_unit(mejor_match)
+                    return mejor_match
+        except Exception as e:
+            self.logger.debug(f"[{self.store_key}] HTTP falló para '{query}': {e}")
+
+        # ── Capa 2: Playwright ─────────────────────────────────────────────
+        try:
             candidatos = self._scrape_search_results(page, query)
             if not candidatos:
                 self.logger.warning(f"[{self.store_key}] No se encontraron resultados para '{query}'")
                 return None
 
-            # 2. Aplicar Fuzzy Normalizer con unidad de medida
             normalizer = FuzzyNormalizer(threshold=75, unidad_medida=unidad_medida)
             mejor_match = normalizer.filter_results(query, candidatos)
 
@@ -120,12 +142,9 @@ class BaseScraper(ABC):
                     f"Precio: ${mejor_match['precio']})"
                 )
                 mejor_match["insumo_id"] = insumo_id
-                
-                # Normalización de unidad (kg/m/etc)
                 self._normalize_prices_by_insumo_unit(mejor_match)
-                
                 return mejor_match
-            
+
             self.logger.warning(f"[{self.store_key}] ⚠️  Ningún resultado de búsqueda superó el umbral de confianza para '{query}'")
             return None
 
@@ -347,18 +366,93 @@ class BaseScraper(ABC):
         return plausible[0] if plausible else None
 
     @staticmethod
-    def dump_html(page, store_key: str, query: str) -> None:
-        """Guarda el HTML crudo en un archivo para debugging."""
+    def _http_search(store_key: str, search_url: str, query: str) -> list[dict]:
+        """Busca productos via HTTP directo y extrae JSON-LD.
+        
+        Sin browser, sin JavaScript. Solo funciona si el sitio embebe
+        datos estructurados (JSON-LD) en el HTML inicial (SSR).
+        Retorna lista de dicts con nombre_producto, precio, url, exitoso.
+        """
+        import json, re, urllib.request
+        try:
+            req = urllib.request.Request(
+                search_url,
+                headers={
+                    "User-Agent": USER_AGENT,
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Accept-Language": "es-CL,es;q=0.9,en;q=0.8",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                html = resp.read().decode("utf-8", errors="replace")
+
+            # Buscar bloques JSON-LD
+            products = []
+            seen = set()
+            for match in re.finditer(r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>', html, re.DOTALL | re.IGNORECASE):
+                try:
+                    data = json.loads(match.group(1))
+                    items = data if isinstance(data, list) else [data]
+                    for item in items:
+                        if not isinstance(item, dict):
+                            continue
+                        if item.get("@type") in ("ItemList", "Product"):
+                            entries = item.get("itemListElement") or [item]
+                            for entry in entries[:15]:
+                                obj = entry.get("item") if isinstance(entry, dict) and "item" in entry else entry
+                                if not isinstance(obj, dict):
+                                    continue
+                                name = obj.get("name", "").strip()
+                                offers = obj.get("offers", {})
+                                price_val = None
+                                if isinstance(offers, dict):
+                                    price_val = offers.get("price")
+                                elif isinstance(offers, list) and len(offers) > 0:
+                                    price_val = offers[0].get("price")
+                                url_val = obj.get("url", "")
+                                if not name or not price_val or name in seen:
+                                    continue
+                                seen.add(name)
+                                try:
+                                    price = float(price_val) if isinstance(price_val, (int, float)) else float(str(price_val).replace(",", "."))
+                                except (ValueError, TypeError):
+                                    continue
+                                if price < 100:
+                                    continue
+                                products.append({
+                                    "tienda": store_key,
+                                    "nombre_producto": name,
+                                    "precio": price,
+                                    "url": url_val if url_val.startswith("http") else "",
+                                    "exitoso": True,
+                                })
+                except (json.JSONDecodeError, Exception):
+                    continue
+            if products:
+                logger.info(f"[HTTP] {store_key}: {len(products)} productos via JSON-LD para '{query[:40]}'")
+            return products
+        except Exception as e:
+            logger.debug(f"[HTTP] {store_key}: fallo para '{query[:40]}': {e}")
+            return []
+        """Guarda el HTML crudo en un archivo para debugging y logea resumen."""
         import os
         from datetime import datetime
         try:
             html = page.content()
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
             safe_q = "".join(c if c.isalnum() else "_" for c in query)[:40]
-            fname = f"debug_{store_key}_{safe_q}_{ts}.html"
+            fname = f"/tmp/debug_{store_key}_{safe_q}_{ts}.html"
             with open(fname, "w", encoding="utf-8") as f:
                 f.write(html)
-            logger.info(f"[Debug] HTML guardado: {os.path.abspath(fname)}")
+            # Loggear resumen del HTML
+            title = ""
+            import re as _re
+            m = _re.search(r'<title[^>]*>(.*?)</title>', html, _re.IGNORECASE | _re.DOTALL)
+            if m: title = m.group(1).strip()
+            body_len = len(html)
+            has_products = "product" in html.lower() or "articulo" in html.lower() or "price" in html.lower()
+            logger.info(f"[Debug] HTML guardado: {fname}")
+            logger.info(f"[Debug] Title: {title[:120]} | Tamaño: {body_len} bytes | Contiene productos: {has_products}")
         except Exception as e:
             logger.warning(f"[Debug] No se pudo guardar HTML: {e}")
 
