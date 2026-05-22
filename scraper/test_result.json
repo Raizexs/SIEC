@@ -13,8 +13,18 @@
     "products": []
   },
   "html_title": "Bienvenido a Sodimac.com. Todo para construir y renovar tu hogar con los precios bajos siempre",
-  "html_size": 621050,
+  "html_size": 621082,
   "has_products_in_html": true,
+  "api_direct": {
+    "success": false,
+    "count": 0,
+    "products": []
+  },
+  "uc": {
+    "success": false,
+    "count": 0,
+    "products": []
+  },
   "html_final_url": "https://www.sodimac.cl/sodimac-cl/search?Ntt=Cemento+Portland",
   "api_calls": [
     {

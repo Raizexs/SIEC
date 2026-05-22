@@ -10,24 +10,54 @@ STORES = {
             'https://www.sodimac.cl/sodimac-cl/browse?region=valparaiso'
         ],
         'selectors': {
-            'name': {'css': '.pdp-basic-info__product-name, [class*="product-name"], h1', 'example': 'Hormigón Preparado Para Radieres Sobrelosas Pilares 25 Kg'},
-            'price': {'css': '.copy12.primary.senary, [class*="price"], .primary.senary', 'example': '$ 2.851'},
-            'price_discount': {'css': '.copy12.primary.senary.bold, [class*="discount"]', 'example': 'N/A (sin descuento)'},
-            'stock': {'css': 'p.store-availability.available, [class*="availability"], .stock', 'example': '89 unidades disponibles'},
-            'category': {'css': 'a.Breadcrumbs-module_selected-bread-crumb__ZPj02, .selected-bread-crumb', 'example': 'Cemento'},
-            'pagination': {'css': 'a[rel="next"]', 'example': 'N/A (en PDPs no hay paginación)'}
+            'name': {'css': '.pdp-basic-info__product-name, [class*="product-name"], h1', 'example': ''},
+            'price': {'css': '.copy12.primary.senary, [class*="price"], .primary.senary', 'example': ''},
+            'price_discount': {'css': '.copy12.primary.senary.bold, [class*="discount"]', 'example': ''},
+            'stock': {'css': 'p.store-availability.available, [class*="availability"], .stock', 'example': ''},
+            'category': {'css': 'a.Breadcrumbs-module_selected-bread-crumb__ZPj02, .selected-bread-crumb', 'example': ''},
+            'pagination': {'css': 'a[rel="next"]', 'example': ''}
         },
 
         'product_urls': [
-            'https://www.sodimac.cl/sodimac-cl/articulo/110277134/hormigon-preparado-para-radieres-sobrelosas-pilares-25-kg/110277137',
-            'https://www.sodimac.cl/sodimac-cl/articulo/110282820/fierro-liso-cuadrado-acero-10x10-5-mm-6-m/110282823',
-            'https://www.sodimac.cl/sodimac-cl/articulo/110288145/placa-fibrocemento-lisa-4-mm-120x240-cm-blanco/110288165',
-            'https://www.sodimac.cl/sodimac-cl/articulo/113214486/cable-libre-de-halogenos-h07z1-k-1x2-5-mm2-rojo-100-metros/113214489',
-            'https://www.sodimac.cl/sodimac-cl/articulo/135520693/tubo-gris-pvc-agua-110-mmx6-m/135520694',
-            'https://www.sodimac.cl/sodimac-cl/search?Ntt=Perfil+C+60x38',
-            'https://www.sodimac.cl/sodimac-cl/search?Ntt=Perfil+U+62x25',
-            'https://www.sodimac.cl/sodimac-cl/search?Ntt=Pino+Dimensionado+2x4',
-            'https://www.sodimac.cl/sodimac-cl/search?Ntt=Tornillo+Volcanita'
+            # Obra Gruesa
+            'https://www.sodimac.cl/sodimac-cl/articulo/110309884/Cemento-Polpaico-25-kilos/110309919',
+            'https://www.sodimac.cl/sodimac-cl/articulo/110309884/Cemento-Polpaico-25-kilos/110309919',  # Cemento Especial
+            'https://www.sodimac.cl/sodimac-cl/articulo/110023605/Fierro-de-construccion-estriado-12-mm/110023608',
+            'https://www.sodimac.cl/sodimac-cl/articulo/110313881/Arena-gruesa-saco-25kg/110313884',
+            'https://www.sodimac.cl/sodimac-cl/articulo/110313872/Gravilla-saco-25kg/110313876',
+            # Estructura
+            'https://www.sodimac.cl/sodimac-cl/articulo/110020134/Perfil-metalcon-estructural-C-60x38x0.85-mm-x-3-m/110020138',
+            'https://www.sodimac.cl/sodimac-cl/articulo/110020118/Perfil-metalcon-estructural-U-62x25x0.85-mm-x-3-m/110020121',
+            'https://www.sodimac.cl/sodimac-cl/articulo/110020177/Perfil-metalcon-cielo-omega-3-m/110020180',
+            'https://www.sodimac.cl/sodimac-cl/articulo/110283433/Pino-dimensionado-2x3-32-m-premium/110283436',
+            'https://www.sodimac.cl/sodimac-cl/articulo/110283451/Pino-dimensionado-2x4-32-m-premium/110283454',
+            # Revestimientos
+            'https://www.sodimac.cl/sodimac-cl/articulo/110284022/terciado-estructural-pino-12-mm-122x244-cm/110284026',
+            'https://www.sodimac.cl/sodimac-cl/articulo/110286391/Yeso-Carton-Resistente-a-la-humedad-12.5-mm-120x240-cm-Blanco/110286395',
+            'https://www.sodimac.cl/sodimac-cl/articulo/110286383/Yeso-Carton-Resistente-a-la-humedad-15-mm-120x240-cm-Blanco/110286386',
+            # Fijaciones
+            'https://www.sodimac.cl/sodimac-cl/articulo/110196813/Tornillo-Volcanita-Punta-Fina-6x1-58-Zinc-Caja-12000-unds/110196816',
+            'https://www.sodimac.cl/sodimac-cl/articulo/110196759/Tornillo-madera-aglomerada-6x1-14-crs-caja-200-un/110196762',
+            'https://www.sodimac.cl/sodimac-cl/articulo/110196651/Tornillo-autoperforante-hexagonal-10x1-zincado-caja-100-un/110196654',
+            # Terminaciones
+            'https://www.sodimac.cl/sodimac-cl/articulo/110034631/Esmalte-al-agua-pieza-y-fachada-galon-blanco/110034635',
+            'https://www.sodimac.cl/sodimac-cl/articulo/110036120/Esmalte-sintetico-galon-blanco/110036123',
+            'https://www.sodimac.cl/sodimac-cl/articulo/110084531/Ceramica-de-piso-45x45-cm-2.03-m2-madera-caramelo/110084534',
+            'https://www.sodimac.cl/sodimac-cl/articulo/110084123/Ceramica-de-muro-25x40-cm-1.5-m2-blanco-brillante/110084126',
+            'https://www.sodimac.cl/sodimac-cl/articulo/110088510/Piso-flotante-8-mm-2.4-m2-roble-natural/110088513',
+            'https://www.sodimac.cl/sodimac-cl/articulo/110028341/Adhesivo-ceramico-polvo-saco-25-kg/110028344',
+            'https://www.sodimac.cl/sodimac-cl/articulo/110028546/Frague-impermeable-1-kg-blanco/110028549',
+            # Instalaciones
+            'https://www.sodimac.cl/sodimac-cl/articulo/110115632/Cable-electrico-H07Z1-K-libre-de-halogeno-2.5-mm-rojo-100-m/110115635',
+            'https://www.sodimac.cl/sodimac-cl/articulo/110115659/Cable-electrico-H07Z1-K-libre-de-halogeno-4-mm-blanco-100-m/110115662',
+            'https://www.sodimac.cl/sodimac-cl/articulo/110115683/Cable-electrico-H07Z1-K-libre-de-halogeno-6-mm-verde-100-m/110115686',
+            'https://www.sodimac.cl/sodimac-cl/articulo/110024511/Tubo-PVC-sanitario-110-mm-3-m/110024514',
+            'https://www.sodimac.cl/sodimac-cl/articulo/110024538/Tubo-PVC-sanitario-75-mm-3-m/110024541',
+            'https://www.sodimac.cl/sodimac-cl/articulo/110024562/Tubo-PVC-sanitario-50-mm-3-m/110024565',
+            'https://www.sodimac.cl/sodimac-cl/articulo/110025119/Tubo-cobre-tipo-L-12-pulgada-15-mm-x-3-m/110025122',
+            'https://www.sodimac.cl/sodimac-cl/articulo/110025143/Tubo-cobre-tipo-L-34-pulgada-22-mm-x-3-m/110025146',
+            'https://www.sodimac.cl/sodimac-cl/articulo/110123511/Caja-distribucion-embutida-53x100x48-mm/110123514',
+            'https://www.sodimac.cl/sodimac-cl/articulo/110124355/Automatico-monofasico-1x16-A/110124358',
         ],
         'search_url': 'https://www.sodimac.cl/sodimac-cl/search?Ntt={query}',
         'search_selectors': {
