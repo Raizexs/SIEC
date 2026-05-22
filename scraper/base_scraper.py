@@ -434,6 +434,9 @@ class BaseScraper(ABC):
         except Exception as e:
             logger.debug(f"[HTTP] {store_key}: fallo para '{query[:40]}': {e}")
             return []
+
+    @staticmethod
+    def dump_html(page, store_key: str, query: str) -> None:
         """Guarda el HTML crudo en un archivo para debugging y logea resumen."""
         import os
         from datetime import datetime
