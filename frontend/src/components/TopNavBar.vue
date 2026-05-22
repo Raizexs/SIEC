@@ -6,13 +6,11 @@ import { useAuthStore } from '../stores/auth';
 import { useLayoutManager } from '../composables/useLayoutManager';
 import {
   Save,
-  Download,
   ChevronDown,
   History,
   FileText,
   LogOut,
   Building2,
-  Share2,
   CheckCircle2,
   User,
 } from 'lucide-vue-next';
@@ -26,13 +24,12 @@ defineProps({
   exportBusy: { type: Boolean, default: false },
 });
 
-defineEmits(['save-layout', 'export-pdf', 'share']);
+defineEmits(['save-layout']);
 
 const showProfileMenu = ref(false);
 
 const userProfile = computed(() => ({
   name: authStore.fullName || 'Usuario',
-  role: authStore.role || 'architect',
   company: authStore.profile?.company || authStore.user?.user_metadata?.company || '',
   avatarUrl: authStore.avatarUrl || '',
   email: authStore.user?.email || '—',
@@ -93,32 +90,11 @@ const logout = async () => {
       <button
         type="button"
         class="hidden items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold uppercase tracking-tight text-slate-600 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 hover:shadow-md active:scale-[0.98] dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-100 md:inline-flex"
-        title="Compartir proyecto"
-        @click="$emit('share')"
-      >
-        <Share2 class="h-4 w-4" :stroke-width="2.2" />
-        Compartir
-      </button>
-
-      <button
-        type="button"
-        class="hidden items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold uppercase tracking-tight text-slate-600 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 hover:shadow-md active:scale-[0.98] dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-100 md:inline-flex"
         title="Guardar diseño actual"
         @click="$emit('save-layout')"
       >
         <Save class="h-4 w-4" :stroke-width="2.2" />
         {{ t('save') }}
-      </button>
-
-      <button
-        type="button"
-        class="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-black uppercase tracking-[0.12em] text-slate-800 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-300 hover:bg-orange-50 hover:text-orange-700 hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-orange-400 dark:hover:bg-orange-950/30 dark:hover:text-orange-300"
-        title="Exportar PDF comercial"
-        :disabled="exportBusy"
-        @click="$emit('export-pdf')"
-      >
-        <Download class="h-4 w-4" :stroke-width="2.2" />
-        {{ exportBusy ? 'Exportando…' : 'Exportar' }}
       </button>
 
       <!-- Profile -->
@@ -187,12 +163,6 @@ const logout = async () => {
                 <div class="min-w-0">
                   <p class="truncate text-base font-black leading-tight tracking-tight text-slate-950 dark:text-slate-100">
                     {{ userProfile.name }}
-                  </p>
-
-                  <p
-                    class="mt-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-orange-600 dark:text-orange-300"
-                  >
-                    {{ userProfile.role }}
                   </p>
 
                   <p class="mt-1 truncate text-xs font-medium text-slate-500 dark:text-slate-400">

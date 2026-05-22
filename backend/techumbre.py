@@ -1,0 +1,153 @@
+"""
+Partida de techumbre completa para el MVP de SIEC.
+
+Genera dinamicamente los insumos de techo (cerchas, cubierta, aislacion)
+a partir del area en planta, asumiendo techo a dos aguas con pendiente 25%.
+
+Los precios son constantes temporales para salir a produccion el 27 de mayo.
+"""
+
+import math
+from typing import List, Optional
+
+from schemas import InsumoCalculado, CategoriaDesglose
+
+
+# ── Precios referenciales mercado chileno Mayo 2026 (CLP) ─────────────────────
+# Valores temporales mientras el scraper no cubra estos insumos.
+_PRECIOS: dict[str, float] = {
+    "pino 2x4": 4_500,
+    "plancha zinc": 12_900,
+    "lana vidrio": 32_000,
+}
+
+
+def _derive_largo(area_m2: float) -> float:
+    """
+    Estima el largo promedio de la casa asumiendo planta rectangular.
+    Si el area es ~105 m2 (15x7), la raiz cuadrada da ~10.25 m,
+    que es un promedio razonable entre 15 y 7.
+    """
+    return math.sqrt(area_m2)
+
+
+def calcular_partida_techumbre(
+    area_m2_planta: float,
+    largo_promedio_m: Optional[float] = None,
+) -> List[CategoriaDesglose]:
+    """
+    Genera la lista de insumos para una techumbre completa de vivienda
+    de un piso con techo a dos aguas y pendiente del 25%.
+
+    Args:
+        area_m2_planta: Superficie total en planta (m²).
+        largo_promedio_m: Largo promedio de la casa (opcional; se deriva
+            de sqrt(area) si no se provee).
+
+    Returns:
+        Lista de CategoriaDesglose con los insumos agrupados en dos
+        categorias: "Techumbre - Estructura" y "Techumbre - Cubierta".
+    """
+    if area_m2_planta <= 0:
+        return []
+
+    largo = largo_promedio_m if (largo_promedio_m and largo_promedio_m > 0) else _derive_largo(area_m2_planta)
+
+    # ── Área inclinada ────────────────────────────────────────────────────
+    # Pendiente 25% → factor = sqrt(1 + 0.25²) = 1.0308
+    # Se redondea a 1.05 para incluir aleros y voladizos.
+    area_inclinada = area_m2_planta * 1.05
+
+    # ── 1. Cerchas (estructura de techo) ──────────────────────────────────
+    # Separación cada 60 cm a lo largo del largo promedio
+    cant_cerchas = math.ceil(largo / 0.60) + 1
+
+    # Cada cercha consume ~10 ml de pino 2x4
+    ml_pino_por_cercha = 10.0
+    total_ml_pino = cant_cerchas * ml_pino_por_cercha
+
+    # Largo comercial pino 2x4 = 3.2 m → piezas enteras con merma 15%
+    largo_comercial = 3.2
+    piezas_pino = math.ceil(total_ml_pino / largo_comercial * 1.15)
+    subtotal_pino = piezas_pino * _PRECIOS["pino 2x4"]
+
+    # ── 2. Planchas de zinc ───────────────────────────────────────────────
+    # Ancho útil 0.85 m, largo 2.5 m → 2.125 m² por plancha
+    area_plancha = 0.85 * 2.5  # 2.125 m²
+    piezas_zinc = math.ceil(area_inclinada / area_plancha * 1.10)
+    subtotal_zinc = piezas_zinc * _PRECIOS["plancha zinc"]
+
+    # ── 3. Aislación de cielo (lana de vidrio) ────────────────────────────
+    # Rollo de 14.4 m² (0.60 × 8.0 m con traslapo efectivo)
+    area_rollo = 14.4
+    rollos_aislacion = math.ceil(area_m2_planta / area_rollo)
+    subtotal_aislacion = rollos_aislacion * _PRECIOS["lana vidrio"]
+
+    # ── Construir items ───────────────────────────────────────────────────
+    items_estructura = [
+        InsumoCalculado(
+            insumo="Cercha pino 2x4 (10 ml c/u)",
+            cantidad=float(cant_cerchas),
+            unidad="un",
+            precio_unitario=float(_PRECIOS["pino 2x4"] * ml_pino_por_cercha / largo_comercial),
+            subtotal=float(subtotal_pino),
+            perdida_porcentual=15.0,
+            formato_comercial="3.2 m",
+        ),
+    ]
+
+    items_cubierta = [
+        InsumoCalculado(
+            insumo="Plancha zinc 0.85x2.5m",
+            cantidad=float(piezas_zinc),
+            unidad="un",
+            precio_unitario=float(_PRECIOS["plancha zinc"]),
+            subtotal=float(subtotal_zinc),
+            perdida_porcentual=10.0,
+            formato_comercial="0.85 x 2.5 m",
+        ),
+        InsumoCalculado(
+            insumo="Lana vidrio 50mm rollo 14.4m2",
+            cantidad=float(rollos_aislacion),
+            unidad="un",
+            precio_unitario=float(_PRECIOS["lana vidrio"]),
+            subtotal=float(subtotal_aislacion),
+            perdida_porcentual=5.0,
+            formato_comercial="14.4 m²",
+        ),
+    ]
+
+    # ── Mano de obra para techumbre (estimación gruesa) ───────────────────
+    # ~4.5 HH/m² incluyendo estructura + cubierta
+    hh_techumbre = math.ceil(area_inclinada * 4.5)
+    tarifa_hh = 8_500  # CLP/HH para maestro+ayudante
+    subtal_mo = hh_techumbre * tarifa_hh
+
+    items_mo = [
+        InsumoCalculado(
+            insumo="Mano de obra techumbre (estructura + cubierta)",
+            cantidad=float(hh_techumbre),
+            unidad="HH",
+            precio_unitario=float(tarifa_hh),
+            subtotal=float(subtal_mo),
+            perdida_porcentual=0.0,
+        ),
+    ]
+
+    return [
+        CategoriaDesglose(
+            categoria="Techumbre - Estructura",
+            items=items_estructura,
+            subtotal_categoria=float(subtotal_pino),
+        ),
+        CategoriaDesglose(
+            categoria="Techumbre - Cubierta",
+            items=items_cubierta,
+            subtotal_categoria=float(subtotal_zinc + subtotal_aislacion),
+        ),
+        CategoriaDesglose(
+            categoria="Techumbre - Mano de Obra",
+            items=items_mo,
+            subtotal_categoria=float(subtal_mo),
+        ),
+    ]

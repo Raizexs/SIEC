@@ -48,7 +48,7 @@ function excedeLimiteLocal(areaMet) {
 // ──────────────────────────────────────────────────────────────────────────────
 // API
 // ──────────────────────────────────────────────────────────────────────────────
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 /**
  * Llama al endpoint /api/validar-ley-mono y actualiza el estado reactivo.

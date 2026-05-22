@@ -23,6 +23,9 @@ const { productPreferences } = useProductPreferences();
 const props = defineProps({
   m2Totales: { type: Number, required: true },
   materialEstructuralId: { type: Number, required: true },
+  terrenoAncho: { type: Number, default: 15 },
+  terrenoLargo: { type: Number, default: 7 },
+  alturaMuroM: { type: Number, default: 2.44 },
 });
 
 const isLoading = ref(false);
@@ -34,6 +37,13 @@ const hasGenerated = ref(false);
 const exportMenuOpen = ref(false);
 const exportFormat = ref(null);
 const exportMenuRef = ref(null);
+const incluirTechumbre = ref(false);
+
+const perimetroMl = computed(() => {
+  const a = Number(props.terrenoAncho) || 15;
+  const l = Number(props.terrenoLargo) || 7;
+  return 2 * (a + l);
+});
 
 /** Presupuesto listo: flujo de cotización finalizado sin errores. */
 const canExport = computed(
@@ -168,6 +178,9 @@ const fetchBudget = async () => {
         habitaciones: counts.habitaciones,
         banios: counts.banios,
         areasComunes: counts.areasComunes,
+        perimetro_ml: Math.round(perimetroMl.value * 100) / 100,
+        altura_muro_m: props.alturaMuroM,
+        incluir_techumbre: incluirTechumbre.value,
       }),
     });
 
@@ -365,6 +378,38 @@ onUnmounted(() => {
       <p class="mt-2 max-w-md text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400">
         Genera un presupuesto usando la selección actual de recintos, superficie calculada y material estructural del proyecto.
       </p>
+
+      <label
+        class="mt-5 flex cursor-pointer items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3 transition-all hover:border-orange-200 hover:bg-orange-50/60 dark:border-slate-800 dark:bg-slate-900/50 dark:hover:border-orange-900/60 dark:hover:bg-orange-950/20"
+      >
+        <div
+          class="relative inline-flex h-6 w-11 items-center rounded-full border transition-colors duration-300"
+          :class="
+            incluirTechumbre
+              ? 'border-orange-400 bg-orange-500 shadow-sm shadow-orange-500/20'
+              : 'border-slate-300 bg-slate-200 dark:border-slate-700 dark:bg-slate-800'
+          "
+        >
+          <span
+            class="inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-300"
+            :class="incluirTechumbre ? 'translate-x-6' : 'translate-x-1'"
+          />
+        </div>
+        <div>
+          <p class="text-xs font-bold text-slate-700 dark:text-slate-200">
+            Incluir techumbre
+          </p>
+          <p class="text-[10px] font-medium text-slate-400 dark:text-slate-500">
+            Cubierta de zinc + cielo + aislación térmica
+          </p>
+        </div>
+        <input
+          v-model="incluirTechumbre"
+          type="checkbox"
+          class="sr-only"
+          @click.stop
+        />
+      </label>
 
       <button
         type="button"

@@ -21,6 +21,7 @@ import { storeToRefs } from 'pinia';
 import { useTopologyComputed } from '../composables/useTopologyComputed';
 import { useRecintosStore } from '../stores/recintos';
 import { useConstructionLayersStore } from '../stores/constructionLayers';
+import { useI18n } from '../composables/useI18n';
 
 import PropertiesSidebar from './PropertiesSidebar.vue';
 import MetalconAlertModal from './MetalconAlertModal.vue';
@@ -109,6 +110,7 @@ const exportFormat = ref(null);
 const topology = useTopologyComputed();
 const recintosStore = useRecintosStore();
 const layersStore = useConstructionLayersStore();
+const { t } = useI18n();
 
 const { constructionModeEnabled, layerVisibility } = storeToRefs(layersStore);
 
@@ -1351,18 +1353,6 @@ onBeforeUnmount(() => {
       class="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-orange-400 via-orange-500 to-slate-900 dark:to-orange-300"
     ></div>
 
-    <!-- Add corridor floating action -->
-    <button
-    type="button"
-    class="absolute bottom-6 left-6 z-40 inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-slate-800 shadow-xl shadow-slate-950/10 transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-300 hover:bg-orange-50 hover:text-orange-700 hover:shadow-2xl hover:shadow-slate-950/15 active:scale-[0.98] dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-orange-400 dark:hover:bg-orange-950/30 dark:hover:text-orange-300"
-    @click="recintosStore.addPasillo()"
-    >
-    <span class="material-symbols-outlined text-[18px]">
-    add_road
-    </span>
-    Añadir pasillo
-    </button>
-
     <!-- Header -->
     <header
       ref="headerRef"
@@ -1385,11 +1375,11 @@ onBeforeUnmount(() => {
                 <p
                   class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
                 >
-                  Renderizador
+                  {{ t('renderer') }}
                 </p>
 
                 <h3 class="mt-0.5 text-base font-black tracking-tight text-slate-950 dark:text-slate-100">
-                  Vista 3D en tiempo real
+                  {{ t('realtime3D') }}
                 </h3>
               </div>
             </div>
@@ -1472,35 +1462,7 @@ onBeforeUnmount(() => {
               Clonar
             </button>
 
-            <!-- Snap -->
-            <select
-              v-model.number="snapStepId"
-              class="h-10 rounded-2xl border border-slate-200 bg-white px-3 text-[10px] font-black uppercase tracking-[0.12em] text-slate-700 shadow-sm outline-none transition-all duration-200 focus:border-orange-400 focus:ring-4 focus:ring-orange-500/10 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200 dark:focus:border-orange-500 dark:focus:ring-orange-500/15"
-              title="Snap: fija movimiento y escala a una grilla"
-            >
-              <option
-                v-for="preset in [
-                  { id: 0, label: 'Snap: Off' },
-                  { id: 10, label: 'Snap: 10cm' },
-                  { id: 25, label: 'Snap: 25cm' },
-                  { id: 50, label: 'Snap: 50cm' },
-                ]"
-                :key="preset.id"
-                :value="preset.id"
-              >
-                {{ preset.label }}
-              </option>
-            </select>
 
-            <span
-              class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[10px] font-black uppercase tracking-tight text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400"
-            >
-              <span
-                class="h-1.5 w-1.5 rounded-full"
-                :class="currentTool === 'measure' ? 'bg-orange-500' : 'bg-emerald-500'"
-              ></span>
-              {{ currentTool === 'measure' ? 'Medir: clic en 2 puntos' : snapStepId === 0 ? 'Snap desactivado' : 'Snap activo' }}
-            </span>
           </div>
         </div>
 

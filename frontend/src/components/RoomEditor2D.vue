@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, ref, reactive, watch, onMounted, onUnmounted
 import { useRecintosStore } from "../stores/recintos";
 import { useInteractiveEditor } from "../composables/useInteractiveEditor";
 import { useTheme } from "../composables/useTheme";
+import { useI18n } from "../composables/useI18n";
 import {
   clampRectToTerrain,
   normalizeRoomRect,
@@ -148,6 +149,7 @@ const quickAdd = () => {
 };
 
 const { isDark } = useTheme();
+const { t } = useI18n();
 
 const selectedSnapPreset = computed(() =>
   SNAP_PRESETS.find((preset) => preset.id === snapStepId.value) || SNAP_PRESETS[2],
@@ -1143,11 +1145,11 @@ onUnmounted(() => {
                 <p
                   class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
                 >
-                  Editor espacial
+                  {{ t('spatialEditor') }}
                 </p>
 
                 <h3 class="mt-0.5 text-base font-black tracking-tight text-slate-950 dark:text-slate-100">
-                  Editor 2D
+                  {{ t('editor2D') }}
                 </h3>
               </div>
             </div>
@@ -1161,13 +1163,13 @@ onUnmounted(() => {
               ></span>
 
               <span :style="{ color: descripcionEstado.color }">
-                {{ freeArea.toFixed(1) }} m² libres
+                {{ t('freeM2', { area: freeArea.toFixed(1) }) }}
               </span>
 
               <span class="text-slate-300 dark:text-slate-700">·</span>
 
               <span class="text-slate-500 dark:text-slate-400">
-                {{ usedArea.toFixed(1) }} / {{ m2Totales }} m²
+                {{ t('areaUsage', { used: usedArea.toFixed(1), total: m2Totales }) }}
               </span>
             </div>
 
@@ -1205,7 +1207,7 @@ onUnmounted(() => {
           <div class="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              class="tool-btn tool-btn-primary"
+              class="tool-btn tool-btn-primary add-room-glow"
               title="Añadir recinto con medidas"
               @click="openAddModal"
             >
@@ -1226,30 +1228,7 @@ onUnmounted(() => {
               {{ resizeLocked ? 'Bloqueado' : 'Redimensionar' }}
             </button>
 
-            <button
-              type="button"
-              class="tool-btn"
-              :class="corridorMode ? 'tool-btn-success' : 'tool-btn-neutral'"
-              :title="corridorMode ? 'Desactivar modo pasillos' : 'Detectar pasillos automáticamente'"
-              @click="corridorMode = !corridorMode"
-            >
-              <span class="material-symbols-outlined text-[16px]">add_road</span>
-              Pasillos
-            </button>
 
-            <select
-              v-model.number="snapStepId"
-              class="h-10 rounded-2xl border border-slate-700/70 bg-slate-950/60 px-3 text-[10px] font-black uppercase tracking-[0.12em] text-slate-200 outline-none transition-all duration-200 hover:border-orange-400/70 focus:border-orange-400 focus:ring-4 focus:ring-orange-500/10"
-              title="Snap compartido entre Editor 2D y Vista 3D"
-            >
-              <option
-                v-for="preset in SNAP_PRESETS"
-                :key="preset.id"
-                :value="preset.id"
-              >
-                {{ preset.label }}
-              </option>
-            </select>
           </div>
         </div>
 
@@ -2013,6 +1992,19 @@ svg rect.cursor-grabbing {
   border-color: rgb(254 215 170);
   background: rgb(255 247 237);
   color: rgb(194 65 12);
+}
+
+.add-room-glow {
+  animation: addRoomPulse 2s ease-in-out infinite;
+}
+
+@keyframes addRoomPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(249, 115, 22, 0);
+  }
 }
 
 .dark .tool-btn-primary {

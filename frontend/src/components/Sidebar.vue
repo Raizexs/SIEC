@@ -195,50 +195,6 @@ const formatDate = (value) => {
 
     <!-- Content -->
     <nav class="min-h-0 flex-1 space-y-5 overflow-y-auto px-3 py-4">
-      <!-- Presets -->
-      <section>
-        <div class="mb-2 flex items-center justify-between px-1">
-          <h3
-            class="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
-          >
-            <Sparkles class="h-3.5 w-3.5" :stroke-width="2.2" />
-            {{ isSpanish ? 'Plantillas' : 'Templates' }}
-          </h3>
-
-          <span
-            class="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[9px] font-bold text-slate-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-500"
-          >
-            {{ presets.length }}
-          </span>
-        </div>
-
-        <div class="space-y-1.5">
-          <button
-            v-for="preset in presets"
-            :key="preset.id"
-            type="button"
-            class="group flex w-full items-center justify-between gap-3 rounded-2xl border border-transparent bg-transparent px-3 py-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-200 hover:bg-slate-50 hover:shadow-sm active:scale-[0.99] dark:hover:border-slate-800 dark:hover:bg-slate-900/70"
-            @click="loadPreset(preset)"
-          >
-            <span class="min-w-0">
-              <span class="block truncate text-sm font-bold tracking-tight text-slate-800 dark:text-slate-200">
-                {{ isSpanish ? preset.name : preset.nameEn }}
-              </span>
-
-              <span class="mt-0.5 block text-[10px] font-semibold uppercase tracking-tight text-slate-400 dark:text-slate-500">
-                Plantilla base
-              </span>
-            </span>
-
-            <span
-              class="shrink-0 rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-black text-slate-500 shadow-sm transition-colors duration-200 group-hover:border-orange-200 group-hover:text-orange-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400 dark:group-hover:border-orange-900/60 dark:group-hover:text-orange-300"
-            >
-              {{ preset.m2Totales }} m²
-            </span>
-          </button>
-        </div>
-      </section>
-
       <!-- Saved Layouts -->
       <section>
         <div class="mb-2 flex items-center justify-between px-1">

@@ -21,7 +21,6 @@ import ConfigurationPanel from './ConfigurationPanel.vue';
 import MetricsPanel from './MetricsPanel.vue';
 import RoomEditor2D from './RoomEditor2D.vue';
 import Scene3D from './Scene3D.vue';
-import LayerSelectionPanel from './LayerSelectionPanel.vue';
 import BudgetBreakdownPanel from './BudgetBreakdownPanel.vue';
 import SaveLayoutDialog from './SaveLayoutDialog.vue';
 
@@ -434,20 +433,6 @@ const onSiecExport = async (e) => {
   await executePdfExport(raw);
 };
 
-const exportPdfBusy = ref(false);
-
-const handleExportPDF = async () => {
-  if (exportPdfBusy.value) return;
-  exportPdfBusy.value = true;
-  try {
-    await executePdfExport(productPreferences.value.export);
-  } catch {
-    /* toast en executePdfExport */
-  } finally {
-    exportPdfBusy.value = false;
-  }
-};
-
 const startTutorial = () => {
   const driverObj = driver({
     showProgress: true,
@@ -562,10 +547,7 @@ const startTutorial = () => {
     <main class="relative z-10 flex min-w-0 flex-1 flex-col transition-all duration-200">
       <TopNavBar
         :activeTab="activeTab"
-        :export-busy="exportPdfBusy"
         @save-layout="showSaveDialog = true"
-        @export-pdf="handleExportPDF"
-        @share="showShareDialog = true"
       />
 
       <div class="flex-1 overflow-y-auto">
@@ -579,15 +561,15 @@ const startTutorial = () => {
               <p
                 class="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
               >
-                Workspace activo
+                {{ t('workspaceActive') }}
               </p>
 
               <h1 class="mt-1 text-xl font-black tracking-tight text-slate-950 dark:text-slate-100">
-                Simulación constructiva inteligente
+                {{ t('smartConstructionSim') }}
               </h1>
 
               <p class="mt-1 text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400">
-                Configura el terreno, edita recintos, visualiza el modelo 3D y genera presupuesto desde una única experiencia.
+                {{ t('workspaceDescription') }}
               </p>
             </div>
 
@@ -607,7 +589,7 @@ const startTutorial = () => {
                 <span class="material-symbols-outlined text-[15px] text-slate-400">
                   token
                 </span>
-                {{ tokensDisponibles }} tokens disponibles
+                {{ t('tokensAvailable', { count: tokensDisponibles }) }}
               </span>
             </div>
           </section>
@@ -635,36 +617,7 @@ const startTutorial = () => {
 
           <!-- Layers + 2D + 3D + Budget stack -->
           <section class="mt-6 space-y-6" data-motion="section">
-            <LayerSelectionPanel />
 
-            <!-- Premium hint card -->
-            <div
-              class="flex items-start gap-3 rounded-2xl border border-orange-200/80 bg-orange-50/70 p-4 shadow-sm backdrop-blur-md dark:border-orange-900/60 dark:bg-orange-950/20"
-            >
-              <div
-                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-orange-200 bg-white text-orange-600 shadow-sm dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-300"
-              >
-                <span class="material-symbols-outlined text-[19px]">
-                  add_home
-                </span>
-              </div>
-
-              <div>
-                <p
-                  class="text-[11px] font-bold uppercase tracking-[0.14em] text-orange-700 dark:text-orange-300"
-                >
-                  Agregar recintos
-                </p>
-
-                <p class="mt-1 text-sm font-medium leading-relaxed text-slate-600 dark:text-slate-300">
-                  Usa
-                  <strong class="font-black text-slate-950 dark:text-slate-100">
-                    “Añadir Recinto”
-                  </strong>
-                  en el editor 2D para crear espacios con medidas exactas y luego seleccionarlos para presupuestar.
-                </p>
-              </div>
-            </div>
 
             <RoomEditor2D
               class="tour-editor-2d"
@@ -691,6 +644,9 @@ const startTutorial = () => {
               v-if="recintosStore.selectedM2 > 0"
               :m2Totales="recintosStore.selectedM2"
               :materialEstructuralId="formData.materialEstructuralId"
+              :terrenoAncho="formData.terrenoAncho"
+              :terrenoLargo="formData.terrenoLargo"
+              :alturaMuroM="2.44"
             />
           </section>
 
@@ -702,7 +658,7 @@ const startTutorial = () => {
             </p>
 
             <p class="text-xs font-medium text-slate-400 dark:text-slate-500">
-              SIEC Workspace · Simulación, diseño y presupuesto constructivo
+              {{ t('workspaceFooter') }}
             </p>
           </footer>
         </div>

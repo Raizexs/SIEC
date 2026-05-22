@@ -1,12 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "git": {
-    "deploymentEnabled": false
-  },
+  "buildCommand": "cd frontend && npm install && npm run build",
+  "outputDirectory": "frontend/dist",
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "http://10.51.0.26:8000/api/:path*"
+      "destination": "https://REEMPLAZAR-CON-URL-RAILWAY.up.railway.app/api/:path*"
     }
   ]
 }

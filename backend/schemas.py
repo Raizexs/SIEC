@@ -34,6 +34,11 @@ class DesgloseResponse(BaseModel):
     volumen_compensado_pre_cotizacion: Optional[float] = None
     items_optimizados: Optional[int] = None
     perdida_promedio_porcentual: Optional[float] = None
+    # Geometría inyectada para cubicación por superficie de muro
+    perimetro_ml: Optional[float] = None
+    altura_muro_m: Optional[float] = None
+    area_muro_neta_m2: Optional[float] = None
+    incluir_techumbre: Optional[bool] = None
 
 
 class VanoInput(BaseModel):

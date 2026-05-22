@@ -20,6 +20,9 @@ class ConfiguracionSimulacion(Base):
     habitaciones = Column(Integer, nullable=False)
     banios = Column(Integer, nullable=False)
     areas_comunes = Column(Integer, nullable=False)
+    perimetro_ml = Column(Numeric(10, 2), nullable=True)
+    altura_muro_m = Column(Numeric(5, 2), nullable=True)
+    incluir_techumbre = Column(Boolean, nullable=True, default=False)
     fecha_creacion = Column(String, nullable=True)
 
 class MaterialEstructural(Base):
@@ -111,7 +114,7 @@ class AppUser(Base):
     full_name = Column(Text)
     company = Column(Text)
     avatar_url = Column(Text)
-    role = Column(Text, nullable=False, default="architect")
+    role = Column(Text, nullable=False, default="user")
     preferences = Column(JSON, nullable=False, default=dict)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

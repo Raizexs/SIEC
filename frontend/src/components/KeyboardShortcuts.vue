@@ -1,9 +1,20 @@
 <script setup>
-defineProps({
+import { onMounted, onBeforeUnmount } from 'vue';
+
+const props = defineProps({
   show: Boolean,
 });
 
 const emit = defineEmits(['close']);
+
+const onKeyDown = (e) => {
+  if (e.key === 'Escape' && props.show) {
+    emit('close');
+  }
+};
+
+onMounted(() => document.addEventListener('keydown', onKeyDown));
+onBeforeUnmount(() => document.removeEventListener('keydown', onKeyDown));
 
 const shortcuts = [
   { keys: ['Cmd', 'K'], desc: 'Abrir paleta de comandos' },
