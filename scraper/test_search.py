@@ -60,7 +60,34 @@ for api_url in [
         pass
 result["api_direct"] = {"success": len(api_products) > 0, "count": len(api_products), "products": api_products}
 
-# Capa UC: undetected-chromedriver
+# Capa Google Shopping
+gs_products = []
+try:
+    import urllib.request, re as _re
+    gs_url = f"https://www.google.com/search?tbm=shop&q={query.replace(' ', '+')}&hl=es&gl=cl"
+    req = urllib.request.Request(gs_url, headers={
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "es-CL,es;q=0.9",
+    })
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        html = resp.read().decode("utf-8", errors="replace")
+        # Buscar precios en formato CLP
+        for match in _re.finditer(r'\$\s*([\d.,]+)\s*CLP', html):
+            name_match = _re.search(r'(?:<[^>]+>)*([^<]{10,80}?)' + _re.escape(match.group(0))[:20], html[max(0, match.start()-500):match.start()])
+            name = name_match.group(1).strip() if name_match else ""
+            price = match.group(1).replace(".", "").replace(",", ".")
+            try:
+                gs_products.append({"name": name[:60] or query, "price": float(price)})
+            except: pass
+        if not gs_products:
+            # Fallback: buscar cualquier precio en el HTML de Shopping
+            for match in _re.finditer(r'data-price="([\d.]+)"', html):
+                name = query
+                gs_products.append({"name": name, "price": float(match.group(1))})
+except Exception as e:
+    gs_products = []
+result["google_shopping"] = {"success": len(gs_products) > 0, "count": len(gs_products), "products": gs_products[:5]}
 uc_products = []
 if not api_products:
     uc_products = BaseScraper._uc_search(store, search_url, query)
