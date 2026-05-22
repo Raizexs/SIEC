@@ -67,10 +67,6 @@ const buildMetaPairs = (payload) => [
   ['Superficie calculada', `${formatNumber(payload.m2Totales, 0)} m²`],
   ['Material estructural', payload.materialNombre || '—'],
   ['Precios de mercado al', formatExportDate(payload.fechaPrecios)],
-  [
-    'Recintos en presupuesto',
-    `Habitaciones: ${payload.counts?.habitaciones ?? 0} · Baños: ${payload.counts?.banios ?? 0} · Áreas comunes: ${payload.counts?.areasComunes ?? 0}`,
-  ],
 ];
 
 const escapeCsvCell = (value) => {

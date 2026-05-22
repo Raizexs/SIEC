@@ -52,44 +52,81 @@ class ConstrumartScraper(BaseScraper):
         url = self._get_search_url(query)
         page.goto(url, wait_until="domcontentloaded", timeout=30_000)
         self._dismiss_store_modal(page)
-        
-        sel_cont = STORE_CFG["search_selectors"]["container"]
+        page.wait_for_timeout(3_000)
+
+        # 1. JSON-LD: buscar datos estructurados incrustados
         try:
-            page.wait_for_selector(sel_cont, timeout=15_000)
+            import json
+            for raw in page.locator("script[type='application/ld+json']").all_inner_texts():
+                if not raw.strip():
+                    continue
+                data = json.loads(raw)
+                items = data if isinstance(data, list) else [data]
+                for item in items:
+                    if not isinstance(item, dict):
+                        continue
+                    if item.get("@type") in ("ItemList", "Product"):
+                        entries = item.get("itemListElement") or [item]
+                        products = []
+                        for entry in entries[:10]:
+                            if isinstance(entry, dict):
+                                name = entry.get("name") or (entry.get("item") or {}).get("name") or ""
+                                offers = entry.get("offers") or (entry.get("item") or {}).get("offers") or {}
+                                price_val = offers.get("price")
+                                link = entry.get("url") or (entry.get("item") or {}).get("url") or ""
+                                if not name or price_val is None:
+                                    continue
+                                products.append({
+                                    "tienda": self.store_key,
+                                    "nombre_producto": name.strip(),
+                                    "precio": float(price_val) if isinstance(price_val, (int, float)) else self.parse_price(str(price_val)),
+                                    "url": link,
+                                    "exitoso": True
+                                })
+                        if products:
+                            return products
         except Exception:
-            return []
+            pass
+
+        # 2. Scrapeo por DOM: buscar enlaces a productos
+        candidates = page.locator("a[class*='product'], a[href*='product'], .product-item-link").all()
+        if not candidates:
+            candidates = page.locator("a").all()
 
         products = []
-        cards = page.locator(sel_cont).all()
-        
-        for card in cards[:10]:
+        seen = set()
+        for el in candidates[:30]:
             try:
-                name_sel = STORE_CFG["search_selectors"]["name"]
-                price_sel = STORE_CFG["search_selectors"]["price"]
-                link_sel = STORE_CFG["search_selectors"]["link"]
-
-                name_el = card.locator(name_sel).first
-                price_el = card.locator(price_sel).first
-                link_el = card.locator(link_sel).first
-
-                if name_el.is_visible() and price_el.is_visible():
-                    name = name_el.inner_text().strip()
-                    price_raw = price_el.inner_text().strip()
-                    link = link_el.get_attribute("href")
-                    if link and not link.startswith("http"):
-                        link = f"https://www.construmart.cl{link}"
-
-                    products.append({
-                        "tienda": self.store_key,
-                        "nombre_producto": name,
-                        "precio": self.parse_price(price_raw),
-                        "url": link,
-                        "exitoso": True
-                    })
+                href = el.get_attribute("href") or ""
+                text = el.inner_text().strip()
+                if not text or text in seen:
+                    continue
+                seen.add(text)
+                price_match = self.parse_price(text)
+                if not price_match:
+                    continue
+                name = text.split("$")[0].strip() if "$" in text else text[:100]
+                products.append({
+                    "tienda": self.store_key,
+                    "nombre_producto": name,
+                    "precio": price_match,
+                    "url": href if href.startswith("http") else f"https://www.construmart.cl{href}",
+                    "exitoso": True
+                })
             except Exception:
                 continue
-        
-        return products
+            if len(products) >= 10:
+                break
+
+        if products:
+            return products
+
+        # 3. Debug
+        try:
+            page.screenshot(path=f"/tmp/debug_construmart_{query[:20]}.png", full_page=True)
+        except Exception: pass
+        BaseScraper.dump_html(page, self.store_key, query)
+        return []
 
     def _dismiss_store_modal(self, page: Page) -> None:
         """Cierra el modal de selección de tienda/sucursal."""

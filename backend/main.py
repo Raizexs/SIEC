@@ -241,9 +241,6 @@ class TipoRecintoResponse(BaseModel):
 class SimulacionCreate(BaseModel):
     m2Totales: int
     materialEstructuralId: int
-    habitaciones: int
-    banios: int
-    areasComunes: int
     perimetro_ml: float = Field(..., gt=0, description="Perímetro de envolvente en metros lineales")
     altura_muro_m: float = Field(..., gt=0, le=6.0, description="Altura promedio de muro en metros")
     incluir_techumbre: bool = Field(False, description="Incluye cálculo de techumbre (cubierta + cielo)")
@@ -270,9 +267,6 @@ def crear_simulacion(sim: SimulacionCreate, db: Session = Depends(get_db)):
     if sim.m2Totales < 1 or sim.m2Totales > 5000:
         raise HTTPException(status_code=400, detail="Superficie total debe estar entre 1 y 5000 m².")
 
-    if sim.habitaciones < 0 or sim.banios < 0 or sim.areasComunes < 0:
-        raise HTTPException(status_code=400, detail="La cantidad de recintos no puede ser negativa.")
-        
     if sim.materialEstructuralId not in [1, 2, 3, 4]:
         raise HTTPException(status_code=400, detail="Material estructural ID no válido.")
     
@@ -286,9 +280,6 @@ def crear_simulacion(sim: SimulacionCreate, db: Session = Depends(get_db)):
     db_simulacion = models.ConfiguracionSimulacion(
         m2_totales=sim.m2Totales,
         material_estructural_id=sim.materialEstructuralId,
-        habitaciones=sim.habitaciones,
-        banios=sim.banios,
-        areas_comunes=sim.areasComunes,
         perimetro_ml=sim.perimetro_ml,
         altura_muro_m=sim.altura_muro_m,
         incluir_techumbre=sim.incluir_techumbre

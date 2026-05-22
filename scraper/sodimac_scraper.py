@@ -39,6 +39,7 @@ class SodimacScraper(BaseScraper):
     """
 
     store_key = STORE_KEY
+    browser_type = "firefox"
 
     def _get_urls(self) -> list[str]:
         return STORE_CFG["product_urls"]
@@ -51,13 +52,96 @@ class SodimacScraper(BaseScraper):
         url = self._get_search_url(query)
         page.goto(url, wait_until="domcontentloaded", timeout=30_000)
         self._dismiss_modal(page)
+        page.wait_for_timeout(3_000)
+
+        # Buscar cualquier elemento que parezca un producto por su href
+        candidates = page.locator("a[href*='/articulo/'], a[href*='/sodimac-cl/']").all()
+        if not candidates:
+            candidates = page.locator("a").all()
         
-        # Esperar que los contenedores de productos carguen
-        sel_cont = STORE_CFG["search_selectors"]["container"]
+        products = []
+        seen = set()
+        for el in candidates[:30]:
+            try:
+                href = el.get_attribute("href") or ""
+                if "/articulo/" not in href:
+                    continue
+                text = el.inner_text().strip()
+                if not text or text in seen:
+                    continue
+                seen.add(text)
+                price_match = self.parse_price(text)
+                if not price_match:
+                    continue
+                name = text.split("$")[0].strip() if "$" in text else text[:100]
+                products.append({
+                    "tienda": self.store_key,
+                    "nombre_producto": name,
+                    "precio": price_match,
+                    "url": f"https://www.sodimac.cl{href}" if not href.startswith("http") else href,
+                    "exitoso": True
+                })
+            except Exception:
+                continue
+            if len(products) >= 10:
+                break
+        
+        if products:
+            return products
+
+        # Debug: screenshot + HTML
         try:
-            page.wait_for_selector(sel_cont.split(',')[0].strip(), timeout=15_000)
-        except Exception:
-            return []
+            page.screenshot(path=f"/tmp/debug_sodimac_{query[:20]}.png", full_page=True)
+        except Exception: pass
+        BaseScraper.dump_html(page, self.store_key, query)
+        return []
+
+        # 2. Intentar scraping por DOM con detección automática de contenedores
+        candidates = page.locator("a[href*='/articulo/'], a[href*='/sodimac-cl/'], [class*='product'], [class*='card'], [data-testid]").all()
+        if not candidates:
+            candidates = page.locator("a").all()
+        
+        products = []
+        seen = set()
+        for el in candidates[:30]:
+            try:
+                href = el.get_attribute("href") or ""
+                if "/articulo/" not in href and "/sodimac-cl/" not in href:
+                    continue
+                # Obtener todo el texto del elemento y sus hijos
+                text = el.inner_text().strip()
+                if not text or text in seen:
+                    continue
+                seen.add(text)
+                # Intentar extraer precio del texto (ej. "$1.234" o "$ 1.234")
+                price_match = self.parse_price(text)
+                if not price_match:
+                    continue
+                name = text.split("$")[0].strip() if "$" in text else text[:80]
+                products.append({
+                    "tienda": self.store_key,
+                    "nombre_producto": name,
+                    "precio": price_match,
+                    "url": f"https://www.sodimac.cl{href}" if not href.startswith("http") else href,
+                    "exitoso": True
+                })
+            except Exception:
+                continue
+            if len(products) >= 10:
+                break
+        
+        if products:
+            return products
+
+        # 3. Fallback total: tomar screenshot y guardar HTML para debug
+        try:
+            ts = __import__("datetime").datetime.now().strftime("%Y%m%d_%H%M%S")
+            page.screenshot(path=f"/tmp/debug_{self.store_key}_{query[:20]}_{ts}.png")
+            logger.info(f"[Debug] Screenshot guardado")
+        except Exception as e:
+            logger.warning(f"[Debug] No se pudo tomar screenshot: {e}")
+        BaseScraper.dump_html(page, self.store_key, query)
+        return []
 
         products = []
         cards = page.locator(sel_cont).all()

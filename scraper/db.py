@@ -241,7 +241,7 @@ def get_insumos_activos() -> list[dict]:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT "ID", "Nombre", "Categoria"
+                    SELECT "ID", "Nombre", "Categoria", "Unidad_Medida"
                     FROM   "Insumo"
                     WHERE  "Activo" = TRUE
                       AND  "Categoria" != 'Mano de Obra'
@@ -249,7 +249,7 @@ def get_insumos_activos() -> list[dict]:
                 )
                 rows = cur.fetchall()
                 return [
-                    {"id": r[0], "nombre": r[1], "categoria": r[2]}
+                    {"id": r[0], "nombre": r[1], "categoria": r[2], "unidad_medida": r[3]}
                     for r in rows
                 ]
         finally:

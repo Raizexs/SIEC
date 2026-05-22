@@ -36,7 +36,7 @@ PRODUCT_TIMEOUT_MS = 30_000
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/124.0.0.0 Safari/537.36"
+    "Chrome/125.0.0.0 Safari/537.36"
 )
 
 
@@ -95,7 +95,7 @@ class BaseScraper(ABC):
         self.logger.info(f"[{self.store_key}] Completado: {exitosos}/{len(results)} exitosos.")
         return results
 
-    def search_and_match(self, page: Page, query: str, insumo_id: Optional[int] = None) -> Optional[dict]:
+    def search_and_match(self, page: Page, query: str, insumo_id: Optional[int] = None, unidad_medida: Optional[str] = None) -> Optional[dict]:
         """
         Busca un material por nombre genérico, extrae resultados y aplica 
         Fuzzy Matching para encontrar el mejor producto.
@@ -109,8 +109,8 @@ class BaseScraper(ABC):
                 self.logger.warning(f"[{self.store_key}] No se encontraron resultados para '{query}'")
                 return None
 
-            # 2. Aplicar Fuzzy Normalizer
-            normalizer = FuzzyNormalizer(threshold=70)
+            # 2. Aplicar Fuzzy Normalizer con unidad de medida
+            normalizer = FuzzyNormalizer(threshold=75, unidad_medida=unidad_medida)
             mejor_match = normalizer.filter_results(query, candidatos)
 
             if mejor_match:
@@ -136,24 +136,46 @@ class BaseScraper(ABC):
     def scrape_by_keywords(self, insumos: list[dict]) -> list[dict]:
         """
         Ejecuta el scraping buscando cada insumo por su nombre genérico.
+        Usa el motor de browser definido en self.browser_type (chromium o firefox).
         """
-        self.logger.info(f"[{self.store_key}] Iniciando scraping por keywords para {len(insumos)} insumos…")
+        import random
+        browser_type = getattr(self, 'browser_type', 'chromium')
+        self.logger.info(f"[{self.store_key}] Iniciando scraping por keywords para {len(insumos)} insumos… (browser={browser_type})")
         results: list[dict] = []
 
         with sync_playwright() as p:
-            browser = self._launch_browser(p)
-            context = self._new_context(browser)
-            page = context.new_page()
-            page.set_default_timeout(PRODUCT_TIMEOUT_MS)
+            browser = self._launch_browser(p, browser_type)
 
-            if STEALTH_AVAILABLE:
-                stealth_sync(page)
+            for i, insumo in enumerate(insumos):
+                if i % 5 == 0:
+                    if i > 0:
+                        try: context.close()
+                        except Exception: pass
+                    context = self._new_context(browser, browser_type)
+                    page = context.new_page()
+                    page.set_default_timeout(PRODUCT_TIMEOUT_MS)
+                    if STEALTH_AVAILABLE:
+                        stealth_sync(page)
+                    # Visitar homepage primero para simular navegación humana
+                    try:
+                        home = STORE_CFG.get("base_urls", [None])[0]
+                        if home:
+                            page.goto(home, wait_until="domcontentloaded", timeout=20_000)
+                            page.wait_for_timeout(random.randint(1000, 2000))
+                    except Exception:
+                        pass
 
-            for insumo in insumos:
-                match = self.search_and_match(page, insumo["nombre"], insumo["id"])
+                # Delay humano aleatorio entre queries
+                page.wait_for_timeout(random.randint(1500, 4000))
+
+                match = self.search_and_match(page, insumo["nombre"], insumo["id"], insumo.get("unidad_medida"))
                 if match:
                     results.append(match)
 
+            try:
+                context.close()
+            except Exception:
+                pass
             browser.close()
 
         exitosos = len(results)
@@ -196,9 +218,39 @@ class BaseScraper(ABC):
     # Utilidades compartidas
     # ──────────────────────────────────────────────────────────────────────────
 
-    def _launch_browser(self, playwright) -> Browser:
-        """Lanza Chromium headless con flags recomendados para Docker."""
-        return playwright.chromium.launch(
+    # ── Stealth injection script (más completo que playwright-stealth) ────────
+    STEALTH_SCRIPT = """
+    // Override webdriver flag
+    Object.defineProperty(navigator, 'webdriver', { get: () => false });
+    // Override plugins
+    Object.defineProperty(navigator, 'plugins', { get: () => [1,2,3,4,5] });
+    Object.defineProperty(navigator, 'languages', { get: () => ['es-CL', 'es', 'en'] });
+    // Override chrome runtime
+    window.chrome = { runtime: {}, loadTimes: function() {}, csi: function() {} };
+    // Override permissions
+    const originalQuery = window.navigator.permissions.query;
+    window.navigator.permissions.query = (p) => p.name === 'notifications' ? Promise.resolve({ state: 'denied' }) : originalQuery(p);
+    // WebGL fingerprint mask
+    const getParameter = WebGLRenderingContext.prototype.getParameter;
+    WebGLRenderingContext.prototype.getParameter = function(p) {
+      if (p === 37445) return 'Intel Inc.';
+      if (p === 37446) return 'Intel Iris OpenGL Engine';
+      return getParameter(p);
+    };
+    """
+
+    def _launch_browser(self, playwright, browser_type: str = "chromium") -> Browser:
+        """Lanza browser headless con flags recomendados para Docker.
+        
+        Args:
+            browser_type: "chromium" (default) o "firefox"
+        """
+        browser_map = {
+            "chromium": playwright.chromium,
+            "firefox": playwright.firefox,
+        }
+        launcher = browser_map.get(browser_type, playwright.chromium)
+        return launcher.launch(
             headless=True,
             args=[
                 "--no-sandbox",
@@ -208,14 +260,32 @@ class BaseScraper(ABC):
             ],
         )
 
-    def _new_context(self, browser: Browser) -> BrowserContext:
-        """Crea un contexto de browser con User-Agent y locale CL."""
-        return browser.new_context(
+    def _new_context(self, browser: Browser, browser_type: str = "chromium") -> BrowserContext:
+        """Crea un contexto de browser con User-Agent, headers realistas y locale CL."""
+        import random
+        viewports = [(1280, 900), (1366, 768), (1440, 900), (1920, 1080)]
+        vp = random.choice(viewports)
+        context = browser.new_context(
             user_agent=USER_AGENT,
             locale="es-CL",
             timezone_id="America/Santiago",
-            viewport={"width": 1280, "height": 900},
+            viewport={"width": vp[0], "height": vp[1]},
+            extra_http_headers={
+                "Accept-Language": "es-CL,es;q=0.9,en;q=0.8",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+                "Accept-Encoding": "gzip, deflate, br",
+                "Sec-Ch-Ua": '"Google Chrome";v="125", "Chromium";v="125", "Not.A/Brand";v="24"',
+                "Sec-Ch-Ua-Mobile": "?0",
+                "Sec-Ch-Ua-Platform": '"Windows"',
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "none",
+                "Sec-Fetch-User": "?1",
+                "Upgrade-Insecure-Requests": "1",
+            },
         )
+        context.add_init_script(BaseScraper.STEALTH_SCRIPT)
+        return context
 
     @staticmethod
     def parse_prices(raw: Optional[str]) -> list[float]:
@@ -275,6 +345,42 @@ class BaseScraper(ABC):
             if p != base_price and (0.5 * base_price) <= p <= (2.0 * base_price)
         ]
         return plausible[0] if plausible else None
+
+    @staticmethod
+    def dump_html(page, store_key: str, query: str) -> None:
+        """Guarda el HTML crudo en un archivo para debugging."""
+        import os
+        from datetime import datetime
+        try:
+            html = page.content()
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            safe_q = "".join(c if c.isalnum() else "_" for c in query)[:40]
+            fname = f"debug_{store_key}_{safe_q}_{ts}.html"
+            with open(fname, "w", encoding="utf-8") as f:
+                f.write(html)
+            logger.info(f"[Debug] HTML guardado: {os.path.abspath(fname)}")
+        except Exception as e:
+            logger.warning(f"[Debug] No se pudo guardar HTML: {e}")
+
+    def _intercept_api_response(self, page, url_pattern: str, timeout: int = 10_000) -> Optional[dict]:
+        """
+        Intercepta una respuesta de red que coincida con url_pattern y
+        devuelve su contenido parseado como JSON.
+
+        Util para cuando la pagina carga datos via XHR/Fetch en vez de
+        tenerlos en el HTML inicial.
+        """
+        from playwright.sync_api import expect
+        response = None
+        try:
+            with page.expect_response(lambda resp: url_pattern in resp.url and resp.status == 200, timeout=timeout) as resp_info:
+                pass
+            response = resp_info.value
+            data = response.json()
+            self.logger.info(f"[API] Respuesta JSON interceptada: {response.url}")
+            return data
+        except Exception:
+            return None
 
     @staticmethod
     def _extract_name_from_url(url: str) -> str:

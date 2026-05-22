@@ -7,8 +7,6 @@ STORES = {
     'sodimac': {
         'name': 'Sodimac',
         'base_urls': [
-            # Ejemplo: listar resultados filtrados por Región de Valparaíso
-            # Rellena con URLs válidas (listados/categorías) filtradas por región
             'https://www.sodimac.cl/sodimac-cl/browse?region=valparaiso'
         ],
         'selectors': {
@@ -26,18 +24,17 @@ STORES = {
             'https://www.sodimac.cl/sodimac-cl/articulo/110288145/placa-fibrocemento-lisa-4-mm-120x240-cm-blanco/110288165',
             'https://www.sodimac.cl/sodimac-cl/articulo/113214486/cable-libre-de-halogenos-h07z1-k-1x2-5-mm2-rojo-100-metros/113214489',
             'https://www.sodimac.cl/sodimac-cl/articulo/135520693/tubo-gris-pvc-agua-110-mmx6-m/135520694',
-            # -- Nuevos Materiales (SCRUM-90) --
-            'https://www.sodimac.cl/sodimac-cl/search?Ntt=Perfil+C+60x38', # Placeholder Metalcon C
-            'https://www.sodimac.cl/sodimac-cl/search?Ntt=Perfil+U+62x25', # Placeholder Metalcon U
-            'https://www.sodimac.cl/sodimac-cl/search?Ntt=Pino+Dimensionado+2x4', # Placeholder Madera
-            'https://www.sodimac.cl/sodimac-cl/search?Ntt=Tornillo+Volcanita' # Placeholder Tornillos
+            'https://www.sodimac.cl/sodimac-cl/search?Ntt=Perfil+C+60x38',
+            'https://www.sodimac.cl/sodimac-cl/search?Ntt=Perfil+U+62x25',
+            'https://www.sodimac.cl/sodimac-cl/search?Ntt=Pino+Dimensionado+2x4',
+            'https://www.sodimac.cl/sodimac-cl/search?Ntt=Tornillo+Volcanita'
         ],
         'search_url': 'https://www.sodimac.cl/sodimac-cl/search?Ntt={query}',
         'search_selectors': {
-            'container': 'div.product-container, div[id^="testId-product-card"]',
-            'name': 'a#title-pdp-link h2, .product-title',
-            'price': '.price-0, [class*="price-current"]',
-            'link': 'a#title-pdp-link'
+            'container': 'div[class*="product"], div[data-testid*="product"], div[class*="card"], div[id^="testId-product-card"], div.product-container',
+            'name': 'a[class*="title"] h2, a[id*="title"] h2, [class*="product-name"], .product-title, a[id*="title"]',
+            'price': '[class*="price-"], [class*="price-current"], .price-0, [class*="price"] span',
+            'link': 'a[class*="title"], a[id*="title"], a[href*="/articulo/"], a[href*="/sodimac-cl/"]'
         },
         'notes': 'INTERACCIÓN REQUERIDA: 1) Cerrar modal de región/cookies (click X). 2) Seleccionar Región Valparaíso si se solicita. 3) Stock y precio varían por sucursal seleccionada. 4) El producto de fibrocemento se usa como equivalente de Volcanita para el mapeo de insumos. 5) En listados, paginación usa JS (requiere Playwright para automatizar). Ver DOCUMENTACION_SELECTORES.md para paso a paso en DevTools.'
     },
@@ -47,12 +44,12 @@ STORES = {
             'https://www.easy.cl/tienda/browse?region=valparaiso'
         ],
         'selectors': {
-            'name': {'css': '#__next > main > main > div:nth-child(3) > div > section > div.sc-8e800ca6-5.ia-dcNO > div > h1', 'example': 'Cemento especial 25 kg Polpaico'},
-            'price': {'css': '#__next > main > main > div:nth-child(3) > div > section > div.sc-8e800ca6-5.ia-dcNO > div > span.sc-11b00991-5.dEKQBo > div.sc-1f784e80-0.bZLqYQ > div', 'example': '$ 5.510'},
-            'price_discount': {'css': '#__next > main > main > div:nth-child(3) > div > section > div.sc-8e800ca6-5.ia-dcNO > div > span.sc-11b00991-5.dEKQBo', 'example': 'N/A'},
-            'stock': {'css': '#__next > main > main > div:nth-child(3) > div > section > div.sc-8e800ca6-5.ia-dcNO > div > div:nth-child(8) > dialog > div > div.sc-b9a1d677-3.kxmjzI > div > div > div > p', 'example': 'Requiere seleccionar ubicación'},
-            'category': {'css': '#__next > main > main > div:nth-child(3) > div > div.sc-eb8d352a-0.dTMHsi > div > div:nth-child(4) > a > span', 'example': 'Cementos Especiales'},
-            'pagination': {'css': '#__next > main > main > div:nth-child(3) > div > section > div.sc-8e800ca6-5.ia-dcNO > div > div.sc-1f784e80-0.bZLqYQ > div > a', 'example': 'N/A (en PDPs no hay)'}
+            'name': {'css': 'h1, [class*="product-name"], [class*="title"] h1', 'example': 'Cemento especial 25 kg Polpaico'},
+            'price': {'css': '[class*="price"] div, [class*="price"] span, [class*="precio"]', 'example': '$ 5.510'},
+            'price_discount': {'css': '[class*="discount"], [class*="offer"]', 'example': 'N/A'},
+            'stock': {'css': '[class*="stock"], [class*="availability"], p[class*="status"]', 'example': 'Requiere seleccionar ubicación'},
+            'category': {'css': '[class*="breadcrumb"] li, nav a[class*="crumb"]', 'example': 'Cementos Especiales'},
+            'pagination': {'css': 'a[rel="next"], [class*="pagination"] a', 'example': 'N/A'}
         },
 
         'product_urls': [
@@ -61,18 +58,17 @@ STORES = {
             'https://www.easy.cl/volcanita-acu-br-1-2x2-4-m-10-mm-1354955/p',
             'https://www.easy.cl/cable-eva-2-5-mm-x-100-m-h07z1-k-823913/p',
             'https://www.easy.cl/tuberia-hidrahulica-20-mm-x3-m-clase-16-pvc-235195/p',
-            # -- Nuevos Materiales (SCRUM-90) --
-            'https://www.easy.cl/search/perfil%20c', # Placeholder Metalcon C
-            'https://www.easy.cl/search/perfil%20u', # Placeholder Metalcon U
-            'https://www.easy.cl/search/pino%20dimensionado', # Placeholder Madera
-            'https://www.easy.cl/search/tornillo%20volcanita' # Placeholder Tornillos
+            'https://www.easy.cl/search/perfil%20c',
+            'https://www.easy.cl/search/perfil%20u',
+            'https://www.easy.cl/search/pino%20dimensionado',
+            'https://www.easy.cl/search/tornillo%20volcanita'
         ],
         'search_url': 'https://www.easy.cl/search/{query}',
         'search_selectors': {
-            'container': 'div[class*="productCard"]',
-            'name': 'span[class*="productName"]',
-            'price': 'div[class*="price"]',
-            'link': 'a[href*="/p/"]'
+            'container': 'div[class*="productCard"], div[class*="card"], div[class*="item"], [data-testid*="product"]',
+            'name': '[class*="productName"], [class*="name"] span, a[href*="/p/"] h2, a[href*="/p/"] span',
+            'price': '[class*="price"] div, [class*="price"] span, [class*="precio"]',
+            'link': 'a[href*="/p/"], a[class*="link"], a[class*="title"]'
         },
         'notes': 'INTERACCIÓN REQUERIDA: 1) Seleccionar ubicación/región antes de ver precios y stock. 2) Los selectores con nth-child pueden cambiar (framework CSS-in-JS). 3) Sin ubicación seleccionada, price y stock retornan vacíos. 4) Modal de ubicación aparece en startup. Ver DOCUMENTACION_SELECTORES.md para paso a paso en DevTools.'
     },
@@ -82,12 +78,12 @@ STORES = {
             'https://www.construmart.cl/browse?region=valparaiso'
         ],
         'selectors': {
-            'name': {'css': '.product-name, h1', 'example': 'Cemento Especial Saco 25 kg San Juan'},
-            'price': {'css': '.price-container .price, .product-price', 'example': 'Requiere seleccionar tienda/región'},
-            'price_discount': {'css': '.special-price .price', 'example': 'N/A'},
-            'stock': {'css': '.stock-info, .availability', 'example': 'Sin Stock (varía por tienda)'},
-            'category': {'css': '.breadcrumb-item, .breadcrumbs li', 'example': 'Cementos'},
-            'pagination': {'css': '.pagination .next, a[rel="next"]', 'example': 'N/A (en PDPs no hay)'}
+            'name': {'css': '.product-name, h1, [class*="product"] h1', 'example': 'Cemento Especial Saco 25 kg San Juan'},
+            'price': {'css': '.price-container .price, .product-price, [class*="price"]', 'example': 'Requiere seleccionar tienda/región'},
+            'price_discount': {'css': '.special-price .price, [class*="special"]', 'example': 'N/A'},
+            'stock': {'css': '.stock-info, .availability, [class*="stock"]', 'example': 'Sin Stock (varía por tienda)'},
+            'category': {'css': '.breadcrumb-item, .breadcrumbs li, [class*="crumb"]', 'example': 'Cementos'},
+            'pagination': {'css': '.pagination .next, a[rel="next"]', 'example': 'N/A'}
         },
 
         'product_urls': [
@@ -96,18 +92,17 @@ STORES = {
             'https://www.construmart.cl/yeso-carton-volcanita-rh-borde-rebaja-23602',
             'https://www.construmart.cl/cable-evaflex-h07z1-k-c5-25-mm-50-m-219322',
             'https://www.construmart.cl/tubo-ppr-pn-16-25-mm-3-m-213256',
-            # -- Nuevos Materiales (SCRUM-90) --
-            'https://www.construmart.cl/catalogsearch/result/?q=perfil+c', # Placeholder Metalcon C
-            'https://www.construmart.cl/catalogsearch/result/?q=perfil+u', # Placeholder Metalcon U
-            'https://www.construmart.cl/catalogsearch/result/?q=pino+dimensionado', # Placeholder Madera
-            'https://www.construmart.cl/catalogsearch/result/?q=tornillo+volcanita' # Placeholder Tornillos
+            'https://www.construmart.cl/catalogsearch/result/?q=perfil+c',
+            'https://www.construmart.cl/catalogsearch/result/?q=perfil+u',
+            'https://www.construmart.cl/catalogsearch/result/?q=pino+dimensionado',
+            'https://www.construmart.cl/catalogsearch/result/?q=tornillo+volcanita'
         ],
         'search_url': 'https://www.construmart.cl/catalogsearch/result/?q={query}',
         'search_selectors': {
-            'container': '.product-item, .product-item-info',
-            'name': '.product-item-link',
-            'price': '.price',
-            'link': '.product-item-link'
+            'container': '.product-item, .product-item-info, [class*="product"], li[class*="item"]',
+            'name': '.product-item-link, a[class*="product"], [class*="product-name"] a',
+            'price': '.price, [class*="price"], [class*="precio"]',
+            'link': '.product-item-link, a[class*="product"], a[href*="/construmart.cl/"]'
         },
         'notes': 'INTERACCIÓN REQUERIDA: 1) Seleccionar tienda/sucursal para ver precios y stock locales. 2) Selectores genéricos (.product-name, h1) son más estables. 3) Algunos listados usan infinite scroll (sin botón "Siguiente"). 4) Breadcrumb dinámico con path de categorías. Ver DOCUMENTACION_SELECTORES.md para paso a paso en DevTools.'
     }
