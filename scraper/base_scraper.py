@@ -102,7 +102,8 @@ class BaseScraper(ABC):
         
         Estrategia:
         1. HTTP directo + JSON-LD (sin browser, sin anti-bot)
-        2. Playwright + Firefox + stealth (fallback)
+        2. undetected-chromedriver (Chrome real, evade anti-bot)
+        3. Playwright + Firefox + stealth (fallback)
         """
         self.logger.info(f"[{self.store_key}] Buscando material genérico: '{query}'")
         
@@ -125,7 +126,26 @@ class BaseScraper(ABC):
         except Exception as e:
             self.logger.debug(f"[{self.store_key}] HTTP falló para '{query}': {e}")
 
-        # ── Capa 2: Playwright ─────────────────────────────────────────────
+        # ── Capa 2: undetected-chromedriver ────────────────────────────────
+        try:
+            search_url = self._get_search_url(query)
+            candidatos = self._uc_search(self.store_key, search_url, query)
+            if candidatos:
+                normalizer = FuzzyNormalizer(threshold=75, unidad_medida=unidad_medida)
+                mejor_match = normalizer.filter_results(query, candidatos)
+                if mejor_match:
+                    self.logger.info(
+                        f"[{self.store_key}] ✅ UC match para '{query}': "
+                        f"'{mejor_match['nombre_producto']}' (Score: {mejor_match['match_score']}, "
+                        f"Precio: ${mejor_match['precio']})"
+                    )
+                    mejor_match["insumo_id"] = insumo_id
+                    self._normalize_prices_by_insumo_unit(mejor_match)
+                    return mejor_match
+        except Exception as e:
+            self.logger.debug(f"[{self.store_key}] UC falló para '{query}': {e}")
+
+        # ── Capa 3: Playwright ─────────────────────────────────────────────
         try:
             candidatos = self._scrape_search_results(page, query)
             if not candidatos:
@@ -433,6 +453,81 @@ class BaseScraper(ABC):
             return products
         except Exception as e:
             logger.debug(f"[HTTP] {store_key}: fallo para '{query[:40]}': {e}")
+            return []
+
+    @staticmethod
+    def _uc_search(store_key: str, search_url: str, query: str) -> list[dict]:
+        """Busca productos usando undetected-chromedriver (evade anti-bot).
+        
+        Usa Chrome real con parches de deteccion en runtime.
+        """
+        try:
+            import undetected_chromedriver as uc
+            from selenium.webdriver.common.by import By
+            from selenium.webdriver.support.ui import WebDriverWait
+            from selenium.webdriver.support import expected_conditions as EC
+        except ImportError:
+            logger.warning("[UC] undetected-chromedriver no instalado")
+            return []
+
+        import json, re, time
+        try:
+            opts = uc.ChromeOptions()
+            opts.add_argument("--headless=new")
+            opts.add_argument("--no-sandbox")
+            opts.add_argument("--disable-dev-shm-usage")
+            opts.add_argument("--disable-blink-features=AutomationControlled")
+            opts.add_argument("--window-size=1280,900")
+            opts.add_argument(f"--user-agent={USER_AGENT}")
+            
+            driver = uc.Chrome(options=opts, version_main=125)
+            driver.get(search_url)
+            time.sleep(5)  # esperar carga JS
+
+            html = driver.page_source
+            driver.quit()
+
+            # Extraer JSON-LD
+            products = []
+            seen = set()
+            for match in re.finditer(r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>', html, re.DOTALL | re.IGNORECASE):
+                try:
+                    data = json.loads(match.group(1))
+                    items = data if isinstance(data, list) else [data]
+                    for item in items:
+                        if not isinstance(item, dict): continue
+                        if item.get("@type") not in ("ItemList", "Product"): continue
+                        entries = item.get("itemListElement") or [item]
+                        for entry in entries[:15]:
+                            obj = entry.get("item", entry) if isinstance(entry, dict) else entry
+                            if not isinstance(obj, dict): continue
+                            name = obj.get("name", "").strip()
+                            offers = obj.get("offers", {}) or {}
+                            if isinstance(offers, list): offers = offers[0] if offers else {}
+                            price = offers.get("price")
+                            url_p = obj.get("url", "")
+                            if not name or not price or name in seen: continue
+                            seen.add(name)
+                            try:
+                                pval = float(price) if isinstance(price, (int, float)) else float(str(price).replace(",", "."))
+                            except: continue
+                            if pval < 100: continue
+                            products.append({"tienda": store_key, "nombre_producto": name, "precio": pval, "url": url_p, "exitoso": True})
+                except: continue
+
+            if products:
+                logger.info(f"[UC] {store_key}: {len(products)} productos via JSON-LD para '{query[:40]}'")
+                return products
+
+            # Extraer desde el DOM (texto + regex)
+            for el in re.finditer(r'(?:product|card|item)[^>]*>.*?(\$\s*[\d.,]+).*?<', html, re.DOTALL | re.IGNORECASE):
+                pass  # Placeholder para extraccion DOM via regex
+
+            logger.info(f"[UC] {store_key}: sin productos JSON-LD para '{query[:40]}' ({len(html)} bytes)")
+            return products
+
+        except Exception as e:
+            logger.debug(f"[UC] {store_key}: fallo para '{query[:40]}': {e}")
             return []
 
     @staticmethod

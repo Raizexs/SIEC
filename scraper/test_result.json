@@ -1,0 +1,37 @@
+{
+  "store": "sodimac",
+  "query": "Cemento Portland",
+  "url": "https://www.sodimac.cl/sodimac-cl/search?Ntt=Cemento+Portland",
+  "http": {
+    "success": false,
+    "count": 0,
+    "products": []
+  },
+  "playwright": {
+    "success": false,
+    "count": 0,
+    "products": []
+  },
+  "html_title": "Bienvenido a Sodimac.com. Todo para construir y renovar tu hogar con los precios bajos siempre",
+  "html_size": 621050,
+  "has_products_in_html": true,
+  "html_final_url": "https://www.sodimac.cl/sodimac-cl/search?Ntt=Cemento+Portland",
+  "api_calls": [
+    {
+      "url": "https://mc.yango.com/watch/3/1?wmode=7&page-url=https%3A%2F%2Fwww.sodimac.cl%2Fsodimac-cl%2Fsearch%3FNtt%3DCemento%2BPortland&page-ref&charset=utf-8&browser-info=pv%3A1%3Avf%3A7ech5gq9uockcwtefqiey078",
+      "type": "dict",
+      "keys": [
+        "settings",
+        "userData"
+      ]
+    },
+    {
+      "url": "https://mc.yango.com/watch/98733999?wmode=7&page-url=https%3A%2F%2Fwww.sodimac.cl%2Fsodimac-cl%2Fsearch%3FNtt%3DCemento%2BPortland&charset=utf-8&uah=che%0A0&browser-info=pv%3A1%3Avf%3A7ech5gq9uockcwte",
+      "type": "dict",
+      "keys": [
+        "settings",
+        "userData"
+      ]
+    }
+  ]
+}
