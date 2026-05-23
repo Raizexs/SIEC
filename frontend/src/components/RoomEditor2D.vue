@@ -834,16 +834,20 @@ const onPointerUp = () => {
 
   if (mode === "resize") {
     const resized = selectedDraggedRoom();
-    const flushed = resized ? applyFlushSnapToRoom(resized) : null;
-    if (flushed) {
-      store.updateRecinto(resized.id, {
-        coords: { x: flushed.x, z: flushed.z },
-        dimensions: {
-          ...resized.dimensions,
-          w: flushed.w,
-          l: flushed.l,
-        },
-      });
+    if (resized) {
+      normalizeRoomInsideTerrain(resized);
+      const placed = store.recintos.find((r) => r.id === resized.id);
+      const flushed = placed ? applyFlushSnapToRoom(placed) : null;
+      if (flushed) {
+        store.updateRecinto(resized.id, {
+          coords: { x: flushed.x, z: flushed.z },
+          dimensions: {
+            ...placed.dimensions,
+            w: flushed.w,
+            l: flushed.l,
+          },
+        });
+      }
     }
   }
 
@@ -1001,6 +1005,8 @@ const commitSelectedRoomWidth = (val) => {
 
   const safeWidth = clampNumber(val, MIN_ROOM_DIM, maxRoomWidthFromPosition(room));
   store.updateRecinto(room.id, { w: Number(safeWidth.toFixed(3)) });
+  const updated = store.recintos.find((r) => r.id === room.id);
+  if (updated) normalizeRoomInsideTerrain(updated);
   store.saveHistoryState();
   return Number(safeWidth.toFixed(3));
 };
@@ -1011,6 +1017,8 @@ const commitSelectedRoomLength = (val) => {
 
   const safeLength = clampNumber(val, MIN_ROOM_DIM, maxRoomLengthFromPosition(room));
   store.updateRecinto(room.id, { l: Number(safeLength.toFixed(3)) });
+  const updated = store.recintos.find((r) => r.id === room.id);
+  if (updated) normalizeRoomInsideTerrain(updated);
   store.saveHistoryState();
   return Number(safeLength.toFixed(3));
 };

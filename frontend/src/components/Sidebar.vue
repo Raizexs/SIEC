@@ -51,27 +51,13 @@ onMounted(() => {
   }
 });
 
-const isSpanish = computed(() => currentLanguage.value === 'es');
+const themeLabel = computed(() =>
+  theme.isDark.value ? t('themeDark') : t('themeLight'),
+);
 
-const themeLabel = computed(() => {
-  if (isSpanish.value) {
-    return theme.isDark.value ? 'Oscuro' : 'Claro';
-  }
-
-  return theme.isDark.value ? 'Dark' : 'Light';
-});
-
-const themeTitle = computed(() => {
-  if (isSpanish.value) {
-    return theme.isDark.value
-      ? 'Cambiar a modo claro'
-      : 'Cambiar a modo oscuro';
-  }
-
-  return theme.isDark.value
-    ? 'Switch to light mode'
-    : 'Switch to dark mode';
-});
+const themeTitle = computed(() =>
+  theme.isDark.value ? t('themeSwitchToLight') : t('themeSwitchToDark'),
+);
 
 const ThemeIcon = computed(() => {
   return theme.isDark.value ? Moon : Sun;
@@ -96,15 +82,7 @@ const cycleTheme = () => {
 };
 
 const toggleLanguage = () => {
-  const switchLang = () => {
-    setLanguage(currentLanguage.value === 'es' ? 'en' : 'es');
-  };
-
-  if (typeof document !== 'undefined' && document.startViewTransition) {
-    document.startViewTransition(switchLang);
-  } else {
-    switchLang();
-  }
+  setLanguage(currentLanguage.value === 'es' ? 'en' : 'es');
 };
 
 const loadSavedLayout = (layout) => {
@@ -117,7 +95,7 @@ const deleteSavedLayout = (id) => {
 };
 
 const formatDate = (value) => {
-  if (!value) return 'Sin fecha';
+  if (!value) return t('noDate');
 
   const date = new Date(value);
 
@@ -125,7 +103,9 @@ const formatDate = (value) => {
     return String(value);
   }
 
-  return date.toLocaleDateString('es-CL', {
+  const locale = currentLanguage.value === 'en' ? 'en-US' : 'es-CL';
+
+  return date.toLocaleDateString(locale, {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -140,8 +120,8 @@ const formatDate = (value) => {
       v-if="collapsed"
       type="button"
       class="fixed left-16 top-[4.75rem] z-50 flex h-10 w-6 items-center justify-center rounded-r-xl border border-l-0 border-slate-200 bg-white/95 text-slate-600 shadow-md backdrop-blur-xl transition-all hover:border-slate-300 hover:text-slate-950 active:scale-95 dark:border-slate-800 dark:bg-slate-950/95 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:text-slate-100"
-      title="Expandir panel contextual"
-      aria-label="Expandir panel contextual"
+      :title="t('expandPanel')"
+      :aria-label="t('expandPanel')"
       @click="toggleCollapse"
     >
       <ChevronRight class="h-3.5 w-3.5" :stroke-width="2.6" />
@@ -163,15 +143,15 @@ const formatDate = (value) => {
           </span>
 
           <p class="truncate text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-            Workspace
+            {{ t('sidebarWorkspace') }}
           </p>
         </div>
 
         <button
           type="button"
           class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 active:scale-95 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:border-slate-600 dark:hover:text-slate-100"
-          title="Colapsar panel"
-          aria-label="Colapsar panel"
+          :title="t('collapsePanel')"
+          :aria-label="t('collapsePanel')"
           @click="toggleCollapse"
         >
           <ChevronLeft class="h-3.5 w-3.5" :stroke-width="2.6" />
@@ -217,11 +197,11 @@ const formatDate = (value) => {
           </div>
 
           <p class="text-xs font-bold text-slate-600 dark:text-slate-300">
-            Sin diseños guardados
+            {{ t('noSavedLayouts') }}
           </p>
 
           <p class="mt-1 text-[11px] font-medium leading-relaxed text-slate-400 dark:text-slate-500">
-            Guarda una estimación para verla aquí.
+            {{ t('saveLayoutEmptyHint') }}
           </p>
         </div>
 
@@ -239,7 +219,7 @@ const formatDate = (value) => {
               >
                 <div class="flex items-center gap-1.5">
                   <span class="truncate text-xs font-black tracking-tight text-slate-900 dark:text-slate-100">
-                    {{ layout.name || 'Layout sin nombre' }}
+                    {{ layout.name || t('layoutUntitled') }}
                   </span>
 
                   <span
@@ -259,8 +239,8 @@ const formatDate = (value) => {
                 <button
                   type="button"
                   class="flex h-7 w-7 items-center justify-center rounded-xl text-orange-600 transition-colors duration-200 hover:bg-orange-50 dark:text-orange-300 dark:hover:bg-orange-950/30"
-                  title="Cargar"
-                  aria-label="Cargar layout"
+                  :title="t('load')"
+                  :aria-label="t('loadLayoutAria')"
                   @click="loadSavedLayout(layout)"
                 >
                   <ExternalLink class="h-3.5 w-3.5" :stroke-width="2.3" />
@@ -269,8 +249,8 @@ const formatDate = (value) => {
                 <button
                   type="button"
                   class="flex h-7 w-7 items-center justify-center rounded-xl text-red-500 transition-colors duration-200 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/30"
-                  title="Eliminar"
-                  aria-label="Eliminar layout"
+                  :title="t('delete')"
+                  :aria-label="t('deleteLayoutAria')"
                   @click="deleteSavedLayout(layout.id)"
                 >
                   <Trash2 class="h-3.5 w-3.5" :stroke-width="2.3" />
@@ -291,7 +271,7 @@ const formatDate = (value) => {
         <button
           type="button"
           class="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-2 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-600 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:text-slate-950 hover:shadow-md active:scale-[0.98] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:text-slate-100"
-          title="Cambiar idioma"
+          :title="t('changeLanguage')"
           @click="toggleLanguage"
         >
           <Languages class="h-3.5 w-3.5" :stroke-width="2.2" />
@@ -317,7 +297,7 @@ const formatDate = (value) => {
           @click="$emit('start-tutorial')"
         >
           <GraduationCap class="h-3.5 w-3.5" :stroke-width="2.2" />
-          Tutorial
+          {{ t('tutorial') }}
         </button>
 
         <button
@@ -326,7 +306,7 @@ const formatDate = (value) => {
           @click="$emit('open-manual')"
         >
           <BookOpen class="h-3.5 w-3.5" :stroke-width="2.2" />
-          Manual
+          {{ t('manual') }}
         </button>
       </div>
 
