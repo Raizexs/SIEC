@@ -1,4 +1,8 @@
-import { ref, computed } from "vue";
+import { ref, nextTick } from "vue";
+import {
+  pageTranslationsEs,
+  pageTranslationsEn,
+} from "../i18n/pageTranslations.js";
 
 // Estado global singleton fuera del composable
 const currentLanguage = ref(localStorage.getItem("siec_language") || "es");
@@ -14,6 +18,18 @@ const translations = {
     settings: "Configuración",
     recentPresets: "Presets Recientes",
     savedLayouts: "Layouts Guardados",
+    noSavedLayouts: "Sin diseños guardados",
+    saveLayoutEmptyHint: "Guarda una estimación para verla aquí.",
+    layoutUntitled: "Layout sin nombre",
+    loadLayoutAria: "Cargar layout",
+    deleteLayoutAria: "Eliminar layout",
+    sidebarWorkspace: "Workspace",
+    expandPanel: "Expandir panel contextual",
+    collapsePanel: "Colapsar panel",
+    changeLanguage: "Cambiar idioma",
+    tutorial: "Tutorial",
+    manual: "Manual",
+    savedCountLabel: "Guardados",
     autoSaveActive: "Auto-guardado Activo",
     newEstimate: "Nueva Estimación",
 
@@ -138,6 +154,12 @@ const translations = {
     generateModel: "Generar Modelo 3D",
     generateBudget: "Generar Presupuesto Detallado",
     layoutSaved: "Layout guardado exitosamente",
+    layoutSavedDetail: "El diseño quedó guardado correctamente.",
+    noDate: "Sin fecha",
+    themeDark: "Oscuro",
+    themeLight: "Claro",
+    themeSwitchToLight: "Cambiar a modo claro",
+    themeSwitchToDark: "Cambiar a modo oscuro",
     saving: "Guardando Configuración...",
 
     // Materials
@@ -184,6 +206,8 @@ const translations = {
 
     // Footer
     footer: "2026 SIEC - V0.3",
+    workspaceFooterLine:
+      "SIEC Workspace · Simulación, diseño y presupuesto constructivo",
     draftsSynced: "Borradores Sincronizados",
     privacyPolicy: "Política de Privacidad",
     termsOfService: "Términos de Servicio",
@@ -225,6 +249,7 @@ const translations = {
     averagePrice: "Precio Promedio",
     priceVariation: "Variación",
     lastUpdate: "Última Actualización",
+    ...pageTranslationsEs,
   },
   en: {
     // Sidebar
@@ -236,6 +261,18 @@ const translations = {
     settings: "Settings",
     recentPresets: "Recent Presets",
     savedLayouts: "Saved Layouts",
+    noSavedLayouts: "No saved designs",
+    saveLayoutEmptyHint: "Save an estimate to see it here.",
+    layoutUntitled: "Untitled layout",
+    loadLayoutAria: "Load layout",
+    deleteLayoutAria: "Delete layout",
+    sidebarWorkspace: "Workspace",
+    expandPanel: "Expand side panel",
+    collapsePanel: "Collapse panel",
+    changeLanguage: "Change language",
+    tutorial: "Tutorial",
+    manual: "Manual",
+    savedCountLabel: "Saved",
     autoSaveActive: "Auto-save Active",
     newEstimate: "New Estimate",
 
@@ -360,6 +397,12 @@ const translations = {
     generateModel: "Generate 3D Model",
     generateBudget: "Generate Detailed Budget",
     layoutSaved: "Layout successfully saved",
+    layoutSavedDetail: "Your design was saved successfully.",
+    noDate: "No date",
+    themeDark: "Dark",
+    themeLight: "Light",
+    themeSwitchToLight: "Switch to light mode",
+    themeSwitchToDark: "Switch to dark mode",
     saving: "Saving Configuration...",
 
     // Materials
@@ -406,6 +449,8 @@ const translations = {
 
     // Footer
     footer: "2026 SIEC - V0.3",
+    workspaceFooterLine:
+      "SIEC Workspace · Simulation, design, and construction budgeting",
     draftsSynced: "Drafts Synchronized",
     privacyPolicy: "Privacy Policy",
     termsOfService: "Terms of Service",
@@ -447,6 +492,7 @@ const translations = {
     averagePrice: "Average Price",
     priceVariation: "Variation",
     lastUpdate: "Last Update",
+    ...pageTranslationsEn,
   },
 };
 
@@ -464,13 +510,52 @@ export function useI18n() {
     return text;
   };
 
+  const captureScrollPositions = () => {
+    if (typeof document === "undefined") return [];
+
+    const snapshots = [
+      { top: window.scrollY, left: window.scrollX, isWindow: true },
+    ];
+
+    document.querySelectorAll("[data-workspace-scroll]").forEach((el) => {
+      snapshots.push({
+        el,
+        top: el.scrollTop,
+        left: el.scrollLeft,
+      });
+    });
+
+    return snapshots;
+  };
+
+  const restoreScrollPositions = (snapshots) => {
+    if (!snapshots?.length) return;
+
+    snapshots.forEach((snap) => {
+      if (snap.isWindow) {
+        window.scrollTo(snap.left, snap.top);
+        return;
+      }
+      if (snap.el) {
+        snap.el.scrollTop = snap.top;
+        snap.el.scrollLeft = snap.left;
+      }
+    });
+  };
+
   const setLanguage = (lang) => {
-    if (translations[lang]) {
-      currentLanguage.value = lang;
-      localStorage.setItem("siec_language", lang);
-      // Force a micro-task to ensure reactivity propagates
-      setTimeout(() => {}, 0);
-    }
+    if (!translations[lang]) return;
+
+    const scrollSnapshots = captureScrollPositions();
+    currentLanguage.value = lang;
+    localStorage.setItem("siec_language", lang);
+
+    const restore = () => restoreScrollPositions(scrollSnapshots);
+
+    nextTick(() => {
+      restore();
+      requestAnimationFrame(restore);
+    });
   };
 
   const toggleLanguage = () => {
