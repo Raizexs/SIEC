@@ -28,14 +28,26 @@ useKeyboardShortcuts({
 
 const onShowShortcutsEvent = () => (showShortcuts.value = true);
 
+const onGlobalKeyDown = (event) => {
+  if (event.key !== 'Escape') return;
+  if (showShortcuts.value) {
+    showShortcuts.value = false;
+    event.preventDefault();
+    return;
+  }
+  window.dispatchEvent(new CustomEvent('siec:cancel'));
+};
+
 onMounted(async () => {
   theme.apply(false);
   window.addEventListener('siec:show-shortcuts', onShowShortcutsEvent);
+  window.addEventListener('keydown', onGlobalKeyDown);
   await auth.initializeAuth();
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('siec:show-shortcuts', onShowShortcutsEvent);
+  window.removeEventListener('keydown', onGlobalKeyDown);
 });
 
 /** Vue transition hooks must always call done(); out-in + GSAP can otherwise leave a permanent blank. */
