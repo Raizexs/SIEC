@@ -490,7 +490,7 @@ const startTutorial = () => {
         @share="showShareDialog = true"
       />
 
-      <div class="flex-1 overflow-y-auto">
+      <div class="flex-1 overflow-y-auto" data-workspace-scroll>
         <div class="mx-auto w-full max-w-[1600px] px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
           <!-- Workspace header strip -->
           <section
@@ -607,7 +607,7 @@ const startTutorial = () => {
             </p>
 
             <p class="text-xs font-medium text-slate-400 dark:text-slate-500">
-              SIEC Workspace · Simulación, diseño y presupuesto constructivo
+              {{ t('workspaceFooterLine') }}
             </p>
           </footer>
         </div>
@@ -662,7 +662,7 @@ const startTutorial = () => {
             {{ t('layoutSaved') }}
           </p>
           <p class="mt-0.5 text-xs font-medium text-slate-500 dark:text-slate-400">
-            El diseño quedó guardado correctamente.
+            {{ t('layoutSavedDetail') }}
           </p>
         </div>
       </div>
