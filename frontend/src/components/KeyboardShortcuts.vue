@@ -1,23 +1,28 @@
 <script setup>
+import { computed } from 'vue';
+import { useI18n } from '../composables/useI18n';
+
 defineProps({
   show: Boolean,
 });
 
 const emit = defineEmits(['close']);
 
-const shortcuts = [
-  { keys: ['Cmd', 'K'], desc: 'Abrir paleta de comandos' },
-  { keys: ['?'], desc: 'Mostrar atajos' },
-  { keys: ['G', 'D'], desc: 'Ir al Dashboard' },
-  { keys: ['G', 'W'], desc: 'Ir al Workspace' },
-  { keys: ['G', 'S'], desc: 'Ir a Configuración' },
-  { keys: ['Ctrl', 'S'], desc: 'Guardar versión actual' },
-  { keys: ['Esc'], desc: 'Cerrar / cancelar acción' },
-  { keys: ['Suprimir'], desc: 'Eliminar recinto activo' },
-  { keys: ['F'], desc: 'Pantalla completa' },
-  { keys: ['M'], desc: 'Herramienta medir' },
-  { keys: ['V'], desc: 'Modo walkthrough' },
-];
+const { t } = useI18n();
+
+const shortcuts = computed(() => [
+  { keys: ['Cmd', 'K'], desc: t('shortcutPalette') },
+  { keys: ['?'], desc: t('shortcutHelp') },
+  { keys: ['G', 'D'], desc: t('shortcutDashboard') },
+  { keys: ['G', 'W'], desc: t('shortcutWorkspace') },
+  { keys: ['G', 'S'], desc: t('shortcutSettings') },
+  { keys: ['Ctrl', 'S'], desc: t('shortcutSave') },
+  { keys: ['Esc'], desc: t('shortcutEsc') },
+  { keys: ['Suprimir'], desc: t('shortcutDelete') },
+  { keys: ['F'], desc: t('shortcutFullscreen') },
+  { keys: ['M'], desc: t('shortcutMeasure') },
+  { keys: ['V'], desc: t('shortcutWalkthrough') },
+]);
 </script>
 
 <template>
@@ -53,11 +58,11 @@ const shortcuts = [
                     id="keyboard-shortcuts-title"
                     class="text-sm font-semibold tracking-tight text-slate-950 dark:text-slate-100"
                   >
-                    Atajos de teclado
+                    {{ t('shortcutsTitle') }}
                   </h2>
 
                   <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                    Acciones rápidas para navegar y trabajar más fluido.
+                    {{ t('shortcutsSubtitle') }}
                   </p>
                 </div>
               </div>
@@ -114,7 +119,7 @@ const shortcuts = [
                 >
                   Esc
                 </kbd>
-                para cerrar.
+                {{ t('shortcutsEscHint') }}
               </p>
 
               <button
@@ -122,7 +127,7 @@ const shortcuts = [
                 class="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-500 transition-colors duration-200 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
                 @click="emit('close')"
               >
-                Entendido
+                {{ t('shortcutsGotIt') }}
               </button>
             </footer>
           </section>

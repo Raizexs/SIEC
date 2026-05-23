@@ -12,6 +12,7 @@
  */
 
 import { ref, computed, watchEffect, watch, nextTick, onMounted, onUnmounted } from 'vue';
+import { storeToRefs } from 'pinia';
 import { driver } from 'driver.js';
 import 'driver.js/dist/driver.css';
 import AppRail from './shell/AppRail.vue';
@@ -32,18 +33,11 @@ import { useWorkspaceStore } from '../stores/workspace';
 import { useTokenCounter } from '../composables/useTokenCounter';
 import { useLayoutManager } from '../composables/useLayoutManager';
 import { useI18n } from '../composables/useI18n';
-import { toast } from 'vue-sonner';
-import { generateCommercialPDF } from '../utils/pdfGenerator';
-import {
-  captureSceneImage,
-  resolveMainSceneCanvas,
-} from '../proposal/proposalSceneCapture.js';
 import { useAuthStore } from '../stores/auth';
 import { useProMotion } from '../composables/useProMotion';
 import {
   useProductPreferences,
-  mergePreferences,
-  defaultProductPreferences,
+  WORKSPACE_FEATURES,
 } from '../composables/useProductPreferences';
 
 const props = defineProps({
@@ -51,11 +45,11 @@ const props = defineProps({
 });
 
 const recintosStore = useRecintosStore();
+const { totalArea: totalAreaOcupada } = storeToRefs(recintosStore);
 const workspaceStore = useWorkspaceStore();
 const authStore = useAuthStore();
 const {
   saveLayout,
-  createPresetLayout,
   applyLayoutToStore,
   loadLayout: normalizeSavedLayout,
 } = useLayoutManager();
@@ -63,25 +57,20 @@ const { t, currentLanguage } = useI18n();
 
 const { productPreferences } = useProductPreferences();
 
+const workspaceFeatures = computed(
+  () => ({
+    ...WORKSPACE_FEATURES,
+    ...(productPreferences.value.features || {}),
+  }),
+);
+
 const sidebarCollapsed = ref(false);
 const motionRoot = ref(null);
 
 useProMotion(motionRoot, { skipIntro: true });
 
-let siecExportListener = null;
-
 onMounted(() => {
   workspaceStore.loadWorkspace();
-  siecExportListener = (ev) => {
-    onSiecExport(ev);
-  };
-  window.addEventListener('siec:export', siecExportListener);
-});
-
-onUnmounted(() => {
-  if (siecExportListener && typeof window !== 'undefined') {
-    window.removeEventListener('siec:export', siecExportListener);
-  }
 });
 
 const showManual = ref(false);
@@ -147,7 +136,15 @@ const areaUsadaReal = computed(() => {
   return Number(recintosStore.totalArea || 0);
 });
 
+const terrainM2FromDimensions = computed(() => {
+  const w = Number(formData.value.terrenoAncho) || 0;
+  const l = Number(formData.value.terrenoLargo) || 0;
+  return w * l;
+});
+
 const areaTotalReal = computed(() => {
+  const fromDims = terrainM2FromDimensions.value;
+  if (fromDims > 0) return fromDims;
   return Number(formData.value?.m2Totales || m2Totales.value || 0);
 });
 
@@ -232,7 +229,7 @@ watch(
         newCounts.habitacionesTriples;
 
       recintosStore.initializeLayout(
-        formData.value.m2Totales,
+        areaTotalReal.value,
         totalHabitaciones,
         newCounts.banios,
         newCounts.areasComunes,
@@ -254,12 +251,19 @@ watch(
 );
 
 watch(
-  () => formData.value.m2Totales,
+  terrainM2FromDimensions,
   (m2) => {
+    if (m2 > 0 && formData.value.m2Totales !== m2) {
+      formData.value.m2Totales = m2;
+    }
     if (recintosStore.configMetadata) {
       recintosStore.configMetadata.m2Totales = m2;
     }
+    if (m2Totales.value !== m2) {
+      m2Totales.value = m2;
+    }
   },
+  { immediate: true },
 );
 
 const isSubmitting = ref(false);
@@ -269,8 +273,14 @@ const showShareDialog = ref(false);
 
 const hasRecintos = computed(() => recintosStore.recintos.length > 0);
 
-const updateFormData = (newData) => {
-  formData.value = newData;
+const updateFormData = (patch) => {
+  if (!patch || typeof patch !== 'object') return;
+
+  Object.assign(formData.value, patch);
+
+  const w = Number(formData.value.terrenoAncho) || 0;
+  const l = Number(formData.value.terrenoLargo) || 0;
+  formData.value.m2Totales = w * l;
 };
 
 const syncFormDataFromLayout = (layout) => {
@@ -291,32 +301,6 @@ const syncFormDataFromLayout = (layout) => {
   prevMaterialId = formData.value.materialEstructuralId;
 };
 
-
-
-const loadPreset = (preset) => {
-  isProgrammaticUpdate.value = true;
-
-  const layout = createPresetLayout(preset);
-  const normalized = applyLayoutToStore(layout);
-
-  syncFormDataFromLayout({
-    ...preset,
-    ...normalized,
-  });
-
-  nextTick(() => {
-    m2Totales.value = formData.value.m2Totales;
-    habitacionesSimples.value = formData.value.habitacionesSimples;
-    habitacionesDobles.value = formData.value.habitacionesDobles;
-    habitacionesTriples.value = formData.value.habitacionesTriples;
-    banios.value = formData.value.banios;
-    areasComunes.value = formData.value.areasComunes;
-  });
-
-  setTimeout(() => {
-    isProgrammaticUpdate.value = false;
-  }, 500);
-};
 
 const loadLayout = (layout) => {
   isProgrammaticUpdate.value = true;
@@ -386,65 +370,6 @@ const handleNewEstimate = () => {
     setTimeout(() => {
       isProgrammaticUpdate.value = false;
     }, 500);
-  }
-};
-
-const resolveExportPrefs = (raw) =>
-  raw != null && typeof raw === 'object'
-    ? mergePreferences(defaultProductPreferences(), { export: raw }).export
-    : productPreferences.value.export;
-
-const executePdfExport = async (exportPrefs) => {
-  const exp = resolveExportPrefs(exportPrefs);
-  const toastId = 'commercial-pdf-export';
-
-  toast.loading('Generando PDF comercial…', { id: toastId });
-
-  try {
-    // Misma captura que Propuesta premium: centra cámara vía siec:capture-scene (Scene3D).
-    const snapshotDataUrl = await captureSceneImage();
-    const canvas = resolveMainSceneCanvas();
-
-    await generateCommercialPDF(canvas, workspaceStore.activePresetName, {
-      export: exp,
-      snapshotDataUrl,
-      m2Totales: formData.value.m2Totales,
-      materialEstructuralId: formData.value.materialEstructuralId,
-      tokensUsados: tokensUsados.value,
-      tokensTotales: tokensTotales.value,
-      tokensDisponibles: tokensDisponibles.value,
-    });
-
-    authStore.addExportToHistory(workspaceStore.activePresetName);
-    toast.success('PDF exportado correctamente', { id: toastId });
-  } catch (err) {
-    toast.error(err?.message || 'No se pudo exportar el PDF', { id: toastId });
-    throw err;
-  }
-};
-
-const onSiecExport = async (e) => {
-  const d = e?.detail;
-  const type = typeof d === 'string' ? d : d?.type;
-  if (type !== 'pdf') return;
-  const raw =
-    typeof d === 'object' && d && d.preferences && typeof d.preferences === 'object'
-      ? d.preferences
-      : undefined;
-  await executePdfExport(raw);
-};
-
-const exportPdfBusy = ref(false);
-
-const handleExportPDF = async () => {
-  if (exportPdfBusy.value) return;
-  exportPdfBusy.value = true;
-  try {
-    await executePdfExport(productPreferences.value.export);
-  } catch {
-    /* toast en executePdfExport */
-  } finally {
-    exportPdfBusy.value = false;
   }
 };
 
@@ -550,7 +475,6 @@ const startTutorial = () => {
 
     <!-- Contextual sidebar -->
     <Sidebar
-      @load-preset="loadPreset"
       @load-layout="loadLayout"
       @collapse-change="(val) => (sidebarCollapsed = val)"
       @open-manual="showManual = true"
@@ -561,10 +485,8 @@ const startTutorial = () => {
     <!-- Main editor area -->
     <main class="relative z-10 flex min-w-0 flex-1 flex-col transition-all duration-200">
       <TopNavBar
-        :activeTab="activeTab"
-        :export-busy="exportPdfBusy"
+        :show-share="workspaceFeatures.projectShare"
         @save-layout="showSaveDialog = true"
-        @export-pdf="handleExportPDF"
         @share="showShareDialog = true"
       />
 
@@ -579,37 +501,18 @@ const startTutorial = () => {
               <p
                 class="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
               >
-                Workspace activo
+                {{ t('workspaceActive') }}
               </p>
 
               <h1 class="mt-1 text-xl font-black tracking-tight text-slate-950 dark:text-slate-100">
-                Simulación constructiva inteligente
+                {{ t('workspaceTitle') }}
               </h1>
 
               <p class="mt-1 text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400">
-                Configura el terreno, edita recintos, visualiza el modelo 3D y genera presupuesto desde una única experiencia.
+                {{ t('workspaceSubtitle') }}
               </p>
             </div>
 
-            <div class="flex flex-wrap items-center gap-2">
-              <span
-                class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
-              >
-                <span class="material-symbols-outlined text-[15px] text-orange-500 dark:text-orange-300">
-                  straighten
-                </span>
-                {{ formData.terrenoAncho }} × {{ formData.terrenoLargo }} m
-              </span>
-
-              <span
-                class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
-              >
-                <span class="material-symbols-outlined text-[15px] text-slate-400">
-                  token
-                </span>
-                {{ tokensDisponibles }} tokens disponibles
-              </span>
-            </div>
           </section>
 
           <!-- Top row: Configuration + Metrics -->
@@ -618,63 +521,65 @@ const startTutorial = () => {
               class="tour-config-panel"
               :formData="formData"
               :costs="costs"
-              :tokensDisponibles="tokensDisponibles"
               @update:formData="updateFormData"
             />
 
             <MetricsPanel
               class="tour-metrics-panel"
-              :formData="formData"
-              :tokensUsados="tokensUsados"
-              :tokensTotales="tokensTotales"
-              :tokensDisponibles="tokensDisponibles"
-              :descripcionEstado="descripcionEstado"
-              :totalAreaUsado="recintosStore.totalArea"
+              :form-data="formData"
+              :descripcion-estado="descripcionEstado"
+              :area-recintos="totalAreaOcupada"
             />
           </section>
 
           <!-- Layers + 2D + 3D + Budget stack -->
           <section class="mt-6 space-y-6" data-motion="section">
-            <LayerSelectionPanel />
+            <LayerSelectionPanel v-if="workspaceFeatures.constructionLayers" />
 
-            <!-- Premium hint card -->
             <div
-              class="flex items-start gap-3 rounded-2xl border border-orange-200/80 bg-orange-50/70 p-4 shadow-sm backdrop-blur-md dark:border-orange-900/60 dark:bg-orange-950/20"
+              class="recintos-promo-card relative overflow-hidden rounded-3xl border-2 border-orange-300/90 bg-gradient-to-br from-orange-50 via-white to-amber-50/80 p-5 shadow-lg shadow-orange-500/15 dark:border-orange-600/70 dark:from-orange-950/50 dark:via-slate-950/90 dark:to-orange-950/30 dark:shadow-orange-950/25"
+              role="note"
             >
               <div
-                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-orange-200 bg-white text-orange-600 shadow-sm dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-300"
-              >
-                <span class="material-symbols-outlined text-[19px]">
-                  add_home
-                </span>
-              </div>
+                class="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-orange-400/20 blur-2xl dark:bg-orange-500/15"
+              ></div>
 
-              <div>
-                <p
-                  class="text-[11px] font-bold uppercase tracking-[0.14em] text-orange-700 dark:text-orange-300"
+              <div class="relative flex items-start gap-4">
+                <div
+                  class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-orange-200 bg-white text-orange-600 shadow-md shadow-orange-500/20 dark:border-orange-800 dark:bg-orange-950/60 dark:text-orange-300"
                 >
-                  Agregar recintos
-                </p>
+                  <span class="material-symbols-outlined text-[30px]">
+                    add_home
+                  </span>
+                </div>
 
-                <p class="mt-1 text-sm font-medium leading-relaxed text-slate-600 dark:text-slate-300">
-                  Usa
-                  <strong class="font-black text-slate-950 dark:text-slate-100">
-                    “Añadir Recinto”
-                  </strong>
-                  en el editor 2D para crear espacios con medidas exactas y luego seleccionarlos para presupuestar.
-                </p>
+                <div class="min-w-0 flex-1">
+                  <span
+                    class="inline-flex rounded-full border border-orange-200 bg-white px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-orange-700 shadow-sm dark:border-orange-800 dark:bg-orange-950/50 dark:text-orange-300"
+                  >
+                    {{ t('addRecintosBadge') }}
+                  </span>
+
+                  <p
+                    class="mt-2 text-base font-black tracking-tight text-slate-950 dark:text-slate-100"
+                  >
+                    {{ t('addRecintosTitle') }}
+                  </p>
+
+                  <p class="mt-1.5 text-sm font-medium leading-relaxed text-slate-600 dark:text-slate-300">
+                    {{ t('addRecintosHint') }}
+                  </p>
+                </div>
               </div>
             </div>
 
             <RoomEditor2D
               class="tour-editor-2d"
-              :m2Totales="formData.m2Totales"
+              :m2-totales="terrainM2FromDimensions"
               v-model:terrenoAncho="formData.terrenoAncho"
               v-model:terrenoLargo="formData.terrenoLargo"
               :descripcionEstado="descripcionEstado"
               :show-grid="productPreferences.editor.showGrid"
-              :snap-to-grid="productPreferences.editor.snapToGrid"
-              :grid-size="productPreferences.editor.gridSize"
               :show-labels="productPreferences.editor.showLabels"
               :default-room-height="productPreferences.defaultRoomHeight"
             />
@@ -716,6 +621,7 @@ const startTutorial = () => {
     />
 
     <ShareDialog
+      v-if="workspaceFeatures.projectShare"
       :show="showShareDialog"
       :project-id="projectId || 'local'"
       @close="showShareDialog = false"

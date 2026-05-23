@@ -9,7 +9,6 @@ import {
   Hammer,
   Info,
   AlertTriangle,
-  Ruler,
   Check,
 } from 'lucide-vue-next';
 
@@ -19,49 +18,55 @@ const { MATERIAL_COSTS, calculateCost } = useLayoutManager();
 const props = defineProps({
   formData: { type: Object, required: true },
   costs: { type: Object, required: true },
-  tokensDisponibles: { type: Number, required: true },
 });
 
 const emit = defineEmits(['update:formData']);
 
 const updateFormData = (field, value) => {
-  emit('update:formData', { ...props.formData, [field]: value });
+  let next = value;
+
+  if (field === 'terrenoAncho' || field === 'terrenoLargo') {
+    const n = Number(value);
+    next = Number.isFinite(n) ? Math.max(2, n) : 2;
+  }
+
+  emit('update:formData', { [field]: next });
 };
 
 const estimatedCost = computed(() =>
   calculateCost(props.formData.m2Totales, props.formData.materialEstructuralId),
 );
 
-const selectedMaterial = computed(() =>
-  materials.find((material) => material.id === props.formData.materialEstructuralId),
-);
-
-const materials = [
+const materials = computed(() => [
   {
     id: 1,
-    label: 'Madera',
+    label: t('woodFrame'),
     icon: Trees,
-    hint: 'Económico · Liviano · Apto sismo',
+    hint: t('materialWoodHint'),
   },
   {
     id: 2,
-    label: 'Metalcom',
+    label: t('steelFramed'),
     icon: Grid2x2,
-    hint: 'Industrial · Rápido montaje',
+    hint: t('materialSteelHint'),
   },
   {
     id: 3,
-    label: 'Albañilería',
+    label: t('masonry'),
     icon: Hammer,
-    hint: 'Tradicional · Buena térmica',
+    hint: t('materialMasonryHint'),
   },
   {
     id: 4,
-    label: 'Hormigón Armado',
+    label: t('concrete'),
     icon: Building,
-    hint: 'Robustez máxima · Logística pesada',
+    hint: t('materialConcreteHint'),
   },
-];
+]);
+
+const selectedMaterial = computed(() =>
+  materials.value.find((material) => material.id === props.formData.materialEstructuralId),
+);
 </script>
 
 <template>
@@ -86,14 +91,8 @@ const materials = [
           </h3>
 
           <p class="mt-1 max-w-xl text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400">
-            Define las dimensiones del terreno y la materialidad estructural del proyecto.
+            {{ t('projectGeometryDesc') }}
           </p>
-        </div>
-
-        <div
-          class="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 sm:flex"
-        >
-          <Ruler class="h-5 w-5" :stroke-width="2" />
         </div>
       </div>
     </header>
@@ -102,32 +101,19 @@ const materials = [
     <article
       class="overflow-hidden rounded-2xl border border-slate-200/90 bg-white/80 shadow-sm backdrop-blur-md transition-colors duration-300 dark:border-slate-800/90 dark:bg-slate-950/80"
     >
-      <div class="flex items-end justify-between gap-4 border-b border-slate-200/80 px-5 py-4 dark:border-slate-800/80">
-        <div>
-          <p class="text-sm font-bold uppercase tracking-[0.14em] text-slate-600 dark:text-slate-300">
-            Medidas del terreno
-          </p>
-          <p class="mt-1 text-sm font-medium text-slate-500 dark:text-slate-400">
-            Ajusta ancho y largo en metros
-          </p>
-        </div>
-
-        <div
-          class="rounded-xl border border-orange-200 bg-orange-50 px-4 py-2.5 text-right dark:border-orange-900/60 dark:bg-orange-950/25"
-        >
-          <p class="font-mono text-xl font-black tabular-nums text-slate-950 dark:text-slate-100">
-            {{ Math.round(formData.m2Totales) }}
-          </p>
-          <p class="text-[10px] font-bold uppercase tracking-tight text-orange-700 dark:text-orange-300">
-            m² totales
-          </p>
-        </div>
+      <div class="border-b border-slate-200/80 px-5 py-4 dark:border-slate-800/80">
+        <p class="text-sm font-bold uppercase tracking-[0.14em] text-slate-600 dark:text-slate-300">
+          {{ t('terrainMeasures') }}
+        </p>
+        <p class="mt-1 text-sm font-medium text-slate-500 dark:text-slate-400">
+          {{ t('terrainMeasuresHint') }}
+        </p>
       </div>
 
       <div class="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
         <div class="space-y-2">
           <label class="text-sm font-semibold text-slate-600 dark:text-slate-300">
-            Ancho (m)
+            {{ t('widthM') }}
           </label>
 
           <div class="relative">
@@ -144,7 +130,7 @@ const materials = [
 
         <div class="space-y-2">
           <label class="text-sm font-semibold text-slate-600 dark:text-slate-300">
-            Largo (m)
+            {{ t('lengthM') }}
           </label>
 
           <div class="relative">
@@ -167,19 +153,19 @@ const materials = [
     >
       <div class="mb-4 flex items-start justify-between gap-4">
         <div>
-          <label
-            class="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-tight text-slate-500 dark:text-slate-400"
+          <h4
+            class="flex items-center gap-2 text-lg font-black uppercase tracking-tight text-slate-800 dark:text-slate-100"
           >
             <span
-              class="flex h-6 w-6 items-center justify-center rounded-lg border border-orange-200 bg-orange-50 text-orange-600 dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
+              class="flex h-7 w-7 items-center justify-center rounded-lg border border-orange-200 bg-orange-50 text-orange-600 dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
             >
-              <span class="material-symbols-outlined text-[15px]">foundation</span>
+              <span class="material-symbols-outlined text-[17px]">foundation</span>
             </span>
             {{ t('structuralMaterial') }}
-          </label>
+          </h4>
 
-          <p class="mt-2 text-xs font-medium text-slate-400 dark:text-slate-500">
-            Selecciona la base constructiva para estimar comportamiento y costo.
+          <p class="mt-2 text-sm font-medium text-slate-500 dark:text-slate-400">
+            {{ t('structuralMaterialSelectHint') }}
           </p>
         </div>
 
@@ -188,7 +174,7 @@ const materials = [
           class="hidden rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-right dark:border-slate-800 dark:bg-slate-900 sm:block"
         >
           <p class="text-[10px] font-semibold uppercase tracking-tight text-slate-400 dark:text-slate-500">
-            Material actual
+            {{ t('currentMaterial') }}
           </p>
           <p class="mt-0.5 text-sm font-semibold text-slate-900 dark:text-slate-100">
             {{ selectedMaterial.label }}
@@ -277,7 +263,7 @@ const materials = [
             class="mt-2 inline-flex items-center gap-1.5 rounded-full border border-orange-200 bg-orange-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-tight text-orange-700 dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
           >
             <AlertTriangle class="h-3 w-3" :stroke-width="2.4" />
-            Requiere logística pesada
+            {{ t('heavyLogisticsBadge') }}
           </p>
         </div>
       </div>
