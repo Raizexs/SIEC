@@ -67,14 +67,23 @@ export const clampRectToTerrain = (
   terrain,
   margin = MOVE_OVERFLOW_MARGIN,
 ) => {
+  const t = normalizeTerrain(terrain);
   const r = normalizeRoomRect(roomRect);
-  const bounds = getMovementBounds(terrain, r, margin);
+  const safeMargin = Math.max(0, toFiniteNumber(margin, 0));
 
-  return {
-    ...r,
-    x: clampNumber(r.x, bounds.minX, bounds.maxX),
-    z: clampNumber(r.z, bounds.minZ, bounds.maxZ),
-  };
+  let x = clampNumber(r.x, -safeMargin, Math.max(-safeMargin, t.w - MIN_ROOM_DIM + safeMargin));
+  let z = clampNumber(r.z, -safeMargin, Math.max(-safeMargin, t.h - MIN_ROOM_DIM + safeMargin));
+
+  let w = clampNumber(r.w, MIN_ROOM_DIM, Math.max(MIN_ROOM_DIM, t.w - x + safeMargin));
+  let l = clampNumber(r.l, MIN_ROOM_DIM, Math.max(MIN_ROOM_DIM, t.h - z + safeMargin));
+
+  const bounds = getMovementBounds(t, { ...r, x, z, w, l }, margin);
+  x = clampNumber(x, bounds.minX, bounds.maxX);
+  z = clampNumber(z, bounds.minZ, bounds.maxZ);
+  w = clampNumber(w, MIN_ROOM_DIM, Math.max(MIN_ROOM_DIM, t.w - x + safeMargin));
+  l = clampNumber(l, MIN_ROOM_DIM, Math.max(MIN_ROOM_DIM, t.h - z + safeMargin));
+
+  return { ...r, x, z, w, l };
 };
 
 export const rectsOverlap = (a, b, epsilon = OVERLAP_EPS) => {
