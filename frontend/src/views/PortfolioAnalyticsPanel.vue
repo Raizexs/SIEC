@@ -3,6 +3,8 @@
  * Vista Analítica del portafolio — layout distinto al listado de proyectos.
  */
 
+import { computed } from "vue";
+import { useI18n } from "../composables/useI18n";
 import {
   Sparkles,
   Boxes,
@@ -26,9 +28,15 @@ const props = defineProps({
 
 const emit = defineEmits(["open-project", "new-project"]);
 
+const { t, currentLanguage } = useI18n();
+
+const dateLocale = computed(() =>
+  currentLanguage.value === "en" ? "en-US" : "es-CL",
+);
+
 const formatCurrencyCompact = (value) => {
   if (!value) return "$0";
-  return new Intl.NumberFormat("es-CL", {
+  return new Intl.NumberFormat(dateLocale.value, {
     style: "currency",
     currency: "CLP",
     notation: "compact",
@@ -38,7 +46,7 @@ const formatCurrencyCompact = (value) => {
 
 const formatCurrency = (value) => {
   if (!value) return "$0";
-  return new Intl.NumberFormat("es-CL", {
+  return new Intl.NumberFormat(dateLocale.value, {
     style: "currency",
     currency: "CLP",
     maximumFractionDigits: 0,
@@ -56,13 +64,13 @@ const riskClass = (severity) => {
 };
 
 const formatNumber = (value) =>
-  new Intl.NumberFormat("es-CL", { maximumFractionDigits: 0 }).format(
+  new Intl.NumberFormat(dateLocale.value, { maximumFractionDigits: 0 }).format(
     value || 0,
   );
 
 const formatDate = (ms) => {
   if (!ms) return "—";
-  return new Date(ms).toLocaleDateString("es-CL", {
+  return new Date(ms).toLocaleDateString(dateLocale.value, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -94,25 +102,25 @@ const pct = (ratio) => `${Math.round((ratio || 0) * 100)}%`;
             class="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-orange-700 shadow-sm dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
           >
             <Sparkles class="h-3.5 w-3.5" :stroke-width="2.4" />
-            Portafolio
+            {{ t('analyticsPortfolio') }}
           </span>
 
           <h2
             class="mt-4 text-3xl font-black tracking-tight text-slate-950 dark:text-slate-100 md:text-4xl"
           >
-            Analítica del portafolio
+            {{ t('analyticsTitle') }}
           </h2>
 
           <p
             class="mt-2 max-w-2xl text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400 md:text-base"
           >
-            Decisiones, riesgos y distribución constructiva.
+            {{ t('analyticsSubtitle') }}
           </p>
 
           <p
             class="mt-3 max-w-2xl text-xs font-medium text-slate-400 dark:text-slate-500"
           >
-            Lectura consolidada para priorizar costos, materialidad y colaboración.
+            {{ t('analyticsSubtitleDetail') }}
           </p>
         </div>
 
@@ -125,12 +133,12 @@ const pct = (ratio) => `${Math.round((ratio || 0) * 100)}%`;
             <p
               class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500"
             >
-              Fuente
+              {{ t('dashSource') }}
             </p>
             <p
               class="mt-1 text-sm font-black text-slate-950 dark:text-slate-100"
             >
-              {{ hasRemoteProjects ? "Backend" : "Local" }}
+              {{ hasRemoteProjects ? t('dashBackend') : t('dashLocal') }}
             </p>
           </div>
 
@@ -140,7 +148,7 @@ const pct = (ratio) => `${Math.round((ratio || 0) * 100)}%`;
             <p
               class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500"
             >
-              Proyectos
+              {{ t('analyticsProjectsCount') }}
             </p>
             <p
               class="mt-1 text-sm font-black text-slate-950 dark:text-slate-100"
@@ -181,17 +189,16 @@ const pct = (ratio) => `${Math.round((ratio || 0) * 100)}%`;
         <Boxes class="h-7 w-7" :stroke-width="1.8" />
       </div>
       <h3 class="text-xl font-black text-slate-950 dark:text-slate-100">
-        Sin datos de portafolio
+        {{ t('analyticsEmptyTitle') }}
       </h3>
       <p
         class="mx-auto mt-2 max-w-md text-sm font-medium text-slate-500 dark:text-slate-400"
       >
-        Crea un proyecto para ver KPIs, distribución por materialidad y riesgos
-        operativos.
+        {{ t('analyticsEmptyHint') }}
       </p>
       <button type="button" class="dashboard-secondary-btn mt-6" @click="emit('new-project')">
         <Plus class="h-4 w-4" :stroke-width="2.4" />
-        Crear primer proyecto
+        {{ t('dashCreateFirst') }}
       </button>
     </section>
 
@@ -208,7 +215,7 @@ const pct = (ratio) => `${Math.round((ratio || 0) * 100)}%`;
             <span
               class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
             >
-              Costo promedio / m²
+              {{ t('analyticsAvgCostM2') }}
             </span>
             <span
               class="flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-800 dark:bg-slate-900"
@@ -222,7 +229,7 @@ const pct = (ratio) => `${Math.round((ratio || 0) * 100)}%`;
             {{ formatCurrency(snapshot.avgCostPerM2Qualifying) }}
           </p>
           <p class="mt-1 text-xs font-medium text-slate-400 dark:text-slate-500">
-            Sobre {{ snapshot.qualifyingCount }} proyecto(s) con costo y m²
+            {{ t('analyticsOnProjects', { count: snapshot.qualifyingCount }) }}
           </p>
         </article>
 
@@ -233,7 +240,7 @@ const pct = (ratio) => `${Math.round((ratio || 0) * 100)}%`;
             <span
               class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
             >
-              Material dominante
+              {{ t('analyticsDominantMaterial') }}
             </span>
             <span
               class="flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-800 dark:bg-slate-900"
@@ -247,8 +254,12 @@ const pct = (ratio) => `${Math.round((ratio || 0) * 100)}%`;
             {{ snapshot.dominantMaterial.name }}
           </p>
           <p class="mt-1 text-xs font-medium text-slate-400 dark:text-slate-500">
-            {{ snapshot.dominantMaterial.count }} proyecto(s) ·
-            {{ formatNumber(snapshot.dominantMaterial.m2) }} m²
+            {{
+              t('analyticsProjectsM2', {
+                count: snapshot.dominantMaterial.count,
+                m2: formatNumber(snapshot.dominantMaterial.m2),
+              })
+            }}
           </p>
         </article>
 
@@ -259,7 +270,7 @@ const pct = (ratio) => `${Math.round((ratio || 0) * 100)}%`;
             <span
               class="text-[10px] font-black uppercase tracking-[0.16em] text-orange-800 dark:text-orange-300"
             >
-              Riesgos detectados
+              {{ t('analyticsRisksDetected') }}
             </span>
             <span
               class="flex h-9 w-9 items-center justify-center rounded-2xl border border-orange-200 bg-white text-orange-600 dark:border-orange-800 dark:bg-orange-950/50 dark:text-orange-300"
@@ -275,7 +286,7 @@ const pct = (ratio) => `${Math.round((ratio || 0) * 100)}%`;
           <p
             class="mt-1 text-xs font-medium text-orange-800/80 dark:text-orange-300/80"
           >
-            Advertencias heurísticas (datos y dispersión)
+            {{ t('analyticsRisksHint') }}
           </p>
         </article>
 
@@ -286,7 +297,7 @@ const pct = (ratio) => `${Math.round((ratio || 0) * 100)}%`;
             <span
               class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
             >
-              Ratio colaboración
+              {{ t('analyticsCollabRatio') }}
             </span>
             <span
               class="flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-800 dark:bg-slate-900"
@@ -300,8 +311,12 @@ const pct = (ratio) => `${Math.round((ratio || 0) * 100)}%`;
             {{ pct(snapshot.collaborationRatio) }}
           </p>
           <p class="mt-1 text-xs font-medium text-slate-400 dark:text-slate-500">
-            {{ snapshot.sharedCount }} compartido(s) de
-            {{ snapshot.totalProjects }}
+            {{
+              t('analyticsSharedOf', {
+                shared: snapshot.sharedCount,
+                total: snapshot.totalProjects,
+              })
+            }}
           </p>
         </article>
       </section>
@@ -316,7 +331,7 @@ const pct = (ratio) => `${Math.round((ratio || 0) * 100)}%`;
             :stroke-width="2.2"
           />
           <h3 class="text-sm font-black uppercase tracking-[0.14em] text-slate-950 dark:text-slate-100">
-            Lectura ejecutiva
+            {{ t('analyticsExecutiveRead') }}
           </h3>
         </div>
         <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -348,10 +363,10 @@ const pct = (ratio) => `${Math.round((ratio || 0) * 100)}%`;
           <h3
             class="text-sm font-black uppercase tracking-[0.14em] text-slate-950 dark:text-slate-100"
           >
-            Distribución por materialidad
+            {{ t('analyticsMaterialDistribution') }}
           </h3>
           <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            % de m² del portafolio por sistema estructural
+            {{ t('analyticsMaterialPct') }}
           </p>
           <div class="mt-6 space-y-4">
             <div
@@ -377,7 +392,7 @@ const pct = (ratio) => `${Math.round((ratio || 0) * 100)}%`;
             v-if="!snapshot.materialDistribution.length"
             class="mt-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 text-sm font-medium text-slate-500 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400"
           >
-            No hay suficientes datos de materialidad para construir una distribución.
+            {{ t('analyticsNoMaterialData') }}
           </p>
         </article>
 
@@ -387,7 +402,7 @@ const pct = (ratio) => `${Math.round((ratio || 0) * 100)}%`;
           <h3
             class="text-sm font-black uppercase tracking-[0.14em] text-slate-950 dark:text-slate-100"
           >
-            Top proyectos por costo
+            {{ t('analyticsTopByCost') }}
           </h3>
           <ul class="mt-4 divide-y divide-slate-100 dark:divide-slate-800">
             <li
@@ -417,7 +432,7 @@ const pct = (ratio) => `${Math.round((ratio || 0) * 100)}%`;
             v-if="!snapshot.topByCost.length"
             class="mt-4 text-sm text-slate-500 dark:text-slate-400"
           >
-            Sin costos estimados en el portafolio.
+            {{ t('analyticsNoCosts') }}
           </p>
         </article>
       </section>
@@ -430,10 +445,10 @@ const pct = (ratio) => `${Math.round((ratio || 0) * 100)}%`;
           <h3
             class="text-sm font-black uppercase tracking-[0.14em] text-slate-950 dark:text-slate-100"
           >
-            Costo promedio por material
+            {{ t('analyticsAvgByMaterial') }}
           </h3>
           <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Solo proyectos con costo y m² informados
+            {{ t('analyticsAvgByMaterialSub') }}
           </p>
           <ul class="mt-4 space-y-3">
             <li
@@ -454,7 +469,7 @@ const pct = (ratio) => `${Math.round((ratio || 0) * 100)}%`;
             v-if="!snapshot.avgCostByMaterial.length"
             class="mt-4 text-sm text-slate-500 dark:text-slate-400"
           >
-            Datos insuficientes para promedios por material.
+            {{ t('analyticsInsufficientAvg') }}
           </p>
         </article>
 
@@ -464,7 +479,7 @@ const pct = (ratio) => `${Math.round((ratio || 0) * 100)}%`;
           <h3
             class="text-sm font-black uppercase tracking-[0.14em] text-slate-950 dark:text-slate-100"
           >
-            Actividad reciente
+            {{ t('analyticsRecentActivity') }}
           </h3>
           <ul class="mt-4 divide-y divide-slate-100 dark:divide-slate-800">
             <li
@@ -491,7 +506,7 @@ const pct = (ratio) => `${Math.round((ratio || 0) * 100)}%`;
             v-if="!snapshot.recentActivity.length"
             class="mt-4 text-sm font-medium text-slate-500 dark:text-slate-400"
           >
-            Sin actividad reciente disponible.
+            {{ t('analyticsNoRecent') }}
           </p>
         </article>
       </section>
@@ -506,7 +521,7 @@ const pct = (ratio) => `${Math.round((ratio || 0) * 100)}%`;
             :stroke-width="2.2"
           />
           <h3 class="text-sm font-black uppercase tracking-[0.14em] text-slate-950 dark:text-slate-100">
-            Riesgos y advertencias operativas
+            {{ t('analyticsRisksOps') }}
           </h3>
         </div>
         <ul class="mt-4 space-y-3">
@@ -534,7 +549,7 @@ const pct = (ratio) => `${Math.round((ratio || 0) * 100)}%`;
                   )
                 "
               >
-                Abrir proyecto
+                {{ t('analyticsOpenProject') }}
               </button>
             </div>
           </li>
@@ -543,7 +558,7 @@ const pct = (ratio) => `${Math.round((ratio || 0) * 100)}%`;
           v-if="!snapshot.risks.length"
           class="mt-4 text-sm font-medium text-slate-500 dark:text-slate-400"
         >
-          No se detectaron riesgos heurísticos con los datos actuales.
+          {{ t('analyticsNoRisksList') }}
         </p>
       </section>
     </template>
@@ -559,7 +574,7 @@ const pct = (ratio) => `${Math.round((ratio || 0) * 100)}%`;
           <AlertTriangle class="h-4 w-4" :stroke-width="2.4" />
         </span>
         <span>
-          Mostrando proyectos locales. El backend respondió:
+          {{ t('dashLocalProjectsWarning') }}
           <strong class="font-black">{{ fetchError }}</strong>
         </span>
       </p>
