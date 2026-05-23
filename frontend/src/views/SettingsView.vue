@@ -249,9 +249,7 @@ const preferenceSummary = computed(() => ({
         ? 'Movimiento mínimo'
         : 'Según sistema',
 
-  editor: `${productPreferences.value.editor.showGrid ? 'Grilla activa' : 'Sin grilla'} · ${
-    productPreferences.value.editor.snapToGrid ? 'Snap activo' : 'Sin snap'
-  } · Vista ${productPreferences.value.editor.initialView}`,
+  editor: `${productPreferences.value.editor.showGrid ? 'Grilla activa' : 'Sin grilla'} · Vista ${productPreferences.value.editor.initialView}`,
 
   estimation: `${productPreferences.value.currency} · ${
     productPreferences.value.unit === 'metric' ? 'm²' : 'ft²'
@@ -1132,52 +1130,6 @@ watch(
                       </button>
                     </div>
 
-                    <div class="flex min-w-[200px] flex-1 items-center justify-between gap-3 rounded-2xl border border-slate-200/90 bg-slate-50/60 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/40">
-                      <div>
-                        <p class="text-xs font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
-                          Snap a grilla
-                        </p>
-                        <p class="mt-0.5 text-[11px] font-medium text-slate-400 dark:text-slate-500">
-                          Alineación asistida
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        class="relative h-8 w-14 rounded-full border transition-colors duration-200"
-                        :class="
-                          productPreferences.editor.snapToGrid
-                            ? 'border-orange-300 bg-orange-500 dark:border-orange-800'
-                            : 'border-slate-300 bg-slate-200 dark:border-slate-700 dark:bg-slate-800'
-                        "
-                        :aria-pressed="productPreferences.editor.snapToGrid"
-                        @click="productPreferences.editor.snapToGrid = !productPreferences.editor.snapToGrid"
-                      >
-                        <span
-                          class="absolute top-0.5 h-7 w-7 rounded-full bg-white shadow transition-transform duration-200"
-                          :class="productPreferences.editor.snapToGrid ? 'left-6' : 'left-0.5'"
-                        />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <p class="premium-label">Tamaño de grilla</p>
-                    <div class="flex flex-wrap gap-2">
-                      <button
-                        v-for="g in [0.25, 0.5, 1]"
-                        :key="g"
-                        type="button"
-                        class="rounded-2xl border px-3 py-2 text-xs font-black uppercase tracking-[0.12em] transition-all duration-200 active:scale-[0.98]"
-                        :class="
-                          productPreferences.editor.gridSize === g
-                            ? 'border-orange-400 bg-orange-500 text-white shadow-md shadow-orange-500/20 dark:border-orange-400/70'
-                            : 'border-slate-200 bg-white text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300'
-                        "
-                        @click="productPreferences.editor.gridSize = g"
-                      >
-                        {{ g }}m
-                      </button>
-                    </div>
                   </div>
 
                   <div class="flex flex-col gap-4 sm:flex-row sm:flex-wrap">

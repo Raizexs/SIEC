@@ -34,7 +34,7 @@ useProMotion(motionRoot, {
 const formData = ref({
   fullName: auth.user?.user_metadata?.full_name || '',
   company: auth.user?.user_metadata?.company || '',
-  role: auth.user?.user_metadata?.role || 'architect',
+  role: auth.user?.user_metadata?.role || 'engineer',
   units: 'metric',
   currency: 'CLP',
   enableNotifications: true,
@@ -256,7 +256,6 @@ const back = () => {
                 v-model="formData.role"
                 class="premium-input"
               >
-                <option value="architect">Arquitecto</option>
                 <option value="engineer">Ingeniero Civil</option>
                 <option value="contractor">Constructor</option>
                 <option value="client_viewer">Cliente</option>

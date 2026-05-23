@@ -35,7 +35,7 @@ const email = ref('');
 const password = ref('');
 const fullName = ref('');
 const company = ref('');
-const userRole = ref('architect');
+const userRole = ref('engineer');
 const mfaCode = ref('');
 const mfaFactorId = ref('');
 const isSubmitting = ref(false);
@@ -620,7 +620,6 @@ onMounted(() => {
                     v-model="userRole"
                     class="premium-input"
                   >
-                    <option value="architect">Arquitecto</option>
                     <option value="engineer">Ingeniero Civil</option>
                     <option value="contractor">Constructor</option>
                     <option value="client_viewer">Cliente / Mandante</option>
