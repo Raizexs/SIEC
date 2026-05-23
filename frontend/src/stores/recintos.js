@@ -348,11 +348,6 @@ export const useRecintosStore = defineStore("recintos", () => {
    * @param {number} h        - Height in metres (stored for future use)
    */
   const addRecinto = (tipo = 'habitacion', nombre = 'Habitación', w = 3.5, l = 3.0, h = 2.4) => {
-    const floorRecintos = recintos.value.filter(r => r.piso === currentFloor.value);
-    let maxX = 0;
-    if (floorRecintos.length > 0) {
-      maxX = Math.max(...floorRecintos.map(r => r.coords.x + r.dimensions.w));
-    }
     const id = generateId();
     recintos.value.push({
       id,
@@ -360,7 +355,7 @@ export const useRecintosStore = defineStore("recintos", () => {
       tipo,
       nombre,
       piso: currentFloor.value,
-      coords: { x: parseFloat(maxX.toFixed(3)), z: 0 },
+      coords: { x: 0, z: 0 },
       dimensions: {
         w: parseFloat(w.toFixed(3)),
         l: parseFloat(l.toFixed(3)),
@@ -562,6 +557,15 @@ export const useRecintosStore = defineStore("recintos", () => {
     );
   });
 
+  /** Superficie ocupada en el piso activo (alineado con editor 2D y medidas del terreno). */
+  const totalAreaCurrentFloor = computed(() => {
+    const floor = currentFloor.value;
+
+    return recintos.value
+      .filter((r) => (r.piso || 1) === floor)
+      .reduce((sum, r) => sum + r.dimensions.w * r.dimensions.l, 0);
+  });
+
   const recintosByType = computed(() => ({
     habitaciones: recintos.value.filter((r) => r.tipo === "habitacion").length,
     banios: recintos.value.filter((r) => r.tipo === "banio").length,
@@ -621,6 +625,7 @@ export const useRecintosStore = defineStore("recintos", () => {
 
     // Computed
     totalArea,
+    totalAreaCurrentFloor,
     recintosByType,
     selectedM2,
     activeRecinto,

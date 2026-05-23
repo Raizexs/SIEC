@@ -35,14 +35,14 @@ export const useAuthStore = defineStore('auth', () => {
   const userId = computed(() => user.value?.id || null);
   const accessToken = computed(() => session.value?.access_token || null);
   const role = computed(
-    () => profile.value?.role || user.value?.user_metadata?.role || 'architect',
+    () => profile.value?.role || user.value?.user_metadata?.role || 'engineer',
   );
   const fullName = computed(
     () =>
       profile.value?.full_name ||
       user.value?.user_metadata?.full_name ||
       user.value?.email?.split('@')[0] ||
-      'Arquitecto',
+      'Usuario',
   );
   const avatarUrl = computed(
     () =>
@@ -56,7 +56,7 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = {
       id: '00000000-0000-0000-0000-000000000000',
       email,
-      user_metadata: { full_name: email.split('@')[0], role: 'architect' },
+      user_metadata: { full_name: email.split('@')[0], role: 'engineer' },
     };
     session.value = { access_token: 'mock-token', expires_at: Date.now() + 3600_000 };
     localStorage.setItem('siec_mock_session', JSON.stringify({ user: user.value, session: session.value }));
@@ -188,7 +188,7 @@ export const useAuthStore = defineStore('auth', () => {
           data: {
             full_name: name,
             company,
-            role: userRole || 'architect',
+            role: userRole || 'engineer',
           },
           emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
