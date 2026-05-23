@@ -7,6 +7,12 @@
  */
 
 import { computed, unref } from "vue";
+import {
+  getPortfolioCopy,
+  portfolioMaterialName,
+  portfolioUntitled,
+} from "../i18n/portfolioAnalyticsMessages.js";
+import { useI18n } from "./useI18n.js";
 
 /** @typedef {'warn'|'info'} RiskSeverity */
 
@@ -23,19 +29,9 @@ export const MATERIAL_BAR_CLASS = {
   4: "bg-slate-800",
 };
 
-export function materialName(id) {
-  switch (id) {
-    case 1:
-      return "Madera";
-    case 2:
-      return "Metalcon";
-    case 3:
-      return "Albañilería";
-    case 4:
-      return "Hormigón";
-    default:
-      return "Sin material";
-  }
+/** @param {number | null | undefined} id @param {'es'|'en'} [lang] */
+export function materialName(id, lang = "es") {
+  return portfolioMaterialName(id, lang);
 }
 
 /**
@@ -52,7 +48,7 @@ function parseDateMs(raw) {
  * @param {Record<string, unknown>} raw
  * @param {number} [index]
  */
-export function normalizePortfolioItem(raw, index = 0) {
+export function normalizePortfolioItem(raw, index = 0, lang = "es") {
   const m2 = Number(raw.m2_totales ?? raw.m2Totales ?? 0) || 0;
   const ec = raw.estimated_cost;
   const estimatedCost =
@@ -65,7 +61,7 @@ export function normalizePortfolioItem(raw, index = 0) {
 
   return {
     id: raw.id ?? raw.name ?? `row-${index}`,
-    name: String(raw.name || raw.nombre || "Sin título"),
+    name: String(raw.name || raw.nombre || portfolioUntitled(lang)),
     m2,
     estimatedCost: Number.isFinite(estimatedCost) ? estimatedCost : null,
     materialId: Number.isFinite(materialId) ? materialId : null,
@@ -90,9 +86,10 @@ function median(sorted) {
  * @param {{ hasFetchError?: boolean }} options
  */
 export function computePortfolioAnalytics(itemsRaw, options = {}) {
-  const { hasFetchError = false } = options;
+  const { hasFetchError = false, lang = "es" } = options;
+  const copy = getPortfolioCopy(lang);
   const items = (itemsRaw || []).map((r, idx) =>
-    normalizePortfolioItem(/** @type {Record<string, unknown>} */ (r), idx),
+    normalizePortfolioItem(/** @type {Record<string, unknown>} */ (r), idx, lang),
   );
   const totalProjects = items.length;
 
@@ -151,7 +148,7 @@ export function computePortfolioAnalytics(itemsRaw, options = {}) {
   )) {
     materialDistribution.push({
       materialId: mid,
-      name: materialName(mid === 0 ? null : mid),
+      name: copy.materialName(mid === 0 ? null : mid),
       count: agg.count,
       m2: agg.m2,
       countPct: totalProjects ? (agg.count / totalProjects) * 100 : 0,
@@ -178,7 +175,7 @@ export function computePortfolioAnalytics(itemsRaw, options = {}) {
   const avgCostByMaterial = [...costByMat.entries()]
     .map(([mid, v]) => ({
       materialId: mid,
-      name: materialName(mid === 0 ? null : mid),
+      name: copy.materialName(mid === 0 ? null : mid),
       avgCostPerM2: v.m2 > 0 ? Math.round(v.sum / v.m2) : 0,
       projectCount: v.n,
     }))
@@ -194,9 +191,8 @@ export function computePortfolioAnalytics(itemsRaw, options = {}) {
   if (hasFetchError) {
     risks.push({
       severity: "warn",
-      title: "Fuente de datos mixta",
-      detail:
-        "Se muestran proyectos locales porque el backend no respondió correctamente. Las métricas pueden no reflejar el portafolio remoto.",
+      title: copy.riskMixedSource.title,
+      detail: copy.riskMixedSource.detail,
     });
   }
 
@@ -207,28 +203,28 @@ export function computePortfolioAnalytics(itemsRaw, options = {}) {
   if (missingCost.length) {
     risks.push({
       severity: "warn",
-      title: `${missingCost.length} proyecto(s) sin costo estimado`,
+      title: copy.riskNoCost(missingCost.length),
       detail:
         missingCost.length <= 3
           ? missingCost.map((p) => p.name).join(" · ")
           : `${missingCost
               .slice(0, 3)
               .map((p) => p.name)
-              .join(" · ")} y ${missingCost.length - 3} más`,
+              .join(" · ")} ${copy.andMore(missingCost.length - 3)}`,
     });
   }
   if (missingM2.length) {
     risks.push({
       severity: "warn",
-      title: `${missingM2.length} proyecto(s) sin m²`,
-      detail: "Sin superficie no se puede calcular costo por m² ni ponderar materialidad por área.",
+      title: copy.riskNoM2(missingM2.length),
+      detail: copy.riskNoM2Detail,
     });
   }
   if (missingMaterial.length) {
     risks.push({
       severity: "info",
-      title: `${missingMaterial.length} proyecto(s) sin materialidad declarada`,
-      detail: "Asigna material estructural para comparar costos y riesgos por sistema.",
+      title: copy.riskNoMaterial(missingMaterial.length),
+      detail: copy.riskNoMaterialDetail,
     });
   }
 
@@ -236,20 +232,28 @@ export function computePortfolioAnalytics(itemsRaw, options = {}) {
     const onlyId = [...byMaterial.keys()][0];
     risks.push({
       severity: "info",
-      title: "Portafolio monocromático",
-      detail: `Todos los proyectos usan ${materialName(onlyId === 0 ? null : onlyId)}. Evalúa diversificar sistemas para comparar escenarios.`,
+      title: copy.riskMonochrome.title,
+      detail: copy.riskMonochrome.detail(
+        copy.materialName(onlyId === 0 ? null : onlyId),
+      ),
     });
   } else if (totalProjects > 0 && dominantCount / totalProjects >= CONCENTRATION_RATIO) {
     risks.push({
       severity: "info",
-      title: "Alta concentración de materialidad",
-      detail: `${Math.round((dominantCount / totalProjects) * 100)}% de los proyectos son ${materialName(dominantMaterialId === 0 ? null : dominantMaterialId)}.`,
+      title: copy.riskHighConcentration.title,
+      detail: copy.riskHighConcentration.detail(
+        Math.round((dominantCount / totalProjects) * 100),
+        copy.materialName(dominantMaterialId === 0 ? null : dominantMaterialId),
+      ),
     });
   } else if (totalM2All > 0 && dominantM2 / totalM2All >= CONCENTRATION_RATIO) {
     risks.push({
       severity: "info",
-      title: "Superficie concentrada en un sistema",
-      detail: `${Math.round((dominantM2 / totalM2All) * 100)}% de los m² corresponden a ${materialName(dominantMaterialId === 0 ? null : dominantMaterialId)}.`,
+      title: copy.riskSurfaceConcentration.title,
+      detail: copy.riskSurfaceConcentration.detail(
+        Math.round((dominantM2 / totalM2All) * 100),
+        copy.materialName(dominantMaterialId === 0 ? null : dominantMaterialId),
+      ),
     });
   }
 
@@ -260,8 +264,8 @@ export function computePortfolioAnalytics(itemsRaw, options = {}) {
       if (cpm > threshold) {
         risks.push({
           severity: "warn",
-          title: `Costo/m² atípico: ${p.name}`,
-          detail: `${Math.round(cpm).toLocaleString("es-CL")} CLP/m² vs mediana ${Math.round(medianCostPerM2).toLocaleString("es-CL")} CLP/m².`,
+          title: copy.riskOutlierCost(p.name),
+          detail: copy.riskOutlierDetail(cpm, medianCostPerM2),
           projectId: p.id,
         });
       }
@@ -275,22 +279,28 @@ export function computePortfolioAnalytics(itemsRaw, options = {}) {
 
   if (missingCost.length || missingM2.length) {
     const parts = [];
-    if (missingCost.length) parts.push(`${missingCost.length} sin costo`);
-    if (missingM2.length) parts.push(`${missingM2.length} sin m²`);
-    insightCandidates.push(
-      `Calidad de datos: ${parts.join(", ")}. Completa estimaciones para lecturas más precisas.`,
-    );
+    if (missingCost.length) parts.push(copy.insightNoCost(missingCost.length));
+    if (missingM2.length) parts.push(copy.insightNoM2(missingM2.length));
+    insightCandidates.push(copy.insightDataQuality(parts.join(", ")));
   }
 
   if (totalProjects > 0) {
     insightCandidates.push(
-      `${Math.round(collaborationRatio * 100)}% de los proyectos están compartidos (${sharedCount} de ${totalProjects}).`,
+      copy.insightShared(
+        Math.round(collaborationRatio * 100),
+        sharedCount,
+        totalProjects,
+      ),
     );
   }
 
   if (dominantCount > 0 && totalProjects > 0) {
     insightCandidates.push(
-      `Material dominante: ${materialName(dominantMaterialId === 0 ? null : dominantMaterialId)} (${dominantCount} proyecto(s), ${Math.round((dominantCount / totalProjects) * 100)}%).`,
+      copy.insightDominant(
+        copy.materialName(dominantMaterialId === 0 ? null : dominantMaterialId),
+        dominantCount,
+        Math.round((dominantCount / totalProjects) * 100),
+      ),
     );
   }
 
@@ -300,18 +310,19 @@ export function computePortfolioAnalytics(itemsRaw, options = {}) {
     if (Math.abs(diffPct) >= 5) {
       insightCandidates.push(
         diffPct > 0
-          ? `El costo promedio ponderado (${avgCostPerM2Qualifying.toLocaleString("es-CL")} CLP/m²) supera la mediana del portafolio en ~${Math.round(Math.abs(diffPct))}%.`
-          : `El costo promedio ponderado está ~${Math.round(Math.abs(diffPct))}% por debajo de la mediana del portafolio.`,
+          ? copy.insightAvgAbove(
+              avgCostPerM2Qualifying,
+              Math.round(Math.abs(diffPct)),
+            )
+          : copy.insightAvgBelow(Math.round(Math.abs(diffPct))),
       );
     } else {
       insightCandidates.push(
-        `Costo/m² promedio (${avgCostPerM2Qualifying.toLocaleString("es-CL")} CLP/m²) alineado con la mediana (${Math.round(medianCostPerM2).toLocaleString("es-CL")} CLP/m²).`,
+        copy.insightAvgAligned(avgCostPerM2Qualifying, medianCostPerM2),
       );
     }
   } else if (totalProjects === 0) {
-    insightCandidates.push(
-      "Aún no hay proyectos en el portafolio. Crea una estimación para activar métricas y riesgos.",
-    );
+    insightCandidates.push(copy.insightEmptyPortfolio);
   }
 
   const seen = new Set();
@@ -332,7 +343,7 @@ export function computePortfolioAnalytics(itemsRaw, options = {}) {
     medianCostPerM2,
     dominantMaterial: {
       id: dominantMaterialId,
-      name: materialName(dominantMaterialId === 0 ? null : dominantMaterialId),
+      name: copy.materialName(dominantMaterialId === 0 ? null : dominantMaterialId),
       count: dominantCount,
       m2: dominantM2,
     },
@@ -354,12 +365,18 @@ export function computePortfolioAnalytics(itemsRaw, options = {}) {
  * @param {import('vue').Ref<string | null> | import('vue').ComputedRef<string | null | undefined>} [fetchErrorRef]
  */
 export function usePortfolioAnalytics(projectsRef, savedLayoutsRef, fetchErrorRef) {
+  const { currentLanguage } = useI18n();
+
   const analytics = computed(() => {
     const projects = unref(projectsRef);
     const saved = unref(savedLayoutsRef);
     const list = projects?.length ? projects : saved || [];
     const err = fetchErrorRef ? unref(fetchErrorRef) : null;
-    return computePortfolioAnalytics(list, { hasFetchError: Boolean(err) });
+    const lang = currentLanguage.value === "en" ? "en" : "es";
+    return computePortfolioAnalytics(list, {
+      hasFetchError: Boolean(err),
+      lang,
+    });
   });
 
   return { analytics };
