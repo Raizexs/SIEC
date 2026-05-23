@@ -128,12 +128,15 @@ def insertar_precios(resultados: list[dict]) -> int:
         )
     """
 
-    # Aseguramos que todos los registros tengan Fecha_Scraping e Insumo_ID
+    # Aseguramos que todos los registros tengan todos los campos requeridos
     ahora = datetime.utcnow()
     for r in validos:
         r.setdefault("fecha_scraping", ahora)
         r.setdefault("exitoso", True)
-        r.setdefault("insumo_id", None)  # NULL si no se puede mapear al insumo
+        r.setdefault("insumo_id", None)
+        r.setdefault("precio_descuento", None)
+        r.setdefault("stock", "Disponible")
+        r.setdefault("categoria", "Obra Gruesa")
 
 
     try:

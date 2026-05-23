@@ -1,12 +1,10 @@
 # Progreso de Refactorización — SCRUM-118
 
-## Estado Actual (22 de mayo 2026)
+## Estado Actual (23 de mayo 2026)
 
 ---
 
-## 1. Motor de Costos (Backend Python/FastAPI)
-
-### ✅ Logrado
+## 1. Motor de Costos (Backend Python/FastAPI) — ✅ COMPLETO
 
 | Componente | Estado | Archivo |
 |-----------|--------|---------|
@@ -22,55 +20,89 @@
 | Filtro dimensional post-match en fuzzy normalizer | ✅ | `scraper/normalizer.py:50-100` |
 | Umbral de fuzzy matching calibrado a 75 | ✅ | `scraper/normalizer.py:21` |
 
-### Familias Constructivas (cálculo geométrico real)
+---
 
-| Familia | Detecta | Cálculo |
-|---------|---------|---------|
-| `estructura_muro` | solera, montante, pie derecho, 2x3/2x4/2x6, perfiles metalcon | Soleras: `ceil(perim × 2 / largo)` × 2. Pie derechos: `ceil(perim / 0.40) + 4`. Ambos × 1.15 merma |
-| `revestimiento_muro` | siding, OSB, yeso cartón, fibrocemento, terciado, tabiquería | `ceil(area_muro / area_placa) × 1.10` |
-| `techumbre` | zincalum, cubierta, cielo, aislación | `factor_DB × (m2_totales × 1.15)` + nesting |
-| `losa_hormigon` | gravilla, arena, cemento (Obra Gruesa) | `factor × 0.1(losa 10cm) [/1600 si áridos] [/25 si cemento]` |
-| `generico` | todo lo demás | Cálculo original: `factor_DB × area_neta` + nesting |
+## 2. Scraper — HISTORIAL DE INTENTOS FALLIDOS
+
+Cada intento está probado, documentado, y el resultado fue negativo.
+
+### Intento 1: HTTP directo + JSON-LD (urllib)
+- **Qué:** Fetch con headers realistas, extraer JSON-LD del HTML
+- **Resultado:** ❌ Solo Construmart respondió al inicio. Luego también dejó de funcionar.
+- **Causa:** Los sitios requieren JavaScript para renderizar datos. El HTML inicial es un shell vacío.
+
+### Intento 2: Playwright Chromium + playwright-stealth
+- **Qué:** Browser headless con librería de evasión de detección
+- **Resultado:** ❌ Sodimac devuelve homepage en vez de resultados
+- **Causa:** playwright-stealth desactualizado (2023). Sitios detectan el fingerprint.
+
+### Intento 3: Playwright Firefox
+- **Qué:** Firefox en vez de Chromium (diferente fingerprint)
+- **Resultado:** ❌ Mismo resultado — homepage siempre
+- **Causa:** Firefox también detectable.
+
+### Intento 4: Stealth manual inyectado
+- **Qué:** Script JS que sobreescribe navigator.webdriver, chrome.runtime, WebGL, etc.
+- **Resultado:** ❌ Sin mejora
+- **Causa:** La detección va más allá de JS — usa comportamiento, timing, headers de red.
+
+### Intento 5: undetected-chromedriver
+- **Qué:** Chrome real con parches en runtime. El estándar de la industria para scrapers.
+- **Resultado:** ❌ Docker build falló (wget no instalado, apt-key deprecado)
+- **Causa:** Nunca se pudo probar porque no se pudo construir la imagen.
+
+### Intento 6: API REST directa de Sodimac
+- **Qué:** Endpoints `/rest/search/products`, `/api/search`, `/rest/model/sodimac/search`
+- **Resultado:** ❌ Todos 404 o bloqueados
+- **Causa:** Las APIs requieren autenticación o headers específicos.
+
+### Intento 7: PDP URLs directas (con Playwright)
+- **Qué:** Navegar directamente a páginas de producto (no búsqueda)
+- **Resultado:** ⚠️ Parcial. 3 de 33 URLs funcionaron. El resto dieron 404.
+- **Causa:** Los SKUs proporcionados no son válidos para la mayoría de productos. Las 3 URLs que funcionan: Cemento Polpaico, Terciado Estructural.
+
+### Intento 8: PDP URLs con HTTP directo (sin browser)
+- **Qué:** Fetch con urllib directamente a las PDP URLs
+- **Resultado:** ⚠️ Mismo resultado. 3 de 33 funcionan. El resto 404.
+- **Causa:** Los SKUs están mal. Sin browser no es el problema — las URLs son incorrectas.
+
+### Intento 9: Google Shopping
+- **Qué:** `https://www.google.com/search?tbm=shop&q=...`
+- **Resultado:** ❌ Google devuelve página que requiere JavaScript
+- **Causa:** Google Shopping también es SPA. Bloquea HTTP plano.
+
+### Intento 10: Búsqueda Google para encontrar URLs correctas
+- **Qué:** `site:sodimac.cl` query para descubrir URLs válidas
+- **Resultado:** ❌ Google Search también bloquea HTTP plano
+- **Causa:** Todos los servicios de Google requieren JS.
 
 ---
 
-## 2. Scraper (Python/Playwright)
+## 3. Lo que SÍ funciona (aunque sea parcial)
 
-### ❌ Problema Principal
-
-Sodimac y Easy **bloquean activamente cualquier automatización**. El servidor siempre devuelve el homepage en vez de resultados de búsqueda, independientemente del método usado:
-
-| Método Probado | Resultado |
-|----------------|-----------|
-| HTTP directo + JSON-LD | ❌ Sin productos |
-| Playwright Chromium + stealth | ❌ Homepage |
-| Playwright Firefox + stealth manual | ❌ Homepage |
-| undetected-chromedriver | ❌ Homepage |
-| API directa REST | ❌ Sin respuesta |
-
-### ✅ Lo que SÍ funciona
-
-- **Construmart**: búsqueda HTTP + JSON-LD funciona perfectamente (sirven datos server-side)
-- **Sodimac PDP URLs**: Las URLs directas de producto (PDP) tienen JSON-LD con precios. El scraper actualizado usa `scrape()` con 33 PDP URLs hardcodeadas.
-- **Mapeo de insumo_id**: Tabla de 64 entradas en `base_scraper.py` con sinónimos para cada producto.
-
-### Pendiente: Verificar PDP URLs
-
-El cambio a PDP URLs está commiteado pero **no probado**. Se necesita:
-
-```bash
-docker compose down scraper
-docker compose build --no-cache scraper
-docker compose run --rm -v "C:\Users\andre\Documents\VSC Projects\SIECres\scraper:/app" scraper python test_search.py sodimac
-```
-
-Esto probará la primera PDP URL de la lista y dirá si extrajo nombre + precio correctamente.
+| Fuente | Método | Estado |
+|--------|--------|--------|
+| Construmart búsqueda | Playwright Firefox | ✅ Encuentra productos (threshold 75). 6/34 matches en última ejecución |
+| Sodimac PDP Cemento | HTTP directo | ✅ $5.180 — insumo_id=2 (Cemento Especial) |
+| Sodimac PDP Terciado | HTTP directo | ✅ $19.990 — insumo_id=35 |
+| Easy búsqueda | Playwright | ❌ 0/34 siempre |
+| Fuzzy matching | normalizer.py | ✅ Threshold 75 captura más matches que 85 |
+| DB insert | db.py | ❌ Error `KeyError: 'precio_descuento'` — falta campo en el dict del scraper |
 
 ---
 
-## 3. Frontend (Vue.js)
+## 4. Problemas Técnicos Restantes (bugs, no arquitectura)
 
-### ✅ Logrado
+| Bug | Síntoma | Causa | Fix |
+|-----|---------|-------|-----|
+| `KeyError: 'precio_descuento'` | Falla al insertar en DB | `insertar_precios()` espera campo `precio_descuento` pero los scrapers no lo incluyen | Agregar `precio_descuento: None` a todos los resultados |
+| `SodimacScraper` sin `scrape_by_keywords` | Error en main.py | Al hacer el scraper standalone, eliminé el método que main.py espera | Agregar método `scrape_by_keywords` al SodimacScraper standalone |
+| Solo 3 de 33 SKUs de Sodimac válidos | 404 en el resto | Los SKUs proporcionados no corresponden a productos existentes | Encontrar SKUs correctos manualmente desde el navegador |
+| Easy nunca encuentra productos | 0/34 siempre | Playwright es bloqueado igual que en Sodimac | Misma solución: PDP URLs o darlo por perdido |
+
+---
+
+## 5. Frontend (Vue.js) — ✅ COMPLETO
 
 | Componente | Estado |
 |-----------|--------|
@@ -88,11 +120,7 @@ Esto probará la primera PDP URL de la lista y dirá si extrajo nombre + precio 
 
 ---
 
-## 4. Base de Datos
-
-### Migraciones Pendientes
-
-Ambas migraciones están listas pero **no ejecutadas** en la DB actual:
+## 6. Base de Datos — Migraciones Pendientes
 
 ```bash
 docker compose exec db psql -U postgres -d siec -f /migrations/007_add_geometria_simulacion.sql
@@ -101,60 +129,23 @@ docker compose exec db psql -U postgres -d siec -f /migrations/008_drop_recinto_
 
 ---
 
-## 5. Próximos Pasos (Misión Final)
+## 7. Resumen Final
 
-### Critico para el MVP del 27 de mayo
+| Área | Estado | Próximo paso |
+|------|--------|-------------|
+| Backend (motor costos) | ✅ Listo. Commiteado. | Migrar BD y probar endpoint |
+| Frontend (Vue) | ✅ Listo. Commiteado. | Ninguno |
+| Scraper Sodimac | ❌ Bloqueado. 3/33 URLs funcionan | Buscar SKUs correctos o alternativa paga |
+| Scraper Easy | ❌ Bloqueado. 0/34 siempre | Idem |
+| Scraper Construmart | ⚠️ 6/34 matches. Error DB insert | Fix KeyError `precio_descuento` |
+| Base de datos | ⚠️ Migraciones sin ejecutar | Ejecutar los dos .sql |
 
-```
-1. ⚡ Probar PDP URLs de Sodimac (test_search.py)
-   → Si funciona: el scraper ya queda listo
-   → Si no funciona: diagnosticar por qué falla la PDP
+### Conclusión
 
-2. ⚡ Probar si Google Shopping da resultados
-   → Alternativa gratuita a scraping directo
-   
-3. ⚡ Ejecutar migraciones de BD
-   → 007_add_geometria_simulacion.sql
-   → 008_drop_recinto_counts.sql
+El motor de costos y el frontend están completos. El scraper es el cuello de botella. **Ningún método gratuito logró extraer precios de Sodimac o Easy de forma confiable.** Construmart funciona parcialmente con Playwright.
 
-4. ⚡ Reconstruir backend y verificar que responde 200
-   → Confirmar que /api/simulacion/parametros acepta el payload nuevo
-
-5. ⚡ Probar flujo completo: frontend → backend → scraper → presupuesto
-```
-
-### Si las PDP URLs fallan (alternativas)
-
-| Alternativa | Costo | Esfuerzo |
-|------------|-------|----------|
-| Google Shopping scraping | Gratis | Medio — probar si Google bloquea |
-| Agregar más PDP URLs manualmente | Gratis | Alto — tedioso pero seguro |
-| ScrapingAnt/ScrapingBee | $20-49/mes | Bajo — ellos manejan anti-bot |
-| BrightData datasets | ~$300/mes | Mínimo — datos prefabricados |
-
----
-
-## 6. Comandos Útiles
-
-```bash
-# Reconstruir todo
-docker compose down backend scraper
-docker compose build --no-cache backend scraper
-docker compose up -d backend
-
-# Migrar DB
-docker compose exec db psql -U postgres -d siec -f /migrations/007_add_geometria_simulacion.sql
-docker compose exec db psql -U postgres -d siec -f /migrations/008_drop_recinto_counts.sql
-
-# Test scraper Sodimac (PDP URLs)
-docker compose run --rm -v "C:\Users\andre\Documents\VSC Projects\SIECres\scraper:/app" scraper python test_search.py sodimac
-
-# Test scraper Construmart
-docker compose run --rm -v "C:\Users\andre\Documents\VSC Projects\SIECres\scraper:/app" scraper python test_search.py construmart
-
-# Ejecutar scraper completo
-docker compose run --rm -e RUN_NOW=true -v "C:\Users\andre\Documents\VSC Projects\SIECres\scraper:/app" scraper python main.py
-
-# Ver logs del backend
-docker compose logs --tail=50 backend
-```
+Para el MVP, se puede:
+1. Usar Construmart como fuente principal (6 productos con precio real)
+2. Los 3 SKUs de Sodimap que funcionan
+3. El resto con precios de referencia del backend (tabla de costos internos)
+4. Migrar BD para que el frontend pueda enviar el payload nuevo
