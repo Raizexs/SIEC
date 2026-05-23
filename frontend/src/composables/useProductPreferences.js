@@ -4,6 +4,12 @@ import { ref } from 'vue';
 export const PRODUCT_PREFERENCES_KEY = 'siec.product_preferences';
 export const PRODUCT_PREFERENCES_STORAGE_KEY = PRODUCT_PREFERENCES_KEY;
 
+/** Flags de producto: ocultar features incompletas hasta que estén listas. */
+export const WORKSPACE_FEATURES = {
+  constructionLayers: false,
+  projectShare: false,
+};
+
 export const defaultProductPreferences = () => ({
   currency: 'CLP',
   unit: 'metric',
@@ -12,9 +18,9 @@ export const defaultProductPreferences = () => ({
   defaultMaterial: 4,
   defaultRoomHeight: 2.4,
   useCustomRoomHeight: false,
+  features: { ...WORKSPACE_FEATURES },
   editor: {
     showGrid: true,
-    snapToGrid: true,
     gridSize: 0.5,
     showLabels: true,
     showMinimap: true,
@@ -45,6 +51,7 @@ export const mergePreferences = (base, incoming = {}) => {
   return {
     ...base,
     ...incoming,
+    features: { ...base.features, ...(incoming.features || {}) },
     editor: { ...base.editor, ...(incoming.editor || {}) },
     export: { ...base.export, ...(incoming.export || {}) },
   };
@@ -156,6 +163,7 @@ export function useProductPreferences() {
     updateProductPreferences,
     resetProductPreferences,
     mergePreferences,
+    WORKSPACE_FEATURES,
     PRODUCT_PREFERENCES_STORAGE_KEY,
     PRODUCT_PREFERENCES_KEY,
   };
