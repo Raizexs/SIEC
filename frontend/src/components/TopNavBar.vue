@@ -16,7 +16,7 @@ import {
 } from 'lucide-vue-next';
 import { WORKSPACE_FEATURES } from '../composables/useProductPreferences';
 
-const { t } = useI18n();
+const { t, currentLanguage } = useI18n();
 const router = useRouter();
 const authStore = useAuthStore();
 const { savedLayouts } = useLayoutManager();
@@ -38,7 +38,7 @@ const roleLabels = {
 };
 
 const userProfile = computed(() => ({
-  name: authStore.fullName || 'Usuario',
+  name: authStore.fullName || t('defaultUser'),
   role: roleLabels[authStore.role]?.() || authStore.role || t('roleEngineer'),
   company: authStore.profile?.company || authStore.user?.user_metadata?.company || '',
   avatarUrl: authStore.avatarUrl || '',
@@ -57,7 +57,7 @@ const userInitials = computed(() => {
 });
 
 const firstName = computed(() =>
-  userProfile.value.name?.split(' ')[0] || 'Usuario',
+  userProfile.value.name?.split(' ')[0] || t('defaultUser'),
 );
 
 const recentExports = computed(() => authStore.exportHistory.slice(0, 3));
@@ -111,7 +111,7 @@ const logout = async () => {
       <button
         type="button"
         class="hidden items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold uppercase tracking-tight text-slate-600 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 hover:shadow-md active:scale-[0.98] dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-100 md:inline-flex"
-        title="Guardar diseño actual"
+        :title="t('saveCurrentDesign')"
         @click="$emit('save-layout')"
       >
         <Save class="h-4 w-4" :stroke-width="2.2" />
@@ -208,7 +208,7 @@ const logout = async () => {
                 <p
                   class="mt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500"
                 >
-                  Exportaciones
+                  {{ t('exportsLabel') }}
                 </p>
               </div>
 
@@ -219,7 +219,7 @@ const logout = async () => {
                 <p
                   class="mt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500"
                 >
-                  Guardados
+                  {{ t('savedCountLabel') }}
                 </p>
               </div>
             </div>
@@ -230,7 +230,7 @@ const logout = async () => {
                 class="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500"
               >
                 <History class="h-3.5 w-3.5" :stroke-width="2.2" />
-                Historial reciente
+                {{ t('recentHistory') }}
               </h4>
 
               <div
@@ -244,7 +244,7 @@ const logout = async () => {
                 </div>
 
                 <p class="text-xs font-semibold text-slate-400 dark:text-slate-500">
-                  No hay exportaciones recientes
+                  {{ t('noRecentExports') }}
                 </p>
               </div>
 
@@ -262,10 +262,10 @@ const logout = async () => {
 
                   <div class="min-w-0">
                     <p class="truncate text-xs font-bold text-slate-800 dark:text-slate-200">
-                      {{ item.name || item.project || 'Proyecto sin título' }}
+                      {{ item.name || item.project || t('untitledProject') }}
                     </p>
                     <p class="mt-0.5 text-[11px] font-medium text-slate-400 dark:text-slate-500">
-                      {{ item.date || 'Sin fecha' }}
+                      {{ item.date || t('noDate') }}
                     </p>
                   </div>
                 </li>
@@ -282,7 +282,7 @@ const logout = async () => {
                 @click="logout"
               >
                 <LogOut class="h-4 w-4" :stroke-width="2.2" />
-                Cerrar sesión
+                {{ t('logout') }}
               </button>
             </div>
           </div>
