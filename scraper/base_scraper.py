@@ -240,18 +240,16 @@ class BaseScraper(ABC):
         """
         ...
 
-    @abstractmethod
     def _get_search_url(self, query: str) -> str:
-        """Retorna la URL de búsqueda para un query dado."""
-        ...
+        """Retorna la URL de búsqueda para un query dado. Opcional."""
+        raise NotImplementedError
 
-    @abstractmethod
     def _scrape_search_results(self, page: Page, query: str) -> list[dict]:
         """
         Navega a la página de búsqueda y extrae una lista preliminar de productos.
-        Cada dict debe tener: nombre_producto, precio, url.
+        Opcional — solo necesario si la subclase usa búsqueda.
         """
-        ...
+        raise NotImplementedError
 
     # ──────────────────────────────────────────────────────────────────────────
     # Utilidades compartidas
