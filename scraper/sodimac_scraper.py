@@ -1,13 +1,12 @@
 # scraper/sodimac_scraper.py
 """
-Scraper Sodimac — microservicio SIEC.
-
-Usa PDP URLs directas para evitar el bloqueo anti-bot de Sodimac
-en las páginas de búsqueda (que son SPA y no renderizan nada server-side).
+Scraper Sodimac — usa HTTP directo para PDP URLs.
+Sin Playwright, sin browser. Extrae JSON-LD del HTML.
 """
+import json
 import logging
-
-from playwright.sync_api import TimeoutError as PWTimeout
+import re
+import urllib.request
 
 from base_scraper import BaseScraper
 from config import STORES
@@ -16,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 STORE_KEY = "sodimac"
 STORE_CFG = STORES[STORE_KEY]
-SELECTORS = STORE_CFG["selectors"]
 
 
 class SodimacScraper(BaseScraper):
@@ -27,72 +25,68 @@ class SodimacScraper(BaseScraper):
         return STORE_CFG["product_urls"]
 
     def scrape_by_keywords(self, insumos: list[dict]) -> list[dict]:
-        """
-        Sodimac no usa búsqueda (el sitio bloquea). Usa PDP URLs directas.
-        """
-        raw_results = self.scrape()
+        """Scrapea las PDP URLs via HTTP directo, sin browser."""
         results = []
-        for r in raw_results:
-            if r.get("exitoso") and r.get("precio") is not None:
-                insumo_id = self._map_insumo_id(r.get("nombre_producto", ""))
+        for url in self._get_urls():
+            prod = self._http_scrape_pdp(url)
+            if prod and prod.get("precio"):
+                insumo_id = self._map_insumo_id(prod.get("nombre_producto", ""))
                 results.append({
                     "tienda": self.store_key,
-                    "nombre_producto": r.get("nombre_producto"),
-                    "precio": r.get("precio"),
-                    "precio_descuento": r.get("precio_descuento"),
-                    "url": r.get("url"),
+                    "nombre_producto": prod["nombre_producto"],
+                    "precio": prod["precio"],
+                    "precio_descuento": None,
+                    "stock": "Disponible",
+                    "categoria": "Obra Gruesa",
+                    "url": url,
                     "insumo_id": insumo_id,
                     "exitoso": True,
                 })
-        self.logger.info(f"[Sodimac] PDP scrape: {len(results)}/{len(raw_results)} productos con precio")
+        self.logger.info(f"[Sodimac] HTTP PDP: {len(results)}/{len(self._get_urls())} productos con precio")
         return results
+
+    def _http_scrape_pdp(self, url: str) -> dict | None:
+        """Fetch via HTTP + extrae JSON-LD. Sin browser, rapido."""
+        try:
+            req = urllib.request.Request(url, headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "es-CL,es;q=0.9",
+            })
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                html = resp.read().decode("utf-8", errors="replace")
+
+            name, price = None, None
+            for match in re.finditer(r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>', html, re.DOTALL | re.IGNORECASE):
+                try:
+                    data = json.loads(match.group(1))
+                    for item in data if isinstance(data, list) else [data]:
+                        if isinstance(item, dict) and item.get("@type") == "Product":
+                            name = item.get("name", "").strip() or name
+                            offers = item.get("offers", {}) or {}
+                            if isinstance(offers, list): offers = offers[0] if offers else {}
+                            pv = offers.get("price")
+                            if pv is not None:
+                                try: price = float(pv) if isinstance(pv, (int, float)) else float(str(pv).replace(",", "."))
+                                except: pass
+                except: pass
+
+            if name and price:
+                logger.info(f"[Sodimac] {name[:60]} — ${price:,.0f}")
+                return {"nombre_producto": name.strip(), "precio": price}
+            logger.debug(f"[Sodimac] Sin datos en: {url[:80]}")
+            return None
+        except Exception as e:
+            logger.debug(f"[Sodimac] Fallo HTTP: {url[:80]} — {e}")
+            return None
 
     def _get_search_url(self, query: str) -> str:
         return STORE_CFG["search_url"].format(query=query.replace(" ", "+"))
 
     def _scrape_product(self, page, url: str) -> dict:
-        result = {
-            "tienda": STORE_KEY, "url": url,
-            "nombre_producto": None, "precio": None,
-            "precio_descuento": None, "stock": None,
-            "categoria": None, "insumo_id": None, "exitoso": False,
-        }
-        try:
-            page.goto(url, wait_until="domcontentloaded", timeout=30_000)
-            page.wait_for_selector(SELECTORS["name"]["css"].split(',')[0].strip(), timeout=30_000)
-            page.wait_for_timeout(2000)
-
-            def text(css):
-                for sel in [s.strip() for s in css.split(",")]:
-                    el = page.query_selector(sel)
-                    if el:
-                        val = el.inner_text().strip()
-                        if val: return val
-                return None
-
-            result["nombre_producto"] = text(SELECTORS["name"]["css"])
-            result["precio"] = self.parse_price(text(SELECTORS["price"]["css"]))
-            result["precio_descuento"] = self.parse_discount_price(text(SELECTORS["price_discount"]["css"]), result["precio"])
-            result["stock"] = text(SELECTORS["stock"]["css"])
-            result["categoria"] = text(SELECTORS["category"]["css"])
-            result["exitoso"] = True
-            logger.info(f"[Sodimac] {result['nombre_producto']} — ${result['precio']}")
-        except PWTimeout:
-            self._handle_timeout(url, result.get("nombre_producto"))
-        except Exception as e:
-            logger.error(f"[Sodimac] Error en {url}: {e}")
-        return result
+        """No usado. Sodimac usa HTTP directo."""
+        return {"exitoso": False}
 
 
 def scrape_sodimac() -> list[dict]:
     return SodimacScraper().scrape()
-
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s", stream=sys.stdout)
-    resultados = scrape_sodimac()
-    exitosos = [r for r in resultados if r["exitoso"]]
-    logger.info(f"Resultados: {len(exitosos)}/{len(resultados)} exitosos")
-    for r in exitosos:
-        if r['precio'] is not None:
-            logger.info(f"OK {r['nombre_producto'][:50]} ${r['precio']:>8,.0f}")
