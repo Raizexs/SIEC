@@ -22,11 +22,11 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from logger import setup_logging
-from sodimac_scraper import SodimacScraper
-from easy_scraper import EasyScraper
 from construmart_scraper import ConstrumartScraper
+from serpapi_scraper import SerpAPIScraper
 from scrapers.cmf import scrape_uf_cmf
 from db import insertar_precios, insertar_indicador, get_insumos_activos
+from fallback_prices import get_fallback_results
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Logging — formato: "2026-04-07 03:00:15 [NIVEL  ] [TIENDA] Mensaje"
@@ -69,14 +69,14 @@ def ejecutar_scrapers() -> None:
     logger.info(f"[Scheduler] Insumos a cotizar: {[i['nombre'] for i in insumos]}")
 
     scrapers = [
-        ("Sodimac",     SodimacScraper()),
-        ("Easy",        EasyScraper()),
         ("Construmart", ConstrumartScraper()),
+        ("SerpAPI",     SerpAPIScraper()),
     ]
 
     total_exitosos:   int       = 0
     total_errores:    int       = 0
     tiendas_fallidas: list[str] = []
+    insumos_cubiertos: set[int] = set()
 
     for nombre, scraper_inst in scrapers:
         logger.info(f"[Scheduler] → Ejecutando descubrimiento por keywords: {nombre}")
@@ -97,6 +97,9 @@ def ejecutar_scrapers() -> None:
             if exitosos:
                 insertados = insertar_precios(exitosos)
                 total_exitosos += insertados
+                for r in exitosos:
+                    if r.get("insumo_id"):
+                        insumos_cubiertos.add(r["insumo_id"])
                 logger.info(f"[Scheduler] ✅ {nombre}: {insertados} registros guardados, {len(fallidos)} fallidos.")
             else:
                 logger.warning(f"[Scheduler] ⚠️  {nombre}: Sin datos válidos. Registros previos en precio_mercado se mantienen intactos.")
@@ -107,6 +110,24 @@ def ejecutar_scrapers() -> None:
             logger.error(f"[Scheduler] [{nombre}] Fallo aislado — continuando con siguiente tienda.")
             tiendas_fallidas.append(nombre)
             total_errores += 1
+
+    # ── Fallback: precios de respaldo para insumos sin cobertura ──
+    logger.info(f"[Scheduler] → Aplicando precios de respaldo ({len(insumos_cubiertos)}/{len(insumos)} insumos ya cubiertos)...")
+    try:
+        insumos_pendientes = [i for i in insumos if i.get("id") not in insumos_cubiertos]
+        if insumos_pendientes:
+            fallback_results = get_fallback_results(insumos_pendientes)
+            if fallback_results:
+                insertados_fb = insertar_precios(fallback_results)
+                total_exitosos += insertados_fb
+                logger.info(f"[Scheduler] ✅ Fallback: {insertados_fb} registros de respaldo guardados.")
+            else:
+                logger.info("[Scheduler] Fallback: sin precios de respaldo disponibles.")
+        else:
+            logger.info("[Scheduler] Fallback: todos los insumos ya tienen cobertura. Omitiendo.")
+    except Exception as e:
+        logger.error(f"[Scheduler] ❌ Error en fallback: {e}", exc_info=True)
+        total_errores += 1
 
     # ── Ejecución de indicadores financieros (UF) ──
     logger.info("[Scheduler] → Ejecutando refresco de UF (CMF)...")

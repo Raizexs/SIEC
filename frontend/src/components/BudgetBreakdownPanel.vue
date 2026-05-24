@@ -600,10 +600,11 @@ onUnmounted(() => {
                 <div
                   class="grid grid-cols-12 px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500"
                 >
-                  <div class="col-span-5">Insumo</div>
+                  <div class="col-span-4">Insumo</div>
                   <div class="col-span-2 text-right">Cant.</div>
                   <div class="col-span-2 text-right">Precio unit.</div>
-                  <div class="col-span-3 text-right">Subtotal</div>
+                  <div class="col-span-2 text-right">Tienda</div>
+                  <div class="col-span-2 text-right">Subtotal</div>
                 </div>
 
                 <div class="space-y-2">
@@ -612,7 +613,7 @@ onUnmounted(() => {
                     :key="item.insumo"
                     class="grid grid-cols-12 items-center rounded-xl border border-transparent bg-slate-50/80 px-3 py-3 text-xs transition-colors duration-200 hover:border-slate-200 hover:bg-white dark:bg-slate-950/50 dark:hover:border-slate-800 dark:hover:bg-slate-950"
                   >
-                    <div class="col-span-5 pr-3 font-semibold leading-snug text-slate-700 dark:text-slate-300">
+                    <div class="col-span-4 pr-3 font-semibold leading-snug text-slate-700 dark:text-slate-300">
                       {{ item.insumo }}
                     </div>
 
@@ -631,7 +632,27 @@ onUnmounted(() => {
                       {{ formatCurrencyCell(item.precio_unitario) }}
                     </div>
 
-                    <div class="col-span-3 text-right font-mono font-black text-slate-950 dark:text-slate-100">
+                    <div class="col-span-2 text-right">
+                      <a
+                        v-if="item.tienda && item.url_producto"
+                        :href="item.url_producto"
+                        target="_blank"
+                        rel="noopener"
+                        class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium underline decoration-dotted underline-offset-2 transition-colors"
+                        :class="item.tienda === 'Referencia' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50'"
+                      >
+                        {{ item.tienda }}
+                      </a>
+                      <span
+                        v-else-if="item.tienda"
+                        class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium"
+                        :class="item.tienda === 'Referencia' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'"
+                      >
+                        {{ item.tienda }}
+                      </span>
+                    </div>
+
+                    <div class="col-span-2 text-right font-mono font-black text-slate-950 dark:text-slate-100">
                       {{ formatCurrencyCell(item.subtotal) }}
                     </div>
                   </div>

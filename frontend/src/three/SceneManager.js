@@ -90,11 +90,14 @@ export class SceneManager {
     this.furnitureGroup.name = "furniture";
     this.openingsGroup = new THREE.Group();
     this.openingsGroup.name = "openings";
+    this.roofGroup = new THREE.Group();
+    this.roofGroup.name = "roof";
     this.buildingGroup.add(
       this.wallsGroup,
       this.roomsGroup,
       this.furnitureGroup,
       this.openingsGroup,
+      this.roofGroup,
     );
     this.scene.add(this.buildingGroup);
 

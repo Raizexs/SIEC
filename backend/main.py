@@ -537,22 +537,17 @@ def calcular_insumos(
     # ── Área base para techumbre ──────────────────────────────────────────────
     area_techumbre = m2_totales * 1.15 if incluir_techumbre else 0.0
 
-    # ── Geometría real: clasificación de insumos por familia constructiva ────
-    # Se definen familias para interceptar el cálculo genérico y aplicar
-    # matemática basada en perímetro, altura de muro y dimensiones comerciales.
-    # Cualquier insumo que no coincida cae al cálculo original (factor × área).
+    total_studs = 0
+    total_soleras = 0
+    area_muro_neta = perimetro_ml * altura_muro_m if perimetro_ml > 0 and altura_muro_m > 0 else 0.0
 
     def _clasificar_insumo(nombre_l: str, cat_l: str) -> str:
-        """Retorna la familia constructiva: 'estructura_muro', 'revestimiento_muro',
-        'techumbre', 'losa_hormigon', o 'generico'."""
-        # Estructura de muro: perfiles verticales/horizontales
         if any(k in nombre_l for k in ["solera", "montante", "pie derecho", "paral"]):
             return "estructura_muro"
         if any(k in nombre_l for k in ["perfil metalcon", "perfil acero", "perfil galvanizado"]):
             return "estructura_muro"
         if any(k in nombre_l for k in ["2x3", "2x4", "2x6", "pino 2x3", "pino 2x4", "pino 2x6"]):
             return "estructura_muro"
-        # Revestimiento de muro: placas y paneles
         if any(k in nombre_l for k in [
             "siding", "osb", "yeso cartón", "yeso carton", "yeso-cartón", "yeso-carton",
             "placa fibrocemento", "terciado", "plywood", "panel muro",
@@ -560,13 +555,11 @@ def calcular_insumos(
             "tabiquería", "tabiqueria", "tabique interior",
         ]):
             return "revestimiento_muro"
-        # Techumbre
         if incluir_techumbre and any(k in nombre_l for k in [
             "zincalum", "cubierta", "zinc", "cielo", "aislación", "aislacion",
             "polietileno techo", "térmico techo", "m2 techo", "techumbre",
         ]):
             return "techumbre"
-        # Losa / hormigón in-situ
         if cat_l == "obra gruesa" and any(k in nombre_l for k in [
             "gravilla", "arena", "ripio", "cemento", "agua", "hormigón",
         ]):
@@ -582,14 +575,15 @@ def calcular_insumos(
         if familia == "estructura_muro" and perimetro_ml > 0:
             dim = obtener_dimensiones(insumo.nombre, insumo.categoria or "")
             largo_pieza = dim.get("largo_lineal_m", 3.2)
-            es_solera = "solera" in nombre_l
+            desc_l = (getattr(insumo, "descripcion", "") or "").lower()
+            es_solera = "solera" in nombre_l or "solera" in desc_l or "2x4" in nombre_l
 
             if es_solera:
-                # Soleras superior e inferior: 2 filas × perímetro
-                cantidad_neta = math.ceil((perimetro_ml * 2) / largo_pieza) * 2  # 2 soleras
+                cantidad_neta = math.ceil((perimetro_ml * 2) / largo_pieza) * 2
+                total_soleras = math.ceil(cantidad_neta * 1.15)
             else:
-                # Pie derechos / montantes cada 40 cm + 4 esquineros
                 cantidad_neta = math.ceil(perimetro_ml / 0.40) + 4
+                total_studs = math.ceil(cantidad_neta * 1.15)
 
             cantidad_neta = math.ceil(cantidad_neta * 1.15)  # merma 15%
             nesting_result = None
@@ -677,6 +671,8 @@ def calcular_insumos(
 
         precio_unit = precio_promedio_map.get(insumo.id)
         precio_record = latest_precio_record.get(insumo.id)
+        tienda_insumo = getattr(precio_record, 'tienda', None) if precio_record else None
+        url_insumo = getattr(precio_record, 'url', None) if precio_record else None
         precio_unit_normalized = None
         subt = None
         if precio_unit is not None:
@@ -729,6 +725,8 @@ def calcular_insumos(
             unidad=insumo.unidad_medida,
             precio_unitario=precio_unit,
             subtotal=subt,
+            tienda=tienda_insumo,
+            url_producto=url_insumo,
             cantidad_objetivo=None,
             cantidad_compra=None,
             perdida_porcentual=(factor_perdida - 1.0) * 100.0,
@@ -748,6 +746,60 @@ def calcular_insumos(
             items=items, 
             subtotal_categoria=subcat
         ))
+
+    # ── Complementos constructivos (hardcoded, sin SerpAPI) ──────────────────
+    complementos_obra_gruesa = []
+    if total_studs > 0 or total_soleras > 0:
+        piezas_total = total_studs + total_soleras
+        clavos_3_cant = math.ceil(piezas_total * 4 / 100)  # ~4 clavos por pieza, cajas de 100
+        clavos_4_cant = math.ceil(total_soleras * 2 / 100)
+        clavos_subtotal_3 = clavos_3_cant * 4500
+        clavos_subtotal_4 = clavos_4_cant * 5200
+        complementos_obra_gruesa.append(InsumoCalculado(
+            insumo="Clavos estriados 3 pulgadas (caja 100un)",
+            cantidad=float(clavos_3_cant),
+            unidad="caja",
+            precio_unitario=4500.0,
+            subtotal=float(clavos_subtotal_3),
+            tienda="Referencia",
+            perdida_porcentual=10.0,
+            formato_comercial="caja 100 unidades",
+        ))
+        complementos_obra_gruesa.append(InsumoCalculado(
+            insumo="Clavos estriados 4 pulgadas (caja 100un)",
+            cantidad=float(clavos_4_cant),
+            unidad="caja",
+            precio_unitario=5200.0,
+            subtotal=float(clavos_subtotal_4),
+            tienda="Referencia",
+            perdida_porcentual=10.0,
+            formato_comercial="caja 100 unidades",
+        ))
+
+    if area_muro_neta > 0:
+        rollos_lana_muro = math.ceil(area_muro_neta / 14.4)  # rollo 14.4m2
+        subtotal_lana_muro = rollos_lana_muro * 18500
+        complementos_obra_gruesa.append(InsumoCalculado(
+            insumo="Lana vidrio 50mm muro (rollo 14.4m2)",
+            cantidad=float(rollos_lana_muro),
+            unidad="rollo",
+            precio_unitario=18500.0,
+            subtotal=float(subtotal_lana_muro),
+            tienda="Referencia",
+            perdida_porcentual=10.0,
+            formato_comercial="rollo 14.4 m2",
+        ))
+
+    if complementos_obra_gruesa:
+        subcat_comp = sum((i.subtotal or 0) for i in complementos_obra_gruesa)
+        desglose_list.append(CategoriaDesglose(
+            categoria="Obra Gruesa - Complementos",
+            items=complementos_obra_gruesa,
+            subtotal_categoria=float(subcat_comp),
+        ))
+        if costo_total_simulacion is None:
+            costo_total_simulacion = 0.0
+        costo_total_simulacion += subcat_comp
 
     # ── Techumbre ─────────────────────────────────────────────────────────────
     if incluir_techumbre:

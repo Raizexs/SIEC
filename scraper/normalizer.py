@@ -20,7 +20,7 @@ from thefuzz import process, fuzz
 logger = logging.getLogger(__name__)
 
 # Compilación una sola vez para rendimiento
-_RE_DIMENSION = re.compile(r"(\d+(?:[.,]\d+)?)\s*(m|mm|cm|kg|g|l|ml|un|m²|m2)", re.IGNORECASE)
+_RE_DIMENSION = re.compile(r"(\d+(?:[.,]\d+)?)\s*(mm|cm|m²|m2|kg|g|ml|l|m|un)", re.IGNORECASE)
 _RE_MEDIDA_LINEAL = re.compile(r"(\d+)\s*x\s*(\d+)", re.IGNORECASE)
 
 
@@ -62,42 +62,55 @@ def _validar_dimensiones(target_name: str, candidate_name: str) -> bool:
     candidate_dims = _extraer_dimensiones(candidate_name)
 
     if not target_dims or not candidate_dims:
-        # Si alguno no tiene dimensiones explícitas, no podemos validar
         return True
 
-    # Agrupar por tipo: medidas lineales (NxM) vs escalares (valor+unidad)
-    target_medidas = {d for d in target_dims if "x" in d}
-    candidate_medidas = {d for d in candidate_dims if "x" in d}
-    target_escalares = target_dims - target_medidas
-    candidate_escalares = candidate_dims - candidate_medidas
+    # Separar medidas lineales (NxM) de escalares (valor+unidad)
+    target_medidas = {_normalizar_medida_lineal(d) for d in target_dims if "x" in d}
+    candidate_medidas = {_normalizar_medida_lineal(d) for d in candidate_dims if "x" in d}
+    target_escalares = target_dims - {d for d in target_dims if "x" in d}
+    candidate_escalares = candidate_dims - {d for d in candidate_dims if "x" in d}
 
     # Conflicto: mismo tipo de dimensión, valor diferente
     if target_medidas and candidate_medidas:
-        for tm in target_medidas:
-            for cm in candidate_medidas:
-                if tm != cm:
-                    return False
+        if not (target_medidas & candidate_medidas):
+            return False
 
     if target_escalares and candidate_escalares:
-        for te in target_escalares:
-            # Extraer solo el valor numérico para comparar
-            t_num = re.search(r"[\d.]+", te)
-            c_num = re.search(r"[\d.]+", candidate_escalares_str := " ".join(candidate_escalares))
-            if t_num and c_num:
-                # Si la unidad de medida coincide y el número es diferente
-                t_unit = re.sub(r"[\d.]+", "", te).strip()
-                # Reconstruir escalares del candidate como string único
-                c_str = ", ".join(sorted(candidate_escalares))
-                if t_unit and t_unit in c_str:
-                    t_val = float(t_num.group().replace(",", "."))
-                    # Extraer el valor candidate que comparte unidad
-                    c_match = re.search(rf"([\d.]+)\s*{re.escape(t_unit)}", c_str)
-                    if c_match:
-                        c_val = float(c_match.group(1).replace(",", "."))
-                        if abs(t_val - c_val) > 0.01:
-                            return False
+        target_dim_map = _build_dim_map(target_escalares)
+        candidate_dim_map = _build_dim_map(candidate_escalares)
+        for unit, t_val in target_dim_map.items():
+            c_val = candidate_dim_map.get(unit)
+            if c_val is not None and abs(t_val - c_val) > 0.01:
+                return False
 
     return True
+
+
+def _normalizar_medida_lineal(medida: str) -> str:
+    """Normaliza una medida NxM ordenando los numeros (60x38 == 38x60)."""
+    parts = re.split(r"\s*x\s*", medida.lower())
+    if len(parts) == 2:
+        try:
+            nums = sorted([float(p.replace(",", ".")) for p in parts])
+            return f"{nums[0]}x{nums[1]}"
+        except ValueError:
+            pass
+    return medida.lower()
+
+
+def _build_dim_map(dims: set[str]) -> dict[str, float]:
+    """Construye un mapa {unidad: valor} para comparacion flexible."""
+    result = {}
+    for d in dims:
+        match = re.match(r"([\d.,]+)\s*([a-z²2]+)", d, re.IGNORECASE)
+        if match:
+            val_str = match.group(1).replace(",", ".")
+            unit = match.group(2)
+            try:
+                result[unit] = float(val_str)
+            except ValueError:
+                pass
+    return result
 
 
 class FuzzyNormalizer:

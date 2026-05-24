@@ -816,6 +816,131 @@ const syncRooms = () => {
   lightingRig.setupInteriorLights(recintos);
 };
 
+const syncRoof = () => {
+  if (!sceneManager) return;
+
+  while (sceneManager.roofGroup.children.length > 0) {
+    const child = sceneManager.roofGroup.children[0];
+    child.geometry?.dispose();
+    child.material?.dispose();
+    sceneManager.roofGroup.remove(child);
+  }
+
+  const recintos = recintosStore.recintos;
+  if (!recintos || recintos.length === 0) return;
+
+  const pisos = [...new Set(recintos.map((r) => r.piso || 1))];
+  const topPiso = Math.max(...pisos);
+
+  const box = new THREE.Box3();
+  for (const mesh of sceneManager.roomsGroup.children) {
+    if (!mesh.visible) continue;
+    if ((mesh.userData.piso || 1) !== topPiso) continue;
+    box.expandByObject(mesh);
+  }
+
+  if (box.isEmpty()) return;
+
+  box.expandByScalar(0.3);
+  const min = box.min;
+  const max = box.max;
+  const cx = (min.x + max.x) / 2;
+  const cz = (min.z + max.z) / 2;
+  const roofH = Math.max(max.x - min.x, max.z - min.z) * 0.18;
+  const baseY = 2.4 * topPiso;
+  const peakY = baseY + roofH;
+
+  const roofMat = new THREE.MeshStandardMaterial({
+    color: 0x8B4513,
+    roughness: 0.6,
+    metalness: 0.1,
+    side: THREE.DoubleSide,
+  });
+
+  const ridgeDir = (max.z - min.z) >= (max.x - min.x) ? 'z' : 'x';
+
+  const buildTri = (a, b, c) => {
+    const g = new THREE.BufferGeometry();
+    const v = new Float32Array([a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z]);
+    g.setAttribute('position', new THREE.BufferAttribute(v, 3));
+    g.setIndex([0, 1, 2]);
+    g.computeVertexNormals();
+    return g;
+  };
+  const buildQuad = (a, b, c, d) => {
+    const g = new THREE.BufferGeometry();
+    const v = new Float32Array([
+      a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z,
+      a.x, a.y, a.z, c.x, c.y, c.z, d.x, d.y, d.z,
+    ]);
+    g.setAttribute('position', new THREE.BufferAttribute(v, 3));
+    g.computeVertexNormals();
+    return g;
+  };
+
+  if (ridgeDir === 'z') {
+    const left = buildQuad(
+      new THREE.Vector3(min.x, baseY, min.z),
+      new THREE.Vector3(cx, peakY, min.z),
+      new THREE.Vector3(cx, peakY, max.z),
+      new THREE.Vector3(min.x, baseY, max.z),
+    );
+    const right = buildQuad(
+      new THREE.Vector3(cx, peakY, min.z),
+      new THREE.Vector3(max.x, baseY, min.z),
+      new THREE.Vector3(max.x, baseY, max.z),
+      new THREE.Vector3(cx, peakY, max.z),
+    );
+    const front = buildTri(
+      new THREE.Vector3(min.x, baseY, min.z),
+      new THREE.Vector3(cx, peakY, min.z),
+      new THREE.Vector3(max.x, baseY, min.z),
+    );
+    const back = buildTri(
+      new THREE.Vector3(max.x, baseY, max.z),
+      new THREE.Vector3(cx, peakY, max.z),
+      new THREE.Vector3(min.x, baseY, max.z),
+    );
+    [left, right, front, back].forEach((g) => {
+      const m = new THREE.Mesh(g, roofMat.clone());
+      m.userData.layerTags = ['structure', 'facade'];
+      m.castShadow = true;
+      m.receiveShadow = true;
+      sceneManager.roofGroup.add(m);
+    });
+  } else {
+    const left = buildQuad(
+      new THREE.Vector3(min.x, baseY, min.z),
+      new THREE.Vector3(min.x, baseY, max.z),
+      new THREE.Vector3(cx, peakY, max.z),
+      new THREE.Vector3(cx, peakY, min.z),
+    );
+    const right = buildQuad(
+      new THREE.Vector3(cx, peakY, min.z),
+      new THREE.Vector3(cx, peakY, max.z),
+      new THREE.Vector3(max.x, baseY, max.z),
+      new THREE.Vector3(max.x, baseY, min.z),
+    );
+    const front = buildTri(
+      new THREE.Vector3(min.x, baseY, min.z),
+      new THREE.Vector3(cx, peakY, min.z),
+      new THREE.Vector3(max.x, baseY, min.z),
+    );
+    const back = buildTri(
+      new THREE.Vector3(max.x, baseY, max.z),
+      new THREE.Vector3(cx, peakY, max.z),
+      new THREE.Vector3(min.x, baseY, max.z),
+    );
+    [left, right, front, back].forEach((g) => {
+      const m = new THREE.Mesh(g, roofMat.clone());
+      m.userData.layerTags = ['structure', 'facade'];
+      m.castShadow = true;
+      m.receiveShadow = true;
+      sceneManager.roofGroup.add(m);
+    });
+  }
+};
+
 const computeSceneBounds = () => {
   const box = new THREE.Box3();
 
@@ -1256,6 +1381,7 @@ onMounted(() => {
 
       syncWalls();
       syncRooms();
+      syncRoof();
     },
     {
       deep: true,

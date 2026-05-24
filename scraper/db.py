@@ -50,7 +50,8 @@ def get_connection():
         "DATABASE_URL",
         "postgresql://postgres:postgres@db:5432/siec"
     )
-    return psycopg2.connect(database_url)
+    conn = psycopg2.connect(database_url, options="-c client_encoding=UTF8")
+    return conn
 
 
 # ──────────────────────────────────────────────────────────────────────────────

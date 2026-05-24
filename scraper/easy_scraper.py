@@ -77,6 +77,10 @@ class EasyScraper(BaseScraper):
                     "tienda": self.store_key,
                     "nombre_producto": name,
                     "precio": price_match,
+                    "precio_descuento": None,
+                    "insumo_id": None,
+                    "stock": "Disponible",
+                    "categoria": "Obra Gruesa",
                     "url": f"https://www.easy.cl{href}" if not href.startswith("http") else href,
                     "exitoso": True
                 })

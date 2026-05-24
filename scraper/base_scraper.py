@@ -441,6 +441,10 @@ class BaseScraper(ABC):
                                     "tienda": store_key,
                                     "nombre_producto": name,
                                     "precio": price,
+                                    "precio_descuento": None,
+                                    "insumo_id": None,
+                                    "stock": "Disponible",
+                                    "categoria": "Obra Gruesa",
                                     "url": url_val if url_val.startswith("http") else "",
                                     "exitoso": True,
                                 })
@@ -510,7 +514,7 @@ class BaseScraper(ABC):
                                 pval = float(price) if isinstance(price, (int, float)) else float(str(price).replace(",", "."))
                             except: continue
                             if pval < 100: continue
-                            products.append({"tienda": store_key, "nombre_producto": name, "precio": pval, "url": url_p, "exitoso": True})
+                            products.append({"tienda": store_key, "nombre_producto": name, "precio": pval, "precio_descuento": None, "insumo_id": None, "stock": "Disponible", "categoria": "Obra Gruesa", "url": url_p, "exitoso": True})
                 except: continue
 
             if products:

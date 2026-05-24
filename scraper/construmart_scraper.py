@@ -80,6 +80,10 @@ class ConstrumartScraper(BaseScraper):
                                     "tienda": self.store_key,
                                     "nombre_producto": name.strip(),
                                     "precio": float(price_val) if isinstance(price_val, (int, float)) else self.parse_price(str(price_val)),
+                                    "precio_descuento": None,
+                                    "insumo_id": None,
+                                    "stock": "Disponible",
+                                    "categoria": "Obra Gruesa",
                                     "url": link,
                                     "exitoso": True
                                 })
@@ -110,6 +114,10 @@ class ConstrumartScraper(BaseScraper):
                     "tienda": self.store_key,
                     "nombre_producto": name,
                     "precio": price_match,
+                    "precio_descuento": None,
+                    "insumo_id": None,
+                    "stock": "Disponible",
+                    "categoria": "Obra Gruesa",
                     "url": href if href.startswith("http") else f"https://www.construmart.cl{href}",
                     "exitoso": True
                 })

@@ -7,6 +7,8 @@ class InsumoCalculado(BaseModel):
     unidad: str
     precio_unitario: Optional[float] = None
     subtotal: Optional[float] = None
+    tienda: Optional[str] = None
+    url_producto: Optional[str] = None
     cantidad_objetivo: Optional[float] = None
     cantidad_compra: Optional[float] = None
     perdida_porcentual: Optional[float] = None

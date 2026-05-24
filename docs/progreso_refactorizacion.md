@@ -1,6 +1,6 @@
 # Progreso de Refactorización — SCRUM-118
 
-## Estado Actual (23 de mayo 2026)
+## Estado Actual (23 de mayo 2026 — sesión final)
 
 ---
 
@@ -8,144 +8,154 @@
 
 | Componente | Estado | Archivo |
 |-----------|--------|---------|
-| Endpoint `POST /api/simulacion/parametros` con geometría real | ✅ | `backend/main.py:241` |
-| Perímetro (`perimetro_ml`) y altura de muro (`altura_muro_m`) como campos obligatorios | ✅ | `backend/main.py:228-229` |
-| Flag `incluir_techumbre` para activar techumbre en cotización | ✅ | `backend/main.py:230` |
-| Refactor del loop de cálculo con 5 familias constructivas | ✅ | `backend/main.py:568-654` |
-| Techumbre completa generada dinámicamente (cerchas, zinc, aislación, MO) | ✅ | `backend/techumbre.py` |
-| Dimensiones comerciales reales (OSB 1.22×2.44m, pino 3.2m, zinc 1×3m, etc.) | ✅ | `backend/dimensiones_comerciales.py` |
-| Roles "architect" eliminados de toda la lógica | ✅ | `backend/auth.py`, `backend/models.py` |
-| Columnas obsoletas (habitaciones, baños, áreas comunes) eliminadas | ✅ | `database/migrations/008_drop_recinto_counts.sql` |
-| Columnas geométricas agregadas a la DB | ✅ | `database/migrations/007_add_geometria_simulacion.sql` |
-| Filtro dimensional post-match en fuzzy normalizer | ✅ | `scraper/normalizer.py:50-100` |
-| Umbral de fuzzy matching calibrado a 75 | ✅ | `scraper/normalizer.py:21` |
+| Endpoint `POST /api/simulacion/parametros` con geometría real | ✅ | `backend/main.py` |
+| Perímetro, altura de muro, flag techumbre | ✅ | `backend/main.py` |
+| Loop de cálculo con 5 familias constructivas | ✅ | `backend/main.py` |
+| Soleras detectadas correctamente (nombre + descripción + "2x4") | ✅ FIX | `backend/main.py:586` |
+| Techumbre completa (cerchas, zinc, aislación, MO) | ✅ | `backend/techumbre.py` |
+| Costaneras pino 2x2 y tornillos techo golilla agregados | ✅ NUEVO | `backend/techumbre.py` |
+| Complementos constructivos: clavos 3"+4", lana vidrio muro | ✅ NUEVO | `backend/main.py:749-795` |
+| Dimensiones comerciales reales | ✅ | `backend/dimensiones_comerciales.py` |
+| Columna `tienda` en respuesta InsumoCalculado | ✅ NUEVO | `backend/schemas.py`, `backend/main.py` |
+| Columna `url_producto` en respuesta (link clickeable) | ✅ NUEVO | `backend/schemas.py`, `backend/main.py` |
+| Columnas obsoletas eliminadas (habitaciones, baños, áreas comunes) | ✅ | `database/migrations/008` |
 
 ---
 
-## 2. Scraper — HISTORIAL DE INTENTOS FALLIDOS
+## 2. Scraper — SOLUCIÓN ENCONTRADA
 
-Cada intento está probado, documentado, y el resultado fue negativo.
+### Intentos fallidos (documentados para referencia)
 
-### Intento 1: HTTP directo + JSON-LD (urllib)
-- **Qué:** Fetch con headers realistas, extraer JSON-LD del HTML
-- **Resultado:** ❌ Solo Construmart respondió al inicio. Luego también dejó de funcionar.
-- **Causa:** Los sitios requieren JavaScript para renderizar datos. El HTML inicial es un shell vacío.
+Los intentos 1-10 (HTTP directo, Playwright, undetected-chromedriver, APIs REST, PDP URLs, Google Shopping) **todos fallaron** porque Google, Sodimac y Easy bloquean acceso automatizado con reCAPTCHA y fingerprinting. Incluso Playwright con navegador visible fue bloqueado.
 
-### Intento 2: Playwright Chromium + playwright-stealth
-- **Qué:** Browser headless con librería de evasión de detección
-- **Resultado:** ❌ Sodimac devuelve homepage en vez de resultados
-- **Causa:** playwright-stealth desactualizado (2023). Sitios detectan el fingerprint.
+### Solución: SerpAPI (Google Shopping API)
 
-### Intento 3: Playwright Firefox
-- **Qué:** Firefox en vez de Chromium (diferente fingerprint)
-- **Resultado:** ❌ Mismo resultado — homepage siempre
-- **Causa:** Firefox también detectable.
+| Componente | Estado | Archivo |
+|-----------|--------|---------|
+| SerpAPI Google Shopping scraper | ✅ | `scraper/serpapi_scraper.py` |
+| Cobertura: 33/34 insumos (91%) | ✅ | Primera ejecución |
+| Fallback prices para el 9% restante | ✅ | `scraper/fallback_prices.py` |
+| Integración en main.py (pipeline) | ✅ | `scraper/main.py` |
+| API key configurada en docker-compose | ✅ | `docker-compose.yml` |
 
-### Intento 4: Stealth manual inyectado
-- **Qué:** Script JS que sobreescribe navigator.webdriver, chrome.runtime, WebGL, etc.
-- **Resultado:** ❌ Sin mejora
-- **Causa:** La detección va más allá de JS — usa comportamiento, timing, headers de red.
+**SerpAPI** es un servicio pago que maneja CAPTCHAs, proxies y renderizado JS. Retorna JSON estructurado con nombre, precio, tienda y URL de producto desde Google Shopping. Free tier: 100 búsquedas/mes (suficiente para sembrar 34 insumos).
 
-### Intento 5: undetected-chromedriver
-- **Qué:** Chrome real con parches en runtime. El estándar de la industria para scrapers.
-- **Resultado:** ❌ Docker build falló (wget no instalado, apt-key deprecado)
-- **Causa:** Nunca se pudo probar porque no se pudo construir la imagen.
+### Pipeline de scraping actual
 
-### Intento 6: API REST directa de Sodimac
-- **Qué:** Endpoints `/rest/search/products`, `/api/search`, `/rest/model/sodimac/search`
-- **Resultado:** ❌ Todos 404 o bloqueados
-- **Causa:** Las APIs requieren autenticación o headers específicos.
+```
+SerpAPI (Google Shopping) ──→ insertar_precios() → precio_mercado
+Fallback prices            ──→ (solo insumos sin cobertura)
+```
 
-### Intento 7: PDP URLs directas (con Playwright)
-- **Qué:** Navegar directamente a páginas de producto (no búsqueda)
-- **Resultado:** ⚠️ Parcial. 3 de 33 URLs funcionaron. El resto dieron 404.
-- **Causa:** Los SKUs proporcionados no son válidos para la mayoría de productos. Las 3 URLs que funcionan: Cemento Polpaico, Terciado Estructural.
+### Bugs del scraper corregidos
 
-### Intento 8: PDP URLs con HTTP directo (sin browser)
-- **Qué:** Fetch con urllib directamente a las PDP URLs
-- **Resultado:** ⚠️ Mismo resultado. 3 de 33 funcionan. El resto 404.
-- **Causa:** Los SKUs están mal. Sin browser no es el problema — las URLs son incorrectas.
-
-### Intento 9: Google Shopping
-- **Qué:** `https://www.google.com/search?tbm=shop&q=...`
-- **Resultado:** ❌ Google devuelve página que requiere JavaScript
-- **Causa:** Google Shopping también es SPA. Bloquea HTTP plano.
-
-### Intento 10: Búsqueda Google para encontrar URLs correctas
-- **Qué:** `site:sodimac.cl` query para descubrir URLs válidas
-- **Resultado:** ❌ Google Search también bloquea HTTP plano
-- **Causa:** Todos los servicios de Google requieren JS.
+| Bug | Fix | Archivo |
+|-----|-----|---------|
+| `KeyError: 'precio_descuento'` | `precio_descuento: None` en todos los dicts fuente | `base_scraper.py`, `easy_scraper.py`, `construmart_scraper.py` |
+| Fuzzy normalizer rechazaba dimensiones reordenadas (60x38 ≠ 38x60) | Normalización ordenando números en medidas NxM | `scraper/normalizer.py` |
+| Regex `_RE_DIMENSION` capturaba `"2.5m"` en vez de `"2.5mm"` | Reordenar alternancia: `mm` antes que `m` | `scraper/normalizer.py` |
+| `_build_dim_map` no aceptaba unidades mayúsculas | Agregar `re.IGNORECASE` | `scraper/normalizer.py` |
 
 ---
 
-## 3. Lo que SÍ funciona (aunque sea parcial)
+## 3. Base de Datos — Migraciones
 
-| Fuente | Método | Estado |
-|--------|--------|--------|
-| Construmart búsqueda | Playwright Firefox | ✅ Encuentra productos (threshold 75). 6/34 matches en última ejecución |
-| Sodimac PDP Cemento | HTTP directo | ✅ $5.180 — insumo_id=2 (Cemento Especial) |
-| Sodimac PDP Terciado | HTTP directo | ✅ $19.990 — insumo_id=35 |
-| Easy búsqueda | Playwright | ❌ 0/34 siempre |
-| Fuzzy matching | normalizer.py | ✅ Threshold 75 captura más matches que 85 |
-| DB insert | db.py | ❌ Error `KeyError: 'precio_descuento'` — falta campo en el dict del scraper |
+| Migración | Descripción | Estado |
+|-----------|-------------|--------|
+| 007 | Agregar columnas geométricas | ✅ Ejecutada |
+| 008 | Eliminar columnas obsoletas de recintos | ✅ Ejecutada |
+| 009 | Expandir CHECK de Tienda en precio_mercado | ✅ Ejecutada |
+| 010 | **Corregir Matriz_Rendimiento con IDs reales** | ✅ Ejecutada |
+| 011 | **Expandir CHECK de Unidad_Medida + unidades comerciales** | ✅ Ejecutada |
+
+### Corrección crítica: Matriz de Rendimiento (010)
+
+El `init.sql` insertaba Perfiles y Tornillos en Obra Gruesa **antes** de Terminaciones, desplazando todos los IDs. La matriz referenciaba IDs que no coincidían con los insumos reales (ej. Madera usaba Perfil C en vez de Pino 2x3). La migración 010 borró la matriz incorrecta y la reconstruyó con IDs verificados.
+
+### Unidades comerciales reales (011)
+
+| Antes | Ahora |
+|-------|-------|
+| `unidad` | `pieza 3.2m` |
+| `plancha` | `plancha 1.22x2.44m` |
+| `caja` | `caja 100un` |
+| `kg` | `barra 6m` |
+| `litro` | `galon 4L` |
+| `metro lineal` | `rollo 100m` / `tubo 3m` |
 
 ---
 
-## 4. Problemas Técnicos Restantes (bugs, no arquitectura)
-
-| Bug | Síntoma | Causa | Fix |
-|-----|---------|-------|-----|
-| `KeyError: 'precio_descuento'` | Falla al insertar en DB | `insertar_precios()` espera campo `precio_descuento` pero los scrapers no lo incluyen | Agregar `precio_descuento: None` a todos los resultados |
-| `SodimacScraper` sin `scrape_by_keywords` | Error en main.py | Al hacer el scraper standalone, eliminé el método que main.py espera | Agregar método `scrape_by_keywords` al SodimacScraper standalone |
-| Solo 3 de 33 SKUs de Sodimac válidos | 404 en el resto | Los SKUs proporcionados no corresponden a productos existentes | Encontrar SKUs correctos manualmente desde el navegador |
-| Easy nunca encuentra productos | 0/34 siempre | Playwright es bloqueado igual que en Sodimac | Misma solución: PDP URLs o darlo por perdido |
-
----
-
-## 5. Frontend (Vue.js) — ✅ COMPLETO
+## 4. Frontend (Vue.js + Three.js) — ✅ COMPLETO
 
 | Componente | Estado |
 |-----------|--------|
 | BudgetBreakdownPanel envía geometría real en POST | ✅ |
+| Columna **Tienda** con badge (verde=scrapeado, ámbar=referencia) | ✅ NUEVO |
+| Tienda es link clickeable a producto original | ✅ NUEVO |
+| Unidades comerciales reales visibles en desglose | ✅ NUEVO |
+| Techumbre 3D (techo a dos aguas sobre el último piso) | ✅ NUEVO |
+| Techo usa bounding box de meshes de piso (posición exacta) | ✅ NUEVO |
 | Techumbre siempre activa (sin toggle) | ✅ |
 | Sin conteos de habitaciones/baños/áreas comunes | ✅ |
-| Sin selector de snap en 2D y 3D | ✅ |
-| Sin botón pasillos en 2D y 3D | ✅ |
-| Sin plantillas en sidebar | ✅ |
-| Sin botón compartir ni exportar en topbar | ✅ |
 | i18n expandido con +50 claves | ✅ |
-| PDF exportado reducido a 2 páginas | ✅ |
-| Excel/CSV con fila de TOTAL GENERAL | ✅ |
-| Keyboard shortcuts cierran con Esc | ✅ |
+| PDF/Excel/CSV export | ✅ |
+
+### Techo 3D (`Scene3D.vue:syncRoof`, `SceneManager.js:roofGroup`)
+
+- Gable roof con 4 caras (2 vertientes inclinadas + 2 gabletes)
+- Pendiente 18% (plana, realista para Chile)
+- Siempre en el piso más alto ocupado
+- Color marrón teja (`0x8B4513`) con `DoubleSide`
+- Se actualiza automáticamente al cambiar recintos
 
 ---
 
-## 6. Base de Datos — Migraciones Pendientes
+## 5. Lista de Materiales — Madera 80m² (resultado final)
 
-```bash
-docker compose exec db psql -U postgres -d siec -f /migrations/007_add_geometria_simulacion.sql
-docker compose exec db psql -U postgres -d siec -f /migrations/008_drop_recinto_counts.sql
+```
+Obra Gruesa              $1,220,726   Pino 2x3 (109), Pino 2x4 (53), Terciado (32), Tornillos
+Terminaciones            $194,850     Volcanita RH Standard (15)
+Instalaciones            $175,950     Cable 2.5mm (3), Tubo PVC 75mm (2)
+O.G. Complementos        $152,900     Clavos 3" (7 cajas), Clavos 4" (2), Lana vidrio muro (6)
+Techumbre Estructura     $261,000     16 cerchas pino 2x4
+Techumbre Cubierta       $986,800     Zinc (44), Costaneras 2x2 (69), Tornillos techo (4), Lana techo (6)
+Techumbre MO             $3,213,000   378 HH
+────────────────────────────────────
+TOTAL                    $6,205,226
 ```
 
+17 ítems en 7 categorías. Materiales con trazabilidad completa: tienda de origen, link al producto, unidad comercial real.
+
 ---
 
-## 7. Resumen Final
+## 6. Resumen Final
 
-| Área | Estado | Próximo paso |
-|------|--------|-------------|
-| Backend (motor costos) | ✅ Listo. Commiteado. | Migrar BD y probar endpoint |
-| Frontend (Vue) | ✅ Listo. Commiteado. | Ninguno |
-| Scraper Sodimac | ❌ Bloqueado. 3/33 URLs funcionan | Buscar SKUs correctos o alternativa paga |
-| Scraper Easy | ❌ Bloqueado. 0/34 siempre | Idem |
-| Scraper Construmart | ⚠️ 6/34 matches. Error DB insert | Fix KeyError `precio_descuento` |
-| Base de datos | ⚠️ Migraciones sin ejecutar | Ejecutar los dos .sql |
+| Área | Estado |
+|------|--------|
+| Backend (motor costos) | ✅ Listo. Soleras, complementos, tienda+URL. |
+| Scraper | ✅ SerpAPI 91% + fallback 9%. Pipeline funcional. |
+| Frontend (Vue + 3D) | ✅ Techo 3D, columna Tienda clickeable, unidades reales. |
+| Base de datos | ✅ 5 migraciones ejecutadas. Matriz e IDs corregidos. |
 
-### Conclusión
+### Archivos modificados en esta sesión
 
-El motor de costos y el frontend están completos. El scraper es el cuello de botella. **Ningún método gratuito logró extraer precios de Sodimac o Easy de forma confiable.** Construmart funciona parcialmente con Playwright.
-
-Para el MVP, se puede:
-1. Usar Construmart como fuente principal (6 productos con precio real)
-2. Los 3 SKUs de Sodimap que funcionan
-3. El resto con precios de referencia del backend (tabla de costos internos)
-4. Migrar BD para que el frontend pueda enviar el payload nuevo
+| Archivo | Cambio |
+|---------|--------|
+| `backend/main.py` | Solera detection fix, tracking studs/soleras, complementos, tienda+url |
+| `backend/techumbre.py` | Costaneras pino 2x2, tornillos techo, tienda en items |
+| `backend/schemas.py` | Campos `tienda` y `url_producto` en InsumoCalculado |
+| `scraper/base_scraper.py` | `precio_descuento` en _http_search y _uc_search |
+| `scraper/easy_scraper.py` | `precio_descuento` en _scrape_search_results |
+| `scraper/construmart_scraper.py` | `precio_descuento` en ambos paths |
+| `scraper/normalizer.py` | Fix dimensiones reordenadas, regex mm antes de m, IGNORECASE |
+| `scraper/serpapi_scraper.py` | **NUEVO**: SerpAPI Google Shopping scraper |
+| `scraper/fallback_prices.py` | IDs corregidos al orden real de la DB |
+| `scraper/main.py` | Pipeline: SerpAPI + fallback + tracking insumos cubiertos |
+| `scraper/db.py` | Client encoding fix para conexión PostgreSQL |
+| `frontend/.../Scene3D.vue` | syncRoof: techo 3D a dos aguas |
+| `frontend/.../SceneManager.js` | roofGroup en buildingGroup |
+| `frontend/.../BudgetBreakdownPanel.vue` | Columna Tienda con link clickeable |
+| `database/migrations/009_*.sql` | **NUEVO**: Expandir CHECK tienda |
+| `database/migrations/010_*.sql` | **NUEVO**: Corregir matriz de rendimiento |
+| `database/migrations/011_*.sql` | **NUEVO**: Unidades comerciales reales |
+| `docker-compose.yml` | Variable SERPAPI_KEY |

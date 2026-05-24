@@ -71,11 +71,28 @@ def calcular_partida_techumbre(
     piezas_pino = math.ceil(total_ml_pino / largo_comercial * 1.15)
     subtotal_pino = piezas_pino * _PRECIOS["pino 2x4"]
 
+    # Geometria del techo
+    ancho = area_m2_planta / largo if largo > 0 else largo
+    altura_cumbrera = ancho * 0.25  # pendiente 25%
+    largo_vertiente = math.sqrt((ancho / 2) ** 2 + altura_cumbrera ** 2)
+
     # ── 2. Planchas de zinc ───────────────────────────────────────────────
-    # Ancho útil 0.85 m, largo 2.5 m → 2.125 m² por plancha
-    area_plancha = 0.85 * 2.5  # 2.125 m²
+    area_plancha = 0.85 * 2.5
     piezas_zinc = math.ceil(area_inclinada / area_plancha * 1.10)
     subtotal_zinc = piezas_zinc * _PRECIOS["plancha zinc"]
+
+    # ── 2b. Costaneras pino 2x2 (correas transversales a cerchas) ─────────
+    sep_costaneras = 0.60  # cada 60 cm a lo largo de la pendiente
+    cant_costaneras_lado = math.ceil(largo_vertiente / sep_costaneras) + 1
+    # Cada costanera recorre el ancho del techo; son 2 lados (vertientes)
+    ancho_techo = ancho + 1.0  # ancho con alero
+    ml_costaneras = cant_costaneras_lado * ancho_techo * 2  # 2 lados
+    piezas_costanera = math.ceil(ml_costaneras / 3.2 * 1.10)  # pino 2x2 en 3.2m
+    subtotal_costaneras = piezas_costanera * 2800.0
+
+    # ── 2c. Tornillos para techo con golilla ───────────────────────────────
+    tornillos_techo_cant = math.ceil(piezas_zinc * 8 / 100)  # ~8 tornillos por plancha, caja 100
+    subtotal_tornillos_techo = tornillos_techo_cant * 8500
 
     # ── 3. Aislación de cielo (lana de vidrio) ────────────────────────────
     # Rollo de 14.4 m² (0.60 × 8.0 m con traslapo efectivo)
@@ -91,6 +108,7 @@ def calcular_partida_techumbre(
             unidad="un",
             precio_unitario=float(_PRECIOS["pino 2x4"] * ml_pino_por_cercha / largo_comercial),
             subtotal=float(subtotal_pino),
+            tienda="Referencia",
             perdida_porcentual=15.0,
             formato_comercial="3.2 m",
         ),
@@ -103,8 +121,29 @@ def calcular_partida_techumbre(
             unidad="un",
             precio_unitario=float(_PRECIOS["plancha zinc"]),
             subtotal=float(subtotal_zinc),
+            tienda="Referencia",
             perdida_porcentual=10.0,
             formato_comercial="0.85 x 2.5 m",
+        ),
+        InsumoCalculado(
+            insumo="Costanera pino 2x2 3.2m",
+            cantidad=float(piezas_costanera),
+            unidad="un",
+            precio_unitario=2800.0,
+            subtotal=float(subtotal_costaneras),
+            tienda="Referencia",
+            perdida_porcentual=10.0,
+            formato_comercial="3.2 m",
+        ),
+        InsumoCalculado(
+            insumo="Tornillo techo golilla neopreno (caja 100un)",
+            cantidad=float(tornillos_techo_cant),
+            unidad="caja",
+            precio_unitario=8500.0,
+            subtotal=float(subtotal_tornillos_techo),
+            tienda="Referencia",
+            perdida_porcentual=5.0,
+            formato_comercial="caja 100 unidades",
         ),
         InsumoCalculado(
             insumo="Lana vidrio 50mm rollo 14.4m2",
@@ -112,8 +151,9 @@ def calcular_partida_techumbre(
             unidad="un",
             precio_unitario=float(_PRECIOS["lana vidrio"]),
             subtotal=float(subtotal_aislacion),
+            tienda="Referencia",
             perdida_porcentual=5.0,
-            formato_comercial="14.4 m²",
+            formato_comercial="14.4 m\u00b2",
         ),
     ]
 
@@ -130,6 +170,7 @@ def calcular_partida_techumbre(
             unidad="HH",
             precio_unitario=float(tarifa_hh),
             subtotal=float(subtal_mo),
+            tienda="Referencia",
             perdida_porcentual=0.0,
         ),
     ]
@@ -143,7 +184,7 @@ def calcular_partida_techumbre(
         CategoriaDesglose(
             categoria="Techumbre - Cubierta",
             items=items_cubierta,
-            subtotal_categoria=float(subtotal_zinc + subtotal_aislacion),
+            subtotal_categoria=float(subtotal_zinc + subtotal_costaneras + subtotal_tornillos_techo + subtotal_aislacion),
         ),
         CategoriaDesglose(
             categoria="Techumbre - Mano de Obra",
