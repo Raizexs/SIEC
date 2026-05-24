@@ -637,78 +637,113 @@ class MaterialLibrary {
   }
 
   /**
-   * Textura de madera pálida para esqueleto estructural (vigas/studs)
+   * Textura de madera para esqueleto estructural (vigas/studs).
+   * Veta visible, nudos, tonos cálidos.
    */
   _generateStudFrame(type) {
     const canvas = this._createCanvas();
     const ctx = canvas.getContext('2d');
     const res = this.resolution;
 
-    const baseColor = type === 'steel_framed' ? '#B0B8C0' : '#D4B896';
-    ctx.fillStyle = baseColor;
+    if (type === 'steel_framed') {
+      ctx.fillStyle = '#A0A8B0';
+      ctx.fillRect(0, 0, res, res);
+      ctx.strokeStyle = '#889098';
+      ctx.lineWidth = 1;
+      ctx.globalAlpha = 0.25;
+      for (let i = 0; i < 20; i++) {
+        const x = Math.random() * res;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        for (let y = 0; y < res; y += 8) ctx.lineTo(x + (Math.random()-0.5)*3, y);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      this._applyNoise(ctx, 3);
+      return canvas;
+    }
+
+    // Wood — warm pine/spruce
+    const baseR = 190 + Math.random() * 30;
+    const baseG = 140 + Math.random() * 20;
+    const baseB = 100 + Math.random() * 15;
+    ctx.fillStyle = `rgb(${baseR},${baseG},${baseB})`;
     ctx.fillRect(0, 0, res, res);
 
-    // Vetas verticales
-    ctx.strokeStyle = type === 'steel_framed' ? '#9098A0' : '#B89870';
-    ctx.lineWidth = 0.8;
-    ctx.globalAlpha = 0.3;
-    for (let i = 0; i < 25; i++) {
+    // Growth rings (horizontal bands)
+    for (let y = 0; y < res; y += res / 18) {
+      const shift = (Math.random() - 0.5) * 8;
+      ctx.fillStyle = `rgb(${baseR+shift},${baseG+shift*0.8},${baseB+shift*0.5})`;
+      ctx.fillRect(0, y, res, res / 18 + 1);
+    }
+
+    // Vertical grain lines
+    ctx.strokeStyle = `rgb(${baseR-30},${baseG-25},${baseB-20})`;
+    ctx.lineWidth = 0.6;
+    ctx.globalAlpha = 0.35;
+    for (let i = 0; i < 30; i++) {
       const x = Math.random() * res;
       ctx.beginPath();
       ctx.moveTo(x, 0);
-      for (let y = 0; y < res; y += 10) {
-        ctx.lineTo(x + (Math.random() - 0.5) * 4, y);
-      }
+      const amp = 1.5 + Math.random() * 4;
+      for (let y = 0; y < res; y += 6) ctx.lineTo(x + (Math.random()-0.5)*amp, y);
       ctx.stroke();
     }
-    ctx.globalAlpha = 1.0;
+    ctx.globalAlpha = 1;
 
-    if (type !== 'steel_framed') {
-      // Nudos de madera
-      ctx.fillStyle = '#9E7C5A';
-      for (let i = 0; i < 8; i++) {
-        const nx = Math.random() * res;
-        const ny = Math.random() * res;
-        ctx.beginPath();
-        ctx.ellipse(nx, ny, 3 + Math.random() * 5, 2 + Math.random() * 3, 0, 0, Math.PI * 2);
-        ctx.fill();
-      }
+    // Knots
+    ctx.fillStyle = `rgb(${baseR-50},${baseG-35},${baseB-25})`;
+    for (let i = 0; i < 6; i++) {
+      const kx = Math.random() * res;
+      const ky = Math.random() * res;
+      ctx.beginPath();
+      ctx.ellipse(kx, ky, 4+Math.random()*7, 2+Math.random()*4, 0, 0, Math.PI*2);
+      ctx.fill();
     }
 
-    this._applyNoise(ctx, 4);
+    this._applyNoise(ctx, 5);
     return canvas;
   }
 
   /**
-   * Aislación: fibra de vidrio amarilla/rosada con textura fibrosa
+   * Aislación: fibra de vidrio rosa con textura fibrosa visible
    */
   _generateInsulation() {
     const canvas = this._createCanvas();
     const ctx = canvas.getContext('2d');
     const res = this.resolution;
 
-    ctx.fillStyle = '#F5D76E';
+    // Pink fiberglass base
+    ctx.fillStyle = '#F0A0B0';
     ctx.fillRect(0, 0, res, res);
 
-    // Bandas horizontales de variación
-    for (let y = 0; y < res; y += res / 8) {
-      const rgb = this._hexToRGB('#F5D76E');
-      const shift = (Math.random() - 0.5) * 12;
-      ctx.fillStyle = `rgb(${rgb.r + shift}, ${rgb.g + shift}, ${rgb.b + shift * 0.5})`;
-      ctx.fillRect(0, y, res, res / 8);
+    // Horizontal banding (batts)
+    for (let y = 0; y < res; y += res / 10) {
+      const shift = (Math.random() - 0.5) * 10;
+      ctx.fillStyle = `rgb(${235+shift},${155+shift*0.5},${170+shift*0.3})`;
+      ctx.fillRect(0, y, res, res / 10 + 1);
     }
 
-    // Textura fibrosa
-    ctx.strokeStyle = 'rgba(200, 170, 80, 0.3)';
-    ctx.lineWidth = 0.5;
-    for (let i = 0; i < 80; i++) {
+    // Dense fiber lines
+    ctx.strokeStyle = 'rgba(200, 120, 140, 0.4)';
+    ctx.lineWidth = 0.4;
+    for (let i = 0; i < 100; i++) {
       const x = Math.random() * res;
       ctx.beginPath();
       ctx.moveTo(x, 0);
-      const amp = 2 + Math.random() * 4;
-      for (let y = 0; y < res; y += 4) {
-        ctx.lineTo(x + (Math.random() - 0.5) * amp, y);
-      }
+      const amp = 2 + Math.random() * 3;
+      for (let y = 0; y < res; y += 3) ctx.lineTo(x + (Math.random()-0.5)*amp, y);
+      ctx.stroke();
+    }
+
+    // Lighter highlight fibers
+    ctx.strokeStyle = 'rgba(255, 220, 225, 0.25)';
+    ctx.lineWidth = 0.3;
+    for (let i = 0; i < 40; i++) {
+      const x = Math.random() * res;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      for (let y = 0; y < res; y += 5) ctx.lineTo(x + (Math.random()-0.5)*2, y);
       ctx.stroke();
     }
 
