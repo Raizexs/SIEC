@@ -25,14 +25,7 @@
 
 #### Planificación de Tareas
 
-Tarea T12.2: Motor de Visibilidad por Capas en 3D `[FRONTEND]`
-- Descripción: Conectar el estado del panel de capas (que ya existe) con la escena 3D para que los grupos de objetos correspondientes a cada capa constructiva respondan visualmente al toggle. Cada capa debe controlar un subconjunto específico de objetos dentro del visor.
-- Criterios de Aceptación:
-  - Al desactivar una capa, los objetos de esa capa desaparecen del visor 3D.
-  - Al reactivarla, reaparecen. Las demás capas no se ven afectadas.
-  - La transición entre estados es animada y no genera parpadeos o saltos bruscos en la escena.
-  - El modelo base (volumen del recinto) siempre permanece visible independientemente del estado de las capas.
-- Dependencias: Requiere que T12.1 (Panel UI de Capas) esté desplegado — ya completado.
+~~Tarea T12.2: Motor de Visibilidad por Capas en 3D `[FRONTEND]`~~ **✅ COMPLETO 2026-05-23**
 
 
 

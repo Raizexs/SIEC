@@ -539,6 +539,184 @@ class MaterialLibrary {
   }
 
   /**
+   * Devuelve un material específico para una capa constructiva.
+   * Usado por WallBuilder para generar meshes por capa.
+   * @param {'wood_frame'|'steel_framed'|'masonry'|'concrete'} type
+   * @param {'structure'|'insulation'|'interior'|'facade'|'installations'} layer
+   * @returns {THREE.MeshStandardMaterial|THREE.MeshPhongMaterial}
+   */
+  getLayerMaterial(type, layer) {
+    const key = `layer_${type}_${layer}`;
+    if (this.cache[key]) return this.cache[key].clone();
+
+    let material;
+
+    if (layer === 'structure') {
+      const map = this._generateStudFrame(type);
+      const texture = this._textureFromCanvas(map);
+      texture.repeat.set(1, 1);
+      material = new THREE.MeshStandardMaterial({
+        map: texture,
+        roughness: 0.7,
+        metalness: 0.0,
+      });
+    } else if (layer === 'insulation') {
+      const map = this._generateInsulation();
+      const texture = this._textureFromCanvas(map);
+      texture.repeat.set(2, 1);
+      material = new THREE.MeshStandardMaterial({
+        map: texture,
+        roughness: 0.9,
+        metalness: 0.0,
+      });
+    } else if (layer === 'interior') {
+      let map;
+      if (type === 'wood_frame') {
+        map = this._generatePlasterWall('#F8F3EC');
+      } else if (type === 'steel_framed') {
+        map = this._generatePlasterWall('#EEF2F5');
+      } else if (type === 'masonry') {
+        map = this._generateStucco();
+      } else {
+        map = this._generatePlasterWall('#D0D0D0');
+      }
+      const texture = this._textureFromCanvas(map);
+      material = new THREE.MeshStandardMaterial({
+        map: texture,
+        roughness: 0.85,
+        metalness: 0.0,
+      });
+    } else if (layer === 'facade') {
+      let map;
+      if (type === 'wood_frame') {
+        map = this._generateSidingWood();
+      } else if (type === 'steel_framed') {
+        map = this._generateVinylSiding();
+      } else if (type === 'masonry') {
+        map = this._generateBrickPattern();
+      } else {
+        map = this._generateFerrocementPanels();
+      }
+      const texture = this._textureFromCanvas(map);
+      texture.repeat.set(1, 1);
+      material = new THREE.MeshStandardMaterial({
+        map: texture,
+        roughness: 0.6,
+        metalness: 0.0,
+      });
+    } else if (layer === 'installations') {
+      material = new THREE.MeshStandardMaterial({
+        color: 0xcc6633,
+        roughness: 0.3,
+        metalness: 0.7,
+      });
+    }
+
+    if (!material) {
+      material = new THREE.MeshStandardMaterial({
+        color: 0xff00ff,
+        roughness: 0.5,
+        metalness: 0.0,
+      });
+    }
+
+    this.cache[key] = material;
+    return material.clone();
+  }
+
+  /** Convierte un canvas en textura Three.js con settings estándar */
+  _textureFromCanvas(canvas) {
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.magFilter = THREE.LinearFilter;
+    texture.minFilter = THREE.LinearMipmapLinearFilter;
+    texture.generateMipmaps = true;
+    return texture;
+  }
+
+  /**
+   * Textura de madera pálida para esqueleto estructural (vigas/studs)
+   */
+  _generateStudFrame(type) {
+    const canvas = this._createCanvas();
+    const ctx = canvas.getContext('2d');
+    const res = this.resolution;
+
+    const baseColor = type === 'steel_framed' ? '#B0B8C0' : '#D4B896';
+    ctx.fillStyle = baseColor;
+    ctx.fillRect(0, 0, res, res);
+
+    // Vetas verticales
+    ctx.strokeStyle = type === 'steel_framed' ? '#9098A0' : '#B89870';
+    ctx.lineWidth = 0.8;
+    ctx.globalAlpha = 0.3;
+    for (let i = 0; i < 25; i++) {
+      const x = Math.random() * res;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      for (let y = 0; y < res; y += 10) {
+        ctx.lineTo(x + (Math.random() - 0.5) * 4, y);
+      }
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1.0;
+
+    if (type !== 'steel_framed') {
+      // Nudos de madera
+      ctx.fillStyle = '#9E7C5A';
+      for (let i = 0; i < 8; i++) {
+        const nx = Math.random() * res;
+        const ny = Math.random() * res;
+        ctx.beginPath();
+        ctx.ellipse(nx, ny, 3 + Math.random() * 5, 2 + Math.random() * 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    this._applyNoise(ctx, 4);
+    return canvas;
+  }
+
+  /**
+   * Aislación: fibra de vidrio amarilla/rosada con textura fibrosa
+   */
+  _generateInsulation() {
+    const canvas = this._createCanvas();
+    const ctx = canvas.getContext('2d');
+    const res = this.resolution;
+
+    ctx.fillStyle = '#F5D76E';
+    ctx.fillRect(0, 0, res, res);
+
+    // Bandas horizontales de variación
+    for (let y = 0; y < res; y += res / 8) {
+      const rgb = this._hexToRGB('#F5D76E');
+      const shift = (Math.random() - 0.5) * 12;
+      ctx.fillStyle = `rgb(${rgb.r + shift}, ${rgb.g + shift}, ${rgb.b + shift * 0.5})`;
+      ctx.fillRect(0, y, res, res / 8);
+    }
+
+    // Textura fibrosa
+    ctx.strokeStyle = 'rgba(200, 170, 80, 0.3)';
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i < 80; i++) {
+      const x = Math.random() * res;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      const amp = 2 + Math.random() * 4;
+      for (let y = 0; y < res; y += 4) {
+        ctx.lineTo(x + (Math.random() - 0.5) * amp, y);
+      }
+      ctx.stroke();
+    }
+
+    this._applyNoise(ctx, 3);
+    return canvas;
+  }
+
+  /**
    * Limpiar caché si es necesario regenerar
    */
   clearCache() {

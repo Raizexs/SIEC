@@ -135,4 +135,142 @@ export class SceneExporter {
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1500);
   }
+
+  /**
+   * Generates a standalone HTML file with an interactive 3D viewer
+   * embedding the building group as GLTF binary (base64).
+   */
+  async exportHTML() {
+    const glbBlob = await this.exportGLTF({ binary: true });
+    const arrayBuffer = await glbBlob.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuffer);
+    let base64 = "";
+    for (let i = 0; i < bytes.length; i++) {
+      base64 += String.fromCharCode(bytes[i]);
+    }
+    const b64 = btoa(base64);
+
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SIEC — Visor 3D</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{overflow:hidden;background:#0b1220;font-family:system-ui,sans-serif}
+  canvas{display:block}
+  #toolbar{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:10;
+    display:flex;gap:8px;padding:8px 16px;border-radius:999px;
+    background:rgba(15,23,42,0.85);backdrop-filter:blur(12px);
+    border:1px solid rgba(148,163,184,0.2);color:#e2e8f0;font-size:12px;font-weight:600}
+  #toolbar button{background:rgba(255,255,255,0.08);border:none;color:#e2e8f0;
+    padding:6px 14px;border-radius:999px;cursor:pointer;font-size:11px;font-weight:600;
+    transition:all 0.2s;display:flex;align-items:center;gap:6px}
+  #toolbar button:hover{background:rgba(255,255,255,0.16)}
+  #toolbar button.active{background:#f97316;color:#fff}
+  .sep{width:1px;background:rgba(148,163,184,0.3);margin:0 4px}
+</style>
+</head>
+<body>
+<div id="toolbar">
+  <span>SIEC Visor</span><span class="sep"></span>
+  <button id="btn-fit" title="Centrar">◎</button>
+  <button id="btn-top" title="Vista superior">⬆</button>
+  <button id="btn-front" title="Vista frontal">⬛</button>
+  <span class="sep"></span>
+  <span id="info">Cargando...</span>
+</div>
+<script type="importmap">
+{"imports":{
+  "three":"https://unpkg.com/three@0.183.0/build/three.module.js",
+  "three/addons/":"https://unpkg.com/three@0.183.0/examples/jsm/"
+}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#0b1220');
+scene.fog = new THREE.Fog('#0b1220', 30, 120);
+
+const cam = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 2000);
+cam.position.set(10, 14, 10);
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(cam, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.target.set(0,1.2,0);
+
+scene.add(new THREE.AmbientLight('#404060', 1.5));
+const sun = new THREE.DirectionalLight('#ffeedd', 3);
+sun.position.set(15, 22, 8);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048,2048);
+sun.shadow.camera.near = 0.5; sun.shadow.camera.far = 80;
+sun.shadow.camera.left = -20; sun.shadow.camera.right = 20;
+sun.shadow.camera.top = 20; sun.shadow.camera.bottom = -20;
+scene.add(sun);
+
+const hemi = new THREE.HemisphereLight('#8899cc','#334455',0.6);
+scene.add(hemi);
+
+const grid = new THREE.GridHelper(200,200,'#22d3ee','#1e293b');
+grid.material.opacity = 0.12; grid.material.transparent = true;
+scene.add(grid);
+
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(200,200),
+  new THREE.MeshStandardMaterial({color:'#0f172a',roughness:0.9})
+);
+ground.rotation.x = -Math.PI/2; ground.position.y = -0.01;
+ground.receiveShadow = true; scene.add(ground);
+
+const binary = Uint8Array.from(atob('${b64}'), c => c.charCodeAt(0));
+new GLTFLoader().parse(binary.buffer, '', (gltf) => {
+  scene.add(gltf.scene);
+  const box = new THREE.Box3().setFromObject(gltf.scene);
+  const c = box.getCenter(new THREE.Vector3());
+  const s = box.getSize(new THREE.Vector3());
+  const d = Math.max(s.x,s.y,s.z) / 2 / Math.tan(cam.fov*Math.PI/360) * 1.6;
+  cam.position.set(c.x+d*0.7, Math.max(d,8), c.z+d*0.7);
+  controls.target.copy(c); controls.update();
+  document.getElementById('info').textContent = 'Listo';
+});
+
+document.getElementById('btn-fit').onclick = () => {
+  const box = new THREE.Box3().setFromObject(scene);
+  if(box.isEmpty())return;
+  const c=box.getCenter(new THREE.Vector3()),s=box.getSize(new THREE.Vector3());
+  const d=Math.max(s.x,s.y,s.z)/2/Math.tan(cam.fov*Math.PI/360)*1.6;
+  cam.position.set(c.x+d*0.7,Math.max(d,8),c.z+d*0.7);
+  controls.target.copy(c); controls.update();
+};
+document.getElementById('btn-top').onclick = () => {
+  const t=controls.target.clone(); cam.position.set(t.x,t.y+15,t.z+0.01); controls.update();
+};
+document.getElementById('btn-front').onclick = () => {
+  const t=controls.target.clone(); cam.position.set(t.x,t.y+1.6,t.z+12); controls.update();
+};
+
+function anim(){requestAnimationFrame(anim);controls.update();renderer.render(scene,cam)}
+anim();
+addEventListener('resize',()=>{cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+</script>
+</body>
+</html>`;
+
+    return new Blob([html], { type: "text/html" });
+  }
 }

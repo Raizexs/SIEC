@@ -159,3 +159,44 @@ TOTAL                    $6,205,226
 | `database/migrations/010_*.sql` | **NUEVO**: Corregir matriz de rendimiento |
 | `database/migrations/011_*.sql` | **NUEVO**: Unidades comerciales reales |
 | `docker-compose.yml` | Variable SERPAPI_KEY |
+
+---
+
+## 7. Capas Constructivas 3D (T12.2) — ✅ COMPLETO (23 mayo 2026)
+
+Implementación del motor de visibilidad por capas en el modelo 3D con meshes independientes por capa constructiva.
+
+### Arquitectura multi-capa de muros
+
+Cada muro ahora es un `THREE.Group` con hijos independientes:
+
+| Capa | Descripción | Capa 3D | Tipo de muro |
+|------|-------------|---------|-------------|
+| `structure` | Esqueleto de madera con soleras, pies derechos cada 40cm y vanos para puertas/ventanas | Grupo con piezas BoxGeometry | Interior + Exterior |
+| `insulation` | Panel de aislación amarillo entre pies derechos | BoxGeometry | Solo exterior |
+| `interior` | Panel de yeso-cartón (vulcanita) de 12mm | BoxGeometry delgada | Interior + Exterior |
+| `facade` | Revestimiento exterior (madera, vinilo, ladrillo, ferrocemento) | BoxGeometry delgada | Solo exterior |
+| `installations` | Tuberías de agua (azul=fría, roja=caliente, gris=desagüe) | Cilindros | Solo muros adyacentes a baños |
+
+### Cambios realizados
+
+| Archivo | Cambio |
+|---------|--------|
+| `frontend/.../WallBuilder.js` | **REFACTORIZADO**: `buildMultiLayerWall()` genera grupo multi-capa. Stud frame con vanos para puertas y ventanas (cripple studs). Detección de baños para tuberías. |
+| `frontend/.../Scene3D.vue` | **REFACTORIZADO**: `syncWalls()` usa `buildMultiLayerWall()`. Nueva función `applyLayerVisibility()` anima visibilidad por capa con GSAP. Pisos de recintos siempre visibles (volumen base). Watcher de capas separado del watcher principal de escena. |
+| `frontend/.../MaterialLibrary.js` | **EXTENDIDO**: Nuevas texturas procedurales: `_generateStudFrame()` (madera pálida/metálica), `_generateInsulation()` (fibra vidrio amarilla). Método `getLayerMaterial(type, layer)` para materiales por capa. |
+
+### Funcionamiento
+
+1. **Modo construcción OFF**: Todos los hijos del grupo son visibles — el muro se ve completo como antes.
+2. **Modo construcción ON**: Cada hijo responde a su toggle de capa individual en el panel `LayerSelectionPanel`.
+3. **Transiciones**: GSAP anima la opacidad del material (fade-in 350ms, fade-out 250ms).
+4. **Instalaciones inteligentes**: Solo muros con recintos adyacentes de tipo `banio` (baño) muestran tuberías. Habitaciones normales no tienen instalaciones de agua.
+5. **Volumen base**: Los pisos de los recintos (`userData.layerTags = []`) son siempre visibles, cumpliendo con el criterio T12.2.
+
+### Criterios de aceptación T12.2
+
+- [x] Al desactivar una capa, los objetos de esa capa desaparecen del visor 3D
+- [x] Al reactivarla, reaparecen. Las demás capas no se ven afectadas
+- [x] La transición entre estados es animada (GSAP opacity) y sin parpadeos
+- [x] El modelo base (volumen del recinto) siempre permanece visible

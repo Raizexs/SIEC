@@ -12,11 +12,12 @@ import logger from '../utils/logger.js';
  *
  * Backwards-compatible with existing Scene3D consumers in EditorShell.vue.
  */
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { onBeforeUnmount, onMounted, ref, watch, nextTick } from 'vue';
 import * as THREE from 'three';
 import { DragControls } from 'three/examples/jsm/controls/DragControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { storeToRefs } from 'pinia';
+import gsap from 'gsap';
 
 import { useTopologyComputed } from '../composables/useTopologyComputed';
 import { useRecintosStore } from '../stores/recintos';
@@ -105,6 +106,7 @@ const timeOfDay = ref(13);
 const snapStepId = ref(readSharedSnapStepId(25));
 const cameraInfo = ref({ x: 0, z: 0, yaw: 0 });
 const exportMenuOpen = ref(false);
+const showLayersMenu = ref(false);
 const exportFormat = ref(null);
 
 const topology = useTopologyComputed();
@@ -136,6 +138,7 @@ let isManipulating = false;
 let savedScrollY = 0;
 
 let stopSceneWatcher = null;
+let stopLayerWatcher = null;
 let stopActiveRoomWatcher = null;
 
 const wallMeshes = new Map();
@@ -174,6 +177,124 @@ const getCurrentLayerState = () =>
 
 const isMeshVisible = (mesh, layerState = getCurrentLayerState()) =>
   isLayerMeshVisible(mesh.userData.layerTags, layerState);
+
+const disposeGroupRecursive = (group) => {
+  if (!group) return;
+  const children = [...group.children];
+  for (const child of children) {
+    if (child.children && child.children.length > 0) {
+      disposeGroupRecursive(child);
+    }
+    child.geometry?.dispose();
+    if (Array.isArray(child.material)) {
+      child.material.forEach((m) => m?.dispose?.());
+    } else {
+      child.material?.dispose?.();
+    }
+    group.remove(child);
+  }
+};
+
+const setChildLayerVisible = (child, visible, animate = false) => {
+  if (!child) return;
+
+  // Kill any active GSAP animations on this child's materials
+  gsap.killTweensOf(child.material);
+
+  const setVis = (v) => {
+    child.visible = v;
+    if (child.material && typeof child.material === 'object') {
+      child.material.transparent = !v;
+      child.material.opacity = v ? 1 : 0;
+    }
+  };
+
+  if (!animate) {
+    setVis(visible);
+    return;
+  }
+
+  if (visible) {
+    child.visible = true;
+    if (child.material && typeof child.material === 'object' && !Array.isArray(child.material)) {
+      child.material.transparent = true;
+      child.material.opacity = 0;
+      child.material.needsUpdate = true;
+      gsap.to(child.material, {
+        opacity: 1,
+        duration: 0.35,
+        ease: 'power2.out',
+        onComplete: () => {
+          if (child.material) {
+            child.material.transparent = false;
+            child.material.opacity = 1;
+            child.material.needsUpdate = true;
+          }
+        },
+      });
+    }
+  } else {
+    if (child.material && typeof child.material === 'object' && !Array.isArray(child.material)) {
+      child.material.transparent = true;
+      child.material.needsUpdate = true;
+      gsap.to(child.material, {
+        opacity: 0,
+        duration: 0.25,
+        ease: 'power2.in',
+        onComplete: () => {
+          child.visible = false;
+          if (child.material) {
+            child.material.transparent = false;
+            child.material.opacity = 1;
+            child.material.needsUpdate = true;
+          }
+        },
+      });
+    } else {
+      child.visible = false;
+    }
+  }
+};
+
+/**
+ * Update visibility of all wall layer children based on current layer state.
+ * Called when layer toggles change, without rebuilding walls.
+ */
+const applyLayerVisibility = (animate = true) => {
+  if (!sceneManager) return;
+
+  const layerState = getCurrentLayerState();
+
+  for (const [id, group] of wallMeshes.entries()) {
+    if (!group || !group.children) continue;
+
+    const wallPiso = group.userData?.piso || 1;
+    const floorVisible = wallPiso <= recintosStore.currentFloor;
+
+    for (const child of group.children) {
+      if (!child.userData?.layerTags) {
+        child.visible = floorVisible;
+        continue;
+      }
+
+      const layerVisible = isLayerMeshVisible(child.userData.layerTags, layerState);
+      const targetVisible = layerVisible && floorVisible;
+
+      if (child.visible !== targetVisible) {
+        setChildLayerVisible(child, targetVisible, animate);
+      }
+    }
+  }
+
+  // Update roof visibility
+  for (const child of sceneManager.roofGroup.children) {
+    if (!child.userData?.layerTags) continue;
+    const layerVisible = isLayerMeshVisible(child.userData.layerTags, layerState);
+    if (child.visible !== layerVisible) {
+      setChildLayerVisible(child, layerVisible, animate);
+    }
+  }
+};
 
 
 // ── Spatial authority: same terrain rules as Editor 2D ───────────────────────
@@ -652,42 +773,44 @@ const syncWalls = () => {
 
   const incomingIds = new Set(walls.map((wall) => wall.id));
 
-  for (const [id, mesh] of wallMeshes.entries()) {
+  for (const [id, group] of wallMeshes.entries()) {
     if (!incomingIds.has(id)) {
-      sceneManager.wallsGroup.remove(mesh);
-      mesh.geometry?.dispose();
-      mesh.material?.dispose?.();
+      sceneManager.wallsGroup.remove(group);
+      disposeGroupRecursive(group);
       wallMeshes.delete(id);
     }
   }
 
+  const recintoById = new Map(
+    recintosStore.recintos.map((r) => [r.id, r]),
+  );
+
+  const matTypeKey = MAT_TYPE_MAP[props.materialEstructuralId] || 'concrete';
+
   for (const wall of walls) {
-    const matTypeKey = MAT_TYPE_MAP[props.materialEstructuralId] || 'concrete';
-    const wallPart = wall.tipo === 'interior' ? 'interior_wall' : 'exterior_wall';
     const ops = openings.get(wall.id) || [];
+    const wallPart = wall.tipo === 'interior' ? 'interior_wall' : 'exterior_wall';
 
-    let mesh = wallMeshes.get(wall.id);
+    let group = wallMeshes.get(wall.id);
 
-    if (mesh) {
-      sceneManager.wallsGroup.remove(mesh);
-      mesh.geometry?.dispose();
-      mesh.material?.dispose?.();
+    if (group) {
+      sceneManager.wallsGroup.remove(group);
+      disposeGroupRecursive(group);
     }
 
-    mesh = wallBuilder.buildWall(wall, ops, {
+    group = wallBuilder.buildMultiLayerWall(wall, ops, {
       matTypeKey,
       wallPart,
-    });
+    }, recintoById);
 
-    wallBuilder.positionWall(mesh, wall);
+    group.userData.piso = wall.piso || 1;
+    wallBuilder.positionWall(group, wall);
 
-    sceneManager.wallsGroup.add(mesh);
-    wallMeshes.set(wall.id, mesh);
-
-    mesh.visible =
-      isMeshVisible(mesh) &&
-      (wall.piso || 1) <= recintosStore.currentFloor;
+    sceneManager.wallsGroup.add(group);
+    wallMeshes.set(wall.id, group);
   }
+
+  applyLayerVisibility(false);
 };
 
 const syncRooms = () => {
@@ -721,10 +844,7 @@ const syncRooms = () => {
 
       mesh.castShadow = true;
       mesh.receiveShadow = true;
-      mesh.userData.layerTags =
-        recinto.tipo === 'banio'
-          ? ['interior', 'installations']
-          : ['interior'];
+      mesh.userData.layerTags = [];
       mesh.userData.roomId = recinto.id;
       mesh.userData.piso = recinto.piso || 1;
       mesh.userData.prevPosition = mesh.position.clone();
@@ -780,9 +900,7 @@ const syncRooms = () => {
 
     mesh.userData.piso = piso;
 
-    mesh.visible =
-      isMeshVisible(mesh) &&
-      piso <= recintosStore.currentFloor;
+    mesh.visible = piso <= recintosStore.currentFloor;
 
     mesh.material.emissive.setHex(
       recinto.id === recintosStore.activeRecintoId ? 0x2563eb : 0x000000,
@@ -1163,22 +1281,14 @@ const handleExport = async (format) => {
   exportFormat.value = format;
 
   try {
-    if (format === 'gltf') {
-      const blob = await exporter.exportGLTF({ binary: true });
-      SceneExporter.download(blob, 'siec-model.glb');
-    } else if (format === 'obj') {
-      SceneExporter.download(exporter.exportOBJ(), 'siec-model.obj');
-    } else if (format === 'ifc') {
-      SceneExporter.download(
-        exporter.exportIFC({ projectName: 'SIEC' }),
-        'siec-model.ifc',
-      );
+    if (format === 'html') {
+      const blob = await exporter.exportHTML();
+      SceneExporter.download(blob, 'siec-modelo-3d.html');
     } else if (format === 'png') {
       const blob = await exporter.exportImage({
         width: 3840,
         height: 2160,
       });
-
       SceneExporter.download(blob, 'siec-render-4k.png');
     }
   } finally {
@@ -1353,6 +1463,9 @@ onMounted(() => {
     if (!event.target.closest?.('.scene3d-export-menu')) {
       exportMenuOpen.value = false;
     }
+    if (!event.target.closest?.('.scene3d-layers-menu')) {
+      showLayersMenu.value = false;
+    }
   };
 
   document.addEventListener('click', onDocumentClick);
@@ -1373,8 +1486,6 @@ onMounted(() => {
       () => recintosStore.currentFloor,
       () => props.materialEstructuralId,
       () => showFurniture.value,
-      () => constructionModeEnabled.value,
-      () => layerVisibility.value,
     ],
     () => {
       if (!sceneManager) return;
@@ -1387,6 +1498,14 @@ onMounted(() => {
       deep: true,
       immediate: true,
     },
+  );
+
+  stopLayerWatcher = watch(
+    [() => constructionModeEnabled.value, () => layerVisibility.value],
+    () => {
+      applyLayerVisibility(true);
+    },
+    { deep: true },
   );
 
   stopActiveRoomWatcher = watch(
@@ -1416,6 +1535,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   stopSceneWatcher?.();
+  stopLayerWatcher?.();
   stopActiveRoomWatcher?.();
 
   document.removeEventListener('fullscreenchange', handleFullscreenChange);
@@ -1449,9 +1569,8 @@ onBeforeUnmount(() => {
     transformControl.dispose?.();
   }
 
-  for (const mesh of wallMeshes.values()) {
-    mesh.geometry?.dispose();
-    mesh.material?.dispose?.();
+  for (const group of wallMeshes.values()) {
+    disposeGroupRecursive(group);
   }
 
   for (const mesh of roomMeshes.values()) {
@@ -1482,7 +1601,7 @@ onBeforeUnmount(() => {
     <!-- Header -->
     <header
       ref="headerRef"
-      class="mb-4 flex shrink-0 flex-col gap-4 rounded-3xl border border-slate-200/90 bg-slate-50/80 p-4 shadow-sm backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-900/60"
+      class="relative z-20 mb-4 flex shrink-0 flex-col gap-4 rounded-3xl border border-slate-200/90 bg-slate-50/80 p-4 shadow-sm backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-900/60"
     >
       <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <!-- Left: identity + core controls -->
@@ -1574,58 +1693,77 @@ onBeforeUnmount(() => {
               >
                 +
               </button>
-            </div>
+          </div>
 
-            <button
-              v-if="recintosStore.currentFloor < 3"
-              type="button"
-              class="toolbar-btn"
-              @click="handleCloneFloor"
-            >
-              <span class="material-symbols-outlined text-[16px]">
-                content_copy
-              </span>
-              Clonar
-            </button>
-
+          <!-- Layers dropdown moved to right side -->
 
           </div>
         </div>
 
-        <!-- Right: environment + export controls -->
+        <!-- Right: layers + view controls -->
         <div class="flex flex-wrap items-center gap-2 xl:justify-end">
-          <!-- Sun/time -->
-          <div
-            class="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm dark:border-slate-800 dark:bg-slate-950"
-          >
-            <span class="material-symbols-outlined text-[17px] text-orange-500 dark:text-orange-300">
-              wb_sunny
-            </span>
-
-            <input
-              v-model.number="timeOfDay"
-              type="range"
-              min="0"
-              max="24"
-              step="0.25"
-              class="premium-range w-24"
-            />
-
-            <span class="w-12 text-right font-mono text-xs font-black tabular-nums text-slate-700 dark:text-slate-200">
-              {{ timeOfDay.toFixed(1) }}h
-            </span>
+          <!-- Layers dropdown -->
+          <div class="relative scene3d-layers-menu">
+            <button
+              type="button"
+              class="toolbar-btn"
+              :class="constructionModeEnabled ? 'is-active' : ''"
+              @click.stop="showLayersMenu = !showLayersMenu"
+            >
+              <span class="material-symbols-outlined text-[17px]">layers</span>
+              Capas
+            </button>
+            <Transition name="export-menu">
+              <div
+                v-if="showLayersMenu"
+                class="absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-3xl border border-slate-200/90 bg-white/95 p-3 shadow-2xl shadow-slate-950/15 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/40"
+              >
+                <label
+                  class="flex cursor-pointer items-center justify-between rounded-2xl bg-slate-50 px-3 py-2.5 transition-colors hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-800"
+                >
+                  <span class="text-xs font-bold text-slate-700 dark:text-slate-200">Modo construcción</span>
+                  <span
+                    class="relative inline-flex h-5 w-9 items-center rounded-full border transition-colors duration-300"
+                    :class="constructionModeEnabled ? 'border-orange-400 bg-orange-500 shadow-sm shadow-orange-500/20' : 'border-slate-300 bg-slate-200 dark:border-slate-700 dark:bg-slate-800'"
+                  >
+                    <span class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform duration-300" :class="constructionModeEnabled ? 'translate-x-4' : 'translate-x-0.5'" />
+                  </span>
+                  <input :checked="constructionModeEnabled" type="checkbox" class="sr-only" @change="layersStore.toggleConstructionMode()" />
+                </label>
+                <div class="mt-2 space-y-1">
+                  <label
+                    v-for="layer in layersStore.layers"
+                    :key="layer.id"
+                    class="flex cursor-pointer items-center justify-between rounded-xl px-3 py-2 transition-colors hover:bg-slate-50 dark:hover:bg-slate-900"
+                  >
+                    <span class="flex items-center gap-2.5">
+                      <span class="material-symbols-outlined text-[16px] text-slate-500 dark:text-slate-400">{{ layer.icon }}</span>
+                      <span class="text-xs font-semibold" :class="layerVisibility[layer.id] ? 'text-slate-800 dark:text-slate-200' : 'text-slate-400 dark:text-slate-500'">{{ t(layer.labelKey) }}</span>
+                    </span>
+                    <span
+                      class="relative inline-flex h-5 w-9 items-center rounded-full border transition-colors duration-300"
+                      :class="layerVisibility[layer.id] ? 'border-emerald-400 bg-emerald-500 shadow-sm shadow-emerald-500/20' : 'border-slate-300 bg-slate-200 dark:border-slate-700 dark:bg-slate-800'"
+                    >
+                      <span class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform duration-300" :class="layerVisibility[layer.id] ? 'translate-x-4' : 'translate-x-0.5'" />
+                    </span>
+                    <input :checked="layerVisibility[layer.id]" type="checkbox" class="sr-only" @change="layersStore.toggleLayer(layer.id)" />
+                  </label>
+                </div>
+                <div class="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+                  <template v-if="!constructionModeEnabled">Todas las capas visibles</template>
+                  <template v-else>{{ layersStore.activeLayerCount }} de 5 capas activas</template>
+                </div>
+              </div>
+            </Transition>
           </div>
 
           <button
             type="button"
             class="icon-action"
             :title="showFurniture ? 'Ocultar muebles' : 'Mostrar muebles'"
-            :aria-label="showFurniture ? 'Ocultar muebles' : 'Mostrar muebles'"
             @click="showFurniture = !showFurniture"
           >
-            <span class="material-symbols-outlined text-[18px]">
-              {{ showFurniture ? 'chair' : 'chair_alt' }}
-            </span>
+            <span class="material-symbols-outlined text-[18px]">{{ showFurniture ? 'chair' : 'chair_alt' }}</span>
           </button>
 
           <button
@@ -1633,21 +1771,15 @@ onBeforeUnmount(() => {
             class="icon-action"
             :class="sectionEnabled ? 'is-active' : ''"
             title="Sección / Corte"
-            aria-label="Activar sección o corte"
             @click="toggleSection"
           >
-            <span class="material-symbols-outlined text-[18px]">
-              layers
-            </span>
+            <span class="material-symbols-outlined text-[18px]">layers</span>
           </button>
 
           <input
             v-if="sectionEnabled"
             v-model.number="sectionHeight"
-            type="range"
-            min="0.1"
-            max="5.5"
-            step="0.1"
+            type="range" min="0.1" max="5.5" step="0.1"
             class="premium-range w-24"
           />
 
@@ -1656,74 +1788,37 @@ onBeforeUnmount(() => {
             class="icon-action"
             :class="isWalkthrough ? 'is-active' : ''"
             title="Walkthrough"
-            aria-label="Activar recorrido walkthrough"
             @click="toggleWalkthrough"
           >
-            <span class="material-symbols-outlined text-[18px]">
-              {{ isWalkthrough ? 'directions_run' : 'directions_walk' }}
-            </span>
+            <span class="material-symbols-outlined text-[18px]">{{ isWalkthrough ? 'directions_run' : 'directions_walk' }}</span>
           </button>
 
-          <button
-            type="button"
-            class="icon-action"
-            title="Tour automático"
-            aria-label="Iniciar tour automático"
-            @click="startAutoTour"
-          >
-            <span class="material-symbols-outlined text-[18px]">
-              smart_display
-            </span>
-          </button>
-
-          <!-- Export menu -->
+          <!-- Export dropdown -->
           <div class="relative scene3d-export-menu">
-            <button
-              type="button"
-              class="toolbar-btn"
-              @click.stop="exportMenuOpen = !exportMenuOpen"
-            >
-              <span class="material-symbols-outlined text-[17px]">
-                download
-              </span>
+            <button type="button" class="toolbar-btn" @click.stop="exportMenuOpen = !exportMenuOpen">
+              <span class="material-symbols-outlined text-[17px]">download</span>
               Exportar
             </button>
-
             <Transition name="export-menu">
               <div
                 v-if="exportMenuOpen"
                 class="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-3xl border border-slate-200/90 bg-white/95 p-2 shadow-2xl shadow-slate-950/15 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/40"
               >
                 <button
-                  v-for="format in [
-                    { id: 'gltf', label: 'GLTF / GLB (3D)', icon: 'view_in_ar' },
-                    { id: 'obj', label: 'OBJ (CAD)', icon: 'category' },
-                    { id: 'ifc', label: 'IFC (BIM)', icon: 'architecture' },
-                    { id: 'png', label: 'Imagen 4K', icon: 'image' },
+                  v-for="fmt in [
+                    { id: 'png', label: 'Imagen PNG', icon: 'image' },
+                    { id: 'html', label: 'Visor HTML', icon: 'language' },
                   ]"
-                  :key="format.id"
+                  :key="fmt.id"
                   type="button"
                   class="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-xs font-bold text-slate-700 transition-all duration-200 hover:bg-slate-50 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-slate-100"
-                  @click="handleExport(format.id)"
+                  @click="handleExport(fmt.id)"
                 >
-                  <span
-                    class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-orange-200 bg-orange-50 text-orange-600 dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
-                  >
-                    <span class="material-symbols-outlined text-[16px]">
-                      {{ format.icon }}
-                    </span>
+                  <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-orange-200 bg-orange-50 text-orange-600 dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300">
+                    <span class="material-symbols-outlined text-[16px]">{{ fmt.icon }}</span>
                   </span>
-
-                  <span class="min-w-0 flex-1">
-                    {{ format.label }}
-                  </span>
-
-                  <span
-                    v-if="exportFormat === format.id"
-                    class="material-symbols-outlined animate-spin text-[15px] text-orange-500 dark:text-orange-300"
-                  >
-                    progress_activity
-                  </span>
+                  <span class="min-w-0 flex-1">{{ fmt.label }}</span>
+                  <span v-if="exportFormat === fmt.id" class="material-symbols-outlined animate-spin text-[15px] text-orange-500">progress_activity</span>
                 </button>
               </div>
             </Transition>
@@ -1733,24 +1828,18 @@ onBeforeUnmount(() => {
             type="button"
             class="icon-action"
             title="Centrar cámara"
-            aria-label="Centrar cámara"
             @click="centerCamera"
           >
-            <span class="material-symbols-outlined text-[18px]">
-              my_location
-            </span>
+            <span class="material-symbols-outlined text-[18px]">my_location</span>
           </button>
 
           <button
             type="button"
             class="icon-action"
             title="Pantalla completa"
-            aria-label="Alternar pantalla completa"
             @click="toggleFullScreen"
           >
-            <span class="material-symbols-outlined text-[18px]">
-              {{ isFullScreen ? 'fullscreen_exit' : 'fullscreen' }}
-            </span>
+            <span class="material-symbols-outlined text-[18px]">{{ isFullScreen ? 'fullscreen_exit' : 'fullscreen' }}</span>
           </button>
         </div>
       </div>
