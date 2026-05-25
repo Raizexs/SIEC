@@ -162,41 +162,54 @@ TOTAL                    $6,205,226
 
 ---
 
-## 7. Capas Constructivas 3D (T12.2) — ✅ COMPLETO (23 mayo 2026)
+## 7. Capas Constructivas 3D (T12.2) — ✅ COMPLETO (23-25 mayo 2026)
 
-Implementación del motor de visibilidad por capas en el modelo 3D con meshes independientes por capa constructiva.
+Implementación del motor de visibilidad por capas en el modelo 3D con meshes independientes por capa constructiva, posicionamiento realista y texturas diferenciadas.
 
 ### Arquitectura multi-capa de muros
 
-Cada muro ahora es un `THREE.Group` con hijos independientes:
+Cada muro es un `THREE.Group` con hijos independientes al ras de los pies derechos:
 
-| Capa | Descripción | Capa 3D | Tipo de muro |
-|------|-------------|---------|-------------|
-| `structure` | Esqueleto de madera con soleras, pies derechos cada 40cm y vanos para puertas/ventanas | Grupo con piezas BoxGeometry | Interior + Exterior |
-| `insulation` | Panel de aislación amarillo entre pies derechos | BoxGeometry | Solo exterior |
-| `interior` | Panel de yeso-cartón (vulcanita) de 12mm | BoxGeometry delgada | Interior + Exterior |
-| `facade` | Revestimiento exterior (madera, vinilo, ladrillo, ferrocemento) | BoxGeometry delgada | Solo exterior |
-| `installations` | Tuberías de agua (azul=fría, roja=caliente, gris=desagüe) | Cilindros | Solo muros adyacentes a baños |
+| Capa | Descripción | Tipo de muro |
+|------|-------------|-------------|
+| `structure` | Pies derechos cada 40cm (41x65mm), soleras, riostras diagonales c/4 vanos. Vanos reales para puertas (sin studs) y ventanas (cripple studs). | Todos |
+| `insulation` | Batts individuales de fibra de vidrio rosa entre cada par de pies derechos. Divididos arriba/abajo en vanos con ventana. | Solo exterior |
+| `interior` | Planchas de vulcanita 1.22x2.44m con juntas visibles entre paneles y junta horizontal a media altura. | Todos |
+| `facade` | Tablones horizontales individuales con sombra (madera/vinilo) o panel sólido (ladrillo/hormigón). | Solo exterior |
+| `installations` | Tuberías agua fría (azul), caliente (roja), desagüe (gris). | Solo muros adyacentes a baños |
 
 ### Cambios realizados
 
 | Archivo | Cambio |
 |---------|--------|
-| `frontend/.../WallBuilder.js` | **REFACTORIZADO**: `buildMultiLayerWall()` genera grupo multi-capa. Stud frame con vanos para puertas y ventanas (cripple studs). Detección de baños para tuberías. |
-| `frontend/.../Scene3D.vue` | **REFACTORIZADO**: `syncWalls()` usa `buildMultiLayerWall()`. Nueva función `applyLayerVisibility()` anima visibilidad por capa con GSAP. Pisos de recintos siempre visibles (volumen base). Watcher de capas separado del watcher principal de escena. |
-| `frontend/.../MaterialLibrary.js` | **EXTENDIDO**: Nuevas texturas procedurales: `_generateStudFrame()` (madera pálida/metálica), `_generateInsulation()` (fibra vidrio amarilla). Método `getLayerMaterial(type, layer)` para materiales por capa. |
+| `frontend/.../WallBuilder.js` | **REESCRITO**: `buildMultiLayerWall()` con posicionamiento realista. Paneles al ras de cara de studs (no flotando). Stud frame con riostras, cripple studs, pies derechos insetados en extremos. Aislación como batts individuales entre studs. Interior como planchas con juntas. Fachada con tablones individuales. |
+| `frontend/.../Scene3D.vue` | `syncWalls()` usa `buildMultiLayerWall()`. `applyLayerVisibility()` con GSAP. Dropdown de capas integrado en toolbar derecha. Pisos siempre visibles. Removidos: slider sol, auto-tour, clonar piso. Export: solo PNG 4K y Visor HTML standalone. |
+| `frontend/.../MaterialLibrary.js` | Texturas procedurales: madera con vetas/anillos/nudos, fibra vidrio rosa con textura fibrosa. Método `getLayerMaterial(type, layer)`. |
+| `frontend/.../SceneExporter.js` | `exportHTML()`: genera visor 3D standalone con OrbitControls, sombras, toolbar. Modelo embebido como GLB base64. |
+
+### Toolbar final del visor 3D
+```
+Capas | Muebles | Sección | Walkthrough | Exportar | Centrar | Fullscreen
+```
+
+### Exportar
+- **Imagen PNG**: captura 4K del viewport actual
+- **Visor HTML**: archivo .html autónomo con modelo 3D interactivo (Three.js CDN, orbit controls, vistas predefinidas)
 
 ### Funcionamiento
 
-1. **Modo construcción OFF**: Todos los hijos del grupo son visibles — el muro se ve completo como antes.
-2. **Modo construcción ON**: Cada hijo responde a su toggle de capa individual en el panel `LayerSelectionPanel`.
-3. **Transiciones**: GSAP anima la opacidad del material (fade-in 350ms, fade-out 250ms).
-4. **Instalaciones inteligentes**: Solo muros con recintos adyacentes de tipo `banio` (baño) muestran tuberías. Habitaciones normales no tienen instalaciones de agua.
-5. **Volumen base**: Los pisos de los recintos (`userData.layerTags = []`) son siempre visibles, cumpliendo con el criterio T12.2.
+1. **Modo construcción OFF**: Todos los hijos visibles — muro completo.
+2. **Modo construcción ON**: Cada hijo responde a su toggle en el dropdown de capas.
+3. **Transiciones**: GSAP fade-in 350ms / fade-out 250ms.
+4. **Instalaciones**: Solo muros con recinto adyacente tipo `banio`. Habitaciones normales sin tuberías.
+5. **Volumen base**: Pisos de recintos (`layerTags = []`) siempre visibles.
 
 ### Criterios de aceptación T12.2
 
-- [x] Al desactivar una capa, los objetos de esa capa desaparecen del visor 3D
+- [x] Al desactivar una capa, los objetos desaparecen del visor 3D
+- [x] Al reactivar, reaparecen sin afectar otras capas
+- [x] Transición animada sin parpadeos
+- [x] Modelo base (volumen del recinto) siempre visible
 - [x] Al reactivarla, reaparecen. Las demás capas no se ven afectadas
 - [x] La transición entre estados es animada (GSAP opacity) y sin parpadeos
 - [x] El modelo base (volumen del recinto) siempre permanece visible
