@@ -43,7 +43,20 @@ def _validate_database_url(url: str) -> str:
 
 SQLALCHEMY_DATABASE_URL = _validate_database_url(_pick_database_url())
 
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
+
+def _engine_connect_args(url: str) -> dict:
+    host = (urlparse(url).hostname or "").lower()
+    # Supabase Postgres requires SSL from external hosts (e.g. Railway).
+    if "supabase.co" in host:
+        return {"sslmode": "require"}
+    return {}
+
+
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    pool_pre_ping=True,
+    connect_args=_engine_connect_args(SQLALCHEMY_DATABASE_URL),
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
