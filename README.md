@@ -133,6 +133,8 @@ cd SIEC
 docker-compose up --build
 ```
 
+Before running Docker, copy `.env.example` to `.env` and set `SERPAPI_METALCON_API_KEY` if you want live Metalcon search results.
+
 ### Run the frontend manually
 
 ```bash

@@ -44,6 +44,7 @@ import {
   Sparkles,
 } from 'lucide-vue-next';
 import AppRail from '../components/shell/AppRail.vue';
+import { useI18n } from '../composables/useI18n';
 import {
   useProductPreferences,
 } from '../composables/useProductPreferences';
@@ -53,6 +54,7 @@ const { productPreferences, saveProductPreferences: persistProductPreferences } 
 
 const router = useRouter();
 const route = useRoute();
+const { t, currentLanguage } = useI18n();
 const auth = useAuthStore();
 const { savedLayouts } = useLayoutManager();
 
@@ -101,7 +103,7 @@ const confirmState = ref({
   open: false,
   title: '',
   message: '',
-  confirmLabel: 'Confirmar',
+  confirmLabel: '',
   variant: 'danger',
   /** @type {null | (() => Promise<void>)} */
   action: null,
@@ -112,10 +114,11 @@ const factors = computed(() => auth.mfaState.factors);
 const savedLayoutsCount = computed(() => savedLayouts.value?.length ?? 0);
 
 const planModeBadges = computed(() => {
+  void currentLanguage.value;
   const badges = [{ id: 'free', label: 'Free' }];
 
   if (!isSupabaseConfigured || !auth.session) {
-    badges.push({ id: 'local', label: 'Modo local' });
+    badges.push({ id: 'local', label: t('settingsLocalMode') });
   }
 
   badges.push({ id: 'beta', label: 'Beta' });
@@ -128,42 +131,42 @@ const apiBaseUrl = computed(
 );
 
 const integrationCards = computed(() => {
-  const supabaseConnected = Boolean(auth.session);
-  const praxLocal = apiBaseUrl.value.includes('localhost');
+  void currentLanguage.value;
+  const soon = t('settingsComingSoon');
 
   return [
     {
       id: 'gdrive',
       name: 'Google Drive',
       icon: FolderSync,
-      description: 'Respaldos y exportaciones en la nube.',
-      status: 'Próximamente',
+      description: t('settingsIntGdriveDesc'),
+      status: soon,
       statusVariant: 'muted',
-      cta: 'Próximamente',
+      cta: soon,
       ctaDisabled: true,
-      hint: 'En evaluación de alcance y permisos OAuth.',
+      hint: t('settingsIntGdriveHint'),
     },
     {
       id: 'revit',
       name: 'Revit / IFC',
       icon: Landmark,
-      description: 'Coordinación BIM e intercambio IFC.',
-      status: 'Próximamente',
+      description: t('settingsIntRevitDesc'),
+      status: soon,
       statusVariant: 'muted',
-      cta: 'Próximamente',
+      cta: soon,
       ctaDisabled: true,
-      hint: 'En evaluación de alcance e intercambio IFC.',
+      hint: t('settingsIntRevitHint'),
     },
     {
       id: 'autocad',
       name: 'AutoCAD',
       icon: PenLine,
-      description: 'Compatibilidad CAD y capas técnicas.',
-      status: 'Próximamente',
+      description: t('settingsIntAutocadDesc'),
+      status: soon,
       statusVariant: 'muted',
-      cta: 'Próximamente',
+      cta: soon,
       ctaDisabled: true,
-      hint: 'En evaluación de alcance y compatibilidad CAD.',
+      hint: t('settingsIntAutocadHint'),
     },
   ];
 });
@@ -173,7 +176,7 @@ const closeConfirm = () => {
     open: false,
     title: '',
     message: '',
-    confirmLabel: 'Confirmar',
+    confirmLabel: t('settingsConfirm'),
     variant: 'danger',
     action: null,
   };
@@ -189,10 +192,9 @@ const runConfirmAction = async () => {
 const openRemoveMfaConfirm = (factorId) => {
   confirmState.value = {
     open: true,
-    title: 'Eliminar factor MFA',
-    message:
-      '¿Eliminar este factor? Tu cuenta volverá a depender solo de la contraseña hasta que configures un nuevo autenticador.',
-    confirmLabel: 'Eliminar factor',
+    title: t('settingsMfaRemoveTitle'),
+    message: t('settingsMfaRemoveMessage'),
+    confirmLabel: t('settingsMfaRemoveConfirm'),
     variant: 'danger',
     action: async () => {
       await auth.unenrollMFA(factorId);
@@ -203,10 +205,9 @@ const openRemoveMfaConfirm = (factorId) => {
 const openLogoutAllConfirm = () => {
   confirmState.value = {
     open: true,
-    title: 'Cerrar sesión global',
-    message:
-      'Esto invalidará la sesión en todos los dispositivos vinculados a tu cuenta. Deberás iniciar sesión nuevamente en cada uno.',
-    confirmLabel: 'Cerrar todas las sesiones',
+    title: t('settingsLogoutAllTitle'),
+    message: t('settingsLogoutAllMessage'),
+    confirmLabel: t('settingsLogoutAllConfirm'),
     variant: 'danger',
     action: async () => {
       await auth.logoutAllDevices();
@@ -221,11 +222,10 @@ const saveProductPreferences = () => {
   try {
     persistProductPreferences();
     preferenceMessageType.value = 'success';
-    preferenceMessage.value =
-      'Preferencias del simulador guardadas en este navegador.';
+    preferenceMessage.value = t('settingsSavedPreferences');
   } catch (error) {
     preferenceMessageType.value = 'error';
-    preferenceMessage.value = `No se pudo guardar: ${error.message}`;
+    preferenceMessage.value = t('settingsSaveFailed', { message: error.message });
   }
 };
 
@@ -241,30 +241,109 @@ const materialOptions = [
   { id: 4, label: 'Concrete' },
 ];
 
-const preferenceSummary = computed(() => ({
-  experience:
-    motionPref.value === 'full'
-      ? 'Animaciones completas'
-      : motionPref.value === 'reduced'
-        ? 'Movimiento mínimo'
-        : 'Según sistema',
+const preferenceSummary = computed(() => {
+  void currentLanguage.value;
+  const gridLabel = productPreferences.value.editor.showGrid
+    ? t('settingsPrefGridOn')
+    : t('settingsPrefGridOff');
 
-  editor: `${productPreferences.value.editor.showGrid ? 'Grilla activa' : 'Sin grilla'} · ${
-    productPreferences.value.editor.snapToGrid ? 'Snap activo' : 'Sin snap'
-  } · Vista ${productPreferences.value.editor.initialView}`,
+  return {
+    experience:
+      motionPref.value === 'full'
+        ? t('settingsMotionFullSummary')
+        : motionPref.value === 'reduced'
+          ? t('settingsMotionReducedSummary')
+          : t('settingsMotionSystemSummary'),
 
-  estimation: `${productPreferences.value.currency} · ${
-    productPreferences.value.unit === 'metric' ? 'm²' : 'ft²'
-  } · ${productPreferences.value.contingency}% contingencia · ${
-    productPreferences.value.includeTax ? 'IVA incluido' : 'Sin IVA'
-  } · ${materialOptions.find((m) => m.id === productPreferences.value.defaultMaterial)?.label ?? 'Material'}`,
+    editor: `${gridLabel} · ${t('settingsPrefView', {
+      view: productPreferences.value.editor.initialView,
+    })}`,
 
-  export: `${productPreferences.value.export.preferredFormat} · ${
-    productPreferences.value.export.includeMaterialsBreakdown ? 'Con desglose' : 'Sin desglose'
-  } · ${
-    productPreferences.value.export.includeSnapshots ? 'Con capturas' : 'Sin capturas'
-  }`,
-}));
+    estimation: `${productPreferences.value.currency} · ${
+      productPreferences.value.unit === 'metric' ? 'm²' : 'ft²'
+    } · ${t('settingsPrefContingency', {
+      pct: productPreferences.value.contingency,
+    })} · ${
+      productPreferences.value.includeTax
+        ? t('settingsPrefWithTax')
+        : t('settingsPrefNoTax')
+    } · ${
+      materialOptions.find((m) => m.id === productPreferences.value.defaultMaterial)
+        ?.label ?? 'Material'
+    }`,
+
+    export: `${productPreferences.value.export.preferredFormat} · ${
+      productPreferences.value.export.includeMaterialsBreakdown
+        ? t('settingsPrefWithBreakdown')
+        : t('settingsPrefNoBreakdown')
+    } · ${
+      productPreferences.value.export.includeSnapshots
+        ? t('settingsPrefWithSnapshots')
+        : t('settingsPrefNoSnapshots')
+    }`,
+  };
+});
+
+const motionOptions = computed(() => {
+  void currentLanguage.value;
+  return [
+    {
+      id: 'system',
+      title: t('settingsMotionSystem'),
+      description: t('settingsMotionSystemDesc'),
+      tone: 'slate',
+    },
+    {
+      id: 'full',
+      title: t('settingsMotionFull'),
+      description: t('settingsMotionFullDesc'),
+      tone: 'orange',
+    },
+    {
+      id: 'reduced',
+      title: t('settingsMotionReduced'),
+      description: t('settingsMotionReducedDesc'),
+      tone: 'muted',
+    },
+  ];
+});
+
+const exportToggleOptions = computed(() => {
+  void currentLanguage.value;
+  return [
+    {
+      key: 'includeLogo',
+      label: t('settingsLogoReports'),
+      sub: t('settingsLogoReportsSub'),
+    },
+    {
+      key: 'includeMaterialsBreakdown',
+      label: t('settingsMaterialsBreakdown'),
+      sub: t('settingsMaterialsBreakdownSub'),
+    },
+    {
+      key: 'includeUnitPrices',
+      label: t('settingsUnitPrices'),
+      sub: t('settingsUnitPricesSub'),
+    },
+    {
+      key: 'includeSnapshots',
+      label: t('settingsSnapshots'),
+      sub: t('settingsSnapshotsSub'),
+    },
+  ];
+});
+
+const proRoadmapItems = computed(() => {
+  void currentLanguage.value;
+  return [
+    t('settingsProUnlimited'),
+    t('settingsProHistory'),
+    t('settingsProBim'),
+    t('settingsProCollab'),
+    t('settingsProSupport'),
+  ];
+});
 
 useProMotion(motionRoot, {
   skipIntro: true,
@@ -320,7 +399,7 @@ const onAvatarSelected = async (event) => {
 
   if (!file.type.startsWith('image/')) {
     profileMessageType.value = 'error';
-    profileMessage.value = 'Selecciona una imagen válida.';
+    profileMessage.value = t('settingsInvalidImage');
     return;
   }
 
@@ -373,7 +452,7 @@ const startMFAEnroll = async () => {
   if (res.success) {
     mfaStatus.value = 'qr';
   } else {
-    mfaError.value = res.error || 'No se pudo iniciar MFA.';
+    mfaError.value = res.error || t('settingsMfaInvalidCode');
   }
 };
 
@@ -387,46 +466,58 @@ const verifyMFA = async () => {
     mfaStatus.value = 'done';
     mfaCode.value = '';
   } else {
-    mfaError.value = res.error || 'Código inválido.';
+    mfaError.value = res.error || t('settingsMfaInvalidCode');
     mfaStatus.value = 'qr';
   }
 };
 
-const tabs = [
-  {
-    id: 'profile',
-    label: 'Perfil',
-    description: 'Identidad y foto',
-    icon: User2,
-  },
-  {
-    id: 'security',
-    label: 'Seguridad',
-    description: 'MFA y sesiones',
-    icon: ShieldCheck,
-  },
-  {
-    id: 'preferences',
-    label: 'Preferencias',
-    description: 'Estimación y editor',
-    icon: SlidersHorizontal,
-  },
-  {
-    id: 'integrations',
-    label: 'Integraciones',
-    description: 'Ecosistema técnico',
-    icon: Plug2,
-  },
-  {
-    id: 'billing',
-    label: 'Plan',
-    description: 'Uso y límites',
-    icon: CreditCard,
-  },
-];
+const tabs = computed(() => {
+  void currentLanguage.value;
+  return [
+    {
+      id: 'profile',
+      label: t('settingsTabProfile'),
+      description: t('settingsTabProfileSub'),
+      icon: User2,
+    },
+    {
+      id: 'security',
+      label: t('settingsTabSecurity'),
+      description: t('settingsTabSecuritySub'),
+      icon: ShieldCheck,
+    },
+    {
+      id: 'preferences',
+      label: t('settingsTabPreferences'),
+      description: t('settingsTabPreferencesSub'),
+      icon: SlidersHorizontal,
+    },
+    {
+      id: 'integrations',
+      label: t('settingsTabIntegrations'),
+      description: t('settingsTabIntegrationsSub'),
+      icon: Plug2,
+    },
+    {
+      id: 'billing',
+      label: t('settingsTabPlan'),
+      description: t('settingsTabPlanSub'),
+      icon: CreditCard,
+    },
+  ];
+});
 
 const activeTabMeta = computed(() => {
-  return tabs.find((item) => item.id === tab.value) || tabs[0];
+  return tabs.value.find((item) => item.id === tab.value) || tabs.value[0];
+});
+
+const tabHeroDescription = computed(() => {
+  void currentLanguage.value;
+  if (tab.value === 'profile') return t('settingsTabProfileDesc');
+  if (tab.value === 'security') return t('settingsTabSecurityHero');
+  if (tab.value === 'preferences') return t('settingsTabPreferencesDesc');
+  if (tab.value === 'integrations') return t('settingsTabIntegrationsDesc');
+  return t('settingsTabBillingDesc');
 });
 
 const avatarInitial = computed(() => {
@@ -454,7 +545,7 @@ const integrationVariantClass = (variant) => {
 watch(
   () => route.query.tab,
   (incoming) => {
-    if (typeof incoming === 'string' && tabs.some((item) => item.id === incoming)) {
+    if (typeof incoming === 'string' && tabs.value.some((item) => item.id === incoming)) {
       tab.value = incoming;
     }
   },
@@ -484,18 +575,18 @@ watch(
             @click="router.back()"
           >
           <ArrowLeft class="h-4 w-4" :stroke-width="2.2" />
-          Volver
+          {{ t('settingsBack') }}
         </button>
 
           <div class="min-w-0">
             <p
               class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
             >
-              Centro de control
+              {{ t('settingsControlCenter') }}
             </p>
 
             <h1 class="mt-0.5 truncate text-base font-black tracking-tight text-slate-950 dark:text-slate-100">
-              Configuración
+              {{ t('settingsTitle') }}
             </h1>
           </div>
         </div>
@@ -513,7 +604,7 @@ watch(
           >
           	<nav
           		class="overflow-hidden rounded-[2rem] border border-slate-200/90 bg-white/85 p-4 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30"
-          		aria-label="Secciones de configuración"
+          		:aria-label="t('settingsSectionsAria')"
           	>
           		<div class="space-y-2">
           			<button
@@ -583,7 +674,7 @@ watch(
                   <p
                     class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
                   >
-                    Panel de sección
+                    {{ t('settingsSectionPanel') }}
                   </p>
 
                   <h2 class="mt-1 text-3xl font-black tracking-tight text-slate-950 dark:text-slate-100">
@@ -591,17 +682,7 @@ watch(
                   </h2>
 
                   <p class="mt-2 max-w-2xl text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400">
-                    {{
-                      tab === 'profile'
-                        ? 'Información visible para tu equipo y colaboradores.'
-                        : tab === 'security'
-                          ? 'Protege tu cuenta con segundo factor y controla sesiones activas.'
-                          : tab === 'preferences'
-                            ? 'Define cómo estima, dibuja y exporta SIEC: criterios económicos, editor y reportes.'
-                            : tab === 'integrations'
-                              ? 'Mapa técnico de conexiones externas: identidad, datos y coordinación futura.'
-                              : 'Resumen de plan, uso del simulador y límites previstos en versiones superiores.'
-                    }}
+                    {{ tabHeroDescription }}
                   </p>
                 </div>
               </div>
@@ -619,11 +700,11 @@ watch(
                   <p
                     class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
                   >
-                    Identidad
+                    {{ t('settingsIdentity') }}
                   </p>
 
                   <h3 class="mt-1 text-lg font-black tracking-tight text-slate-950 dark:text-slate-100">
-                    Perfil público
+                    {{ t('settingsPublicProfile') }}
                   </h3>
                 </header>
 
@@ -645,7 +726,7 @@ watch(
 
                     <label
                       class="absolute -bottom-2 -right-2 flex h-9 w-9 cursor-pointer items-center justify-center rounded-2xl border border-slate-200 bg-white text-orange-600 shadow-lg shadow-slate-950/10 transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-300 hover:bg-orange-50 active:scale-[0.98] dark:border-slate-800 dark:bg-slate-950 dark:text-orange-300 dark:hover:border-orange-900/60 dark:hover:bg-orange-950/30"
-                      title="Cambiar foto"
+                      :title="t('settingsChangePhoto')"
                     >
                       <input
                         type="file"
@@ -660,14 +741,14 @@ watch(
                   <div class="min-w-0 flex-1">
                     <div class="flex flex-wrap items-center gap-2">
                       <p class="truncate text-lg font-black text-slate-950 dark:text-slate-100">
-                        {{ fullName || auth.fullName || 'Sin nombre' }}
+                        {{ fullName || auth.fullName || t('settingsNoName') }}
                       </p>
 
                       <span
                         class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-tight text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/25 dark:text-emerald-300"
                       >
                         <BadgeCheck class="h-3.5 w-3.5" :stroke-width="2.4" />
-                        Activo
+                        {{ t('settingsActive') }}
                       </span>
                     </div>
 
@@ -692,18 +773,18 @@ watch(
                   class="border-b border-slate-200/80 bg-slate-50/80 px-5 py-4 dark:border-slate-800/80 dark:bg-slate-900/60"
                 >
                   <h3 class="text-lg font-black tracking-tight text-slate-950 dark:text-slate-100">
-                    Datos profesionales
+                    {{ t('settingsProfessionalData') }}
                   </h3>
 
                   <p class="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-                    Estos datos ayudan a personalizar reportes, colaboración y exportaciones.
+                    {{ t('settingsProfileHelp') }}
                   </p>
                 </header>
 
                 <div class="space-y-4 p-5">
                   <div>
                     <label class="premium-label">
-                      Nombre completo
+                      {{ t('settingsFullName') }}
                     </label>
 
                     <input
@@ -715,7 +796,7 @@ watch(
 
                   <div>
                     <label class="premium-label">
-                      Empresa
+                      {{ t('settingsCompany') }}
                     </label>
 
                     <input
@@ -744,7 +825,7 @@ watch(
                         :stroke-width="2.2"
                       />
 
-                      {{ isSavingProfile ? 'Guardando…' : 'Guardar cambios' }}
+                      {{ isSavingProfile ? t('settingsSaving') : t('settingsSaveChanges') }}
                     </button>
 
                     <transition name="settings-alert">
@@ -795,11 +876,11 @@ watch(
 
                     <div>
                       <h3 class="text-lg font-black tracking-tight text-slate-950 dark:text-slate-100">
-                        Autenticación de dos factores
+                        {{ t('settingsMfaTitle') }}
                       </h3>
 
                       <p class="mt-1 text-xs font-medium leading-relaxed text-slate-500 dark:text-slate-400">
-                        Usa Google Authenticator, 1Password, Authy u otra app TOTP.
+                        {{ t('settingsMfaSubtitle') }}
                       </p>
                     </div>
                   </div>
@@ -836,7 +917,7 @@ watch(
                         @click="openRemoveMfaConfirm(factor.id)"
                       >
                         <Trash2 class="h-3.5 w-3.5" :stroke-width="2" />
-                        Eliminar
+                        {{ t('settingsMfaRemove') }}
                       </button>
                     </div>
                   </div>
@@ -848,7 +929,7 @@ watch(
                     @click="startMFAEnroll"
                   >
                     <KeyRound class="h-4 w-4" :stroke-width="2.2" />
-                    Configurar autenticador
+                    {{ t('settingsMfaSetup') }}
                   </button>
 
                   <div
@@ -856,7 +937,7 @@ watch(
                     class="space-y-4 rounded-3xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-900/60"
                   >
                     <p class="text-sm font-semibold leading-relaxed text-slate-600 dark:text-slate-300">
-                      Escanea el QR con tu app y luego ingresa el código de 6 dígitos.
+                      {{ t('settingsMfaScanQr') }}
                     </p>
 
                     <div
@@ -895,7 +976,7 @@ watch(
                         :stroke-width="2.2"
                       />
 
-                      Verificar y activar
+                      {{ t('settingsMfaVerify') }}
                     </button>
 
                     <p
@@ -912,7 +993,7 @@ watch(
                     class="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/25 dark:text-emerald-300"
                   >
                     <CheckCircle2 class="h-4 w-4" :stroke-width="2.2" />
-                    MFA activado correctamente.
+                    {{ t('settingsMfaDone') }}
                   </p>
                 </div>
               </article>
@@ -931,18 +1012,18 @@ watch(
                   <div class="min-w-0 flex-1">
                     <div class="flex flex-wrap items-center gap-2">
                       <h3 class="text-lg font-black tracking-tight text-slate-950 dark:text-slate-100">
-                        Sesiones activas
+                        {{ t('settingsActiveSessions') }}
                       </h3>
 
                       <span
                         class="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-tight text-red-700 dark:border-red-900/70 dark:bg-red-950/25 dark:text-red-300"
                       >
-                        Acción sensible
+                        {{ t('settingsSensitiveAction') }}
                       </span>
                     </div>
 
                     <p class="mt-1 max-w-xl text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400">
-                      Usa esta opción solo si perdiste acceso a un dispositivo o sospechas actividad no autorizada.
+                      {{ t('settingsSensitiveHint') }}
                     </p>
 
                     <button
@@ -951,7 +1032,7 @@ watch(
                       @click="openLogoutAllConfirm"
                     >
                       <AlertTriangle class="h-4 w-4" :stroke-width="2.2" />
-                      Cerrar sesión en todos los dispositivos
+                      {{ t('settingsLogoutAllDevices') }}
                     </button>
                   </div>
                 </div>
@@ -978,10 +1059,10 @@ watch(
                     <p
                       class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
                     >
-                      Experiencia
+                      {{ t('settingsExperience') }}
                     </p>
                     <h3 class="mt-1 text-lg font-black tracking-tight text-slate-950 dark:text-slate-100">
-                      Animación y fluidez
+                      {{ t('settingsAnimation') }}
                     </h3>
                     <p
                       class="mt-1 truncate text-xs font-semibold text-slate-600 dark:text-slate-300"
@@ -1001,30 +1082,11 @@ watch(
                   <div v-show="openPreferenceSections.experience">
                   <fieldset class="space-y-3 p-5">
                   <legend class="sr-only">
-                    Intensidad de animación
+                    {{ t('settingsAnimationLegend') }}
                   </legend>
 
                   <label
-                    v-for="option in [
-                      {
-                        id: 'system',
-                        title: 'Igual que el sistema',
-                        description: 'Recomendado: respeta la configuración de accesibilidad del dispositivo.',
-                        tone: 'slate',
-                      },
-                      {
-                        id: 'full',
-                        title: 'Animaciones activadas',
-                        description: 'Transiciones y microinteracciones completas dentro de SIEC.',
-                        tone: 'orange',
-                      },
-                      {
-                        id: 'reduced',
-                        title: 'Movimiento mínimo',
-                        description: 'Menos animación; interfaz más estática y rápida de percibir.',
-                        tone: 'muted',
-                      },
-                    ]"
+                    v-for="option in motionOptions"
                     :key="option.id"
                     class="group flex cursor-pointer items-start gap-3 rounded-3xl border p-4 transition-all duration-200 active:scale-[0.99]"
                     :class="
@@ -1082,10 +1144,10 @@ watch(
                     <p
                       class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
                     >
-                      Escena
+                      {{ t('settingsScene') }}
                     </p>
                     <h3 class="mt-1 text-lg font-black tracking-tight text-slate-950 dark:text-slate-100">
-                      Editor 2D/3D
+                      {{ t('settingsEditor') }}
                     </h3>
                     <p
                       class="mt-1 truncate text-xs font-semibold text-slate-600 dark:text-slate-300"
@@ -1108,10 +1170,10 @@ watch(
                     <div class="flex min-w-[200px] flex-1 items-center justify-between gap-3 rounded-2xl border border-slate-200/90 bg-slate-50/60 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/40">
                       <div>
                         <p class="text-xs font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
-                          Grilla visible
+                          {{ t('settingsGridVisible') }}
                         </p>
                         <p class="mt-0.5 text-[11px] font-medium text-slate-400 dark:text-slate-500">
-                          Referencia al dibujar plantas
+                          {{ t('settingsGridHint') }}
                         </p>
                       </div>
                       <button
@@ -1132,52 +1194,6 @@ watch(
                       </button>
                     </div>
 
-                    <div class="flex min-w-[200px] flex-1 items-center justify-between gap-3 rounded-2xl border border-slate-200/90 bg-slate-50/60 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/40">
-                      <div>
-                        <p class="text-xs font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
-                          Snap a grilla
-                        </p>
-                        <p class="mt-0.5 text-[11px] font-medium text-slate-400 dark:text-slate-500">
-                          Alineación asistida
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        class="relative h-8 w-14 rounded-full border transition-colors duration-200"
-                        :class="
-                          productPreferences.editor.snapToGrid
-                            ? 'border-orange-300 bg-orange-500 dark:border-orange-800'
-                            : 'border-slate-300 bg-slate-200 dark:border-slate-700 dark:bg-slate-800'
-                        "
-                        :aria-pressed="productPreferences.editor.snapToGrid"
-                        @click="productPreferences.editor.snapToGrid = !productPreferences.editor.snapToGrid"
-                      >
-                        <span
-                          class="absolute top-0.5 h-7 w-7 rounded-full bg-white shadow transition-transform duration-200"
-                          :class="productPreferences.editor.snapToGrid ? 'left-6' : 'left-0.5'"
-                        />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <p class="premium-label">Tamaño de grilla</p>
-                    <div class="flex flex-wrap gap-2">
-                      <button
-                        v-for="g in [0.25, 0.5, 1]"
-                        :key="g"
-                        type="button"
-                        class="rounded-2xl border px-3 py-2 text-xs font-black uppercase tracking-[0.12em] transition-all duration-200 active:scale-[0.98]"
-                        :class="
-                          productPreferences.editor.gridSize === g
-                            ? 'border-orange-400 bg-orange-500 text-white shadow-md shadow-orange-500/20 dark:border-orange-400/70'
-                            : 'border-slate-200 bg-white text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300'
-                        "
-                        @click="productPreferences.editor.gridSize = g"
-                      >
-                        {{ g }}m
-                      </button>
-                    </div>
                   </div>
 
                   <div class="flex flex-col gap-4 sm:flex-row sm:flex-wrap">
@@ -1185,7 +1201,7 @@ watch(
                       <div class="flex items-center gap-2">
                         <Tags class="h-4 w-4 text-slate-400" :stroke-width="2.2" />
                         <p class="text-xs font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
-                          Etiquetas de recintos
+                          {{ t('settingsRoomLabels') }}
                         </p>
                       </div>
                       <button
@@ -1233,7 +1249,7 @@ watch(
                   </div>
 
                   <div>
-                    <p class="premium-label">Vista inicial</p>
+                    <p class="premium-label">{{ t('settingsInitialView') }}</p>
                     <div class="flex flex-wrap gap-2">
                       <button
                         v-for="opt in [
@@ -1258,13 +1274,13 @@ watch(
                   </div>
 
                   <div>
-                    <p class="premium-label">Calidad 3D</p>
+                    <p class="premium-label">{{ t('settingsQuality3d') }}</p>
                     <div class="flex flex-wrap gap-2">
                       <button
                         v-for="q in [
-                          { id: 'low', label: 'Baja' },
-                          { id: 'medium', label: 'Media' },
-                          { id: 'high', label: 'Alta' },
+                          { id: 'low', label: t('settingsQualityLow') },
+                          { id: 'medium', label: t('settingsQualityMedium') },
+                          { id: 'high', label: t('settingsQualityHigh') },
                         ]"
                         :key="q.id"
                         type="button"
@@ -1304,10 +1320,10 @@ watch(
                     <p
                       class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
                     >
-                      Estimación
+                      {{ t('settingsEstimation') }}
                     </p>
                     <h3 class="mt-1 text-lg font-black tracking-tight text-slate-950 dark:text-slate-100">
-                      Criterios de estimación
+                      {{ t('settingsEstimationCriteria') }}
                     </h3>
                     <p
                       class="mt-1 truncate text-xs font-semibold text-slate-600 dark:text-slate-300"
@@ -1397,7 +1413,7 @@ watch(
                   </div>
 
                   <div>
-                    <p class="premium-label">IVA incluido en totales</p>
+                    <p class="premium-label">{{ t('settingsVatIncluded') }}</p>
                     <div class="flex flex-wrap gap-2" role="group" aria-label="IVA incluido">
                       <button
                         type="button"
@@ -1409,7 +1425,7 @@ watch(
                         "
                         @click="productPreferences.includeTax = true"
                       >
-                        Sí
+                        {{ t('settingsYes') }}
                       </button>
                       <button
                         type="button"
@@ -1421,7 +1437,7 @@ watch(
                         "
                         @click="productPreferences.includeTax = false"
                       >
-                        No
+                        {{ t('settingsNo') }}
                       </button>
                     </div>
                   </div>
@@ -1452,7 +1468,7 @@ watch(
                   </div>
 
                   <div>
-                    <p class="premium-label">Altura estándar de recintos</p>
+                    <p class="premium-label">{{ t('settingsRoomHeight') }}</p>
                     <div class="flex flex-wrap gap-2">
                       <button
                         v-for="h in [2.4, 2.6, 2.8]"
@@ -1482,7 +1498,7 @@ watch(
                       </button>
                     </div>
                     <div v-if="productPreferences.useCustomRoomHeight" class="mt-3 max-w-xs">
-                      <label class="premium-label">Altura (m)</label>
+                      <label class="premium-label">{{ t('settingsHeightM') }}</label>
                       <input
                         v-model.number="productPreferences.defaultRoomHeight"
                         type="number"
@@ -1520,7 +1536,7 @@ watch(
                       Entregables
                     </p>
                     <h3 class="mt-1 text-lg font-black tracking-tight text-slate-950 dark:text-slate-100">
-                      Reportes y exportación
+                      {{ t('settingsReportsExport') }}
                     </h3>
                     <p
                       class="mt-1 truncate text-xs font-semibold text-slate-600 dark:text-slate-300"
@@ -1565,12 +1581,7 @@ watch(
 
                   <div class="grid gap-3 sm:grid-cols-2">
                     <div
-                      v-for="row in [
-                        { key: 'includeLogo', label: 'Logo en reportes', sub: 'Marca en portada' },
-                        { key: 'includeMaterialsBreakdown', label: 'Desglose de materiales', sub: 'Tablas técnicas' },
-                        { key: 'includeUnitPrices', label: 'Precios unitarios', sub: 'Detalle económico' },
-                        { key: 'includeSnapshots', label: 'Captura 2D/3D', sub: 'Vista del modelo' },
-                      ]"
+                      v-for="row in exportToggleOptions"
                       :key="row.key"
                       class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200/90 bg-slate-50/60 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/40"
                     >
@@ -1602,22 +1613,22 @@ watch(
                   </div>
 
                   <div>
-                    <label class="premium-label">Nombre comercial en reportes</label>
+                    <label class="premium-label">{{ t('settingsBrandName') }}</label>
                     <input
                       v-model="productPreferences.export.businessName"
                       type="text"
                       class="premium-input"
-                      placeholder="Ej. Estudio Arquitectura Norte"
+                      :placeholder="t('settingsBusinessPlaceholder')"
                     />
                   </div>
 
                   <div>
-                    <label class="premium-label">Notas legales o pie de reporte (opcional)</label>
+                    <label class="premium-label">{{ t('settingsLegalFooter') }}</label>
                     <textarea
                       v-model="productPreferences.export.reportFooter"
                       rows="3"
                       class="premium-textarea"
-                      placeholder="Texto breve para pie de página…"
+                      :placeholder="t('settingsFooterPlaceholder')"
                     />
                   </div>
                 </div>
@@ -1634,7 +1645,7 @@ watch(
                   @click="saveProductPreferences"
                 >
                   <CheckCircle2 class="h-4 w-4" :stroke-width="2.2" />
-                  Guardar preferencias
+                  {{ t('settingsSavePreferences') }}
                 </button>
 
                 <transition name="settings-alert">
@@ -1683,7 +1694,7 @@ watch(
                       Integraciones y conectores
                     </h2>
                     <p class="mt-2 max-w-2xl text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400">
-                      Estado técnico de cada capa externa. Los botones reflejan disponibilidad real: nada de acciones simuladas.
+                      {{ t('settingsIntegrationsStatus') }}
                     </p>
                   </div>
                 </div>
@@ -1768,7 +1779,7 @@ watch(
                     Plan Free
                   </h2>
                   <p class="mt-2 max-w-2xl text-sm font-medium leading-relaxed text-orange-900/85 dark:text-orange-100/85">
-                    Operación local del simulador con límites de almacenamiento en sesión. La facturación Pro llegará cuando el backend de planes esté activo.
+                    {{ t('settingsPlanLocal') }}
                   </p>
 
                   <dl class="mt-6 grid gap-3 sm:grid-cols-2">
@@ -1779,7 +1790,7 @@ watch(
                         Proyectos locales
                       </dt>
                       <dd class="mt-1 text-sm font-black text-orange-950 dark:text-orange-50">
-                        Modo local · sesión del navegador
+                        {{ t('settingsPlanLocalSession') }}
                       </dd>
                     </div>
                     <div
@@ -1789,7 +1800,7 @@ watch(
                         Layouts guardados
                       </dt>
                       <dd class="mt-1 text-sm font-black text-orange-950 dark:text-orange-50">
-                        {{ savedLayoutsCount }} / 5 en esta sesión
+                        {{ t('settingsPlanLayouts', { count: savedLayoutsCount }) }}
                       </dd>
                     </div>
                     <div
@@ -1799,7 +1810,7 @@ watch(
                         Exportaciones
                       </dt>
                       <dd class="mt-1 text-sm font-bold leading-snug text-orange-950 dark:text-orange-50">
-                        PDF disponible · IFC en beta · GLB disponible / beta según escena
+                        {{ t('settingsPlanExports') }}
                       </dd>
                     </div>
                     <div
@@ -1816,13 +1827,13 @@ watch(
                       class="rounded-2xl border border-orange-200/80 bg-white/90 p-4 sm:col-span-2 dark:border-orange-900/60 dark:bg-slate-950/40"
                     >
                       <dt class="text-[10px] font-black uppercase tracking-[0.14em] text-orange-800/80 dark:text-orange-200/80">
-                        Última sincronización
+                        {{ t('settingsLastSync') }}
                       </dt>
                       <dd class="mt-1 text-sm font-black text-orange-950 dark:text-orange-50">
                         {{
                           auth.session
-                            ? 'Sesión Supabase activa en este dispositivo'
-                            : 'Sesión local (sin identidad en nube)'
+                            ? t('settingsSessionSupabase')
+                            : t('settingsSessionLocal')
                         }}
                       </dd>
                     </div>
@@ -1837,21 +1848,15 @@ watch(
                   class="border-b border-slate-200/80 bg-slate-50/80 px-5 py-4 dark:border-slate-800/80 dark:bg-slate-900/60"
                 >
                   <h3 class="text-lg font-black tracking-tight text-slate-950 dark:text-slate-100">
-                    Próximos límites Pro
+                    {{ t('settingsProLimits') }}
                   </h3>
                   <p class="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-                    Hoja de ruta realista; sujeto a priorización de producto e infraestructura.
+                    {{ t('settingsProRoadmap') }}
                   </p>
                 </header>
                 <ul class="divide-y divide-slate-200/80 dark:divide-slate-800/80">
                   <li
-                    v-for="item in [
-                      'Proyectos ilimitados y versionado remoto',
-                      'Historial avanzado de cambios y comparativas',
-                      'Exportación BIM / IFC con validaciones',
-                      'Colaboración multiusuario en tiempo casi real',
-                      'Soporte prioritario y SLA de incidentes',
-                    ]"
+                    v-for="item in proRoadmapItems"
                     :key="item"
                     class="flex items-start gap-3 px-5 py-3.5"
                   >
@@ -1892,7 +1897,7 @@ watch(
             <p
               class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
             >
-              Confirmación
+              {{ t('settingsConfirmation') }}
             </p>
             <h3
               id="settings-confirm-title"
@@ -1904,7 +1909,7 @@ watch(
           <button
             type="button"
             class="rounded-xl border border-slate-200 p-2 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-100"
-            title="Cerrar"
+            :title="t('settingsClose')"
             @click="closeConfirm"
           >
             <X class="h-4 w-4" :stroke-width="2.2" />
@@ -1919,7 +1924,7 @@ watch(
             class="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black uppercase tracking-[0.12em] text-slate-700 shadow-sm transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-900"
             @click="closeConfirm"
           >
-            Cancelar
+            {{ t('settingsCancel') }}
           </button>
           <button
             type="button"

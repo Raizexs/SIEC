@@ -9,27 +9,29 @@ import {
   CheckCircle2,
 } from 'lucide-vue-next';
 
-const { t } = useI18n();
+const { t, currentLanguage } = useI18n();
 
 const props = defineProps({
   formData: { type: Object, required: true },
-  tokensUsados: { type: Number, required: true },
-  tokensTotales: { type: Number, required: true },
-  tokensDisponibles: { type: Number, required: true },
   descripcionEstado: { type: Object, required: true },
-  totalAreaUsado: { type: Number, default: 0 },
+  /** Suma real de recintos en el plano (solo para libre y barra de ocupación). */
+  areaRecintos: { type: Number, default: 0 },
 });
 
+const m2Proyecto = computed(() => Number(props.formData?.m2Totales) || 0);
+
+const areaRecintos = computed(() => Number(props.areaRecintos) || 0);
+
 const m2Disponible = computed(() =>
-  Math.max(0, (props.formData.m2Totales || 0) - props.totalAreaUsado),
+  Math.max(0, m2Proyecto.value - areaRecintos.value),
 );
 
-const usagePct = computed(() =>
-  props.formData.m2Totales > 0
-    ? Math.min((props.totalAreaUsado / props.formData.m2Totales) * 100, 100)
-    : 0,
-);
-
+/** % de ocupación: suma de recintos sobre terreno del proyecto (0–100). */
+const usagePct = computed(() => {
+  const total = m2Proyecto.value;
+  if (total <= 0) return 0;
+  return Math.min(100, (areaRecintos.value / total) * 100);
+});
 
 const cleanStatusLabel = (value, fallback) => {
   const raw = value || fallback;
@@ -40,53 +42,55 @@ const cleanStatusLabel = (value, fallback) => {
 };
 
 const stateMeta = computed(() => {
+  void currentLanguage.value;
+
   switch (props.descripcionEstado.status) {
     case 'safe':
       return {
-        label: 'ESPACIO DISPONIBLE',
+        label: t('terrainStatusSafe'),
         icon: CheckCircle2,
         dot: 'bg-emerald-500',
         text: 'text-emerald-700 dark:text-emerald-300',
-        border: 'border-emerald-200 dark:border-emerald-900/70',
-        bg: 'bg-emerald-50 dark:bg-emerald-950/25',
         bar: 'bg-emerald-500',
         softText: 'text-emerald-700 dark:text-emerald-300',
+        border: 'border-emerald-200 dark:border-emerald-900/70',
+        bg: 'bg-emerald-50 dark:bg-emerald-950/25',
       };
 
     case 'warning':
       return {
-        label: 'ESPACIO LIMITADO',
+        label: t('terrainStatusWarning'),
         icon: AlertTriangle,
         dot: 'bg-amber-500',
         text: 'text-amber-700 dark:text-amber-300',
-        border: 'border-amber-200 dark:border-amber-900/70',
-        bg: 'bg-amber-50 dark:bg-amber-950/25',
         bar: 'bg-amber-500',
         softText: 'text-amber-700 dark:text-amber-300',
+        border: 'border-amber-200 dark:border-amber-900/70',
+        bg: 'bg-amber-50 dark:bg-amber-950/25',
       };
 
     case 'danger':
       return {
-        label: 'SIN ESPACIO DISPONIBLE',
+        label: t('terrainStatusDanger'),
         icon: AlertTriangle,
         dot: 'bg-orange-500',
         text: 'text-orange-700 dark:text-orange-300',
-        border: 'border-orange-200 dark:border-orange-900/70',
-        bg: 'bg-orange-50 dark:bg-orange-950/25',
         bar: 'bg-orange-500',
         softText: 'text-orange-700 dark:text-orange-300',
+        border: 'border-orange-200 dark:border-orange-900/70',
+        bg: 'bg-orange-50 dark:bg-orange-950/25',
       };
 
     default:
       return {
-        label: cleanStatusLabel(props.descripcionEstado.message, 'Sin estado'),
+        label: cleanStatusLabel(props.descripcionEstado.message, t('terrainStatusUnknown')),
         icon: Gauge,
         dot: 'bg-slate-400',
         text: 'text-slate-700 dark:text-slate-300',
-        border: 'border-slate-200 dark:border-slate-800',
-        bg: 'bg-slate-50 dark:bg-slate-900',
         bar: 'bg-slate-500',
         softText: 'text-slate-500 dark:text-slate-400',
+        border: 'border-slate-200 dark:border-slate-800',
+        bg: 'bg-slate-50 dark:bg-slate-900',
       };
   }
 });
@@ -97,7 +101,6 @@ const StateIcon = computed(() => stateMeta.value.icon);
 <template>
   <section class="col-span-12 animate-fade-in lg:col-span-5">
     <div class="sticky top-24 space-y-4">
-      <!-- Step header -->
       <header
         class="rounded-3xl border border-slate-200/90 bg-white/85 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30"
       >
@@ -111,7 +114,7 @@ const StateIcon = computed(() => stateMeta.value.icon);
             </span>
 
             <h3 class="mt-3 text-2xl font-black leading-tight tracking-tight text-slate-950 dark:text-slate-100">
-              Presupuesto espacial
+              {{ t('spatialBudgetTitle') }}
             </h3>
 
             <p class="mt-1 text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400">
@@ -127,7 +130,6 @@ const StateIcon = computed(() => stateMeta.value.icon);
         </div>
       </header>
 
-      <!-- Spatial budget card -->
       <article
         class="overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30"
       >
@@ -157,7 +159,6 @@ const StateIcon = computed(() => stateMeta.value.icon);
         </header>
 
         <div class="space-y-5 p-5">
-          <!-- Hero metric -->
           <section
             class="relative overflow-hidden rounded-3xl border p-5 shadow-sm"
             :class="[stateMeta.border, stateMeta.bg]"
@@ -176,7 +177,7 @@ const StateIcon = computed(() => stateMeta.value.icon);
                 :class="stateMeta.text"
               >
                 {{ m2Disponible.toFixed(1) }}
-                <span class="text-lg font-black opacity-70">
+                <span class="text-lg font-black text-slate-400 dark:text-slate-500">
                   m²
                 </span>
               </p>
@@ -187,7 +188,6 @@ const StateIcon = computed(() => stateMeta.value.icon);
             </div>
           </section>
 
-          <!-- Used / Total metrics -->
           <section class="grid grid-cols-2 gap-3">
             <div
               class="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900/60"
@@ -200,7 +200,7 @@ const StateIcon = computed(() => stateMeta.value.icon);
               </p>
 
               <p class="mt-2 font-mono text-xl font-black tabular-nums text-slate-950 dark:text-slate-100">
-                {{ totalAreaUsado.toFixed(1) }}
+                {{ areaRecintos.toFixed(1) }}
                 <span class="text-xs font-bold text-slate-400 dark:text-slate-500">
                   m²
                 </span>
@@ -218,7 +218,7 @@ const StateIcon = computed(() => stateMeta.value.icon);
               </p>
 
               <p class="mt-2 font-mono text-xl font-black tabular-nums text-slate-950 dark:text-slate-100">
-                {{ (formData.m2Totales || 0).toFixed(1) }}
+                {{ m2Proyecto.toFixed(1) }}
                 <span class="text-xs font-bold text-slate-400 dark:text-slate-500">
                   m²
                 </span>
@@ -226,12 +226,11 @@ const StateIcon = computed(() => stateMeta.value.icon);
             </div>
           </section>
 
-          <!-- Usage bar -->
           <section>
             <div
               class="mb-2 flex items-center justify-between text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500"
             >
-              <span>Ocupación</span>
+              <span>{{ t('occupancyLabel') }}</span>
               <span class="font-mono tabular-nums">{{ usagePct.toFixed(0) }}%</span>
             </div>
 
@@ -245,7 +244,6 @@ const StateIcon = computed(() => stateMeta.value.icon);
           </section>
         </div>
       </article>
-
     </div>
   </section>
 </template>

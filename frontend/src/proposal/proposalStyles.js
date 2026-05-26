@@ -956,6 +956,23 @@ export const PROPOSAL_CSS = `
     }
   }
 
+  .proposal .page--compact-desglose .page__inner {
+    padding-top: 8mm;
+  }
+
+  .proposal .page--compact-desglose .data {
+    font-size: 8.5px;
+  }
+
+  .proposal .page--compact-desglose .data th,
+  .proposal .page--compact-desglose .data td {
+    padding: 3px 5px;
+  }
+
+  .proposal .page--compact-desglose .cat-band td {
+    font-size: 8px;
+  }
+
   @page {
     size: A4 portrait;
     margin: 0;

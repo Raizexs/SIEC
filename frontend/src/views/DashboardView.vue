@@ -31,10 +31,12 @@ import AppRail from "../components/shell/AppRail.vue";
 import AppTopBar from "../components/shell/AppTopBar.vue";
 import PortfolioAnalyticsPanel from "./PortfolioAnalyticsPanel.vue";
 import { useProMotion } from "../composables/useProMotion";
-import { usePortfolioAnalytics } from "../composables/usePortfolioAnalytics";
+import { usePortfolioAnalytics, materialName } from "../composables/usePortfolioAnalytics";
+import { useI18n } from "../composables/useI18n";
 
 const router = useRouter();
 const route = useRoute();
+const { t, currentLanguage } = useI18n();
 const auth = useAuthStore();
 const api = useApi();
 const { savedLayouts } = useLayoutManager();
@@ -101,9 +103,22 @@ const { analytics } = usePortfolioAnalytics(
 );
 
 const firstName = computed(() => {
-  const source = auth.fullName || "Usuario";
+  void currentLanguage.value;
+  const source = auth.fullName || t("defaultUser");
 
   return source.split(" ")[0];
+});
+
+const dateLocale = computed(() =>
+  currentLanguage.value === "en" ? "en-US" : "es-CL",
+);
+
+const heroSummary = computed(() => {
+  void currentLanguage.value;
+  return t("dashActiveProjectsSummary", {
+    count: stats.value.count,
+    date: new Date().toLocaleDateString(dateLocale.value),
+  });
 });
 
 const hasRemoteProjects = computed(() => projects.value.length > 0);
@@ -136,25 +151,13 @@ const openProject = (project) => {
   router.push(`/workspace/${project.id || ""}`);
 };
 
-const materialName = (id) => {
-  switch (id) {
-    case 1:
-      return "Madera";
-    case 2:
-      return "Metalcon";
-    case 3:
-      return "Albañilería";
-    case 4:
-      return "Hormigón";
-    default:
-      return "Sin material";
-  }
-};
+const projectMaterialName = (id) =>
+  materialName(id, currentLanguage.value === "en" ? "en" : "es");
 
 const projectDate = (project) => {
   const rawDate = project.createdAt || project.updated_at || Date.now();
 
-  return new Date(rawDate).toLocaleDateString("es-CL", {
+  return new Date(rawDate).toLocaleDateString(dateLocale.value, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -166,7 +169,7 @@ const projectM2 = (project) => project.m2Totales || project.m2_totales || 0;
 const formatCurrencyCompact = (value) => {
   if (!value) return "$0";
 
-  return new Intl.NumberFormat("es-CL", {
+  return new Intl.NumberFormat(dateLocale.value, {
     style: "currency",
     currency: "CLP",
     notation: "compact",
@@ -175,33 +178,20 @@ const formatCurrencyCompact = (value) => {
 };
 
 const formatNumber = (value) => {
-  return new Intl.NumberFormat("es-CL", {
+  return new Intl.NumberFormat(dateLocale.value, {
     maximumFractionDigits: 0,
   }).format(value || 0);
 };
 
-const filters = [
-  {
-    id: "all",
-    label: "Todos",
-    icon: LayoutGrid,
-  },
-  {
-    id: "mine",
-    label: "Míos",
-    icon: User2,
-  },
-  {
-    id: "shared",
-    label: "Compartidos",
-    icon: Users2,
-  },
-  {
-    id: "archived",
-    label: "Archivados",
-    icon: Archive,
-  },
-];
+const filters = computed(() => {
+  void currentLanguage.value;
+  return [
+    { id: "all", label: t("dashFilterAll"), icon: LayoutGrid },
+    { id: "mine", label: t("dashFilterMine"), icon: User2 },
+    { id: "shared", label: t("dashFilterShared"), icon: Users2 },
+    { id: "archived", label: t("dashFilterArchived"), icon: Archive },
+  ];
+});
 
 onMounted(fetchProjects);
 </script>
@@ -220,13 +210,13 @@ onMounted(fetchProjects);
             <p
               class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
             >
-              Workspace
+              {{ t('dashWorkspace') }}
             </p>
 
             <h1
               class="mt-0.5 truncate text-base font-black tracking-tight text-slate-950 dark:text-slate-100"
             >
-              {{ isAnalyticsView ? "Analítica" : "Proyectos" }}
+              {{ isAnalyticsView ? t('dashAnalytics') : t('dashProjects') }}
             </h1>
           </div>
         </template>
@@ -238,7 +228,7 @@ onMounted(fetchProjects);
             @click="newProject"
           >
             <Plus class="h-4 w-4" :stroke-width="2.4" />
-            Nueva estimación
+            {{ t('dashNewEstimate') }}
           </button>
         </template>
       </AppTopBar>
@@ -279,19 +269,19 @@ onMounted(fetchProjects);
                   class="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-orange-700 shadow-sm dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
                 >
                   <Sparkles class="h-3.5 w-3.5" :stroke-width="2.4" />
-                  Dashboard ejecutivo
+                  {{ t('dashExecutiveDashboard') }}
                 </span>
 
                 <h2
                   class="mt-4 text-3xl font-black tracking-tight text-slate-950 dark:text-slate-100 md:text-5xl"
                 >
-                  {{ `Hola, ${firstName}` }}
+                  {{ t('dashHello', { name: firstName }) }}
                 </h2>
 
                 <p
                   class="mt-2 max-w-2xl text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400 md:text-base"
                 >
-                  {{ `${stats.count} proyectos activos · última actualización ${new Date().toLocaleDateString("es-CL")}` }}
+                  {{ heroSummary }}
                 </p>
               </div>
 
@@ -304,12 +294,12 @@ onMounted(fetchProjects);
                   <p
                     class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500"
                   >
-                    Fuente
+                    {{ t('dashSource') }}
                   </p>
                   <p
                     class="mt-1 text-sm font-black text-slate-950 dark:text-slate-100"
                   >
-                    {{ hasRemoteProjects ? "Backend" : "Local" }}
+                    {{ hasRemoteProjects ? t('dashBackend') : t('dashLocal') }}
                   </p>
                 </div>
 
@@ -330,7 +320,7 @@ onMounted(fetchProjects);
                 <span
                   class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
                 >
-                  Proyectos
+                  {{ t('dashProjectsStat') }}
                 </span>
 
                 <span
@@ -349,7 +339,7 @@ onMounted(fetchProjects);
               <p
                 class="mt-1 text-xs font-medium text-slate-400 dark:text-slate-500"
               >
-                Activos en tu workspace
+                {{ t('dashActiveInWorkspace') }}
               </p>
             </article>
 
@@ -361,7 +351,7 @@ onMounted(fetchProjects);
                 <span
                   class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
                 >
-                  m² acumulados
+                  {{ t('dashM2Accumulated') }}
                 </span>
 
                 <span
@@ -380,7 +370,7 @@ onMounted(fetchProjects);
               <p
                 class="mt-1 text-xs font-medium text-slate-400 dark:text-slate-500"
               >
-                Superficie total estimada
+                {{ t('dashTotalSurface') }}
               </p>
             </article>
 
@@ -397,7 +387,7 @@ onMounted(fetchProjects);
                   <span
                     class="text-[10px] font-black uppercase tracking-[0.16em] text-orange-700 dark:text-orange-300"
                   >
-                    CLP estimados
+                    {{ t('dashEstimatedClp') }}
                   </span>
 
                   <span
@@ -416,7 +406,7 @@ onMounted(fetchProjects);
                 <p
                   class="mt-1 text-xs font-medium text-orange-700/70 dark:text-orange-300/75"
                 >
-                  Costo total agregado
+                  {{ t('dashTotalCost') }}
                 </p>
               </div>
             </article>
@@ -429,7 +419,7 @@ onMounted(fetchProjects);
                 <span
                   class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
                 >
-                  Plan
+                  {{ t('dashPlan') }}
                 </span>
 
                 <span
@@ -448,7 +438,7 @@ onMounted(fetchProjects);
               <p
                 class="mt-1 text-xs font-medium text-slate-400 dark:text-slate-500"
               >
-                Rol activo en SIEC
+                {{ t('dashActiveRole') }}
               </p>
             </article>
           </section>
@@ -485,7 +475,7 @@ onMounted(fetchProjects);
               <input
                 v-model="search"
                 type="search"
-                placeholder="Buscar proyectos por nombre, cliente o ubicación…"
+                :placeholder="t('dashSearchPlaceholder')"
                 class="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50/80 pl-11 pr-4 text-sm font-semibold text-slate-950 outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-orange-400 focus:bg-white focus:ring-4 focus:ring-orange-500/10 dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-orange-500 dark:focus:bg-slate-900 dark:focus:ring-orange-500/15"
               />
             </div>
@@ -529,8 +519,8 @@ onMounted(fetchProjects);
             >
               {{
                 search || filter !== "all"
-                  ? "No hay resultados"
-                  : "Aún no tienes proyectos"
+                  ? t('dashNoResults')
+                  : t('dashNoProjects')
               }}
             </h3>
 
@@ -539,8 +529,8 @@ onMounted(fetchProjects);
             >
               {{
                 search || filter !== "all"
-                  ? "Ajusta la búsqueda o cambia el filtro para encontrar otros proyectos."
-                  : "Crea tu primer proyecto para empezar a estimar costos en 3D con datos reales del mercado."
+                  ? t('dashEmptySearchHint')
+                  : t('dashEmptyProjectsHint')
               }}
             </p>
 
@@ -551,7 +541,7 @@ onMounted(fetchProjects);
               @click="newProject"
             >
               <Plus class="h-4 w-4" :stroke-width="2.4" />
-              Crear primer proyecto
+              {{ t('dashCreateFirst') }}
             </button>
           </section>
 
@@ -574,7 +564,7 @@ onMounted(fetchProjects);
                 <img
                   v-if="project.thumbnail_url"
                   :src="project.thumbnail_url"
-                  :alt="project.name || project.nombre || 'Proyecto'"
+                  :alt="project.name || project.nombre || t('dashProjectAlt')"
                   class="h-full w-full object-cover transition duration-300 group-hover:scale-105"
                 />
 
@@ -593,7 +583,7 @@ onMounted(fetchProjects);
                   class="absolute right-3 top-3 inline-flex items-center rounded-full border border-white/20 bg-white/90 px-2.5 py-1 text-[10px] font-black uppercase tracking-tight text-slate-700 shadow-sm backdrop-blur-md dark:bg-slate-950/80 dark:text-slate-200"
                 >
                   {{
-                    materialName(
+                    projectMaterialName(
                       project.materialEstructuralId || project.material_id,
                     )
                   }}
@@ -604,7 +594,7 @@ onMounted(fetchProjects);
                   class="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-tight text-emerald-700 shadow-sm dark:border-emerald-900/70 dark:bg-emerald-950/70 dark:text-emerald-300"
                 >
                   <Users2 class="h-3 w-3" :stroke-width="2.4" />
-                  Compartido
+                  {{ t('dashShared') }}
                 </span>
               </div>
 
@@ -614,13 +604,13 @@ onMounted(fetchProjects);
                     <h4
                       class="truncate text-base font-black tracking-tight text-slate-950 dark:text-slate-100"
                     >
-                      {{ project.name || project.nombre || "Sin título" }}
+                      {{ project.name || project.nombre || t('dashUntitled') }}
                     </h4>
 
                     <p
                       class="mt-1 text-xs font-medium text-slate-400 dark:text-slate-500"
                     >
-                      Proyecto constructivo SIEC
+                      {{ t('dashProjectType') }}
                     </p>
                   </div>
 
@@ -639,7 +629,7 @@ onMounted(fetchProjects);
                       class="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-tight text-slate-400 dark:text-slate-500"
                     >
                       <SquareStack class="h-3.5 w-3.5" :stroke-width="2.2" />
-                      Área
+                      {{ t('dashArea') }}
                     </p>
                     <p
                       class="mt-1 font-mono text-sm font-black text-slate-950 dark:text-slate-100"
@@ -655,7 +645,7 @@ onMounted(fetchProjects);
                       class="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-tight text-slate-400 dark:text-slate-500"
                     >
                       <Calendar class="h-3.5 w-3.5" :stroke-width="2.2" />
-                      Fecha
+                      {{ t('dashDate') }}
                     </p>
                     <p
                       class="mt-1 font-mono text-sm font-black text-slate-950 dark:text-slate-100"
@@ -681,7 +671,7 @@ onMounted(fetchProjects);
               </span>
 
               <span>
-                Mostrando proyectos locales. El backend respondió:
+                {{ t('dashLocalProjectsWarning') }}
                 <strong class="font-black">{{ fetchError }}</strong>
               </span>
             </p>

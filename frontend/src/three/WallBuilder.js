@@ -92,6 +92,10 @@ export class WallBuilder {
         ? ["structure", "interior", "installations"]
         : ["structure", "facade", "insulation"];
 
+    if (matCfg.matTypeKey === "steel_framed") {
+      mesh.add(this._buildStudFrame(length, wall.thickness));
+    }
+
     this.cache.set(cacheKey, mesh);
     return mesh;
   }
@@ -880,6 +884,89 @@ export class WallBuilder {
     brush.position.set(localX, localY, 0);
     brush.updateMatrixWorld();
     return brush;
+  }
+
+  _buildStudFrame(length, thickness) {
+    const frame = new THREE.Group();
+    frame.name = "metalcon-stud-frame";
+    const structureMaterial = this.materialLibrary.getMaterial("steel_framed", "structure");
+
+    frame.add(this._buildUChannel(length, thickness, structureMaterial, -WALL_HEIGHT / 2 + STRUCTURE_INSET));
+    frame.add(this._buildUChannel(length, thickness, structureMaterial, WALL_HEIGHT / 2 - STRUCTURE_INSET, true));
+
+    const studCount = Math.max(2, Math.ceil(length / STUD_SPACING));
+    const availableLength = Math.max(length - 2 * STRUCTURE_INSET, 0.4);
+    const gap = availableLength / studCount;
+
+    for (let index = 0; index <= studCount; index++) {
+      const x = -length / 2 + STRUCTURE_INSET + gap * index;
+      frame.add(this._buildCStud(thickness, structureMaterial, x));
+    }
+
+    return frame;
+  }
+
+  _buildUChannel(length, thickness, material, yPosition, invert = false) {
+    const group = new THREE.Group();
+    const profileDepth = Math.max(0.045, Math.min(thickness * 0.8, 0.12));
+    const flangeDepth = Math.max(0.02, profileDepth * 0.35);
+    const webHeight = 0.035;
+    const flangeOffset = profileDepth / 2 - flangeDepth / 2;
+    const side = invert ? -1 : 1;
+
+    const web = new THREE.Mesh(
+      new THREE.BoxGeometry(length, webHeight, profileDepth),
+      material.clone(),
+    );
+    web.position.set(0, yPosition, 0);
+    group.add(web);
+
+    const leftFlange = new THREE.Mesh(
+      new THREE.BoxGeometry(length, 0.14, flangeDepth),
+      material.clone(),
+    );
+    leftFlange.position.set(0, yPosition + side * 0.07, flangeOffset);
+    group.add(leftFlange);
+
+    const rightFlange = new THREE.Mesh(
+      new THREE.BoxGeometry(length, 0.14, flangeDepth),
+      material.clone(),
+    );
+    rightFlange.position.set(0, yPosition + side * 0.07, -flangeOffset);
+    group.add(rightFlange);
+
+    return group;
+  }
+
+  _buildCStud(thickness, material, xPosition) {
+    const group = new THREE.Group();
+    const profileDepth = Math.max(0.04, Math.min(thickness * 0.75, 0.11));
+    const flangeDepth = Math.max(0.018, profileDepth * 0.32);
+    const studHeight = WALL_HEIGHT - 0.16;
+    const flangeOffset = profileDepth / 2 - flangeDepth / 2;
+
+    const web = new THREE.Mesh(
+      new THREE.BoxGeometry(0.035, studHeight, profileDepth),
+      material.clone(),
+    );
+    web.position.set(xPosition, 0, 0);
+    group.add(web);
+
+    const upperFlange = new THREE.Mesh(
+      new THREE.BoxGeometry(0.14, flangeDepth, profileDepth),
+      material.clone(),
+    );
+    upperFlange.position.set(xPosition + 0.07, studHeight / 2 - 0.05, flangeOffset);
+    group.add(upperFlange);
+
+    const lowerFlange = new THREE.Mesh(
+      new THREE.BoxGeometry(0.14, flangeDepth, profileDepth),
+      material.clone(),
+    );
+    lowerFlange.position.set(xPosition + 0.07, -studHeight / 2 + 0.05, flangeOffset);
+    group.add(lowerFlange);
+
+    return group;
   }
 
   _wallLength(wall) {

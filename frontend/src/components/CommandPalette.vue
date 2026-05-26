@@ -74,20 +74,6 @@ const allCommands = computed(() => [
     run: () => router.push('/workspace?new=1'),
   },
   {
-    id: 'project.export.pdf',
-    title: 'Exportar como PDF',
-    subtitle: 'Genera una salida comercial del proyecto',
-    keywords: 'pdf descargar exportar',
-    icon: 'picture_as_pdf',
-    section: 'Exportar',
-    run: () =>
-      window.dispatchEvent(
-        new CustomEvent('siec:export', {
-          detail: 'pdf',
-        }),
-      ),
-  },
-  {
     id: 'project.export.gltf',
     title: 'Exportar GLTF/GLB',
     subtitle: 'Modelo 3D portable',

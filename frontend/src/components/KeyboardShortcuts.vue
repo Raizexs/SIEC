@@ -64,11 +64,11 @@ const shortcuts = [
                     id="keyboard-shortcuts-title"
                     class="text-sm font-semibold tracking-tight text-slate-950 dark:text-slate-100"
                   >
-                    Atajos de teclado
+                    {{ t('shortcutsTitle') }}
                   </h2>
 
                   <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                    Acciones rápidas para navegar y trabajar más fluido.
+                    {{ t('shortcutsSubtitle') }}
                   </p>
                 </div>
               </div>
@@ -125,7 +125,7 @@ const shortcuts = [
                 >
                   Esc
                 </kbd>
-                para cerrar.
+                {{ t('shortcutsEscHint') }}
               </p>
 
               <button
@@ -133,7 +133,7 @@ const shortcuts = [
                 class="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-500 transition-colors duration-200 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
                 @click="emit('close')"
               >
-                Entendido
+                {{ t('shortcutsGotIt') }}
               </button>
             </footer>
           </section>

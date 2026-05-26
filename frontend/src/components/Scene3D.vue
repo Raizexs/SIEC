@@ -8,7 +8,7 @@ import logger from '../utils/logger.js';
  *   - RoomFurnisher: procedural furniture per room type
  *   - LightingRig: day/night cycle (SunCalc)
  *   - Walkthrough: first-person navigation
- *   - SnapEngine, MeasureTool, SectionTool, SceneExporter
+ *   - MeasureTool, SectionTool, SceneExporter
  *
  * Backwards-compatible with existing Scene3D consumers in EditorShell.vue.
  */
@@ -51,7 +51,6 @@ import { DoorWindowSystem } from '../three/DoorWindowSystem.js';
 import { RoomFurnisher } from '../three/RoomFurnisher.js';
 import { LightingRig } from '../three/LightingRig.js';
 import { Walkthrough } from '../three/Walkthrough.js';
-import { SnapEngine, STEP_PRESETS } from '../three/SnapEngine.js';
 import { MeasureTool } from '../three/MeasureTool.js';
 import { SectionTool } from '../three/SectionTool.js';
 import { SceneExporter } from '../three/SceneExporter.js';
@@ -65,33 +64,6 @@ const props = defineProps({
   showMinimap: { type: Boolean, default: true },
 });
 
-const SNAP_STORAGE_KEY = 'siec-editor-snap-settings';
-
-const isValidSnapStepId = (id) => id === 0 || STEP_PRESETS.some((preset) => preset.id === id);
-
-const readSharedSnapStepId = (fallbackId = 25) => {
-  if (typeof window === 'undefined') return fallbackId;
-
-  try {
-    const raw = window.localStorage.getItem(SNAP_STORAGE_KEY);
-    if (!raw) return fallbackId;
-
-    const parsed = JSON.parse(raw);
-    const id = Number(parsed?.snapStepId);
-    return isValidSnapStepId(id) ? id : fallbackId;
-  } catch {
-    return fallbackId;
-  }
-};
-
-const writeSharedSnapSettings = (snapStepId) => {
-  if (typeof window === 'undefined') return;
-
-  const payload = { snapStepId };
-  window.localStorage.setItem(SNAP_STORAGE_KEY, JSON.stringify(payload));
-  window.dispatchEvent(new CustomEvent('siec-snap-settings', { detail: payload }));
-};
-
 const containerRef = ref(null);
 const rootRef = ref(null);
 const headerRef = ref(null);
@@ -103,12 +75,19 @@ const showFurniture = ref(true);
 const sectionEnabled = ref(false);
 const sectionHeight = ref(1.2);
 const timeOfDay = ref(13);
-const snapStepId = ref(readSharedSnapStepId(25));
 const cameraInfo = ref({ x: 0, z: 0, yaw: 0 });
 const exportMenuOpen = ref(false);
 const showLayersMenu = ref(false);
 const exportFormat = ref(null);
 
+const { t } = useI18n();
+
+const exportFormats = computed(() => [
+  { id: 'gltf', label: t('exportGltf'), icon: 'view_in_ar' },
+  { id: 'obj', label: t('exportObj'), icon: 'category' },
+  { id: 'ifc', label: t('exportIfc'), icon: 'architecture' },
+  { id: 'png', label: t('exportPng'), icon: 'image' },
+]);
 const topology = useTopologyComputed();
 const recintosStore = useRecintosStore();
 const layersStore = useConstructionLayersStore();
@@ -127,7 +106,6 @@ let lightingRig = null;
 let walkthrough = null;
 let measureTool = null;
 let sectionTool = null;
-let snapEngine = null;
 let dragControls = null;
 let transformControl = null;
 let transformHelper = null;
@@ -323,15 +301,7 @@ const roomRectToMesh = (mesh, rect) => {
   mesh.updateMatrixWorld(true);
 };
 
-const snapRectOrigin = (rect) => {
-  if (!snapEngine || !rect) return rect;
-
-  return {
-    ...rect,
-    x: snapEngine.snap(rect.x),
-    z: snapEngine.snap(rect.z),
-  };
-};
+const snapRectOrigin = (rect) => rect;
 
 const clampMeshToTerrain = (mesh) => {
   const rect = meshToRoomRect(mesh);
@@ -518,11 +488,6 @@ if (sceneManager.orbit) {
   furnisher = new RoomFurnisher(sceneManager.furnitureGroup);
   walkthrough = new Walkthrough(sceneManager, sceneManager.wallsGroup);
 
-  const initialSnapStep =
-    STEP_PRESETS.find((preset) => preset.id === snapStepId.value)?.step ?? 0.25;
-
-  snapEngine = new SnapEngine(initialSnapStep);
-
   measureTool = new MeasureTool(
     sceneManager.scene,
     sceneManager.camera,
@@ -597,7 +562,7 @@ const updateRoomPositionStoreFromMesh = (mesh) => {
 };
 
 const setupDragAndTransformControls = () => {
-  if (!sceneManager || !snapEngine) return;
+  if (!sceneManager) return;
 
   dragControls = new DragControls(
     sceneManager.roomsGroup.children,
@@ -641,7 +606,7 @@ const setupDragAndTransformControls = () => {
   });
 
   dragControls.addEventListener('drag', (event) => {
-    if (!sceneManager || !snapEngine) return;
+    if (!sceneManager) return;
 
     const mesh = normalizeRoomMesh(event.object);
 
@@ -723,18 +688,15 @@ const setupDragAndTransformControls = () => {
   });
 
   transformControl.addEventListener('change', () => {
-    if (!transformControl || !snapEngine) return;
+    if (!transformControl) return;
 
     const mesh = transformControl.object;
 
     if (!mesh || !transformControl.dragging) return;
     if (!mesh.userData.roomId) return;
 
-    const snappedWidth = snapEngine.snap(mesh.scale.x);
-    const snappedLength = snapEngine.snap(mesh.scale.z);
-
-    mesh.scale.x = Math.max(ROOM_MIN_SIZE, snappedWidth);
-    mesh.scale.z = Math.max(ROOM_MIN_SIZE, snappedLength);
+    mesh.scale.x = Math.max(ROOM_MIN_SIZE, mesh.scale.x);
+    mesh.scale.z = Math.max(ROOM_MIN_SIZE, mesh.scale.z);
     mesh.scale.y = 1;
 
     clampMeshScaleToTerrain(mesh);
@@ -1116,12 +1078,6 @@ watch(timeOfDay, (hour) => {
   lightingRig?.setTimeOfDay(hour);
 });
 
-watch(snapStepId, (id) => {
-  const config = STEP_PRESETS.find((preset) => preset.id === id);
-  snapEngine?.setStep(config?.step ?? 0);
-  writeSharedSnapSettings(id);
-});
-
 watch(
   () => [props.terrenoAncho, props.terrenoLargo],
   () => {
@@ -1283,13 +1239,6 @@ const handleCanvasPointerDown = (event) => {
   layersStore.setSelectedLayer(null);
 };
 
-const handleSharedSnapSettings = (event) => {
-  const id = Number(event?.detail?.snapStepId);
-  if (isValidSnapStepId(id) && id !== snapStepId.value) {
-    snapStepId.value = id;
-  }
-};
-
 const handleSceneCaptureRequest = (event) => {
   const complete = event?.detail?.complete;
 
@@ -1338,7 +1287,6 @@ onMounted(() => {
 
   document.addEventListener('click', onDocumentClick);
   document.addEventListener('fullscreenchange', handleFullscreenChange);
-  window.addEventListener('siec-snap-settings', handleSharedSnapSettings);
 
   sceneManager.renderer.domElement.addEventListener(
     'pointerdown',
@@ -1406,7 +1354,6 @@ onBeforeUnmount(() => {
   stopActiveRoomWatcher?.();
 
   document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  window.removeEventListener('siec-snap-settings', handleSharedSnapSettings);
   window.removeEventListener('siec:capture-scene', handleSceneCaptureRequest);
 
   if (onDocumentClick) {
@@ -1455,7 +1402,7 @@ onBeforeUnmount(() => {
 <template>
   <section
     ref="rootRef"
-    class="scene3d-root relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 p-4 shadow-2xl shadow-slate-950/10 backdrop-blur-xl transition-all duration-300 dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/35"
+    class="scene3d-root relative overflow-visible rounded-3xl border border-slate-200/90 bg-white/85 p-4 shadow-2xl shadow-slate-950/10 backdrop-blur-xl transition-all duration-300 dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/35"
     :class="isFullScreen ? 'fullscreen-active' : 'normal-mode'"
   >
     <PropertiesSidebar />
@@ -1500,7 +1447,7 @@ onBeforeUnmount(() => {
               class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-tight text-emerald-700 shadow-sm dark:border-emerald-900/70 dark:bg-emerald-950/25 dark:text-emerald-300"
             >
               <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-              Live render
+              {{ t('liveRender') }}
             </span>
           </div>
 
@@ -1511,9 +1458,9 @@ onBeforeUnmount(() => {
             >
               <button
                 v-for="tool in [
-                  { id: 'move', icon: 'pan_tool', label: 'Mover' },
-                  { id: 'scale', icon: 'open_in_full', label: 'Escalar' },
-                  { id: 'measure', icon: 'straighten', label: 'Medir' },
+                  { id: 'move', icon: 'pan_tool', label: t('toolMove') },
+                  { id: 'scale', icon: 'open_in_full', label: t('toolScale') },
+                  { id: 'measure', icon: 'straighten', label: t('toolMeasure') },
                 ]"
                 :key="tool.id"
                 type="button"
@@ -1549,7 +1496,7 @@ onBeforeUnmount(() => {
               <span
                 class="rounded-xl border border-orange-200 bg-orange-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-orange-700 dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
               >
-                Piso {{ recintosStore.currentFloor }}
+                {{ t('floor') }} {{ recintosStore.currentFloor }}
               </span>
 
               <button
@@ -1628,7 +1575,8 @@ onBeforeUnmount(() => {
             <Transition name="export-menu">
               <div
                 v-if="exportMenuOpen"
-                class="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-3xl border border-slate-200/90 bg-white/95 p-2 shadow-2xl shadow-slate-950/15 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/40"
+                class="export-menu-panel absolute right-0 top-full z-[100] mt-2 min-w-[14rem] w-56 rounded-3xl border border-orange-200/90 bg-white p-2 shadow-2xl shadow-orange-500/15 dark:border-orange-800/80 dark:bg-slate-950 dark:shadow-black/50"
+                role="menu"
               >
                 <button
                   v-for="fmt in [
@@ -1779,6 +1727,47 @@ onBeforeUnmount(() => {
   border-color: rgb(51 65 85);
   background: rgb(30 41 59);
   color: rgb(248 250 252);
+}
+
+.toolbar-btn-export {
+  cursor: pointer;
+  border-color: rgb(253 186 116);
+  background: linear-gradient(135deg, rgb(255 247 237), rgb(255 255 255));
+  color: rgb(194 65 12);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.06),
+    0 4px 14px rgba(249, 115, 22, 0.14);
+}
+
+.toolbar-btn-export:hover,
+.toolbar-btn-export.is-open {
+  border-color: rgb(249 115 22);
+  background: rgb(255 247 237);
+  color: rgb(154 52 18);
+  box-shadow:
+    0 4px 12px rgba(15, 23, 42, 0.08),
+    0 10px 24px rgba(249, 115, 22, 0.22);
+}
+
+.dark .toolbar-btn-export {
+  border-color: rgba(251, 146, 60, 0.55);
+  background: linear-gradient(135deg, rgba(67, 20, 7, 0.45), rgba(15, 23, 42, 0.95));
+  color: rgb(253 186 116);
+}
+
+.dark .toolbar-btn-export:hover,
+.dark .toolbar-btn-export.is-open {
+  border-color: rgb(251 146 60);
+  background: rgba(67, 20, 7, 0.55);
+  color: rgb(254 215 170);
+}
+
+.export-menu-item {
+  border: 1px solid transparent;
+}
+
+.export-menu-panel {
+  pointer-events: auto;
 }
 
 .icon-action {

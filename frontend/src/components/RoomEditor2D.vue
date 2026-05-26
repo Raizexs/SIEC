@@ -1,6 +1,6 @@
 <script setup>
 import logger from '../utils/logger.js';
-import { computed, onBeforeUnmount, ref, reactive, watch, onMounted, onUnmounted } from "vue";
+import { computed, onBeforeUnmount, ref, reactive, watch, onMounted, onUnmounted, nextTick } from "vue";
 import { useRecintosStore } from "../stores/recintos";
 import { useInteractiveEditor } from "../composables/useInteractiveEditor";
 import { useTheme } from "../composables/useTheme";
@@ -18,8 +18,6 @@ const props = defineProps({
   terrenoLargo:      { type: Number, default: 7 },
   descripcionEstado: { type: Object, default: () => ({ color: '#22c55e', message: 'OK' }) },
   showGrid:          { type: Boolean, default: true },
-  snapToGrid:        { type: Boolean, default: true },
-  gridSize:          { type: Number, default: 0.5 },
   showLabels:        { type: Boolean, default: true },
   defaultRoomHeight: { type: Number, default: 2.4 },
 });
@@ -36,53 +34,10 @@ const DEFAULT_FINE_STEP = 0.1;
 const MOVE_OVERFLOW_MARGIN = 0; // misma regla que 3D: el recinto no sale del terreno
 const OVERLAP_EPS = 0.001; // evita falsos positivos cuando dos recintos quedan exactamente pegados
 
-const SNAP_STORAGE_KEY = 'siec-editor-snap-settings';
-const SNAP_PRESETS = [
-  { id: 0, label: 'Snap: Off', step: DEFAULT_FINE_STEP },
-  { id: 10, label: 'Snap: 10cm', step: 0.1 },
-  { id: 25, label: 'Snap: 25cm', step: 0.25 },
-  { id: 50, label: 'Snap: 50cm', step: 0.5 },
-];
-
 const clampNumber = (value, min, max) => {
   const n = Number(value);
   if (!Number.isFinite(n)) return min;
   return Math.min(Math.max(n, min), max);
-};
-
-const nearestSnapPresetId = (step) => {
-  const n = Number(step);
-  if (!Number.isFinite(n) || n <= 0) return 25;
-
-  return SNAP_PRESETS
-    .filter((preset) => preset.id !== 0)
-    .reduce((best, preset) => {
-      const bestStep = SNAP_PRESETS.find((item) => item.id === best)?.step ?? 0.25;
-      return Math.abs(preset.step - n) < Math.abs(bestStep - n) ? preset.id : best;
-    }, 25);
-};
-
-const readSharedSnapStepId = (fallbackId) => {
-  if (typeof window === 'undefined') return fallbackId;
-
-  try {
-    const raw = window.localStorage.getItem(SNAP_STORAGE_KEY);
-    if (!raw) return fallbackId;
-
-    const parsed = JSON.parse(raw);
-    const id = Number(parsed?.snapStepId);
-    return SNAP_PRESETS.some((preset) => preset.id === id) ? id : fallbackId;
-  } catch {
-    return fallbackId;
-  }
-};
-
-const writeSharedSnapSettings = (snapStepId) => {
-  if (typeof window === 'undefined') return;
-
-  const payload = { snapStepId };
-  window.localStorage.setItem(SNAP_STORAGE_KEY, JSON.stringify(payload));
-  window.dispatchEvent(new CustomEvent('siec-snap-settings', { detail: payload }));
 };
 
 // ── Store & editor ───────────────────────────────────────────────────────────
@@ -90,7 +45,7 @@ const svgRef = ref(null);
 const rootRef = ref(null);
 const isFullScreen = ref(false);
 const store  = useRecintosStore();
-const snapStepId = ref(readSharedSnapStepId(props.snapToGrid ? nearestSnapPresetId(props.gridSize) : 0));
+const { t } = useI18n();
 
 // ── Resize Lock ───────────────────────────────────────────────────────────────
 const resizeLocked = ref(false);
@@ -104,10 +59,17 @@ const addForm = reactive({
   h: 2.4,
 });
 
+const defaultAddWidth = () =>
+  Math.min(3.5, Math.max(MIN_ROOM_DIM, budgetRect.value.w * 0.85));
+
+const defaultAddLength = () =>
+  Math.min(3.0, Math.max(MIN_ROOM_DIM, budgetRect.value.h * 0.85));
+
 const openAddModal = () => {
+  editor.selectedRecintoId.value = null;
   addForm.nombre = 'Recinto';
-  addForm.w = Math.min(3.5, budgetRect.value.w);
-  addForm.l = Math.min(3.0, budgetRect.value.h);
+  addForm.w = defaultAddWidth();
+  addForm.l = defaultAddLength();
   addForm.h = Math.max(MIN_ROOM_HEIGHT, Number(props.defaultRoomHeight) || 2.4);
   showAddModal.value = true;
 };
@@ -117,9 +79,14 @@ const confirmAdd = () => {
   const l = clampNumber(addForm.l, MIN_ROOM_DIM, budgetRect.value.h);
   const h = Math.max(MIN_ROOM_HEIGHT, Number(addForm.h) || props.defaultRoomHeight || 2.4);
 
+  if (w > budgetRect.value.w || l > budgetRect.value.h) {
+    return;
+  }
+
   addForm.w = w;
   addForm.l = l;
   addForm.h = h;
+  showAddModal.value = false;
 
   const id = store.addRecinto(
     'habitacion',
@@ -130,46 +97,38 @@ const confirmAdd = () => {
   );
 
   const room = store.recintos.find((r) => r.id === id);
-  placeRoomWithoutGap(room);
-
-  showAddModal.value = false;
+  if (room) {
+    placeRoomWithoutGap(room);
+    editor.selectedRecintoId.value = id;
+  }
 };
 
 const quickAdd = () => {
+  const w = defaultAddWidth();
+  const l = defaultAddLength();
   const id = store.addRecinto(
     'habitacion',
     'Recinto',
-    Math.min(3.5, budgetRect.value.w),
-    Math.min(3.0, budgetRect.value.h),
+    w,
+    l,
     Math.max(MIN_ROOM_HEIGHT, Number(props.defaultRoomHeight) || 2.4),
   );
 
   const room = store.recintos.find((r) => r.id === id);
-  placeRoomWithoutGap(room);
+  if (room) {
+    placeRoomWithoutGap(room);
+    editor.selectedRecintoId.value = id;
+  }
 };
 
 const { isDark } = useTheme();
 const { t } = useI18n();
 
-const selectedSnapPreset = computed(() =>
-  SNAP_PRESETS.find((preset) => preset.id === snapStepId.value) || SNAP_PRESETS[2],
-);
-
-const snapEnabled = computed(() => snapStepId.value !== 0);
-
-const gridMajorM = computed(() => {
-  if (snapEnabled.value) return selectedSnapPreset.value.step;
-
-  const g = Number(props.gridSize);
-  return Number.isFinite(g) && g > 0 ? g : 0.5;
-});
+const gridMajorM = computed(() => 0.5);
 
 const showEditorGrid = computed(() => Boolean(props.showGrid));
 
-const editorSnapStep = computed(() => {
-  if (!snapEnabled.value) return DEFAULT_FINE_STEP;
-  return selectedSnapPreset.value.step;
-});
+const editorSnapStep = computed(() => 0);
 
 const editor = useInteractiveEditor({ snapStep: editorSnapStep });
 
@@ -440,6 +399,34 @@ const budgetRect = computed(() => ({
   h: props.terrenoLargo || 7,
 }));
 
+const terrainLabelStyle = computed(() => {
+  const minDim = Math.min(budgetRect.value.w, budgetRect.value.h);
+
+  if (minDim <= 5) {
+    return { fontSize: 7, y: 9, freeFontSize: 7, freeY: 9, compact: true };
+  }
+  if (minDim <= 8) {
+    return { fontSize: 9, y: 14, freeFontSize: 8, freeY: 12, compact: false };
+  }
+
+  return { fontSize: 12, y: 22, freeFontSize: 11, freeY: 18, compact: false };
+});
+
+const terrainBoundsLabel = computed(() => {
+  const w = budgetRect.value.w.toFixed(1);
+  const h = budgetRect.value.h.toFixed(1);
+
+  if (terrainLabelStyle.value.compact) {
+    return t('terrainBoundsCompact', { w, h });
+  }
+
+  return t('terrainBounds', { w, h });
+});
+
+const terrainFreeAreaLabel = computed(() =>
+  t('terrainFreeArea', { area: freeArea.value.toFixed(1) }),
+);
+
 // ── Movement bounds ───────────────────────────────────────────────────────────
 // El usuario puede sacar un recinto apenas del terreno para ajustar, pero no
 // arrastrarlo indefinidamente fuera del área útil.
@@ -640,7 +627,7 @@ const placeRoomWithoutGap = (room) => {
 
   candidates.push({ x: 0, z: 0 });
 
-  const scanStep = snapEnabled.value ? selectedSnapPreset.value.step : DEFAULT_FINE_STEP;
+  const scanStep = DEFAULT_FINE_STEP;
   for (let z = 0; z <= budgetRect.value.h - l + 0.0001; z += scanStep) {
     for (let x = 0; x <= budgetRect.value.w - w + 0.0001; x += scanStep) {
       candidates.push({ x: Number(x.toFixed(3)), z: Number(z.toFixed(3)) });
@@ -687,7 +674,9 @@ const frozenBounds = ref(null);
 
 const liveBounds = computed(() => {
   const bd = budgetRect.value;
-  const margin = VIEW_PAD + MOVE_OVERFLOW_MARGIN;
+  const margin =
+    Math.min(VIEW_PAD, Math.max(0.25, Math.min(bd.w, bd.h) * 0.12)) +
+    MOVE_OVERFLOW_MARGIN;
 
   return {
     minX: -margin,
@@ -699,7 +688,18 @@ const liveBounds = computed(() => {
 
 const activeBounds = computed(() => frozenBounds.value || liveBounds.value);
 
+watch(
+  () => [props.terrenoAncho, props.terrenoLargo],
+  () => {
+    frozenBounds.value = null;
+    nextTick(() => {
+      store.recintos.forEach(normalizeRoomInsideTerrain);
+    });
+  },
+);
+
 watch(budgetRect, () => {
+  frozenBounds.value = null;
   store.recintos.forEach(normalizeRoomInsideTerrain);
 }, { deep: true });
 
@@ -835,16 +835,20 @@ const onPointerUp = () => {
 
   if (mode === "resize") {
     const resized = selectedDraggedRoom();
-    const flushed = resized ? applyFlushSnapToRoom(resized) : null;
-    if (flushed) {
-      store.updateRecinto(resized.id, {
-        coords: { x: flushed.x, z: flushed.z },
-        dimensions: {
-          ...resized.dimensions,
-          w: flushed.w,
-          l: flushed.l,
-        },
-      });
+    if (resized) {
+      normalizeRoomInsideTerrain(resized);
+      const placed = store.recintos.find((r) => r.id === resized.id);
+      const flushed = placed ? applyFlushSnapToRoom(placed) : null;
+      if (flushed) {
+        store.updateRecinto(resized.id, {
+          coords: { x: flushed.x, z: flushed.z },
+          dimensions: {
+            ...placed.dimensions,
+            w: flushed.w,
+            l: flushed.l,
+          },
+        });
+      }
     }
   }
 
@@ -1002,6 +1006,8 @@ const commitSelectedRoomWidth = (val) => {
 
   const safeWidth = clampNumber(val, MIN_ROOM_DIM, maxRoomWidthFromPosition(room));
   store.updateRecinto(room.id, { w: Number(safeWidth.toFixed(3)) });
+  const updated = store.recintos.find((r) => r.id === room.id);
+  if (updated) normalizeRoomInsideTerrain(updated);
   store.saveHistoryState();
   return Number(safeWidth.toFixed(3));
 };
@@ -1012,6 +1018,8 @@ const commitSelectedRoomLength = (val) => {
 
   const safeLength = clampNumber(val, MIN_ROOM_DIM, maxRoomLengthFromPosition(room));
   store.updateRecinto(room.id, { l: Number(safeLength.toFixed(3)) });
+  const updated = store.recintos.find((r) => r.id === room.id);
+  if (updated) normalizeRoomInsideTerrain(updated);
   store.saveHistoryState();
   return Number(safeLength.toFixed(3));
 };
@@ -1093,26 +1101,21 @@ const handleKeyDown = (e) => {
   }
 };
 
-const handleSharedSnapSettings = (event) => {
-  const id = Number(event?.detail?.snapStepId);
-  if (SNAP_PRESETS.some((preset) => preset.id === id)) {
-    snapStepId.value = id;
-  }
+const handleSiecCancel = () => {
+  if (showAddModal.value) showAddModal.value = false;
 };
-
-watch(snapStepId, (id) => {
-  writeSharedSnapSettings(id);
-});
 
 onMounted(() => {
   window.addEventListener('keydown', handleKeyDown);
-  window.addEventListener('siec-snap-settings', handleSharedSnapSettings);
+  window.addEventListener('siec:cancel', handleSiecCancel);
 });
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown);
-  window.removeEventListener('siec-snap-settings', handleSharedSnapSettings);
+  window.removeEventListener('siec:cancel', handleSiecCancel);
 });
+
+defineExpose({ openAddModal });
 </script>
 
 <template>
@@ -1189,7 +1192,7 @@ onUnmounted(() => {
               <span
                 class="rounded-xl border border-orange-200 bg-orange-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-orange-700 dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
               >
-                Piso {{ store.currentFloor }}
+                {{ t('floor') }} {{ store.currentFloor }}
               </span>
 
               <button
@@ -1211,21 +1214,21 @@ onUnmounted(() => {
               title="Añadir recinto con medidas"
               @click="openAddModal"
             >
-              <span class="material-symbols-outlined text-[16px]">add_home</span>
-              Añadir recinto
+              <span class="material-symbols-outlined text-[20px]">add_home</span>
+              {{ t('addRoomBtn') }}
             </button>
 
             <button
               type="button"
-              class="tool-btn"
+              class="tool-btn tool-btn-sm"
               :class="resizeLocked ? 'tool-btn-danger' : 'tool-btn-neutral'"
-              :title="resizeLocked ? 'Desbloquear redimensionado' : 'Bloquear redimensionado'"
+              :title="resizeLocked ? t('unlockResize') : t('lockResize')"
               @click="resizeLocked = !resizeLocked"
             >
-              <span class="material-symbols-outlined text-[16px]">
+              <span class="material-symbols-outlined text-[15px]">
                 {{ resizeLocked ? 'lock' : 'lock_open' }}
               </span>
-              {{ resizeLocked ? 'Bloqueado' : 'Redimensionar' }}
+              {{ resizeLocked ? t('resizeLocked') : t('resizeLock') }}
             </button>
 
 
@@ -1243,7 +1246,7 @@ onUnmounted(() => {
           </span>
 
           <span>
-            {{ isFullScreen ? 'Salir' : 'Pantalla completa' }}
+            {{ isFullScreen ? t('exitFullscreen') : t('fullscreen') }}
           </span>
         </button>
       </div>
@@ -1338,26 +1341,27 @@ onUnmounted(() => {
           />
 
           <text
-            :x="toSX(0) + 12"
-            :y="toSZ(0) + 22"
+            :x="toSX(0) + (terrainLabelStyle.compact ? 6 : 12)"
+            :y="toSZ(0) + terrainLabelStyle.y"
             fill="rgba(249,115,22,0.78)"
-            font-size="12"
+            :font-size="terrainLabelStyle.fontSize"
             font-weight="800"
-            class="uppercase tracking-widest pointer-events-none select-none"
+            class="uppercase pointer-events-none select-none"
+            :style="{ letterSpacing: terrainLabelStyle.compact ? '0.06em' : '0.12em' }"
           >
-            Límites del terreno · {{ budgetRect.w.toFixed(1) }}m × {{ budgetRect.h.toFixed(1) }}m
+            {{ terrainBoundsLabel }}
           </text>
 
           <text
-            :x="toSX(budgetRect.w) - 8"
-            :y="toSZ(0) + 18"
+            :x="toSX(budgetRect.w) - (terrainLabelStyle.compact ? 4 : 8)"
+            :y="toSZ(0) + terrainLabelStyle.freeY"
             fill="rgba(249,115,22,0.68)"
-            font-size="11"
+            :font-size="terrainLabelStyle.freeFontSize"
             font-weight="700"
             text-anchor="end"
             style="pointer-events: none"
           >
-            {{ freeArea.toFixed(1) }} m² libres
+            {{ terrainFreeAreaLabel }}
           </text>
 
           <!-- Ghost Trace -->
@@ -1726,10 +1730,10 @@ onUnmounted(() => {
 
               <div>
                 <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-                  Inspector
+                  {{ t('inspectorEyebrow') }}
                 </p>
                 <h4 class="mt-0.5 text-sm font-black tracking-tight text-slate-950 dark:text-slate-100">
-                  Propiedades
+                  {{ t('inspectorTitle') }}
                 </h4>
               </div>
             </div>
@@ -1747,23 +1751,23 @@ onUnmounted(() => {
 
           <div class="space-y-4">
             <div class="space-y-2">
-              <label class="editor-label">Nombre</label>
+              <label class="editor-label">{{ t('nameLabel') }}</label>
               <input
                 v-model="selectedRoomName"
                 type="text"
                 class="editor-input text-left"
-                placeholder="Ej. Baño 1"
+                :placeholder="t('roomNamePlaceholder')"
               />
             </div>
 
             <div class="grid grid-cols-1 gap-3">
               <div class="space-y-2">
-                <label class="editor-label">Ancho (m)</label>
+                <label class="editor-label">{{ t('widthM') }}</label>
                 <input
                   :value="selectedRoomWidth"
                   type="number"
                   class="editor-input text-center font-mono"
-                  :step="snapEnabled ? selectedSnapPreset.step : 0.1"
+                  step="0.1"
                   min="0.5"
                   :max="selectedRoom ? maxRoomWidthFromPosition(selectedRoom) : budgetRect.w"
                   :disabled="resizeLocked"
@@ -1774,12 +1778,12 @@ onUnmounted(() => {
               </div>
 
               <div class="space-y-2">
-                <label class="editor-label">Largo (m)</label>
+                <label class="editor-label">{{ t('lengthM') }}</label>
                 <input
                   :value="selectedRoomLength"
                   type="number"
                   class="editor-input text-center font-mono"
-                  :step="snapEnabled ? selectedSnapPreset.step : 0.1"
+                  step="0.1"
                   min="0.5"
                   :max="selectedRoom ? maxRoomLengthFromPosition(selectedRoom) : budgetRect.h"
                   :disabled="resizeLocked"
@@ -1790,7 +1794,7 @@ onUnmounted(() => {
               </div>
 
               <div class="space-y-2">
-                <label class="editor-label">Alto (m)</label>
+                <label class="editor-label">{{ t('heightM') }}</label>
                 <input
                   :value="selectedRoomHeight"
                   type="number"
@@ -1808,18 +1812,19 @@ onUnmounted(() => {
               v-if="resizeLocked"
               class="rounded-2xl border border-red-200 bg-red-50 p-3 text-xs font-semibold leading-relaxed text-red-700 dark:border-red-900/70 dark:bg-red-950/25 dark:text-red-300"
             >
-              Redimensionado bloqueado. Desbloquéalo desde la barra superior para editar ancho y largo.
+              {{ t('resizeLockedHint') }}
             </div>
           </div>
         </aside>
       </transition>
     </div>
 
-    <!-- Add Recinto Modal -->
+    <!-- Add Recinto Modal (Teleport evita recorte y solapamiento con el canvas) -->
+    <Teleport to="body">
     <transition name="modal-fade">
       <div
         v-if="showAddModal"
-        class="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-md dark:bg-black/60"
+        class="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-md dark:bg-black/60"
         @click.self="showAddModal = false"
       >
         <section
@@ -1839,13 +1844,13 @@ onUnmounted(() => {
 
               <div>
                 <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-                  Nuevo espacio
+                  {{ t('addRoomModalEyebrow') }}
                 </p>
                 <h4 class="mt-0.5 text-xl font-black tracking-tight text-slate-950 dark:text-slate-100">
-                  Añadir recinto
+                  {{ t('addRoomTitle') }}
                 </h4>
                 <p class="mt-1 text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400">
-                  Define nombre y dimensiones iniciales.
+                  {{ t('addRoomModalDesc') }}
                 </p>
               </div>
             </div>
@@ -1863,26 +1868,26 @@ onUnmounted(() => {
 
           <div class="space-y-5 px-5 py-5">
             <div class="space-y-2">
-              <label class="editor-label">Nombre</label>
+              <label class="editor-label">{{ t('nameLabel') }}</label>
               <input
                 v-model="addForm.nombre"
                 type="text"
-                placeholder="Ej. Dormitorio principal"
+                :placeholder="t('roomNamePlaceholder')"
                 class="add-room-input"
                 @keyup.enter="confirmAdd"
               />
             </div>
 
             <div class="space-y-3">
-              <label class="editor-label">Medidas</label>
+              <label class="editor-label">{{ t('dimensionsLabel') }}</label>
 
               <div class="grid grid-cols-3 gap-2">
                 <div class="add-room-dim-card">
                   <span class="material-symbols-outlined text-[16px] text-orange-500 dark:text-orange-300">
                     width
                   </span>
-                  <label>Ancho</label>
-                  <input v-model.number="addForm.w" type="number" :step="snapEnabled ? selectedSnapPreset.step : 0.1" min="0.5" :max="budgetRect.w" />
+                  <label>{{ t('widthShort') }}</label>
+                  <input v-model.number="addForm.w" type="number" step="0.1" min="0.5" :max="budgetRect.w" />
                   <span>m</span>
                 </div>
 
@@ -1890,8 +1895,8 @@ onUnmounted(() => {
                   <span class="material-symbols-outlined text-[16px] text-orange-500 dark:text-orange-300">
                     height
                   </span>
-                  <label>Largo</label>
-                  <input v-model.number="addForm.l" type="number" :step="snapEnabled ? selectedSnapPreset.step : 0.1" min="0.5" :max="budgetRect.h" />
+                  <label>{{ t('lengthShort') }}</label>
+                  <input v-model.number="addForm.l" type="number" step="0.1" min="0.5" :max="budgetRect.h" />
                   <span>m</span>
                 </div>
 
@@ -1899,14 +1904,14 @@ onUnmounted(() => {
                   <span class="material-symbols-outlined text-[16px] text-orange-500 dark:text-orange-300">
                     vertical_align_top
                   </span>
-                  <label>Alto</label>
+                  <label>{{ t('heightShort') }}</label>
                   <input v-model.number="addForm.h" type="number" step="0.1" min="1" />
                   <span>m</span>
                 </div>
               </div>
 
               <p class="add-room-area-pill">
-                Área: {{ (addForm.w * addForm.l).toFixed(2) }} m²
+                {{ t('roomAreaLabel', { area: (addForm.w * addForm.l).toFixed(2) }) }}
               </p>
             </div>
           </div>
@@ -1919,7 +1924,7 @@ onUnmounted(() => {
               class="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-slate-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 hover:shadow-md active:scale-[0.98] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200 dark:hover:border-slate-700 dark:hover:bg-slate-900"
               @click="showAddModal = false"
             >
-              Cancelar
+              {{ t('cancel') }}
             </button>
 
             <button
@@ -1928,12 +1933,13 @@ onUnmounted(() => {
               @click="confirmAdd"
             >
               <span class="material-symbols-outlined text-[17px]">add</span>
-              Crear recinto
+              {{ t('createRoomBtn') }}
             </button>
           </footer>
         </section>
       </div>
     </transition>
+    </Teleport>
   </div>
 </template>
 
@@ -2011,6 +2017,48 @@ svg rect.cursor-grabbing {
   border-color: rgba(154, 52, 18, 0.7);
   background: rgba(67, 20, 7, 0.32);
   color: rgb(253 186 116);
+}
+
+.tool-btn-add-recinto {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 1.15rem;
+  border: 1px solid rgb(251 146 60);
+  padding: 0.7rem 1.15rem;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, rgb(255 247 237), rgb(255 255 255));
+  color: rgb(194 65 12);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.06),
+    0 8px 24px rgba(249, 115, 22, 0.18);
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.tool-btn-add-recinto:hover {
+  transform: translateY(-2px);
+  border-color: rgb(249 115 22);
+  box-shadow:
+    0 4px 12px rgba(15, 23, 42, 0.08),
+    0 12px 28px rgba(249, 115, 22, 0.28);
+}
+
+.dark .tool-btn-add-recinto {
+  border-color: rgba(251, 146, 60, 0.65);
+  background: linear-gradient(135deg, rgba(67, 20, 7, 0.55), rgba(15, 23, 42, 0.9));
+  color: rgb(253 186 116);
+}
+
+.tool-btn-sm {
+  padding: 0.45rem 0.65rem;
+  font-size: 0.62rem;
 }
 
 .tool-btn-neutral {

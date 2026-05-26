@@ -274,6 +274,117 @@ const renderAnnexes = (payload) => {
  * - Cada section.page mide exactamente A4.
  * - Saltos de página con .pdf-page-break / page-break CSS.
  */
+/** PDF compacto: portada + total, desglose de insumos, firmas (máx. 3 páginas). */
+export const buildProposalArticleHtmlCompact = (payload) => {
+  const {
+    projectName,
+    coverHeadline,
+    totalFormatted: totalDisplay,
+    materialNombre,
+  } = payload;
+
+  const desgloseTable = renderDesgloseTable(payload.desglose);
+  const coverHeader = renderCoverHeader(payload);
+
+  return `<article class="proposal">
+    <section class="page page--cover">
+      ${coverHeader}
+
+      <div class="cover__main">
+        <p class="cover__label">${escapeHtml(coverHeadline)}</p>
+        <h1 class="cover__title">${escapeHtml(projectName)}</h1>
+        <p class="cover__lead">
+          Presupuesto referencial · ${escapeHtml(materialNombre)} · Precios al ${escapeHtml(formatExportDate(payload.fechaPrecios))}
+        </p>
+      </div>
+
+      <div class="cover__bottom">
+        <dl class="cover__meta">
+          <div>
+            <dt>Fecha</dt>
+            <dd>${escapeHtml(formatExportDate(payload.fechaExportacion))}</dd>
+          </div>
+
+          <div>
+            <dt>Superficie</dt>
+            <dd>${escapeHtml(formatNumber(payload.m2Totales, 0))} m²</dd>
+          </div>
+
+          <div>
+            <dt>Recintos</dt>
+            <dd>Hab. ${payload.counts?.habitaciones ?? 0} · Baños ${payload.counts?.banios ?? 0}</dd>
+          </div>
+        </dl>
+
+        <aside class="cover__total">
+          <p class="cover__total-label">Inversión estimada</p>
+          <p class="cover__total-value">${escapeHtml(totalDisplay)}</p>
+          <p class="cover__total-note">
+            Valor referencial sujeto a validación técnica y disponibilidad de insumos.
+          </p>
+        </aside>
+      </div>
+    </section>
+
+    ${pageBreak}
+
+    <section class="page page--compact-desglose" id="desglose">
+      <div class="page__inner">
+        <header class="section-head">
+          <div>
+            <p class="section-head__kicker">02</p>
+            <h2 class="section-head__title">Desglose de insumos</h2>
+          </div>
+          <p class="section-head__note">Detalle referencial por categoría.</p>
+        </header>
+        ${desgloseTable}
+      </div>
+      ${pageFooter(payload, "Desglose")}
+    </section>
+
+    ${pageBreak}
+
+    <section class="page" id="firmas">
+      <div class="page__inner">
+        <header class="section-head">
+          <div>
+            <p class="section-head__kicker">03</p>
+            <h2 class="section-head__title">Aceptación y firmas</h2>
+          </div>
+          <p class="section-head__note">Formalización de aceptación comercial.</p>
+        </header>
+
+        <div class="prose">
+          <p>
+            La aceptación se perfecciona con firma de ambas partes y anticipo acordado
+            cuando corresponda. Cualquier cambio de alcance deberá documentarse mediante anexo o nueva versión.
+          </p>
+        </div>
+
+        <div class="signatures">
+          <div class="signature signature--client">
+            <p class="signature__line">Por el cliente</p>
+            <p class="signature__hint">Nombre, RUT y fecha</p>
+          </div>
+
+          <div class="signature signature--issuer">
+            <div class="signature__mark-wrap">
+              ${brandMarkImg(
+                "signature__mark",
+                "Firma SIEC",
+                payload.signatureUrl || resolveBrandSignatureUrl(),
+              )}
+            </div>
+            <p class="signature__line">Por ${escapeHtml(payload.businessName)}</p>
+            <p class="signature__hint">Representante autorizado</p>
+          </div>
+        </div>
+      </div>
+      ${pageFooter(payload, "Firmas")}
+    </section>
+  </article>`;
+};
+
 export const buildProposalArticleHtml = (payload) => {
   const {
     projectName,
@@ -559,8 +670,12 @@ export const buildProposalArticleHtml = (payload) => {
   </article>`;
 };
 
-export const buildProposalHtml = (rawPayload) => {
+export const buildProposalHtml = (rawPayload, options = {}) => {
   const payload = normalizeProposalPayload(rawPayload);
+  const compact = options.compact !== false;
+  const articleHtml = compact
+    ? buildProposalArticleHtmlCompact(payload)
+    : buildProposalArticleHtml(payload);
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -571,7 +686,7 @@ export const buildProposalHtml = (rawPayload) => {
 </head>
 
 <body>
-  ${buildProposalArticleHtml(payload)}
+  ${articleHtml}
 </body>
 </html>`;
 };

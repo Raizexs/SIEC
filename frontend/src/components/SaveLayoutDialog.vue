@@ -80,7 +80,7 @@ const handleSave = () => {
                   <p
                     class="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
                   >
-                    Guardado manual
+                    {{ t('saveLayoutManual') }}
                   </p>
 
                   <h3
@@ -91,7 +91,7 @@ const handleSave = () => {
                   </h3>
 
                   <p class="mt-1 text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400">
-                    Asigna un nombre claro para encontrar esta versión más rápido después.
+                    {{ t('saveLayoutDesc') }}
                   </p>
                 </div>
               </div>
@@ -99,7 +99,7 @@ const handleSave = () => {
               <button
                 type="button"
                 class="group flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-transparent text-slate-400 transition-all duration-200 hover:border-slate-300 hover:bg-white hover:text-slate-950 active:scale-95 dark:text-slate-500 dark:hover:border-slate-700 dark:hover:bg-slate-900 dark:hover:text-slate-100"
-                aria-label="Cerrar diálogo de guardado"
+                :aria-label="t('saveLayoutCloseAria')"
                 @click="emit('close')"
               >
                 <span
@@ -141,7 +141,7 @@ const handleSave = () => {
                 </div>
 
                 <p class="text-xs font-medium leading-relaxed text-slate-400 dark:text-slate-500">
-                  Usa nombres específicos como “Casa 105m² metalcon” o “Versión cliente 01”.
+                  {{ t('saveLayoutNameHint') }}
                 </p>
               </div>
             </div>

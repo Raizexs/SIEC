@@ -12,6 +12,7 @@
  */
 
 import { ref, computed, watchEffect, watch, nextTick, onMounted, onUnmounted } from 'vue';
+import { storeToRefs } from 'pinia';
 import { driver } from 'driver.js';
 import 'driver.js/dist/driver.css';
 import AppRail from './shell/AppRail.vue';
@@ -42,8 +43,7 @@ import { useAuthStore } from '../stores/auth';
 import { useProMotion } from '../composables/useProMotion';
 import {
   useProductPreferences,
-  mergePreferences,
-  defaultProductPreferences,
+  WORKSPACE_FEATURES,
 } from '../composables/useProductPreferences';
 
 const props = defineProps({
@@ -51,12 +51,12 @@ const props = defineProps({
 });
 
 const recintosStore = useRecintosStore();
+const { totalArea: totalAreaOcupada } = storeToRefs(recintosStore);
 const workspaceStore = useWorkspaceStore();
 const authStore = useAuthStore();
 const { totalWallLength } = useTopologyComputed();
 const {
   saveLayout,
-  createPresetLayout,
   applyLayoutToStore,
   loadLayout: normalizeSavedLayout,
 } = useLayoutManager();
@@ -64,25 +64,20 @@ const { t, currentLanguage } = useI18n();
 
 const { productPreferences } = useProductPreferences();
 
+const workspaceFeatures = computed(
+  () => ({
+    ...WORKSPACE_FEATURES,
+    ...(productPreferences.value.features || {}),
+  }),
+);
+
 const sidebarCollapsed = ref(false);
 const motionRoot = ref(null);
 
 useProMotion(motionRoot, { skipIntro: true });
 
-let siecExportListener = null;
-
 onMounted(() => {
   workspaceStore.loadWorkspace();
-  siecExportListener = (ev) => {
-    onSiecExport(ev);
-  };
-  window.addEventListener('siec:export', siecExportListener);
-});
-
-onUnmounted(() => {
-  if (siecExportListener && typeof window !== 'undefined') {
-    window.removeEventListener('siec:export', siecExportListener);
-  }
 });
 
 const showManual = ref(false);
@@ -148,7 +143,15 @@ const areaUsadaReal = computed(() => {
   return Number(recintosStore.totalArea || 0);
 });
 
+const terrainM2FromDimensions = computed(() => {
+  const w = Number(formData.value.terrenoAncho) || 0;
+  const l = Number(formData.value.terrenoLargo) || 0;
+  return w * l;
+});
+
 const areaTotalReal = computed(() => {
+  const fromDims = terrainM2FromDimensions.value;
+  if (fromDims > 0) return fromDims;
   return Number(formData.value?.m2Totales || m2Totales.value || 0);
 });
 
@@ -233,7 +236,7 @@ watch(
         newCounts.habitacionesTriples;
 
       recintosStore.initializeLayout(
-        formData.value.m2Totales,
+        areaTotalReal.value,
         totalHabitaciones,
         newCounts.banios,
         newCounts.areasComunes,
@@ -255,12 +258,19 @@ watch(
 );
 
 watch(
-  () => formData.value.m2Totales,
+  terrainM2FromDimensions,
   (m2) => {
+    if (m2 > 0 && formData.value.m2Totales !== m2) {
+      formData.value.m2Totales = m2;
+    }
     if (recintosStore.configMetadata) {
       recintosStore.configMetadata.m2Totales = m2;
     }
+    if (m2Totales.value !== m2) {
+      m2Totales.value = m2;
+    }
   },
+  { immediate: true },
 );
 
 const isSubmitting = ref(false);
@@ -270,8 +280,14 @@ const showShareDialog = ref(false);
 
 const hasRecintos = computed(() => recintosStore.recintos.length > 0);
 
-const updateFormData = (newData) => {
-  formData.value = newData;
+const updateFormData = (patch) => {
+  if (!patch || typeof patch !== 'object') return;
+
+  Object.assign(formData.value, patch);
+
+  const w = Number(formData.value.terrenoAncho) || 0;
+  const l = Number(formData.value.terrenoLargo) || 0;
+  formData.value.m2Totales = w * l;
 };
 
 const syncFormDataFromLayout = (layout) => {
@@ -292,32 +308,6 @@ const syncFormDataFromLayout = (layout) => {
   prevMaterialId = formData.value.materialEstructuralId;
 };
 
-
-
-const loadPreset = (preset) => {
-  isProgrammaticUpdate.value = true;
-
-  const layout = createPresetLayout(preset);
-  const normalized = applyLayoutToStore(layout);
-
-  syncFormDataFromLayout({
-    ...preset,
-    ...normalized,
-  });
-
-  nextTick(() => {
-    m2Totales.value = formData.value.m2Totales;
-    habitacionesSimples.value = formData.value.habitacionesSimples;
-    habitacionesDobles.value = formData.value.habitacionesDobles;
-    habitacionesTriples.value = formData.value.habitacionesTriples;
-    banios.value = formData.value.banios;
-    areasComunes.value = formData.value.areasComunes;
-  });
-
-  setTimeout(() => {
-    isProgrammaticUpdate.value = false;
-  }, 500);
-};
 
 const loadLayout = (layout) => {
   isProgrammaticUpdate.value = true;
@@ -537,7 +527,6 @@ const startTutorial = () => {
 
     <!-- Contextual sidebar -->
     <Sidebar
-      @load-preset="loadPreset"
       @load-layout="loadLayout"
       @collapse-change="(val) => (sidebarCollapsed = val)"
       @open-manual="showManual = true"
@@ -552,7 +541,7 @@ const startTutorial = () => {
         @save-layout="showSaveDialog = true"
       />
 
-      <div class="flex-1 overflow-y-auto">
+      <div class="flex-1 overflow-y-auto" data-workspace-scroll>
         <div class="mx-auto w-full max-w-[1600px] px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
           <!-- Workspace header strip -->
           <section
@@ -602,18 +591,14 @@ const startTutorial = () => {
               class="tour-config-panel"
               :formData="formData"
               :costs="costs"
-              :tokensDisponibles="tokensDisponibles"
               @update:formData="updateFormData"
             />
 
             <MetricsPanel
               class="tour-metrics-panel"
-              :formData="formData"
-              :tokensUsados="tokensUsados"
-              :tokensTotales="tokensTotales"
-              :tokensDisponibles="tokensDisponibles"
-              :descripcionEstado="descripcionEstado"
-              :totalAreaUsado="recintosStore.totalArea"
+              :form-data="formData"
+              :descripcion-estado="descripcionEstado"
+              :area-recintos="totalAreaOcupada"
             />
           </section>
 
@@ -623,13 +608,11 @@ const startTutorial = () => {
 
             <RoomEditor2D
               class="tour-editor-2d"
-              :m2Totales="formData.m2Totales"
+              :m2-totales="terrainM2FromDimensions"
               v-model:terrenoAncho="formData.terrenoAncho"
               v-model:terrenoLargo="formData.terrenoLargo"
               :descripcionEstado="descripcionEstado"
               :show-grid="productPreferences.editor.showGrid"
-              :snap-to-grid="productPreferences.editor.snapToGrid"
-              :grid-size="productPreferences.editor.gridSize"
               :show-labels="productPreferences.editor.showLabels"
               :default-room-height="productPreferences.defaultRoomHeight"
             />
@@ -673,6 +656,7 @@ const startTutorial = () => {
     />
 
     <ShareDialog
+      v-if="workspaceFeatures.projectShare"
       :show="showShareDialog"
       :project-id="projectId || 'local'"
       @close="showShareDialog = false"
@@ -713,7 +697,7 @@ const startTutorial = () => {
             {{ t('layoutSaved') }}
           </p>
           <p class="mt-0.5 text-xs font-medium text-slate-500 dark:text-slate-400">
-            El diseño quedó guardado correctamente.
+            {{ t('layoutSavedDetail') }}
           </p>
         </div>
       </div>

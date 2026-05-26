@@ -15,7 +15,11 @@ import { exportBudget, getMaterialLabel } from '../utils/budgetExporter';
 import { captureSceneImage } from '../proposal/proposalSceneCapture';
 import { resolveBrandLogoUrl } from '../proposal/proposalBrand';
 
-const { t } = useI18n();
+const { t, currentLanguage } = useI18n();
+
+const numberLocale = computed(() =>
+  currentLanguage.value === 'en' ? 'en-US' : 'es-CL',
+);
 const recintosStore = useRecintosStore();
 const workspaceStore = useWorkspaceStore();
 const { productPreferences } = useProductPreferences();
@@ -64,9 +68,9 @@ const exportOptions = [
 ];
 
 const formatCurrency = (value) => {
-  if (value == null) return 'Precios de mercado no disponibles aún';
+  if (value == null) return t('budgetPricesUnavailable');
 
-  return new Intl.NumberFormat('es-CL', {
+  return new Intl.NumberFormat(numberLocale.value, {
     style: 'currency',
     currency: 'CLP',
   }).format(value);
@@ -100,9 +104,9 @@ const deltaContingencia = computed(() => {
 });
 
 const formatCurrencyCell = (value) => {
-  if (value == null) return 'N/D';
+  if (value == null) return t('budgetNa');
 
-  return new Intl.NumberFormat('es-CL', {
+  return new Intl.NumberFormat(numberLocale.value, {
     style: 'currency',
     currency: 'CLP',
   }).format(value);
@@ -141,6 +145,15 @@ const buildLayoutRecintosPayload = () =>
     length: room.dimensions?.l ?? 0,
   }));
 
+const buildLayoutRecintosPayload = () =>
+  recintosStore.recintos.map((room) => ({
+    piso: room.piso || 1,
+    coords_x: room.coords?.x ?? 0,
+    coords_z: room.coords?.z ?? 0,
+    width: room.dimensions?.w ?? 0,
+    length: room.dimensions?.l ?? 0,
+  }));
+
 const fetchBudget = async () => {
   if (!hasGenerated.value) return;
 
@@ -171,7 +184,7 @@ const fetchBudget = async () => {
       }),
     });
 
-    if (!simRes.ok) throw new Error('Error al crear simulación');
+    if (!simRes.ok) throw new Error(t('budgetErrSim'));
 
     const simData = await simRes.json();
 
@@ -187,7 +200,7 @@ const fetchBudget = async () => {
       },
     );
 
-    if (!calcRes.ok) throw new Error('Error al calcular insumos');
+    if (!calcRes.ok) throw new Error(t('budgetErrCalc'));
 
     const data = await calcRes.json();
 
@@ -270,16 +283,18 @@ const handleExport = async (format) => {
     const payload = buildExportPayload();
     if (format === 'pdf') {
       payload.sceneImageDataUrl = await captureSceneImage();
-      toast.loading('Generando PDF profesional…', { id: toastId });
+      toast.loading(t('budgetPdfGenerating'), { id: toastId });
     }
     await exportBudget(format, payload);
     if (toastId) toast.dismiss(toastId);
     const labels = { pdf: 'PDF', xlsx: 'Excel', csv: 'CSV' };
-    toast.success(`Archivo ${labels[format] || format} descargado correctamente`);
+    toast.success(
+      t('budgetExportSuccess', { format: labels[format] || format }),
+    );
   } catch (err) {
     if (toastId) toast.dismiss(toastId);
     console.error('Error al exportar presupuesto:', err);
-    toast.error(err?.message || 'No se pudo exportar el presupuesto');
+    toast.error(err?.message || t('budgetExportFailed'));
   } finally {
     exportFormat.value = null;
   }
@@ -324,17 +339,17 @@ onUnmounted(() => {
           <p
             class="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
           >
-            Estimación económica
+            {{ t('budgetEconomicEstimate') }}
           </p>
 
           <h2
             class="mt-1 text-2xl font-black tracking-tight text-slate-950 dark:text-slate-100"
           >
-            Presupuesto detallado
+            {{ t('budgetDetailedTitle') }}
           </h2>
 
           <p class="mt-1 max-w-2xl text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400">
-            Calcula insumos, cantidades y subtotales según los recintos seleccionados y el material estructural actual.
+            {{ t('budgetSubtitle') }}
           </p>
         </div>
       </div>
@@ -345,7 +360,7 @@ onUnmounted(() => {
         <span class="material-symbols-outlined text-[15px] text-slate-400">
           square_foot
         </span>
-        {{ Math.round(m2Totales) }} m² calculados
+        {{ t('budgetM2Calculated', { m2: Math.round(m2Totales) }) }}
       </div>
     </header>
 
@@ -363,11 +378,11 @@ onUnmounted(() => {
       </div>
 
       <h3 class="text-lg font-black tracking-tight text-slate-950 dark:text-slate-100">
-        Presupuesto inactivo
+        {{ t('budgetInactive') }}
       </h3>
 
       <p class="mt-2 max-w-md text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400">
-        Genera un presupuesto usando la selección actual de recintos, superficie calculada y material estructural del proyecto.
+        {{ t('budgetInactiveHint') }}
       </p>
 
       <button
@@ -378,11 +393,11 @@ onUnmounted(() => {
         <span class="material-symbols-outlined text-[18px]">
           calculate
         </span>
-        Calcular presupuesto real
+        {{ t('budgetCalculateReal') }}
       </button>
 
       <p class="mt-3 text-xs font-medium text-slate-400 dark:text-slate-500">
-        Consulta precios de mercado actualizados vía scraper.
+        {{ t('budgetScraperHint') }}
       </p>
     </div>
 
@@ -402,11 +417,11 @@ onUnmounted(() => {
         </div>
 
         <p class="text-sm font-bold text-slate-700 dark:text-slate-200">
-          Analizando insumos y materiales...
+          {{ t('budgetLoading') }}
         </p>
 
         <p class="mt-1 text-xs font-medium text-slate-400 dark:text-slate-500">
-          Esto puede depender del backend y del scraper de precios.
+          {{ t('budgetLoadingHint') }}
         </p>
       </div>
 
@@ -425,7 +440,7 @@ onUnmounted(() => {
 
         <div>
           <p class="text-sm font-bold leading-snug">
-            No se pudo generar el presupuesto
+            {{ t('budgetErrorTitle') }}
           </p>
           <p class="mt-1 text-xs font-medium leading-relaxed">
             {{ error }}
@@ -448,7 +463,7 @@ onUnmounted(() => {
               <p
                 class="text-[11px] font-bold uppercase tracking-[0.18em] text-orange-300"
               >
-                Costo total estimado
+                {{ t('budgetTotalEstimated') }}
               </p>
 
               <div
@@ -467,26 +482,26 @@ onUnmounted(() => {
                 class="mt-3 space-y-1.5 text-xs font-medium leading-relaxed text-slate-400"
               >
                 <p>
-                  Subtotal motor (CLP, API):
+                  {{ t('budgetMotorSubtotal') }}
                   <span class="font-mono font-bold text-slate-200">{{ formatCurrencyCell(motorTotal) }}</span>
                 </p>
                 <p v-if="productPreferences.contingency > 0 && deltaContingencia != null">
-                  Contingencia {{ productPreferences.contingency }}%:
+                  {{ t('budgetContingency', { pct: productPreferences.contingency }) }}
                   <span class="font-mono font-bold text-slate-200">+{{ formatCurrencyCell(deltaContingencia) }}</span>
-                   (referencial sobre el total del motor).
+                  {{ t('budgetContingencyNote') }}
                 </p>
                 <p v-if="productPreferences.includeTax && montoIva > 0">
-                  IVA referencial ({{ Math.round(CHILE_IVA_RATE * 100) }}%):
+                  {{ t('budgetIvaRef', { pct: Math.round(CHILE_IVA_RATE * 100) }) }}
                   <span class="font-mono font-bold text-slate-200">+{{ formatCurrencyCell(montoIva) }}</span>
-                   sobre subtotal con contingencia (CLP).
+                  {{ t('budgetIvaNote') }}
                 </p>
                 <p v-if="monedaPreferida !== 'CLP'" class="text-[11px] text-slate-500">
-                  La moneda mostrada arriba es vista; el cálculo sigue en CLP hasta integrar tipo de cambio.
+                  {{ t('budgetCurrencyViewNote') }}
                 </p>
               </div>
 
               <p class="mt-2 text-xs font-medium text-slate-400">
-                Valor referencial sujeto a disponibilidad y actualización de precios.
+                {{ t('budgetRefValueNote') }}
               </p>
             </div>
 
@@ -498,7 +513,7 @@ onUnmounted(() => {
                 <span class="material-symbols-outlined text-[14px] text-orange-300">
                   update
                 </span>
-                Actualizado: {{ formatDate(fechaPrecios) }}
+                {{ t('budgetUpdated') }} {{ formatDate(fechaPrecios) }}
               </div>
 
               <div
@@ -507,7 +522,7 @@ onUnmounted(() => {
               >
                 <button
                   type="button"
-                  title="Exportar presupuesto"
+                  :title="t('budgetExportTitle')"
                   aria-haspopup="menu"
                   :aria-expanded="exportMenuOpen"
                   class="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-400/30 bg-emerald-500 px-4 py-2.5 text-xs font-bold uppercase tracking-tight text-white shadow-lg shadow-emerald-500/20 transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-400 hover:shadow-emerald-500/30 active:scale-[0.98]"
@@ -516,7 +531,7 @@ onUnmounted(() => {
                   <span class="material-symbols-outlined text-[16px]">
                     download
                   </span>
-                  Exportar presupuesto
+                  {{ t('budgetExport') }}
                   <span class="material-symbols-outlined text-[14px] opacity-80">
                     expand_more
                   </span>
@@ -568,17 +583,17 @@ onUnmounted(() => {
           <div class="flex items-center justify-between gap-3">
             <div>
               <h3 class="text-sm font-black tracking-tight text-slate-950 dark:text-slate-100">
-                Desglose por categorías
+                {{ t('budgetBreakdownTitle') }}
               </h3>
               <p class="mt-0.5 text-xs font-medium text-slate-500 dark:text-slate-400">
-                Detalle de insumos, cantidades, precio unitario y subtotal.
+                {{ t('budgetBreakdownHint') }}
               </p>
             </div>
 
             <span
               class="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-tight text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400"
             >
-              {{ desglose.length }} categorías
+              {{ t('budgetCategoriesCount', { count: desglose.length }) }}
             </span>
           </div>
 
@@ -606,14 +621,18 @@ onUnmounted(() => {
                       {{ cat.categoria }}
                     </p>
                     <p class="text-xs font-medium text-slate-400 dark:text-slate-500">
-                      {{ cat.items?.length || 0 }} insumos asociados
+                      {{
+                        t('budgetItemsAssociated', {
+                          count: cat.items?.length || 0,
+                        })
+                      }}
                     </p>
                   </div>
                 </div>
 
                 <div class="text-left sm:text-right">
                   <p class="text-[10px] font-bold uppercase tracking-tight text-slate-400 dark:text-slate-500">
-                    Subtotal
+                    {{ t('budgetSubtotal') }}
                   </p>
                   <p class="font-mono text-sm font-black text-orange-600 dark:text-orange-300">
                     {{ formatCurrencyCell(cat.subtotal_categoria) }}
@@ -647,7 +666,7 @@ onUnmounted(() => {
                       <span
                         class="inline-flex rounded-lg border border-slate-200 bg-white px-2 py-1 font-mono font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
                       >
-                        {{ item.cantidad.toLocaleString('es-CL', { maximumFractionDigits: 2 }) }}
+                        {{ item.cantidad.toLocaleString(numberLocale, { maximumFractionDigits: 2 }) }}
                         <span class="ml-1 text-[9px] text-slate-400">
                           {{ item.unidad }}
                         </span>
@@ -699,17 +718,17 @@ onUnmounted(() => {
                   <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
                     <div>
                       <p class="text-[10px] font-bold uppercase tracking-tight text-slate-400">
-                        Cantidad
+                        {{ t('budgetQuantity') }}
                       </p>
                       <p class="mt-1 font-mono font-semibold text-slate-700 dark:text-slate-300">
-                        {{ item.cantidad.toLocaleString('es-CL', { maximumFractionDigits: 2 }) }}
+                        {{ item.cantidad.toLocaleString(numberLocale, { maximumFractionDigits: 2 }) }}
                         {{ item.unidad }}
                       </p>
                     </div>
 
                     <div class="text-right">
                       <p class="text-[10px] font-bold uppercase tracking-tight text-slate-400">
-                        Subtotal
+                        {{ t('budgetSubtotal') }}
                       </p>
                       <p class="mt-1 font-mono font-black text-slate-950 dark:text-slate-100">
                         {{ formatCurrencyCell(item.subtotal) }}
@@ -735,11 +754,11 @@ onUnmounted(() => {
             </div>
 
             <p class="font-bold text-slate-700 dark:text-slate-200">
-              No se encontraron insumos para este material.
+              {{ t('budgetEmptyTitle') }}
             </p>
 
             <p class="max-w-sm text-xs font-medium text-slate-400 dark:text-slate-500">
-              Revisa la selección de recintos o la materialidad estructural antes de volver a calcular.
+              {{ t('budgetEmptyHint') }}
             </p>
           </div>
         </section>
