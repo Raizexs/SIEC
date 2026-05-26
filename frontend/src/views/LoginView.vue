@@ -35,7 +35,6 @@ const email = ref('');
 const password = ref('');
 const fullName = ref('');
 const company = ref('');
-const userRole = ref('engineer');
 const mfaCode = ref('');
 const mfaFactorId = ref('');
 const isSubmitting = ref(false);
@@ -305,7 +304,7 @@ const handleSubmit = async () => {
         password: password.value,
         fullName: fullName.value,
         company: company.value,
-        role: userRole.value,
+        role: 'user',
       });
 
       if (res.success) {
@@ -611,20 +610,6 @@ onMounted(() => {
                   </div>
                 </div>
 
-                <div>
-                  <label class="premium-label">
-                    Rol
-                  </label>
-
-                  <select
-                    v-model="userRole"
-                    class="premium-input"
-                  >
-                    <option value="engineer">Ingeniero Civil</option>
-                    <option value="contractor">Constructor</option>
-                    <option value="client_viewer">Cliente / Mandante</option>
-                  </select>
-                </div>
               </div>
 
               <!-- Email -->

@@ -50,7 +50,8 @@ def get_connection():
         "DATABASE_URL",
         "postgresql://postgres:postgres@db:5432/siec"
     )
-    return psycopg2.connect(database_url)
+    conn = psycopg2.connect(database_url, options="-c client_encoding=UTF8")
+    return conn
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -128,12 +129,15 @@ def insertar_precios(resultados: list[dict]) -> int:
         )
     """
 
-    # Aseguramos que todos los registros tengan Fecha_Scraping e Insumo_ID
+    # Aseguramos que todos los registros tengan todos los campos requeridos
     ahora = datetime.utcnow()
     for r in validos:
         r.setdefault("fecha_scraping", ahora)
         r.setdefault("exitoso", True)
-        r.setdefault("insumo_id", None)  # NULL si no se puede mapear al insumo
+        r.setdefault("insumo_id", None)
+        r.setdefault("precio_descuento", None)
+        r.setdefault("stock", "Disponible")
+        r.setdefault("categoria", "Obra Gruesa")
 
 
     try:
@@ -241,7 +245,7 @@ def get_insumos_activos() -> list[dict]:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT "ID", "Nombre", "Categoria"
+                    SELECT "ID", "Nombre", "Categoria", "Unidad_Medida"
                     FROM   "Insumo"
                     WHERE  "Activo" = TRUE
                       AND  "Categoria" != 'Mano de Obra'
@@ -249,7 +253,7 @@ def get_insumos_activos() -> list[dict]:
                 )
                 rows = cur.fetchall()
                 return [
-                    {"id": r[0], "nombre": r[1], "categoria": r[2]}
+                    {"id": r[0], "nombre": r[1], "categoria": r[2], "unidad_medida": r[3]}
                     for r in rows
                 ]
         finally:

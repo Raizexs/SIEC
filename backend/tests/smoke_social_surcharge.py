@@ -52,7 +52,14 @@ pm2 = models.PrecioMercado(id=2, insumo_id=2, tienda="T1", nombre_producto="Ceme
 session.add_all([pm1, pm2])
 session.commit()
 
-sim = models.ConfiguracionSimulacion(id=1, m2_totales=100, material_estructural_id=1, habitaciones=1, banios=1, areas_comunes=0)
+sim = models.ConfiguracionSimulacion(
+    id=1,
+    m2_totales=100,
+    material_estructural_id=1,
+    perimetro_ml=40,
+    altura_muro_m=2.44,
+    incluir_techumbre=False,
+)
 session.add(sim)
 session.commit()
 

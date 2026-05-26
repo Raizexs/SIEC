@@ -1,28 +1,34 @@
 <script setup>
-import { computed } from 'vue';
-import { useI18n } from '../composables/useI18n';
+import { onMounted, onBeforeUnmount } from 'vue';
 
-defineProps({
+const props = defineProps({
   show: Boolean,
 });
 
 const emit = defineEmits(['close']);
 
-const { t } = useI18n();
+const onKeyDown = (e) => {
+  if (e.key === 'Escape' && props.show) {
+    emit('close');
+  }
+};
 
-const shortcuts = computed(() => [
-  { keys: ['Cmd', 'K'], desc: t('shortcutPalette') },
-  { keys: ['?'], desc: t('shortcutHelp') },
-  { keys: ['G', 'D'], desc: t('shortcutDashboard') },
-  { keys: ['G', 'W'], desc: t('shortcutWorkspace') },
-  { keys: ['G', 'S'], desc: t('shortcutSettings') },
-  { keys: ['Ctrl', 'S'], desc: t('shortcutSave') },
-  { keys: ['Esc'], desc: t('shortcutEsc') },
-  { keys: ['Suprimir'], desc: t('shortcutDelete') },
-  { keys: ['F'], desc: t('shortcutFullscreen') },
-  { keys: ['M'], desc: t('shortcutMeasure') },
-  { keys: ['V'], desc: t('shortcutWalkthrough') },
-]);
+onMounted(() => document.addEventListener('keydown', onKeyDown));
+onBeforeUnmount(() => document.removeEventListener('keydown', onKeyDown));
+
+const shortcuts = [
+  { keys: ['Cmd', 'K'], desc: 'Abrir paleta de comandos' },
+  { keys: ['?'], desc: 'Mostrar atajos' },
+  { keys: ['G', 'D'], desc: 'Ir al Dashboard' },
+  { keys: ['G', 'W'], desc: 'Ir al Workspace' },
+  { keys: ['G', 'S'], desc: 'Ir a Configuración' },
+  { keys: ['Ctrl', 'S'], desc: 'Guardar versión actual' },
+  { keys: ['Esc'], desc: 'Cerrar / cancelar acción' },
+  { keys: ['Suprimir'], desc: 'Eliminar recinto activo' },
+  { keys: ['F'], desc: 'Pantalla completa' },
+  { keys: ['M'], desc: 'Herramienta medir' },
+  { keys: ['V'], desc: 'Modo walkthrough' },
+];
 </script>
 
 <template>

@@ -27,6 +27,10 @@ const { productPreferences } = useProductPreferences();
 const props = defineProps({
   m2Totales: { type: Number, required: true },
   materialEstructuralId: { type: Number, required: true },
+  terrenoAncho: { type: Number, default: 15 },
+  terrenoLargo: { type: Number, default: 7 },
+  alturaMuroM: { type: Number, default: 2.44 },
+  perimetroMl: { type: Number, default: null },
 });
 
 const isLoading = ref(false);
@@ -38,6 +42,15 @@ const hasGenerated = ref(false);
 const exportMenuOpen = ref(false);
 const exportFormat = ref(null);
 const exportMenuRef = ref(null);
+
+const perimetroMl = computed(() => {
+  if (props.perimetroMl != null && props.perimetroMl > 0) {
+    return props.perimetroMl;
+  }
+  const a = Number(props.terrenoAncho) || 15;
+  const l = Number(props.terrenoLargo) || 7;
+  return 2 * (a + l);
+});
 
 /** Presupuesto listo: flujo de cotización finalizado sin errores. */
 const canExport = computed(
@@ -115,36 +128,16 @@ const handleGenerateBudget = () => {
   fetchBudget();
 };
 
-const buildSelectedCounts = () => {
-  const selected = recintosStore.recintos.filter((room) =>
-    recintosStore.selectedForBudget.has(room.id),
-  );
+const selectedBudgetRooms = computed(() => {
+  const selectedIds = recintosStore.selectedForBudget;
+  const rooms = recintosStore.recintos || [];
+  const selected = rooms.filter((room) => selectedIds?.has?.(room.id));
 
-  const counts = {
-    habitaciones: 0,
-    banios: 0,
-    areasComunes: 0,
-  };
-
-  for (const room of selected) {
-    if (room.tipo === 'banio') {
-      counts.banios += 1;
-    } else if (
-      room.tipo === 'comun' ||
-      room.tipo === 'areaComun' ||
-      room.tipo === 'pasillo'
-    ) {
-      counts.areasComunes += 1;
-    } else {
-      counts.habitaciones += 1;
-    }
-  }
-
-  return counts;
-};
+  return selected.length > 0 ? selected : rooms;
+});
 
 const buildLayoutRecintosPayload = () =>
-  recintosStore.recintos.map((room) => ({
+  selectedBudgetRooms.value.map((room) => ({
     piso: room.piso || 1,
     coords_x: room.coords?.x ?? 0,
     coords_z: room.coords?.z ?? 0,
@@ -170,17 +163,15 @@ const fetchBudget = async () => {
       import.meta.env.VITE_API_URL ||
       (import.meta.env.DEV ? 'http://localhost:8000' : '');
 
-    const counts = buildSelectedCounts();
-
     const simRes = await fetch(`${baseUrl}/api/simulacion/parametros`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         m2Totales: Math.max(1, Math.round(props.m2Totales)),
         materialEstructuralId: props.materialEstructuralId,
-        habitaciones: counts.habitaciones,
-        banios: counts.banios,
-        areasComunes: counts.areasComunes,
+        perimetro_ml: Math.round(perimetroMl.value * 100) / 100,
+        altura_muro_m: props.alturaMuroM,
+        incluir_techumbre: true,
       }),
     });
 
@@ -249,7 +240,6 @@ const buildExportPayload = () => {
     includeTax: productPreferences.value.includeTax,
     includeLogo: productPreferences.value.export?.includeLogo !== false,
     logoUrl: resolveBrandLogoUrl(),
-    counts: buildSelectedCounts(),
   };
 };
 
@@ -646,10 +636,11 @@ onUnmounted(() => {
                 <div
                   class="grid grid-cols-12 px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500"
                 >
-                  <div class="col-span-5">{{ t('budgetSupply') }}</div>
-                  <div class="col-span-2 text-right">{{ t('budgetQtyShort') }}</div>
-                  <div class="col-span-2 text-right">{{ t('budgetUnitPrice') }}</div>
-                  <div class="col-span-3 text-right">{{ t('budgetSubtotal') }}</div>
+                  <div class="col-span-4">Insumo</div>
+                  <div class="col-span-2 text-right">Cant.</div>
+                  <div class="col-span-2 text-right">Precio unit.</div>
+                  <div class="col-span-2 text-right">Tienda</div>
+                  <div class="col-span-2 text-right">Subtotal</div>
                 </div>
 
                 <div class="space-y-2">
@@ -658,7 +649,7 @@ onUnmounted(() => {
                     :key="item.insumo"
                     class="grid grid-cols-12 items-center rounded-xl border border-transparent bg-slate-50/80 px-3 py-3 text-xs transition-colors duration-200 hover:border-slate-200 hover:bg-white dark:bg-slate-950/50 dark:hover:border-slate-800 dark:hover:bg-slate-950"
                   >
-                    <div class="col-span-5 pr-3 font-semibold leading-snug text-slate-700 dark:text-slate-300">
+                    <div class="col-span-4 pr-3 font-semibold leading-snug text-slate-700 dark:text-slate-300">
                       {{ item.insumo }}
                     </div>
 
@@ -677,7 +668,27 @@ onUnmounted(() => {
                       {{ formatCurrencyCell(item.precio_unitario) }}
                     </div>
 
-                    <div class="col-span-3 text-right font-mono font-black text-slate-950 dark:text-slate-100">
+                    <div class="col-span-2 text-right">
+                      <a
+                        v-if="item.tienda && item.url_producto"
+                        :href="item.url_producto"
+                        target="_blank"
+                        rel="noopener"
+                        class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium underline decoration-dotted underline-offset-2 transition-colors"
+                        :class="item.tienda === 'Referencia' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50'"
+                      >
+                        {{ item.tienda }}
+                      </a>
+                      <span
+                        v-else-if="item.tienda"
+                        class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium"
+                        :class="item.tienda === 'Referencia' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'"
+                      >
+                        {{ item.tienda }}
+                      </span>
+                    </div>
+
+                    <div class="col-span-2 text-right font-mono font-black text-slate-950 dark:text-slate-100">
                       {{ formatCurrencyCell(item.subtotal) }}
                     </div>
                   </div>

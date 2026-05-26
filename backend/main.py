@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+import math
 import unicodedata
 import os
 from dotenv import load_dotenv
@@ -28,6 +29,34 @@ except ModuleNotFoundError:
         calcular_area_neta,
         inferir_factor_perdida,
         optimizar_compra_por_nesting,
+    )
+try:
+    from dimensiones_comerciales import (
+        obtener_dimensiones,
+        area_por_pieza,
+        largo_por_pieza,
+        DIMENSIONES_COMERCIALES,
+    )
+except ModuleNotFoundError:
+    from backend.dimensiones_comerciales import (
+        obtener_dimensiones,
+        area_por_pieza,
+        largo_por_pieza,
+        DIMENSIONES_COMERCIALES,
+    )
+try:
+    from techumbre import (
+        calcular_partida_techumbre,
+        cantidad_insumo_metalcon,
+        es_metalcon_material,
+        nombre_insumo_metalcon,
+    )
+except ModuleNotFoundError:
+    from backend.techumbre import (
+        calcular_partida_techumbre,
+        cantidad_insumo_metalcon,
+        es_metalcon_material,
+        nombre_insumo_metalcon,
     )
 
 # Importar configuración de BD y Modelos
@@ -235,9 +264,9 @@ class TipoRecintoResponse(BaseModel):
 class SimulacionCreate(BaseModel):
     m2Totales: int
     materialEstructuralId: int
-    habitaciones: int
-    banios: int
-    areasComunes: int
+    perimetro_ml: float = Field(..., gt=0, description="Perímetro de envolvente en metros lineales")
+    altura_muro_m: float = Field(..., gt=0, le=6.0, description="Altura promedio de muro en metros")
+    incluir_techumbre: bool = Field(False, description="Incluye cálculo de techumbre (cubierta + cielo)")
 
 @app.get("/")
 def read_root():
@@ -261,19 +290,22 @@ def crear_simulacion(sim: SimulacionCreate, db: Session = Depends(get_db)):
     if sim.m2Totales < 1 or sim.m2Totales > 5000:
         raise HTTPException(status_code=400, detail="Superficie total debe estar entre 1 y 5000 m².")
 
-    if sim.habitaciones < 0 or sim.banios < 0 or sim.areasComunes < 0:
-        raise HTTPException(status_code=400, detail="La cantidad de recintos no puede ser negativa.")
-        
     if sim.materialEstructuralId not in [1, 2, 3, 4]:
         raise HTTPException(status_code=400, detail="Material estructural ID no válido.")
+    
+    if sim.perimetro_ml <= 0:
+        raise HTTPException(status_code=400, detail="El perímetro debe ser mayor a 0 metros lineales.")
+    
+    if sim.altura_muro_m <= 0 or sim.altura_muro_m > 6.0:
+        raise HTTPException(status_code=400, detail="La altura del muro debe estar entre 0 y 6 metros.")
         
     # Crear modelo
     db_simulacion = models.ConfiguracionSimulacion(
         m2_totales=sim.m2Totales,
         material_estructural_id=sim.materialEstructuralId,
-        habitaciones=sim.habitaciones,
-        banios=sim.banios,
-        areas_comunes=sim.areasComunes
+        perimetro_ml=sim.perimetro_ml,
+        altura_muro_m=sim.altura_muro_m,
+        incluir_techumbre=sim.incluir_techumbre
     )
     
     try:
@@ -310,6 +342,7 @@ def _cantidad_base_metalcon(
     if not _es_material_metalcon(material_id):
         return None
     return cantidad_insumo_metalcon(nombre_insumo, area_bruta_m2, recintos)
+
 
 class RecintoGeometrico(BaseModel):
     tipo: str = Field(..., description="Nombre del tipo de recinto (ej. 'Habitación', 'Baño')")
@@ -388,6 +421,13 @@ def calcular_insumos(
             status_code=422,
             detail="La deducción de vanos deja un área neta no válida para cotizar.",
         )
+
+    # ── Geometría de muros y techumbre ────────────────────────────────────────
+    perimetro_ml = float(simulacion.perimetro_ml) if simulacion.perimetro_ml else 0.0
+    altura_muro_m = float(simulacion.altura_muro_m) if simulacion.altura_muro_m else 2.44
+    incluir_techumbre = bool(simulacion.incluir_techumbre) if simulacion.incluir_techumbre is not None else False
+    area_muro_bruta = perimetro_ml * altura_muro_m if perimetro_ml > 0 else 0.0
+    area_muro_neta = max(0.0, area_muro_bruta - area_vanos) if area_muro_bruta > 0 else area_neta
     cortes_acero = int(payload.cortes_acero) if payload else 0
     cruces_acero = int(payload.cruces_acero) if payload else 0
     piezas_2d_payload = [
@@ -549,11 +589,40 @@ def calcular_insumos(
     perdidas_optimizadas = []
     items_optimizados = 0
 
-    # Ajustes pre-cotizados de factores para estimaciones a escala de habitacion (Ampliaciones/B2C)
-    # y corrección de unidades entre los rendimientos brutos y los formatos comerciales.
+    # ── Área base para techumbre ──────────────────────────────────────────────
+    area_techumbre = m2_totales * 1.15 if incluir_techumbre else 0.0
+
+    total_studs = 0
+    total_soleras = 0
+
+    def _clasificar_insumo(nombre_l: str, cat_l: str) -> str:
+        if any(k in nombre_l for k in ["solera", "montante", "pie derecho", "paral"]):
+            return "estructura_muro"
+        if any(k in nombre_l for k in ["perfil metalcon", "perfil acero", "perfil galvanizado"]):
+            return "estructura_muro"
+        if any(k in nombre_l for k in ["2x3", "2x4", "2x6", "pino 2x3", "pino 2x4", "pino 2x6"]):
+            return "estructura_muro"
+        if any(k in nombre_l for k in [
+            "siding", "osb", "yeso cartón", "yeso carton", "yeso-cartón", "yeso-carton",
+            "placa fibrocemento", "terciado", "plywood", "panel muro",
+            "revestimiento mural", "muro perimetral", "m fm",
+            "tabiquería", "tabiqueria", "tabique interior",
+            "volcanita rh", "volcanita reforzado",
+        ]):
+            return "revestimiento_muro"
+        if incluir_techumbre and any(k in nombre_l for k in [
+            "zincalum", "cubierta", "zinc", "cielo", "aislación", "aislacion",
+            "polietileno techo", "térmico techo", "m2 techo", "techumbre",
+        ]):
+            return "techumbre"
+        if cat_l == "obra gruesa" and any(k in nombre_l for k in [
+            "gravilla", "arena", "ripio", "cemento", "agua", "hormigón",
+        ]):
+            return "losa_hormigon"
+        return "generico"
+
     for r, insumo in datos_rendimiento:
         nombre_insumo = _nombre_insumo_para_material(material_id, insumo.nombre)
-        factor_ajustado = float(r.factor_multiplicador)
         cantidad_override = _cantidad_base_metalcon(
             material_id,
             insumo.nombre,
@@ -562,53 +631,97 @@ def calcular_insumos(
         )
         nombre_l = (insumo.nombre or "").lower()
         cat_l = (insumo.categoria or "").lower()
+        familia = _clasificar_insumo(nombre_l, cat_l)
+        if familia in ("estructura_muro", "revestimiento_muro") and perimetro_ml <= 0:
+            familia = "generico"
 
+        # ── Cálculo por familia ───────────────────────────────────────────────
         if cantidad_override is not None:
             cantidad_neta = cantidad_override
-        else:
-            # 1. Correccion por recintos de ampliación vs casa completa:
-            # Siding y Placas de exterior asumen una envolvente 4 caras de casa completa.
-            # Si esto es una ampliacion de 1 recinto, típicamente comparte 1-2 muros. Reducir al 40-50%.
-            if "siding" in nombre_l or "exterior" in nombre_l or "osb" in nombre_l:
-                factor_ajustado *= 0.45
+            nesting_result = None
 
-            # Zincalum y Techumbre no son envolvente 4 caras, pero a menudo los factores en BD
-            # traen sobreestimaciones o doble capa. Ajustamos al 50-60% como tope B2C.
-            if "zincalum" in nombre_l or "cubierta" in nombre_l:
-                factor_ajustado *= 0.55
+        elif familia == "estructura_muro" and perimetro_ml > 0:
+            dim = obtener_dimensiones(insumo.nombre, insumo.categoria or "")
+            largo_pieza = dim.get("largo_lineal_m", 3.2)
+            desc_l = (getattr(insumo, "descripcion", "") or "").lower()
+            es_solera = "solera" in nombre_l or "solera" in desc_l or "2x4" in nombre_l
 
-            # 2. Correccion de Volumen de Hormigon vs Cantidad de Insumo por m2 de losa:
-            # La tabla MatrizRendimiento puede tener 1095 (kg gravilla por m3).
-            # Un m2 de losa es ~0.1 m3 de hormigon.
-            if cat_l == "obra gruesa" and any(k in nombre_l for k in ["gravilla", "arena", "cemento", "agua", "ripio"]):
-                # Bajamos de m3 a volumen util de losa (10cm)
-                factor_ajustado *= 0.1
+            if es_solera:
+                cantidad_neta = math.ceil((perimetro_ml * 2) / largo_pieza) * 2
+                total_soleras = math.ceil(cantidad_neta * 1.15)
+            else:
+                cantidad_neta = math.ceil(perimetro_ml / 0.40) + 4
+                total_studs = math.ceil(cantidad_neta * 1.15)
 
-            # 3. Corrección de Unidades de mercado:
-            # La gravilla y arena a veces entran por m3 de compra en retail (precio ~$17000)
-            # pero el requerimiento es en KG (ej 109kg). Densidad arena/grava ~1600kg/m3.
-            # Si el scraper trajo precio por m3, la API asume unidad ($/bolsa vs $/kg).
-            if ("arena" in nombre_l or "gravilla" in nombre_l or "ripio" in nombre_l):
-                # Convertimos la demanda de KG a m3 para que coincida con el precio retail.
-                factor_ajustado /= 1600.0
+            cantidad_neta = math.ceil(cantidad_neta * 1.15)  # merma 15%
+            nesting_result = None
 
+        elif familia == "revestimiento_muro" and perimetro_ml > 0 and altura_muro_m > 0:
+            dim = obtener_dimensiones(insumo.nombre, insumo.categoria or "")
+            area_placa = dim.get("area_m2", 2.9768)
+            if area_placa <= 0:
+                area_placa = 2.9768
+            area_cubrir = perimetro_ml * altura_muro_m
+            if area_cubrir > 0:
+                cantidad_neta = math.ceil(area_cubrir / area_placa * 1.10)
+            else:
+                cantidad_neta = 0.0
+            nesting_result = None
+
+        elif familia == "techumbre" and area_techumbre > 0:
+            # Techumbre: usar area_techumbre (m2_totales × 1.15) × factor DB
+            factor_ajustado = float(r.factor_multiplicador)
+            cantidad_neta = factor_ajustado * area_techumbre
+            nesting_result = optimizar_compra_por_nesting(
+                insumo=insumo.nombre,
+                categoria=insumo.categoria,
+                unidad_medida=insumo.unidad_medida,
+                unidad_factor=getattr(r, "unidad_factor", "") or "",
+                descripcion=getattr(insumo, "descripcion", None),
+                cantidad_objetivo=cantidad_neta,
+                piezas_2d=piezas_2d_payload,
+                cortes_1d=cortes_1d_payload,
+            )
+
+        elif familia == "losa_hormigon":
+            # Losa de 10 cm: convertir kg/m³ a kg/m² usando espesor
+            factor_ajustado = float(r.factor_multiplicador)
+            factor_ajustado *= 0.1  # losa 10 cm
+            if any(k in nombre_l for k in ["arena", "gravilla", "ripio"]):
+                factor_ajustado /= 1600.0  # kg → m³
             if "cemento" in nombre_l:
-                # Los rendimientos brutos son kg de cemento, pero en retail se venden en sacos de 25kg
-                # (y su precio es referenciado a un saco).
-                factor_ajustado /= 25.0
-
+                factor_ajustado /= 25.0  # kg → sacos de 25 kg
             cantidad_neta = factor_ajustado * area_neta
-        nesting_result = optimizar_compra_por_nesting(
-            insumo=nombre_insumo,
-            categoria=insumo.categoria,
-            unidad_medida=insumo.unidad_medida,
-            unidad_factor=getattr(r, "unidad_factor", "") or "",
-            descripcion=getattr(insumo, "descripcion", None),
-            cantidad_objetivo=cantidad_neta,
-            piezas_2d=piezas_2d_payload,
-            cortes_1d=cortes_1d_payload,
-        )
-        if nesting_result is not None:
+            nesting_result = optimizar_compra_por_nesting(
+                insumo=insumo.nombre,
+                categoria=insumo.categoria,
+                unidad_medida=insumo.unidad_medida,
+                unidad_factor=getattr(r, "unidad_factor", "") or "",
+                descripcion=getattr(insumo, "descripcion", None),
+                cantidad_objetivo=cantidad_neta,
+                piezas_2d=piezas_2d_payload,
+                cortes_1d=cortes_1d_payload,
+            )
+
+        else:  # ── familia "generico" ─────────────────────────────────────────
+            # Cálculo original: factor DB × área base (piso)
+            factor_ajustado = float(r.factor_multiplicador)
+            cantidad_neta = factor_ajustado * area_neta
+            nesting_result = optimizar_compra_por_nesting(
+                insumo=insumo.nombre,
+                categoria=insumo.categoria,
+                unidad_medida=insumo.unidad_medida,
+                unidad_factor=getattr(r, "unidad_factor", "") or "",
+                descripcion=getattr(insumo, "descripcion", None),
+                cantidad_objetivo=cantidad_neta,
+                piezas_2d=piezas_2d_payload,
+                cortes_1d=cortes_1d_payload,
+            )
+        if cantidad_override is not None or familia in ("estructura_muro", "revestimiento_muro"):
+            # Estas familias ya calcularon piezas enteras con merma incluida
+            factor_perdida = 1.0
+            cantidad_calc = cantidad_neta
+        elif nesting_result is not None:
             factor_perdida = float(nesting_result["factor_perdida_equivalente"])
             cantidad_calc = float(nesting_result["cantidad_compra"])
             perdidas_optimizadas.append(float(nesting_result["perdida_fraccion"]))
@@ -621,11 +734,20 @@ def calcular_insumos(
                 cruces_acero=cruces_acero,
             )
             cantidad_calc = cantidad_neta * factor_perdida
+            unidad_l = (insumo.unidad_medida or "").strip().lower()
+            if unidad_l in ("caja", "unidad", "saco", "pack", "kit", "juego"):
+                cantidad_calc = math.ceil(cantidad_calc)
+            elif any(k in nombre_l for k in ("tornillo", "clavo", "perno", "fijacion")):
+                cantidad_calc = math.ceil(cantidad_calc)
         volumen_neto_previo += cantidad_neta
         volumen_compensado_pre_cotizacion += cantidad_calc
 
         precio_unit = precio_promedio_map.get(insumo.id)
         precio_record = latest_precio_record.get(insumo.id)
+        tienda_insumo = getattr(precio_record, 'tienda', None) if precio_record else None
+        url_insumo = getattr(precio_record, 'url', None) if precio_record else None
+        if url_insumo is not None and not isinstance(url_insumo, str):
+            url_insumo = None
         precio_unit_normalized = None
         subt = None
         if precio_unit is not None:
@@ -656,17 +778,43 @@ def calcular_insumos(
                 costo_total_simulacion = 0.0
             costo_total_simulacion += subt
 
+        # ── Inyectar dimensiones comerciales ─────────────────────────────
+        dim = obtener_dimensiones(insumo.nombre, insumo.categoria or "")
+        if dim.get("tipo") == "placa" and dim.get("area_m2"):
+            fmt_comercial = f"{dim['ancho_m']} x {dim['largo_m']} m ({dim['area_m2']:.2f} m²)"
+        elif dim.get("tipo") == "lineal" and dim.get("largo_lineal_m"):
+            fmt_comercial = f"{dim['largo_lineal_m']} m"
+        else:
+            fmt_comercial = None
+
+        # Preferir el formato del nesting si existe (es más preciso)
+        formato_final = (
+            nesting_result["formato_comercial"]
+            if nesting_result and nesting_result.get("formato_comercial")
+            else fmt_comercial
+        )
+
         item = InsumoCalculado(
             insumo=nombre_insumo,
             cantidad=cantidad_calc,
             unidad=insumo.unidad_medida,
             precio_unitario=precio_unit,
             subtotal=subt,
-            cantidad_objetivo=nesting_result["cantidad_objetivo"] if nesting_result else None,
-            cantidad_compra=nesting_result["cantidad_compra"] if nesting_result else None,
-            perdida_porcentual=(nesting_result["perdida_porcentual"] if nesting_result else ((factor_perdida - 1.0) * 100.0)),
-            metodo_optimizacion=(nesting_result["metodo"] if nesting_result else None),
-            formato_comercial=(nesting_result["formato_comercial"] if nesting_result else None),
+            tienda=tienda_insumo,
+            url_producto=url_insumo,
+            cantidad_objetivo=(
+                cantidad_neta
+                if cantidad_override is not None
+                else (nesting_result.get("cantidad_objetivo") if nesting_result else None)
+            ),
+            cantidad_compra=(
+                cantidad_calc
+                if cantidad_override is not None
+                else (nesting_result.get("cantidad_compra") if nesting_result else None)
+            ),
+            perdida_porcentual=(factor_perdida - 1.0) * 100.0,
+            metodo_optimizacion=nesting_result.get("metodo") if nesting_result else None,
+            formato_comercial=formato_final,
         )
         categorias_dict[insumo.categoria].append(item)
 
@@ -681,6 +829,72 @@ def calcular_insumos(
             items=items, 
             subtotal_categoria=subcat
         ))
+
+    # ── Complementos constructivos (hardcoded, sin SerpAPI) ──────────────────
+    complementos_obra_gruesa = []
+    if total_studs > 0 or total_soleras > 0:
+        piezas_total = total_studs + total_soleras
+        clavos_3_cant = math.ceil(piezas_total * 4 / 100)  # ~4 clavos por pieza, cajas de 100
+        clavos_4_cant = math.ceil(total_soleras * 2 / 100)
+        clavos_subtotal_3 = clavos_3_cant * 4500
+        clavos_subtotal_4 = clavos_4_cant * 5200
+        complementos_obra_gruesa.append(InsumoCalculado(
+            insumo="Clavos estriados 3 pulgadas (caja 100un)",
+            cantidad=float(clavos_3_cant),
+            unidad="caja",
+            precio_unitario=4500.0,
+            subtotal=float(clavos_subtotal_3),
+            tienda="Referencia",
+            perdida_porcentual=10.0,
+            formato_comercial="caja 100 unidades",
+        ))
+        complementos_obra_gruesa.append(InsumoCalculado(
+            insumo="Clavos estriados 4 pulgadas (caja 100un)",
+            cantidad=float(clavos_4_cant),
+            unidad="caja",
+            precio_unitario=5200.0,
+            subtotal=float(clavos_subtotal_4),
+            tienda="Referencia",
+            perdida_porcentual=10.0,
+            formato_comercial="caja 100 unidades",
+        ))
+
+    if area_muro_neta > 0:
+        rollos_lana_muro = math.ceil(area_muro_neta / 14.4)  # rollo 14.4m2
+        subtotal_lana_muro = rollos_lana_muro * 18500
+        complementos_obra_gruesa.append(InsumoCalculado(
+            insumo="Lana vidrio 50mm muro (rollo 14.4m2)",
+            cantidad=float(rollos_lana_muro),
+            unidad="rollo",
+            precio_unitario=18500.0,
+            subtotal=float(subtotal_lana_muro),
+            tienda="Referencia",
+            perdida_porcentual=10.0,
+            formato_comercial="rollo 14.4 m2",
+        ))
+
+    if complementos_obra_gruesa:
+        subcat_comp = sum((i.subtotal or 0) for i in complementos_obra_gruesa)
+        desglose_list.append(CategoriaDesglose(
+            categoria="Obra Gruesa - Complementos",
+            items=complementos_obra_gruesa,
+            subtotal_categoria=float(subcat_comp),
+        ))
+        if costo_total_simulacion is None:
+            costo_total_simulacion = 0.0
+        costo_total_simulacion += subcat_comp
+
+    # ── Techumbre ─────────────────────────────────────────────────────────────
+    if incluir_techumbre:
+        categorias_techumbre = calcular_partida_techumbre(
+            area_m2_planta=m2_totales,
+        )
+        desglose_list.extend(categorias_techumbre)
+        for cat in categorias_techumbre:
+            if cat.subtotal_categoria:
+                if costo_total_simulacion is None:
+                    costo_total_simulacion = 0.0
+                costo_total_simulacion += cat.subtotal_categoria
 
     return DesgloseResponse(
         simulacion_id=simulacion_id,
@@ -700,6 +914,10 @@ def calcular_insumos(
             (sum(perdidas_optimizadas) / len(perdidas_optimizadas)) * 100.0
             if perdidas_optimizadas else None
         ),
+        perimetro_ml=perimetro_ml if perimetro_ml > 0 else None,
+        altura_muro_m=altura_muro_m,
+        area_muro_neta_m2=area_muro_neta if area_muro_neta > 0 else None,
+        incluir_techumbre=incluir_techumbre,
     )
 
 ## SCRUM-97

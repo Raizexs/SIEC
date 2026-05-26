@@ -35,7 +35,7 @@ export const useAuthStore = defineStore('auth', () => {
   const userId = computed(() => user.value?.id || null);
   const accessToken = computed(() => session.value?.access_token || null);
   const role = computed(
-    () => profile.value?.role || user.value?.user_metadata?.role || 'engineer',
+    () => profile.value?.role || user.value?.user_metadata?.role || 'user',
   );
   const fullName = computed(
     () =>
@@ -56,7 +56,7 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = {
       id: '00000000-0000-0000-0000-000000000000',
       email,
-      user_metadata: { full_name: email.split('@')[0], role: 'engineer' },
+      user_metadata: { full_name: email.split('@')[0], role: 'user' },
     };
     session.value = { access_token: 'mock-token', expires_at: Date.now() + 3600_000 };
     localStorage.setItem('siec_mock_session', JSON.stringify({ user: user.value, session: session.value }));
@@ -188,7 +188,7 @@ export const useAuthStore = defineStore('auth', () => {
           data: {
             full_name: name,
             company,
-            role: userRole || 'engineer',
+            role: userRole || 'user',
           },
           emailRedirectTo: `${window.location.origin}/auth/callback`,
         },

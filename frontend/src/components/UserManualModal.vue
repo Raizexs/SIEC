@@ -1,5 +1,11 @@
 <script setup>
-import { defineProps, defineEmits, watch, onBeforeUnmount } from 'vue';
+import { defineProps, defineEmits, watch, onBeforeUnmount, onMounted } from 'vue';
+
+const onKeyDown = (e) => {
+  if (e.key === 'Escape' && props.show) {
+    emit('close');
+  }
+};
 
 const props = defineProps({
   show: {
@@ -99,7 +105,9 @@ watch(
   { immediate: true }
 );
 
+onMounted(() => document.addEventListener('keydown', onKeyDown));
 onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onKeyDown);
   if (props.show) {
     unlockBodyScroll();
   }

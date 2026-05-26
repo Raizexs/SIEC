@@ -34,7 +34,7 @@ useProMotion(motionRoot, {
 const formData = ref({
   fullName: auth.user?.user_metadata?.full_name || '',
   company: auth.user?.user_metadata?.company || '',
-  role: auth.user?.user_metadata?.role || 'engineer',
+  role: auth.user?.user_metadata?.role || 'user',
   units: 'metric',
   currency: 'CLP',
   enableNotifications: true,
@@ -247,20 +247,6 @@ const back = () => {
               </div>
             </div>
 
-            <div>
-              <label class="premium-label">
-                Rol
-              </label>
-
-              <select
-                v-model="formData.role"
-                class="premium-input"
-              >
-                <option value="engineer">Ingeniero Civil</option>
-                <option value="contractor">Constructor</option>
-                <option value="client_viewer">Cliente</option>
-              </select>
-            </div>
           </div>
         </section>
 
@@ -390,15 +376,6 @@ const back = () => {
           </div>
 
           <div class="mx-auto mt-6 grid max-w-md grid-cols-3 gap-3">
-            <div class="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/60">
-              <p class="text-[10px] font-black uppercase tracking-tight text-slate-400 dark:text-slate-500">
-                Perfil
-              </p>
-              <p class="mt-1 truncate text-xs font-black text-slate-950 dark:text-slate-100">
-                {{ formData.role }}
-              </p>
-            </div>
-
             <div class="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/60">
               <p class="text-[10px] font-black uppercase tracking-tight text-slate-400 dark:text-slate-500">
                 Unidad

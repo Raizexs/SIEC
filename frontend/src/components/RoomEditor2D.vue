@@ -1151,9 +1151,28 @@ defineExpose({ openAddModal });
                 </p>
 
                 <h3 class="mt-0.5 text-base font-black tracking-tight text-slate-950 dark:text-slate-100">
-                  {{ t('editor2DTitle') }}
+                  {{ t('editor2D') }}
                 </h3>
               </div>
+            </div>
+
+            <div
+              class="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-black tabular-nums shadow-sm dark:border-slate-800 dark:bg-slate-950"
+            >
+              <span
+                class="h-2 w-2 rounded-full"
+                :style="{ backgroundColor: descripcionEstado.color }"
+              ></span>
+
+              <span :style="{ color: descripcionEstado.color }">
+                {{ t('freeM2', { area: freeArea.toFixed(1) }) }}
+              </span>
+
+              <span class="text-slate-300 dark:text-slate-700">·</span>
+
+              <span class="text-slate-500 dark:text-slate-400">
+                {{ t('areaUsage', { used: usedArea.toFixed(1), total: m2Totales }) }}
+              </span>
             </div>
 
             <!-- Floor selector -->
@@ -1190,8 +1209,8 @@ defineExpose({ openAddModal });
           <div class="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              class="tool-btn-add-recinto"
-              :title="t('addRoomTitle')"
+              class="tool-btn tool-btn-primary add-room-glow"
+              title="Añadir recinto con medidas"
               @click="openAddModal"
             >
               <span class="material-symbols-outlined text-[20px]">add_home</span>
@@ -1211,16 +1230,7 @@ defineExpose({ openAddModal });
               {{ resizeLocked ? t('resizeLocked') : t('resizeLock') }}
             </button>
 
-            <button
-              type="button"
-              class="tool-btn tool-btn-sm"
-              :class="corridorMode ? 'tool-btn-success' : 'tool-btn-neutral'"
-              :title="corridorMode ? t('corridorsOn') : t('corridorsOff')"
-              @click="corridorMode = !corridorMode"
-            >
-              <span class="material-symbols-outlined text-[15px]">add_road</span>
-              {{ t('corridors') }}
-            </button>
+
           </div>
         </div>
 
@@ -1987,6 +1997,19 @@ svg rect.cursor-grabbing {
   border-color: rgb(254 215 170);
   background: rgb(255 247 237);
   color: rgb(194 65 12);
+}
+
+.add-room-glow {
+  animation: addRoomPulse 2s ease-in-out infinite;
+}
+
+@keyframes addRoomPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(249, 115, 22, 0);
+  }
 }
 
 .dark .tool-btn-primary {

@@ -22,7 +22,6 @@ import ConfigurationPanel from './ConfigurationPanel.vue';
 import MetricsPanel from './MetricsPanel.vue';
 import RoomEditor2D from './RoomEditor2D.vue';
 import Scene3D from './Scene3D.vue';
-import LayerSelectionPanel from './LayerSelectionPanel.vue';
 import BudgetBreakdownPanel from './BudgetBreakdownPanel.vue';
 import SaveLayoutDialog from './SaveLayoutDialog.vue';
 
@@ -33,11 +32,20 @@ import { useWorkspaceStore } from '../stores/workspace';
 import { useTokenCounter } from '../composables/useTokenCounter';
 import { useLayoutManager } from '../composables/useLayoutManager';
 import { useI18n } from '../composables/useI18n';
+import { useTopologyComputed } from '../composables/useTopologyComputed';
+import { toast } from 'vue-sonner';
+import { generateCommercialPDF } from '../utils/pdfGenerator';
+import {
+  captureSceneImage,
+  resolveMainSceneCanvas,
+} from '../proposal/proposalSceneCapture.js';
 import { useAuthStore } from '../stores/auth';
 import { useProMotion } from '../composables/useProMotion';
 import {
   useProductPreferences,
   WORKSPACE_FEATURES,
+  mergePreferences,
+  defaultProductPreferences,
 } from '../composables/useProductPreferences';
 
 const props = defineProps({
@@ -48,6 +56,7 @@ const recintosStore = useRecintosStore();
 const { totalArea: totalAreaOcupada } = storeToRefs(recintosStore);
 const workspaceStore = useWorkspaceStore();
 const authStore = useAuthStore();
+const { totalWallLength } = useTopologyComputed();
 const {
   saveLayout,
   applyLayoutToStore,
@@ -373,6 +382,51 @@ const handleNewEstimate = () => {
   }
 };
 
+const resolveExportPrefs = (raw) =>
+  raw != null && typeof raw === 'object'
+    ? mergePreferences(defaultProductPreferences(), { export: raw }).export
+    : productPreferences.value.export;
+
+const executePdfExport = async (exportPrefs) => {
+  const exp = resolveExportPrefs(exportPrefs);
+  const toastId = 'commercial-pdf-export';
+
+  toast.loading('Generando PDF comercial…', { id: toastId });
+
+  try {
+    // Misma captura que Propuesta premium: centra cámara vía siec:capture-scene (Scene3D).
+    const snapshotDataUrl = await captureSceneImage();
+    const canvas = resolveMainSceneCanvas();
+
+    await generateCommercialPDF(canvas, workspaceStore.activePresetName, {
+      export: exp,
+      snapshotDataUrl,
+      m2Totales: formData.value.m2Totales,
+      materialEstructuralId: formData.value.materialEstructuralId,
+      tokensUsados: tokensUsados.value,
+      tokensTotales: tokensTotales.value,
+      tokensDisponibles: tokensDisponibles.value,
+    });
+
+    authStore.addExportToHistory(workspaceStore.activePresetName);
+    toast.success('PDF exportado correctamente', { id: toastId });
+  } catch (err) {
+    toast.error(err?.message || 'No se pudo exportar el PDF', { id: toastId });
+    throw err;
+  }
+};
+
+const onSiecExport = async (e) => {
+  const d = e?.detail;
+  const type = typeof d === 'string' ? d : d?.type;
+  if (type !== 'pdf') return;
+  const raw =
+    typeof d === 'object' && d && d.preferences && typeof d.preferences === 'object'
+      ? d.preferences
+      : undefined;
+  await executePdfExport(raw);
+};
+
 const startTutorial = () => {
   const driverObj = driver({
     showProgress: true,
@@ -485,9 +539,8 @@ const startTutorial = () => {
     <!-- Main editor area -->
     <main class="relative z-10 flex min-w-0 flex-1 flex-col transition-all duration-200">
       <TopNavBar
-        :show-share="workspaceFeatures.projectShare"
+        :activeTab="activeTab"
         @save-layout="showSaveDialog = true"
-        @share="showShareDialog = true"
       />
 
       <div class="flex-1 overflow-y-auto" data-workspace-scroll>
@@ -505,14 +558,33 @@ const startTutorial = () => {
               </p>
 
               <h1 class="mt-1 text-xl font-black tracking-tight text-slate-950 dark:text-slate-100">
-                {{ t('workspaceTitle') }}
+                {{ t('smartConstructionSim') }}
               </h1>
 
               <p class="mt-1 text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400">
-                {{ t('workspaceSubtitle') }}
+                {{ t('workspaceDescription') }}
               </p>
             </div>
 
+            <div class="flex flex-wrap items-center gap-2">
+              <span
+                class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
+              >
+                <span class="material-symbols-outlined text-[15px] text-orange-500 dark:text-orange-300">
+                  straighten
+                </span>
+                {{ formData.terrenoAncho }} × {{ formData.terrenoLargo }} m
+              </span>
+
+              <span
+                class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
+              >
+                <span class="material-symbols-outlined text-[15px] text-slate-400">
+                  token
+                </span>
+                {{ t('tokensAvailable', { count: tokensDisponibles }) }}
+              </span>
+            </div>
           </section>
 
           <!-- Top row: Configuration + Metrics -->
@@ -534,44 +606,7 @@ const startTutorial = () => {
 
           <!-- Layers + 2D + 3D + Budget stack -->
           <section class="mt-6 space-y-6" data-motion="section">
-            <LayerSelectionPanel v-if="workspaceFeatures.constructionLayers" />
 
-            <div
-              class="recintos-promo-card relative overflow-hidden rounded-3xl border-2 border-orange-300/90 bg-gradient-to-br from-orange-50 via-white to-amber-50/80 p-5 shadow-lg shadow-orange-500/15 dark:border-orange-600/70 dark:from-orange-950/50 dark:via-slate-950/90 dark:to-orange-950/30 dark:shadow-orange-950/25"
-              role="note"
-            >
-              <div
-                class="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-orange-400/20 blur-2xl dark:bg-orange-500/15"
-              ></div>
-
-              <div class="relative flex items-start gap-4">
-                <div
-                  class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-orange-200 bg-white text-orange-600 shadow-md shadow-orange-500/20 dark:border-orange-800 dark:bg-orange-950/60 dark:text-orange-300"
-                >
-                  <span class="material-symbols-outlined text-[30px]">
-                    add_home
-                  </span>
-                </div>
-
-                <div class="min-w-0 flex-1">
-                  <span
-                    class="inline-flex rounded-full border border-orange-200 bg-white px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-orange-700 shadow-sm dark:border-orange-800 dark:bg-orange-950/50 dark:text-orange-300"
-                  >
-                    {{ t('addRecintosBadge') }}
-                  </span>
-
-                  <p
-                    class="mt-2 text-base font-black tracking-tight text-slate-950 dark:text-slate-100"
-                  >
-                    {{ t('addRecintosTitle') }}
-                  </p>
-
-                  <p class="mt-1.5 text-sm font-medium leading-relaxed text-slate-600 dark:text-slate-300">
-                    {{ t('addRecintosHint') }}
-                  </p>
-                </div>
-              </div>
-            </div>
 
             <RoomEditor2D
               class="tour-editor-2d"
@@ -596,6 +631,8 @@ const startTutorial = () => {
               v-if="recintosStore.selectedM2 > 0"
               :m2Totales="recintosStore.selectedM2"
               :materialEstructuralId="formData.materialEstructuralId"
+              :perimetroMl="Number(totalWallLength)"
+              :alturaMuroM="2.44"
             />
           </section>
 
@@ -607,7 +644,7 @@ const startTutorial = () => {
             </p>
 
             <p class="text-xs font-medium text-slate-400 dark:text-slate-500">
-              {{ t('workspaceFooterLine') }}
+              {{ t('workspaceFooter') }}
             </p>
           </footer>
         </div>

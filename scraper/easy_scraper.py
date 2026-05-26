@@ -39,6 +39,7 @@ class EasyScraper(BaseScraper):
     """
 
     store_key = STORE_KEY
+    browser_type = "firefox"
 
     def _get_urls(self) -> list[str]:
         return STORE_CFG["product_urls"]
@@ -51,44 +52,51 @@ class EasyScraper(BaseScraper):
         url = self._get_search_url(query)
         page.goto(url, wait_until="domcontentloaded", timeout=30_000)
         self._dismiss_location_modal(page)
-        
-        sel_cont = STORE_CFG["search_selectors"]["container"]
-        try:
-            page.wait_for_selector(sel_cont, timeout=15_000)
-        except Exception:
-            return []
+        page.wait_for_timeout(3_000)
+
+        candidates = page.locator("a[href*='/p/']").all()
+        if not candidates:
+            candidates = page.locator("a").all()
 
         products = []
-        cards = page.locator(sel_cont).all()
-        
-        for card in cards[:10]:
+        seen = set()
+        for el in candidates[:30]:
             try:
-                name_sel = STORE_CFG["search_selectors"]["name"]
-                price_sel = STORE_CFG["search_selectors"]["price"]
-                link_sel = STORE_CFG["search_selectors"]["link"]
-
-                name_el = card.locator(name_sel).first
-                price_el = card.locator(price_sel).first
-                link_el = card.locator(link_sel).first
-
-                if name_el.is_visible() and price_el.is_visible():
-                    name = name_el.inner_text().strip()
-                    price_raw = price_el.inner_text().strip()
-                    link = link_el.get_attribute("href")
-                    if link and not link.startswith("http"):
-                        link = f"https://www.easy.cl{link}"
-
-                    products.append({
-                        "tienda": self.store_key,
-                        "nombre_producto": name,
-                        "precio": self.parse_price(price_raw),
-                        "url": link,
-                        "exitoso": True
-                    })
+                href = el.get_attribute("href") or ""
+                if "/p/" not in href:
+                    continue
+                text = el.inner_text().strip()
+                if not text or text in seen:
+                    continue
+                seen.add(text)
+                price_match = self.parse_price(text)
+                if not price_match:
+                    continue
+                name = text.split("$")[0].strip() if "$" in text else text[:100]
+                products.append({
+                    "tienda": self.store_key,
+                    "nombre_producto": name,
+                    "precio": price_match,
+                    "precio_descuento": None,
+                    "insumo_id": None,
+                    "stock": "Disponible",
+                    "categoria": "Obra Gruesa",
+                    "url": f"https://www.easy.cl{href}" if not href.startswith("http") else href,
+                    "exitoso": True
+                })
             except Exception:
                 continue
-        
-        return products
+            if len(products) >= 10:
+                break
+
+        if products:
+            return products
+
+        try:
+            page.screenshot(path=f"/tmp/debug_easy_{query[:20]}.png", full_page=True)
+        except Exception: pass
+        BaseScraper.dump_html(page, self.store_key, query)
+        return []
 
     def _dismiss_location_modal(self, page: Page) -> None:
         """Cierra el modal de selección de ubicación de Easy."""

@@ -450,17 +450,30 @@ const addSnapshotPage = (doc, payload) => {
 };
 
 const addRoomsBreakdownPage = (doc, payload) => {
-  const { recintos, businessName } = payload;
+  const { recintos, businessName, totalFormatted, materialLabel, m2Terreno, areaRecintos, rate } = payload;
 
   doc.addPage();
 
   addPageHeader(
     doc,
     "Desglose estructural",
-    "Detalle de recintos modelados, dimensiones principales y área calculada.",
+    "Detalle de recintos con áreas y resumen de inversión.",
     "Desglose",
     businessName,
   );
+
+  metricCard(doc, PAGE.marginX, 46, 55, "Material", materialLabel);
+  metricCard(
+    doc,
+    PAGE.marginX + 63,
+    46,
+    55,
+    "Valor m²",
+    formatClp(rate),
+  );
+  metricCard(doc, PAGE.marginX + 126, 46, 56, "Total", totalFormatted, {
+    accent: true,
+  });
 
   const tableData = recintos.map((recinto) => {
     const area = (recinto.dimensions?.w ?? 0) * (recinto.dimensions?.l ?? 0);
@@ -475,7 +488,7 @@ const addRoomsBreakdownPage = (doc, payload) => {
   });
 
   autoTable(doc, {
-    startY: 46,
+    startY: 84,
     head: [["Nombre", "Tipo", "Piso", "Dimensiones", "Área"]],
     body: tableData.length
       ? tableData
@@ -486,6 +499,18 @@ const addRoomsBreakdownPage = (doc, payload) => {
       4: { halign: "right", cellWidth: 24 },
     },
   });
+
+  const noteY = doc.lastAutoTable?.finalY ? doc.lastAutoTable.finalY + 12 : 142;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7.5);
+  doc.setTextColor(...BRAND.muted);
+  doc.text(
+    `Resumen: ${formatNumber(m2Terreno, 1)} m² terreno · ${formatNumber(areaRecintos, 1)} m² recintos · Total ${totalFormatted}`,
+    PAGE.marginX,
+    noteY,
+    { maxWidth: PAGE.width - PAGE.marginX * 2 },
+  );
 };
 
 const addFinancialPage = (doc, payload) => {
@@ -710,20 +735,7 @@ export const generateCommercialPDF = async (
   };
 
   addCover(doc, payload);
-
-  if (exportPrefs.includeSnapshots !== false) {
-    addSnapshotPage(doc, payload);
-  }
-
-  if (exportPrefs.includeUnitPrices !== false) {
-    addFinancialPage(doc, payload);
-  }
-
-  if (exportPrefs.includeMaterialsBreakdown !== false) {
-    addRoomsBreakdownPage(doc, payload);
-  }
-
-  addReportFooterPage(doc, payload);
+  addRoomsBreakdownPage(doc, payload);
 
   const safeName = sanitizeFilename(safeProjectName);
 

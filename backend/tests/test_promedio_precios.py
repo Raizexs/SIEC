@@ -20,6 +20,9 @@ def test_promedio_precios_logic():
     mock_sim = MagicMock()
     mock_sim.m2_totales = 100
     mock_sim.material_estructural_id = 1
+    mock_sim.perimetro_ml = None
+    mock_sim.altura_muro_m = None
+    mock_sim.incluir_techumbre = False
     
     # MaterialEstructural Mock
     mock_mat = MagicMock()
@@ -61,12 +64,12 @@ def test_promedio_precios_logic():
     
     # Para Insumo 1 (3 tiendas)
     # Notemos que en main.py priorizamos precio_descuento si existe.
-    pm1 = MagicMock(insumo_id=1, tienda="sodimac", precio=5000.0, precio_descuento=None, fecha_scraping=dt1)
-    pm2 = MagicMock(insumo_id=1, tienda="easy", precio=5500.0, precio_descuento=5200.0, fecha_scraping=dt1)
-    pm3 = MagicMock(insumo_id=1, tienda="construmart", precio=4800.0, precio_descuento=None, fecha_scraping=dt1)
+    pm1 = MagicMock(insumo_id=1, tienda="sodimac", precio=5000.0, precio_descuento=None, fecha_scraping=dt1, url="http://a")
+    pm2 = MagicMock(insumo_id=1, tienda="easy", precio=5500.0, precio_descuento=5200.0, fecha_scraping=dt1, url="http://b")
+    pm3 = MagicMock(insumo_id=1, tienda="construmart", precio=4800.0, precio_descuento=None, fecha_scraping=dt1, url="http://c")
     
     # Para Insumo 2 (1 tienda)
-    pm4 = MagicMock(insumo_id=2, tienda="sodimac", precio=1200.0, precio_descuento=1200.0, fecha_scraping=dt1)
+    pm4 = MagicMock(insumo_id=2, tienda="sodimac", precio=1200.0, precio_descuento=1200.0, fecha_scraping=dt1, url="http://d")
     
     # Mocking chain behaviour for db.query
     def side_effect(model_arg, *args):
@@ -119,7 +122,7 @@ def test_promedio_precios_logic():
     assert items[2].precio_unitario is None
     assert items[2].subtotal is None
     
-    # Totales Finales (1000 cemento + 1260000 ladrillo)
-    assert response.costo_total == 1261000.0
+    # Totales Finales incluyen complementos constructivos referenciales de muro.
+    assert response.costo_total == 1390500.0
     assert response.fecha_precios == dt1.isoformat()
     assert response.desglose[0].subtotal_categoria == 1261000.0

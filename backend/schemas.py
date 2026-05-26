@@ -4,10 +4,11 @@ from typing import List, Optional
 
 class LayoutRecintoInput(BaseModel):
     piso: int = Field(1, ge=1)
-    coords_x: float
-    coords_z: float
+    coords_x: float = 0.0
+    coords_z: float = 0.0
     width: float = Field(..., gt=0)
     length: float = Field(..., gt=0)
+
 
 class InsumoCalculado(BaseModel):
     insumo: str
@@ -15,6 +16,8 @@ class InsumoCalculado(BaseModel):
     unidad: str
     precio_unitario: Optional[float] = None
     subtotal: Optional[float] = None
+    tienda: Optional[str] = None
+    url_producto: Optional[str] = None
     cantidad_objetivo: Optional[float] = None
     cantidad_compra: Optional[float] = None
     perdida_porcentual: Optional[float] = None
@@ -42,6 +45,11 @@ class DesgloseResponse(BaseModel):
     volumen_compensado_pre_cotizacion: Optional[float] = None
     items_optimizados: Optional[int] = None
     perdida_promedio_porcentual: Optional[float] = None
+    # Geometría inyectada para cubicación por superficie de muro
+    perimetro_ml: Optional[float] = None
+    altura_muro_m: Optional[float] = None
+    area_muro_neta_m2: Optional[float] = None
+    incluir_techumbre: Optional[bool] = None
 
 
 class VanoInput(BaseModel):

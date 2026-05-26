@@ -66,7 +66,7 @@ KEYWORD_INSUMO_MAP: dict[str, list[str]] = {
     "Fierro A63-42H":   ["fierro", "barra", "acero", "varilla", "cuadrada laminada"],
     "Perfil C 60x38x0.85": ["perfil c", "perfil metalcon c", "perfil estructural c", "montante c"],
     "Perfil U 62x25x0.85": ["perfil u", "perfil metalcon u", "canal u", "solera u", "perfil canal u"],
-    "Tornillo Autoperforante": ["tornillo autoperforante", "tornillo autoperforante 8x1/2", "tornillo metalcon", "tornillo punta broca"],
+    "Tornillo Autoperforante": ["tornillo autoperforante", "tornillo metalcon", "tornillo punta broca"],
     "Volcanita RH Standard":  ["volcanita", "yeso cartón", "fibrocemento", "placa yeso"],
     "Volcanita RH Reforzado": ["volcanita rh", "volcanita reforzado"],
     "Cable H07Z1-K 1x2.5mm": ["cable 2.5mm", "cable 2,5mm", "cable 2.5 mm", "cable 2,5 mm", "h07z1-k 1x2.5", "h07z1-k 1x2,5", "h07z1-k c5 2,5", "c5 2,5 mm", "cable libre halogenos 2.5"],

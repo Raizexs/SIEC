@@ -303,20 +303,6 @@ onMounted(fetchProjects);
                   </p>
                 </div>
 
-                <div
-                  class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950"
-                >
-                  <p
-                    class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500"
-                  >
-                    {{ t('dashRole') }}
-                  </p>
-                  <p
-                    class="mt-1 truncate text-sm font-black capitalize text-slate-950 dark:text-slate-100"
-                  >
-                    {{ auth.role }}
-                  </p>
-                </div>
               </div>
             </div>
           </section>

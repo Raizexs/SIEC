@@ -12,7 +12,6 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Instalar Chromium con todas sus dependencias del sistema
-# (Criterio de validación SCRUM-55: el Dockerfile ejecuta este comando durante el build)
 RUN playwright install --with-deps chromium
 
 # Copiar código fuente

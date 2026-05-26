@@ -67,10 +67,6 @@ const buildMetaPairs = (payload) => [
   ['Superficie calculada', `${formatNumber(payload.m2Totales, 0)} m²`],
   ['Material estructural', payload.materialNombre || '—'],
   ['Precios de mercado al', formatExportDate(payload.fechaPrecios)],
-  [
-    'Recintos en presupuesto',
-    `Habitaciones: ${payload.counts?.habitaciones ?? 0} · Baños: ${payload.counts?.banios ?? 0} · Áreas comunes: ${payload.counts?.areasComunes ?? 0}`,
-  ],
 ];
 
 const escapeCsvCell = (value) => {
@@ -167,6 +163,10 @@ export const exportBudgetCSV = (payload, buildFilename) => {
       ]),
     );
   }
+
+  const grandTotal = desglose.reduce((s, cat) => s + (cat.subtotal_categoria || 0), 0);
+  lines.push('');
+  lines.push(csvLine(['', '', '', '', 'TOTAL GENERAL', formatClp(grandTotal)]));
 
   lines.push('');
   lines.push(
@@ -418,7 +418,26 @@ const buildDesgloseSheet = (workbook, payload) => {
       'No hay insumos en el desglose. Verifica recintos seleccionados y material estructural.';
     empty.font = { italic: true, color: { argb: XL.muted } };
     empty.alignment = { horizontal: 'center' };
+    return;
   }
+
+  r += 1;
+  const totalSub = desglose.reduce((s, cat) => s + (cat.subtotal_categoria || 0), 0);
+  sheet.mergeCells(r, 1, r, 5);
+  const totalLabel = sheet.getCell(r, 1);
+  totalLabel.value = 'TOTAL GENERAL';
+  totalLabel.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: XL.navy } };
+  totalLabel.font = { bold: true, size: 12, color: { argb: XL.white } };
+  totalLabel.border = thinBorder;
+  totalLabel.alignment = { horizontal: 'right' };
+  const totalVal = sheet.getCell(r, 6);
+  totalVal.value = totalSub;
+  totalVal.numFmt = '"$"#,##0';
+  totalVal.font = { bold: true, size: 12, color: { argb: XL.white } };
+  totalVal.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: XL.navy } };
+  totalVal.border = thinBorder;
+  totalVal.alignment = { horizontal: 'right' };
+  sheet.getRow(r).height = 24;
 };
 
 /**

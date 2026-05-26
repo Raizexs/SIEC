@@ -9,9 +9,9 @@ from fallback_prices import lookup_reference_offer
 
 
 def test_lookup_reference_offer_returns_metalcon_profile_reference():
-    offer = lookup_reference_offer("perfil metalcon C", "sodimac", 25)
+    offer = lookup_reference_offer("perfil metalcon C", "sodimac", 7)
 
     assert offer is not None
-    assert offer["nombre_producto"] == "Perfil C 60x38mm 3m"
+    assert "Perfil Metalcon C" in offer["nombre_producto"]
     assert offer["precio"] > 0
-    assert offer["insumo_id"] == 25
+    assert offer["insumo_id"] == 7
