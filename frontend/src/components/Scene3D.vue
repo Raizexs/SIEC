@@ -286,14 +286,6 @@ const applyLayerVisibility = (animate = true) => {
     }
   }
 
-  // Update roof visibility
-  for (const child of sceneManager.roofGroup.children) {
-    if (!child.userData?.layerTags) continue;
-    const layerVisible = isLayerMeshVisible(child.userData.layerTags, layerState);
-    if (child.visible !== layerVisible) {
-      setChildLayerVisible(child, layerVisible, animate);
-    }
-  }
 };
 
 
@@ -934,130 +926,6 @@ const syncRooms = () => {
   lightingRig.setupInteriorLights(recintos);
 };
 
-const syncRoof = () => {
-  if (!sceneManager) return;
-
-  while (sceneManager.roofGroup.children.length > 0) {
-    const child = sceneManager.roofGroup.children[0];
-    child.geometry?.dispose();
-    child.material?.dispose();
-    sceneManager.roofGroup.remove(child);
-  }
-
-  const recintos = recintosStore.recintos;
-  if (!recintos || recintos.length === 0) return;
-
-  const pisos = [...new Set(recintos.map((r) => r.piso || 1))];
-  const topPiso = Math.max(...pisos);
-
-  const box = new THREE.Box3();
-  for (const mesh of sceneManager.roomsGroup.children) {
-    if (!mesh.visible) continue;
-    if ((mesh.userData.piso || 1) !== topPiso) continue;
-    box.expandByObject(mesh);
-  }
-
-  if (box.isEmpty()) return;
-
-  box.expandByScalar(0.3);
-  const min = box.min;
-  const max = box.max;
-  const cx = (min.x + max.x) / 2;
-  const cz = (min.z + max.z) / 2;
-  const roofH = Math.max(max.x - min.x, max.z - min.z) * 0.18;
-  const baseY = 2.4 * topPiso;
-  const peakY = baseY + roofH;
-
-  const roofMat = new THREE.MeshStandardMaterial({
-    color: 0x8B4513,
-    roughness: 0.6,
-    metalness: 0.1,
-    side: THREE.DoubleSide,
-  });
-
-  const ridgeDir = (max.z - min.z) >= (max.x - min.x) ? 'z' : 'x';
-
-  const buildTri = (a, b, c) => {
-    const g = new THREE.BufferGeometry();
-    const v = new Float32Array([a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z]);
-    g.setAttribute('position', new THREE.BufferAttribute(v, 3));
-    g.setIndex([0, 1, 2]);
-    g.computeVertexNormals();
-    return g;
-  };
-  const buildQuad = (a, b, c, d) => {
-    const g = new THREE.BufferGeometry();
-    const v = new Float32Array([
-      a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z,
-      a.x, a.y, a.z, c.x, c.y, c.z, d.x, d.y, d.z,
-    ]);
-    g.setAttribute('position', new THREE.BufferAttribute(v, 3));
-    g.computeVertexNormals();
-    return g;
-  };
-
-  if (ridgeDir === 'z') {
-    const left = buildQuad(
-      new THREE.Vector3(min.x, baseY, min.z),
-      new THREE.Vector3(cx, peakY, min.z),
-      new THREE.Vector3(cx, peakY, max.z),
-      new THREE.Vector3(min.x, baseY, max.z),
-    );
-    const right = buildQuad(
-      new THREE.Vector3(cx, peakY, min.z),
-      new THREE.Vector3(max.x, baseY, min.z),
-      new THREE.Vector3(max.x, baseY, max.z),
-      new THREE.Vector3(cx, peakY, max.z),
-    );
-    const front = buildTri(
-      new THREE.Vector3(min.x, baseY, min.z),
-      new THREE.Vector3(cx, peakY, min.z),
-      new THREE.Vector3(max.x, baseY, min.z),
-    );
-    const back = buildTri(
-      new THREE.Vector3(max.x, baseY, max.z),
-      new THREE.Vector3(cx, peakY, max.z),
-      new THREE.Vector3(min.x, baseY, max.z),
-    );
-    [left, right, front, back].forEach((g) => {
-      const m = new THREE.Mesh(g, roofMat.clone());
-      m.userData.layerTags = ['structure', 'facade'];
-      m.castShadow = true;
-      m.receiveShadow = true;
-      sceneManager.roofGroup.add(m);
-    });
-  } else {
-    const left = buildQuad(
-      new THREE.Vector3(min.x, baseY, min.z),
-      new THREE.Vector3(min.x, baseY, max.z),
-      new THREE.Vector3(cx, peakY, max.z),
-      new THREE.Vector3(cx, peakY, min.z),
-    );
-    const right = buildQuad(
-      new THREE.Vector3(cx, peakY, min.z),
-      new THREE.Vector3(cx, peakY, max.z),
-      new THREE.Vector3(max.x, baseY, max.z),
-      new THREE.Vector3(max.x, baseY, min.z),
-    );
-    const front = buildTri(
-      new THREE.Vector3(min.x, baseY, min.z),
-      new THREE.Vector3(cx, peakY, min.z),
-      new THREE.Vector3(max.x, baseY, min.z),
-    );
-    const back = buildTri(
-      new THREE.Vector3(max.x, baseY, max.z),
-      new THREE.Vector3(cx, peakY, max.z),
-      new THREE.Vector3(min.x, baseY, max.z),
-    );
-    [left, right, front, back].forEach((g) => {
-      const m = new THREE.Mesh(g, roofMat.clone());
-      m.userData.layerTags = ['structure', 'facade'];
-      m.castShadow = true;
-      m.receiveShadow = true;
-      sceneManager.roofGroup.add(m);
-    });
-  }
-};
 
 const computeSceneBounds = () => {
   const box = new THREE.Box3();
@@ -1492,7 +1360,6 @@ onMounted(() => {
 
       syncWalls();
       syncRooms();
-      syncRoof();
     },
     {
       deep: true,
@@ -1706,8 +1573,7 @@ onBeforeUnmount(() => {
           <div class="relative scene3d-layers-menu">
             <button
               type="button"
-              class="toolbar-btn"
-              :class="constructionModeEnabled ? 'is-active' : ''"
+              class="toolbar-btn is-active"
               @click.stop="showLayersMenu = !showLayersMenu"
             >
               <span class="material-symbols-outlined text-[17px]">layers</span>
@@ -1718,19 +1584,7 @@ onBeforeUnmount(() => {
                 v-if="showLayersMenu"
                 class="absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-3xl border border-slate-200/90 bg-white/95 p-3 shadow-2xl shadow-slate-950/15 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/40"
               >
-                <label
-                  class="flex cursor-pointer items-center justify-between rounded-2xl bg-slate-50 px-3 py-2.5 transition-colors hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-800"
-                >
-                  <span class="text-xs font-bold text-slate-700 dark:text-slate-200">Modo construcción</span>
-                  <span
-                    class="relative inline-flex h-5 w-9 items-center rounded-full border transition-colors duration-300"
-                    :class="constructionModeEnabled ? 'border-orange-400 bg-orange-500 shadow-sm shadow-orange-500/20' : 'border-slate-300 bg-slate-200 dark:border-slate-700 dark:bg-slate-800'"
-                  >
-                    <span class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform duration-300" :class="constructionModeEnabled ? 'translate-x-4' : 'translate-x-0.5'" />
-                  </span>
-                  <input :checked="constructionModeEnabled" type="checkbox" class="sr-only" @change="layersStore.toggleConstructionMode()" />
-                </label>
-                <div class="mt-2 space-y-1">
+                <div class="space-y-1">
                   <label
                     v-for="layer in layersStore.layers"
                     :key="layer.id"
@@ -1750,8 +1604,7 @@ onBeforeUnmount(() => {
                   </label>
                 </div>
                 <div class="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
-                  <template v-if="!constructionModeEnabled">Todas las capas visibles</template>
-                  <template v-else>{{ layersStore.activeLayerCount }} de 5 capas activas</template>
+                  {{ layersStore.activeLayerCount }} de 3 capas activas
                 </div>
               </div>
             </Transition>
@@ -1764,33 +1617,6 @@ onBeforeUnmount(() => {
             @click="showFurniture = !showFurniture"
           >
             <span class="material-symbols-outlined text-[18px]">{{ showFurniture ? 'chair' : 'chair_alt' }}</span>
-          </button>
-
-          <button
-            type="button"
-            class="icon-action"
-            :class="sectionEnabled ? 'is-active' : ''"
-            title="Sección / Corte"
-            @click="toggleSection"
-          >
-            <span class="material-symbols-outlined text-[18px]">layers</span>
-          </button>
-
-          <input
-            v-if="sectionEnabled"
-            v-model.number="sectionHeight"
-            type="range" min="0.1" max="5.5" step="0.1"
-            class="premium-range w-24"
-          />
-
-          <button
-            type="button"
-            class="icon-action"
-            :class="isWalkthrough ? 'is-active' : ''"
-            title="Walkthrough"
-            @click="toggleWalkthrough"
-          >
-            <span class="material-symbols-outlined text-[18px]">{{ isWalkthrough ? 'directions_run' : 'directions_walk' }}</span>
           </button>
 
           <!-- Export dropdown -->
@@ -1823,6 +1649,16 @@ onBeforeUnmount(() => {
               </div>
             </Transition>
           </div>
+
+          <button
+            type="button"
+            class="icon-action"
+            :class="isWalkthrough ? 'is-active' : ''"
+            title="Walkthrough"
+            @click="toggleWalkthrough"
+          >
+            <span class="material-symbols-outlined text-[18px]">{{ isWalkthrough ? 'directions_run' : 'directions_walk' }}</span>
+          </button>
 
           <button
             type="button"

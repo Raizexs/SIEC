@@ -3,16 +3,17 @@ import { computed, ref } from "vue";
 
 const defaultLayerVisibility = () => ({
   facade: true,
-  insulation: true,
-  installations: true,
+  insulation: false,
+  installations: false,
   interior: true,
   structure: true,
 });
 
+
 export const useConstructionLayersStore = defineStore(
   "constructionLayers",
   () => {
-    const constructionModeEnabled = ref(false);
+    const constructionModeEnabled = ref(true);
     const layerVisibility = ref(defaultLayerVisibility());
     const selectedLayerId = ref(null);
 
@@ -21,16 +22,6 @@ export const useConstructionLayersStore = defineStore(
         id: "facade",
         labelKey: "facadeLayer",
         icon: "account_tree",
-      },
-      {
-        id: "insulation",
-        labelKey: "insulationLayer",
-        icon: "ac_unit",
-      },
-      {
-        id: "installations",
-        labelKey: "installationsLayer",
-        icon: "electrical_services",
       },
       {
         id: "interior",
