@@ -1,7 +1,29 @@
-import { ref, computed } from "vue";
+import { ref, nextTick } from "vue";
+import {
+  pageTranslationsEs,
+  pageTranslationsEn,
+} from "../i18n/pageTranslations.js";
+
+function readStoredLanguage() {
+  if (typeof globalThis.localStorage === "undefined") return "es";
+  try {
+    return globalThis.localStorage.getItem("siec_language") || "es";
+  } catch {
+    return "es";
+  }
+}
+
+function writeStoredLanguage(lang) {
+  if (typeof globalThis.localStorage === "undefined") return;
+  try {
+    globalThis.localStorage.setItem("siec_language", lang);
+  } catch {
+    /* private mode / SSR */
+  }
+}
 
 // Estado global singleton fuera del composable
-const currentLanguage = ref(localStorage.getItem("siec_language") || "es");
+const currentLanguage = ref(readStoredLanguage());
 
 const translations = {
   es: {
@@ -14,19 +36,129 @@ const translations = {
     settings: "Configuración",
     recentPresets: "Presets Recientes",
     savedLayouts: "Layouts Guardados",
+    noSavedLayouts: "Sin diseños guardados",
+    saveLayoutEmptyHint: "Guarda una estimación para verla aquí.",
+    layoutUntitled: "Layout sin nombre",
+    loadLayoutAria: "Cargar layout",
+    deleteLayoutAria: "Eliminar layout",
+    sidebarWorkspace: "Workspace",
+    expandPanel: "Expandir panel contextual",
+    collapsePanel: "Colapsar panel",
+    changeLanguage: "Cambiar idioma",
+    tutorial: "Tutorial",
+    manual: "Manual",
+    savedCountLabel: "Guardados",
     autoSaveActive: "Auto-guardado Activo",
     newEstimate: "Nueva Estimación",
 
     // TopNav
     estimationConfigurator: "Configurador de Estimación",
+    editModeActive: "Modo edición · Auto-save activo",
+    share: "Compartir",
+    shareProject: "Compartir proyecto",
+    roleEngineer: "Ingeniero Civil",
+    roleContractor: "Constructor",
+    roleClient: "Cliente / Mandante",
+    roleAdmin: "Administrador",
+
+    // Workspace
+    workspaceActive: "Workspace activo",
+    workspaceTitle: "Simulación constructiva inteligente",
+    workspaceSubtitle:
+      "Configura el terreno, edita recintos, visualiza el modelo 3D y genera presupuesto desde una única experiencia.",
+    addRecintosTitle: "Agregar recintos",
+    addRecintosBadge: "Paso clave",
+    addRecintosHint:
+      "Usa «Añadir Recinto» en el editor 2D para crear espacios con medidas exactas y luego seleccionarlos para presupuestar.",
+    addRoom: "Añadir recinto",
+    terrainMeasures: "Medidas del terreno",
+    terrainMeasuresHint: "Ajusta ancho y largo en metros",
+
+    // Editor 2D
+    spatialEditor: "Editor espacial",
+    editor2DTitle: "Editor 2D",
+    addRoomBtn: "Añadir recinto",
+    addRoomTitle: "Añadir recinto con medidas",
+    resizeLock: "Redimensionar",
+    resizeLocked: "Bloqueado",
+    unlockResize: "Desbloquear redimensionado",
+    lockResize: "Bloquear redimensionado",
+    corridors: "Pasillos",
+    corridorsOn: "Desactivar modo pasillos",
+    corridorsOff: "Detectar pasillos automáticamente",
+    floor: "Piso",
+    inspectorEyebrow: "Inspector",
+    inspectorTitle: "Propiedades",
+    nameLabel: "Nombre",
+    heightM: "Alto (m)",
+    roomNamePlaceholder: "Ej. Baño 1",
+    resizeLockedHint:
+      "Redimensionado bloqueado. Desbloquéalo desde la barra superior para editar ancho y largo.",
+    closeInspectorAria: "Cerrar inspector",
+    addRoomModalEyebrow: "Nuevo espacio",
+    addRoomModalDesc: "Define nombre y dimensiones iniciales.",
+    dimensionsLabel: "Medidas",
+    widthShort: "Ancho",
+    lengthShort: "Largo",
+    heightShort: "Alto",
+    roomAreaLabel: "Área: {area} m²",
+    createRoomBtn: "Crear recinto",
+    fullscreen: "Pantalla completa",
+    exitFullscreen: "Salir",
+    terrainBounds: "Límites del terreno · {w}m × {h}m",
+    terrainBoundsCompact: "{w}×{h} m",
+    terrainFreeArea: "{area} m² libres",
+
+    // Scene 3D
+    renderer: "Renderizador",
+    scene3DTitle: "Vista 3D en tiempo real",
+    liveRender: "Live render",
+    toolMove: "Mover",
+    toolScale: "Escalar",
+    toolMeasure: "Medir",
+    measureHint: "Medir: clic en 2 puntos",
+    cloneFloor: "Clonar",
+    export: "Exportar",
+    exportGltf: "GLTF / GLB (3D)",
+    exportObj: "OBJ (CAD)",
+    exportIfc: "IFC (BIM)",
+    exportPng: "Imagen 4K",
+    centerCamera: "Centrar cámara",
+    shortcutPalette: "Abrir paleta de comandos",
+    shortcutHelp: "Mostrar atajos",
+    shortcutDashboard: "Ir al Dashboard",
+    shortcutWorkspace: "Ir al Workspace",
+    shortcutSettings: "Ir a Configuración",
+    shortcutSave: "Guardar versión actual",
+    shortcutEsc: "Cerrar / cancelar acción",
+    shortcutDelete: "Eliminar recinto activo",
+    shortcutFullscreen: "Pantalla completa",
+    shortcutMeasure: "Herramienta medir",
+    shortcutWalkthrough: "Modo walkthrough",
+    shortcutsTitle: "Atajos de teclado",
+    shortcutsSubtitle: "Acciones rápidas para navegar y trabajar más fluido.",
+    shortcutsEscHint: "para cerrar.",
+    shortcutsGotIt: "Entendido",
     generalSpecs: "Especificaciones Generales",
     materials: "Materiales",
     logistics: "Logística",
     localCache: "Caché Local",
 
     // Configuration Panel
-    step01: "Paso 1 / Especificaciones Técnicas",
+    step01: "Especificaciones técnicas",
     projectGeometry: "Geometría del Proyecto",
+    projectGeometryDesc:
+      "Define las dimensiones del terreno y la materialidad estructural del proyecto.",
+    widthM: "Ancho (m)",
+    lengthM: "Largo (m)",
+    structuralMaterialSelectHint:
+      "Selecciona la base constructiva para estimar comportamiento y costo.",
+    currentMaterial: "Material actual",
+    heavyLogisticsBadge: "Requiere logística pesada",
+    materialWoodHint: "Económico · Liviano · Apto sismo",
+    materialSteelHint: "Industrial · Rápido montaje",
+    materialMasonryHint: "Tradicional · Buena térmica",
+    materialConcreteHint: "Robustez máxima · Logística pesada",
     totalBuiltArea: "Área Total Construida (m²)",
     simpleRooms: "Habitaciones Simples",
     doubleRooms: "Habitaciones Dobles",
@@ -40,6 +172,12 @@ const translations = {
     generateModel: "Generar Modelo 3D",
     generateBudget: "Generar Presupuesto Detallado",
     layoutSaved: "Layout guardado exitosamente",
+    layoutSavedDetail: "El diseño quedó guardado correctamente.",
+    noDate: "Sin fecha",
+    themeDark: "Oscuro",
+    themeLight: "Claro",
+    themeSwitchToLight: "Cambiar a modo claro",
+    themeSwitchToDark: "Cambiar a modo oscuro",
     saving: "Guardando Configuración...",
 
     // Materials
@@ -54,8 +192,13 @@ const translations = {
     dismissLogisticsAlert: "Descartar y Continuar",
 
     // Metrics Panel
+    spatialBudgetTitle: "Presupuesto espacial",
     step02: 'Métricas',
     metricsPanelSubtitle: 'Seguimiento del área construida frente al terreno.',
+    terrainStatusSafe: "ESPACIO DISPONIBLE",
+    terrainStatusWarning: "ESPACIO LIMITADO",
+    terrainStatusDanger: "SIN ESPACIO DISPONIBLE",
+    terrainStatusUnknown: "Sin estado",
     tokenBudget: 'Ocupación del terreno',
     terrainOccupancySubtitle: 'Comparación entre superficie del terreno y recintos dibujados.',
     freeAreaLabel: 'Área libre',
@@ -64,6 +207,7 @@ const translations = {
     terrainDimensions: 'Dimensiones',
     used: 'Usado',
     total: 'Total',
+    occupancyLabel: 'Ocupación',
 
     // Status messages
     safeSpace: "Espacio OK",
@@ -78,92 +222,10 @@ const translations = {
     delete: "Eliminar",
     load: "Cargar",
 
-    // EditorShell
-    workspaceActive: 'Workspace activo',
-    smartConstructionSim: 'Simulación constructiva inteligente',
-    workspaceDescription: 'Configura el terreno, edita recintos, visualiza el modelo 3D y genera presupuesto desde una única experiencia.',
-    tokensAvailable: '{count} tokens disponibles',
-    workspaceFooter: 'SIEC Workspace · Simulación, diseño y presupuesto constructivo',
-
-    // RoomEditor2D
-    spatialEditor: 'Editor espacial',
-    editor2D: 'Editor 2D',
-    freeM2: '{area} m² libres',
-    areaUsage: '{used} / {total} m²',
-    floorLabel: 'Piso {n}',
-    addRoom: 'Añadir recinto',
-    locked: 'Bloqueado',
-    resize: 'Redimensionar',
-    fullscreen: 'Pantalla completa',
-    exitFullscreen: 'Salir',
-    terrainBounds: 'Límites del terreno · {w}m × {h}m',
-    freeArea: '{area} m² libres',
-    clickCorridor: 'Clic → pasillo aquí',
-    noCorridorSpace: 'Sin espacios ≥ 0.8m disponibles para pasillo',
-    inspector: 'Inspector',
-    properties: 'Propiedades',
-    name: 'Nombre',
-    width: 'Ancho (m)',
-    length: 'Largo (m)',
-    height: 'Alto (m)',
-    newSpace: 'Nuevo espacio',
-    addRoomTitle: 'Añadir recinto',
-    addRoomDesc: 'Define nombre y dimensiones iniciales.',
-    cancel: 'Cancelar',
-    createRoom: 'Crear recinto',
-    measures: 'Medidas',
-    area: 'Área: {area} m²',
-    resizeLocked: 'Redimensionado bloqueado. Desbloquéalo desde la barra superior para editar ancho y largo.',
-    noRoomsBreakdown: 'Sin recintos modelados',
-
-    // Scene3D
-    renderer: 'Renderizador',
-    realtime3D: 'Vista 3D en tiempo real',
-    liveRender: 'Live render',
-    move: 'Mover',
-    scale: 'Escalar',
-    measure: 'Medir',
-    clone: 'Clonar',
-    snapOff: 'Snap desactivado',
-    snapActive: 'Snap activo',
-    measureHint: 'Medir: clic en 2 puntos',
-    hideFurniture: 'Ocultar muebles',
-    showFurniture: 'Mostrar muebles',
-    section: 'Sección / Corte',
-    walkthrough: 'Walkthrough',
-    autoTour: 'Tour automático',
-    export: 'Exportar',
-    centerCamera: 'Centrar cámara',
-    addCorridor: 'Añadir pasillo',
-
-    // TopNavBar
-    editMode: 'Modo edición · Auto-save activo',
-    profile: 'Perfil',
-    recentHistory: 'Historial reciente',
-    noRecentExports: 'No hay exportaciones recientes',
-    exports: 'Exportaciones',
-    saved: 'Guardados',
-    logout: 'Cerrar sesión',
-    share: 'Compartir',
-    exporting: 'Exportando…',
-
-    // Sidebar
-    noSavedLayouts: 'Sin diseños guardados',
-    saveLayoutHint: 'Guarda una estimación para verla aquí.',
-    tutorial: 'Tutorial',
-    manual: 'Manual',
-    layoutUnnamed: 'Layout sin nombre',
-    dateFormat: 'Sin fecha',
-
-    // KeyboardShortcuts
-    keyboardShortcuts: 'Atajos de teclado',
-    shortcutsDesc: 'Acciones rápidas para navegar y trabajar más fluido.',
-    closeShortcuts: 'Cerrar atajos de teclado',
-    pressEsc: 'Presiona Esc para cerrar.',
-    gotIt: 'Entendido',
-
     // Footer
     footer: "2026 SIEC - V0.3",
+    workspaceFooterLine:
+      "SIEC Workspace · Simulación, diseño y presupuesto constructivo",
     draftsSynced: "Borradores Sincronizados",
     privacyPolicy: "Política de Privacidad",
     termsOfService: "Términos de Servicio",
@@ -205,6 +267,7 @@ const translations = {
     averagePrice: "Precio Promedio",
     priceVariation: "Variación",
     lastUpdate: "Última Actualización",
+    ...pageTranslationsEs,
   },
   en: {
     // Sidebar
@@ -216,19 +279,129 @@ const translations = {
     settings: "Settings",
     recentPresets: "Recent Presets",
     savedLayouts: "Saved Layouts",
+    noSavedLayouts: "No saved designs",
+    saveLayoutEmptyHint: "Save an estimate to see it here.",
+    layoutUntitled: "Untitled layout",
+    loadLayoutAria: "Load layout",
+    deleteLayoutAria: "Delete layout",
+    sidebarWorkspace: "Workspace",
+    expandPanel: "Expand side panel",
+    collapsePanel: "Collapse panel",
+    changeLanguage: "Change language",
+    tutorial: "Tutorial",
+    manual: "Manual",
+    savedCountLabel: "Saved",
     autoSaveActive: "Auto-save Active",
     newEstimate: "New Estimate",
 
     // TopNav
     estimationConfigurator: "Estimation Configurator",
+    editModeActive: "Edit mode · Auto-save on",
+    share: "Share",
+    shareProject: "Share project",
+    roleEngineer: "Civil Engineer",
+    roleContractor: "Contractor",
+    roleClient: "Client",
+    roleAdmin: "Administrator",
+
+    // Workspace
+    workspaceActive: "Active workspace",
+    workspaceTitle: "Intelligent construction simulation",
+    workspaceSubtitle:
+      "Configure terrain, edit rooms, view the 3D model, and generate budget from one experience.",
+    addRecintosTitle: "Add rooms",
+    addRecintosBadge: "Key step",
+    addRecintosHint:
+      "Use «Add room» in the 2D editor to create spaces with exact dimensions, then select them to budget.",
+    addRoom: "Add room",
+    terrainMeasures: "Terrain dimensions",
+    terrainMeasuresHint: "Adjust width and length in meters",
+
+    // Editor 2D
+    spatialEditor: "Spatial editor",
+    editor2DTitle: "2D Editor",
+    addRoomBtn: "Add room",
+    addRoomTitle: "Add room with dimensions",
+    resizeLock: "Resize",
+    resizeLocked: "Locked",
+    unlockResize: "Unlock resizing",
+    lockResize: "Lock resizing",
+    corridors: "Corridors",
+    corridorsOn: "Disable corridor mode",
+    corridorsOff: "Detect corridors automatically",
+    floor: "Floor",
+    inspectorEyebrow: "Inspector",
+    inspectorTitle: "Properties",
+    nameLabel: "Name",
+    heightM: "Height (m)",
+    roomNamePlaceholder: "e.g. Bathroom 1",
+    resizeLockedHint:
+      "Resizing locked. Unlock it from the top toolbar to edit width and length.",
+    closeInspectorAria: "Close inspector",
+    addRoomModalEyebrow: "New space",
+    addRoomModalDesc: "Set the name and initial dimensions.",
+    dimensionsLabel: "Dimensions",
+    widthShort: "Width",
+    lengthShort: "Length",
+    heightShort: "Height",
+    roomAreaLabel: "Area: {area} m²",
+    createRoomBtn: "Create room",
+    fullscreen: "Fullscreen",
+    exitFullscreen: "Exit",
+    terrainBounds: "Terrain limits · {w}m × {h}m",
+    terrainBoundsCompact: "{w}×{h} m",
+    terrainFreeArea: "{area} m² free",
+
+    // Scene 3D
+    renderer: "Renderer",
+    scene3DTitle: "Real-time 3D view",
+    liveRender: "Live render",
+    toolMove: "Move",
+    toolScale: "Scale",
+    toolMeasure: "Measure",
+    measureHint: "Measure: click 2 points",
+    cloneFloor: "Clone",
+    export: "Export",
+    exportGltf: "GLTF / GLB (3D)",
+    exportObj: "OBJ (CAD)",
+    exportIfc: "IFC (BIM)",
+    exportPng: "4K Image",
+    centerCamera: "Center camera",
+    shortcutPalette: "Open command palette",
+    shortcutHelp: "Show shortcuts",
+    shortcutDashboard: "Go to Dashboard",
+    shortcutWorkspace: "Go to Workspace",
+    shortcutSettings: "Go to Settings",
+    shortcutSave: "Save current version",
+    shortcutEsc: "Close / cancel action",
+    shortcutDelete: "Delete active room",
+    shortcutFullscreen: "Fullscreen",
+    shortcutMeasure: "Measure tool",
+    shortcutWalkthrough: "Walkthrough mode",
+    shortcutsTitle: "Keyboard shortcuts",
+    shortcutsSubtitle: "Quick actions to navigate and work faster.",
+    shortcutsEscHint: "to close.",
+    shortcutsGotIt: "Got it",
     generalSpecs: "General Specs",
     materials: "Materials",
     logistics: "Logistics",
     localCache: "Local Cache",
 
     // Configuration Panel
-    step01: "Step 1 / Technical Specs",
+    step01: "Technical specs",
     projectGeometry: "Project Geometry",
+    projectGeometryDesc:
+      "Define terrain dimensions and the project's structural material system.",
+    widthM: "Width (m)",
+    lengthM: "Length (m)",
+    structuralMaterialSelectHint:
+      "Select the structural base to estimate behavior and cost.",
+    currentMaterial: "Current material",
+    heavyLogisticsBadge: "Requires heavy logistics",
+    materialWoodHint: "Economical · Lightweight · Seismic-friendly",
+    materialSteelHint: "Industrial · Fast assembly",
+    materialMasonryHint: "Traditional · Good thermal mass",
+    materialConcreteHint: "Maximum strength · Heavy logistics",
     totalBuiltArea: "Total Built Area (m²)",
     simpleRooms: "Simple Rooms",
     doubleRooms: "Double Rooms",
@@ -242,6 +415,12 @@ const translations = {
     generateModel: "Generate 3D Model",
     generateBudget: "Generate Detailed Budget",
     layoutSaved: "Layout successfully saved",
+    layoutSavedDetail: "Your design was saved successfully.",
+    noDate: "No date",
+    themeDark: "Dark",
+    themeLight: "Light",
+    themeSwitchToLight: "Switch to light mode",
+    themeSwitchToDark: "Switch to dark mode",
     saving: "Saving Configuration...",
 
     // Materials
@@ -256,8 +435,13 @@ const translations = {
     dismissLogisticsAlert: "Dismiss and Continue",
 
     // Metrics Panel
+    spatialBudgetTitle: "Spatial budget",
     step02: 'Metrics',
     metricsPanelSubtitle: 'Built area vs. total terrain footprint.',
+    terrainStatusSafe: "SPACE AVAILABLE",
+    terrainStatusWarning: "LIMITED SPACE",
+    terrainStatusDanger: "NO SPACE AVAILABLE",
+    terrainStatusUnknown: "Unknown",
     tokenBudget: 'Terrain occupancy',
     terrainOccupancySubtitle: 'Terrain surface compared to drawn rooms.',
     freeAreaLabel: 'Free area',
@@ -266,6 +450,7 @@ const translations = {
     terrainDimensions: 'Dimensions',
     used: 'Used',
     total: 'Total',
+    occupancyLabel: 'Occupancy',
 
     // Status messages
     safeSpace: "Space OK",
@@ -280,92 +465,10 @@ const translations = {
     delete: "Delete",
     load: "Load",
 
-    // EditorShell
-    workspaceActive: 'Active Workspace',
-    smartConstructionSim: 'Smart Construction Simulation',
-    workspaceDescription: 'Configure terrain, edit rooms, visualize the 3D model and generate budget from a single experience.',
-    tokensAvailable: '{count} tokens available',
-    workspaceFooter: 'SIEC Workspace · Simulation, design and construction budget',
-
-    // RoomEditor2D
-    spatialEditor: 'Spatial Editor',
-    editor2D: '2D Editor',
-    freeM2: '{area} m² free',
-    areaUsage: '{used} / {total} m²',
-    floorLabel: 'Floor {n}',
-    addRoom: 'Add Room',
-    locked: 'Locked',
-    resize: 'Resize',
-    fullscreen: 'Fullscreen',
-    exitFullscreen: 'Exit',
-    terrainBounds: 'Terrain bounds · {w}m × {h}m',
-    freeArea: '{area} m² free',
-    clickCorridor: 'Click → corridor here',
-    noCorridorSpace: 'No spaces ≥ 0.8m available for corridor',
-    inspector: 'Inspector',
-    properties: 'Properties',
-    name: 'Name',
-    width: 'Width (m)',
-    length: 'Length (m)',
-    height: 'Height (m)',
-    newSpace: 'New Space',
-    addRoomTitle: 'Add Room',
-    addRoomDesc: 'Set name and initial dimensions.',
-    cancel: 'Cancel',
-    createRoom: 'Create Room',
-    measures: 'Measures',
-    area: 'Area: {area} m²',
-    resizeLocked: 'Resize locked. Unlock it from the top bar to edit width and length.',
-    noRoomsBreakdown: 'No rooms modeled',
-
-    // Scene3D
-    renderer: 'Renderer',
-    realtime3D: 'Real-time 3D View',
-    liveRender: 'Live render',
-    move: 'Move',
-    scale: 'Scale',
-    measure: 'Measure',
-    clone: 'Clone',
-    snapOff: 'Snap off',
-    snapActive: 'Snap active',
-    measureHint: 'Measure: click 2 points',
-    hideFurniture: 'Hide furniture',
-    showFurniture: 'Show furniture',
-    section: 'Section / Cut',
-    walkthrough: 'Walkthrough',
-    autoTour: 'Auto tour',
-    export: 'Export',
-    centerCamera: 'Center camera',
-    addCorridor: 'Add corridor',
-
-    // TopNavBar
-    editMode: 'Edit mode · Auto-save active',
-    profile: 'Profile',
-    recentHistory: 'Recent History',
-    noRecentExports: 'No recent exports',
-    exports: 'Exports',
-    saved: 'Saved',
-    logout: 'Logout',
-    share: 'Share',
-    exporting: 'Exporting…',
-
-    // Sidebar
-    noSavedLayouts: 'No saved layouts',
-    saveLayoutHint: 'Save an estimate to see it here.',
-    tutorial: 'Tutorial',
-    manual: 'Manual',
-    layoutUnnamed: 'Unnamed layout',
-    dateFormat: 'No date',
-
-    // KeyboardShortcuts
-    keyboardShortcuts: 'Keyboard Shortcuts',
-    shortcutsDesc: 'Quick actions to navigate and work more fluidly.',
-    closeShortcuts: 'Close keyboard shortcuts',
-    pressEsc: 'Press Esc to close.',
-    gotIt: 'Got it',
-
     // Footer
     footer: "2026 SIEC - V0.3",
+    workspaceFooterLine:
+      "SIEC Workspace · Simulation, design, and construction budgeting",
     draftsSynced: "Drafts Synchronized",
     privacyPolicy: "Privacy Policy",
     termsOfService: "Terms of Service",
@@ -407,6 +510,7 @@ const translations = {
     averagePrice: "Average Price",
     priceVariation: "Variation",
     lastUpdate: "Last Update",
+    ...pageTranslationsEn,
   },
 };
 
@@ -424,13 +528,52 @@ export function useI18n() {
     return text;
   };
 
+  const captureScrollPositions = () => {
+    if (typeof document === "undefined") return [];
+
+    const snapshots = [
+      { top: window.scrollY, left: window.scrollX, isWindow: true },
+    ];
+
+    document.querySelectorAll("[data-workspace-scroll]").forEach((el) => {
+      snapshots.push({
+        el,
+        top: el.scrollTop,
+        left: el.scrollLeft,
+      });
+    });
+
+    return snapshots;
+  };
+
+  const restoreScrollPositions = (snapshots) => {
+    if (!snapshots?.length) return;
+
+    snapshots.forEach((snap) => {
+      if (snap.isWindow) {
+        window.scrollTo(snap.left, snap.top);
+        return;
+      }
+      if (snap.el) {
+        snap.el.scrollTop = snap.top;
+        snap.el.scrollLeft = snap.left;
+      }
+    });
+  };
+
   const setLanguage = (lang) => {
-    if (translations[lang]) {
-      currentLanguage.value = lang;
-      localStorage.setItem("siec_language", lang);
-      // Force a micro-task to ensure reactivity propagates
-      setTimeout(() => {}, 0);
-    }
+    if (!translations[lang]) return;
+
+    const scrollSnapshots = captureScrollPositions();
+    currentLanguage.value = lang;
+    writeStoredLanguage(lang);
+
+    const restore = () => restoreScrollPositions(scrollSnapshots);
+
+    nextTick(() => {
+      restore();
+      requestAnimationFrame(restore);
+    });
   };
 
   const toggleLanguage = () => {
