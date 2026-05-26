@@ -4,8 +4,26 @@ import {
   pageTranslationsEn,
 } from "../i18n/pageTranslations.js";
 
+function readStoredLanguage() {
+  if (typeof globalThis.localStorage === "undefined") return "es";
+  try {
+    return globalThis.localStorage.getItem("siec_language") || "es";
+  } catch {
+    return "es";
+  }
+}
+
+function writeStoredLanguage(lang) {
+  if (typeof globalThis.localStorage === "undefined") return;
+  try {
+    globalThis.localStorage.setItem("siec_language", lang);
+  } catch {
+    /* private mode / SSR */
+  }
+}
+
 // Estado global singleton fuera del composable
-const currentLanguage = ref(localStorage.getItem("siec_language") || "es");
+const currentLanguage = ref(readStoredLanguage());
 
 const translations = {
   es: {
@@ -548,7 +566,7 @@ export function useI18n() {
 
     const scrollSnapshots = captureScrollPositions();
     currentLanguage.value = lang;
-    localStorage.setItem("siec_language", lang);
+    writeStoredLanguage(lang);
 
     const restore = () => restoreScrollPositions(scrollSnapshots);
 
