@@ -122,7 +122,6 @@ const quickAdd = () => {
 };
 
 const { isDark } = useTheme();
-const { t } = useI18n();
 
 const gridMajorM = computed(() => 0.5);
 

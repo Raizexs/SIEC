@@ -44,6 +44,8 @@ import { useProMotion } from '../composables/useProMotion';
 import {
   useProductPreferences,
   WORKSPACE_FEATURES,
+  mergePreferences,
+  defaultProductPreferences,
 } from '../composables/useProductPreferences';
 
 const props = defineProps({

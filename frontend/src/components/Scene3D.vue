@@ -91,7 +91,6 @@ const exportFormats = computed(() => [
 const topology = useTopologyComputed();
 const recintosStore = useRecintosStore();
 const layersStore = useConstructionLayersStore();
-const { t } = useI18n();
 
 const { constructionModeEnabled, layerVisibility } = storeToRefs(layersStore);
 

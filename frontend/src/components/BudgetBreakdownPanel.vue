@@ -145,15 +145,6 @@ const buildLayoutRecintosPayload = () =>
     length: room.dimensions?.l ?? 0,
   }));
 
-const buildLayoutRecintosPayload = () =>
-  recintosStore.recintos.map((room) => ({
-    piso: room.piso || 1,
-    coords_x: room.coords?.x ?? 0,
-    coords_z: room.coords?.z ?? 0,
-    width: room.dimensions?.w ?? 0,
-    length: room.dimensions?.l ?? 0,
-  }));
-
 const fetchBudget = async () => {
   if (!hasGenerated.value) return;
 
