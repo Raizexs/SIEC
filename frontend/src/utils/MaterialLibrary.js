@@ -50,6 +50,10 @@ class MaterialLibrary {
           colorMap = this._generateVinylSiding();
           roughness = 0.5;
           metalness = 0.05;
+        } else if (part === 'structure') {
+          colorMap = this._generateGalvanizedSteel();
+          roughness = 0.42;
+          metalness = 0.68;
         } else if (part === 'interior_wall') {
           colorMap = this._generatePlasterWall('#EEF2F5');
           roughness = 0.9;
@@ -298,6 +302,53 @@ class MaterialLibrary {
     }
 
     this._applyNoise(ctx, 3);
+    return canvas;
+  }
+
+  /**
+   * Superficie de acero galvanizado con brillo metálico suave y picado fino.
+   */
+  _generateGalvanizedSteel() {
+    const canvas = this._createCanvas();
+    const ctx = canvas.getContext('2d');
+    const res = this.resolution;
+
+    const baseColor = '#aeb7bf';
+    const rgb = this._hexToRGB(baseColor);
+
+    const gradient = ctx.createLinearGradient(0, 0, res, res);
+    gradient.addColorStop(0, `rgb(${rgb.r + 12}, ${rgb.g + 12}, ${rgb.b + 12})`);
+    gradient.addColorStop(0.5, `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`);
+    gradient.addColorStop(1, `rgb(${rgb.r - 18}, ${rgb.g - 18}, ${rgb.b - 18})`);
+
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, res, res);
+
+    for (let y = 0; y < res; y += 14) {
+      for (let x = 0; x < res; x += 14) {
+        const dot = Math.random() > 0.5 ? 1 : 0.6;
+        ctx.fillStyle = `rgba(255,255,255,${0.05 * dot})`;
+        ctx.beginPath();
+        ctx.arc(x + 4, y + 4, 0.9 + Math.random() * 0.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    ctx.globalAlpha = 0.22;
+    ctx.strokeStyle = 'rgba(70, 90, 110, 0.35)';
+    ctx.lineWidth = 0.6;
+    for (let i = 0; i < 70; i++) {
+      const x = Math.random() * res;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      for (let y = 0; y < res; y += 20) {
+        ctx.lineTo(x + (Math.random() - 0.5) * 4, y);
+      }
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1.0;
+
+    this._applyNoise(ctx, 2);
     return canvas;
   }
 

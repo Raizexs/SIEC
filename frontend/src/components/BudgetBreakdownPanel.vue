@@ -143,6 +143,15 @@ const buildSelectedCounts = () => {
   return counts;
 };
 
+const buildLayoutRecintosPayload = () =>
+  recintosStore.recintos.map((room) => ({
+    piso: room.piso || 1,
+    coords_x: room.coords?.x ?? 0,
+    coords_z: room.coords?.z ?? 0,
+    width: room.dimensions?.w ?? 0,
+    length: room.dimensions?.l ?? 0,
+  }));
+
 const fetchBudget = async () => {
   if (!hasGenerated.value) return;
 
@@ -183,6 +192,11 @@ const fetchBudget = async () => {
       `${baseUrl}/api/simulacion/${simData.idSimulacion}/calcular-insumos`,
       {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          area_bruta_m2: Math.max(1, Math.round(props.m2Totales)),
+          recintos: buildLayoutRecintosPayload(),
+        }),
       },
     );
 

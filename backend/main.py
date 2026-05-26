@@ -33,6 +33,18 @@ except ModuleNotFoundError:
 # Importar configuración de BD y Modelos
 from database import engine, get_db, SessionLocal
 import models
+try:
+    from techumbre import (
+        cantidad_insumo_metalcon,
+        es_metalcon_material,
+        nombre_insumo_metalcon,
+    )
+except ModuleNotFoundError:
+    from backend.techumbre import (  # type: ignore
+        cantidad_insumo_metalcon,
+        es_metalcon_material,
+        nombre_insumo_metalcon,
+    )
 
 # Crear tablas
 # Crear tablas (movido a startup)
@@ -278,6 +290,27 @@ def normalize_string(s: str) -> str:
     """Remueve acentos y pasa a minúsculas para comparaciones robustas."""
     return "".join(c for c in unicodedata.normalize('NFD', s.lower()) if unicodedata.category(c) != 'Mn')
 
+
+def _es_material_metalcon(material_id: int) -> bool:
+    return es_metalcon_material(material_id)
+
+
+def _nombre_insumo_para_material(material_id: int, nombre_insumo: str) -> str:
+    if not _es_material_metalcon(material_id):
+        return nombre_insumo
+    return nombre_insumo_metalcon(nombre_insumo)
+
+
+def _cantidad_base_metalcon(
+    material_id: int,
+    nombre_insumo: str,
+    area_bruta_m2: float,
+    recintos: list[dict],
+) -> Optional[float]:
+    if not _es_material_metalcon(material_id):
+        return None
+    return cantidad_insumo_metalcon(nombre_insumo, area_bruta_m2, recintos)
+
 class RecintoGeometrico(BaseModel):
     tipo: str = Field(..., description="Nombre del tipo de recinto (ej. 'Habitación', 'Baño')")
     ancho: float = Field(..., description="Ancho geométrico del recinto en metros")
@@ -364,6 +397,16 @@ def calcular_insumos(
     cortes_1d_payload = [
         (float(cut.largo), int(cut.cantidad))
         for cut in (payload.cortes_1d if payload else [])
+    ]
+    recintos_payload = [
+        {
+            "piso": int(getattr(recinto, "piso", 1)),
+            "coords_x": float(getattr(recinto, "coords_x", 0.0)),
+            "coords_z": float(getattr(recinto, "coords_z", 0.0)),
+            "width": float(getattr(recinto, "width", 0.0)),
+            "length": float(getattr(recinto, "length", 0.0)),
+        }
+        for recinto in (payload.recintos if payload else [])
     ]
     material_id = simulacion.material_estructural_id
 
@@ -509,44 +552,54 @@ def calcular_insumos(
     # Ajustes pre-cotizados de factores para estimaciones a escala de habitacion (Ampliaciones/B2C)
     # y corrección de unidades entre los rendimientos brutos y los formatos comerciales.
     for r, insumo in datos_rendimiento:
+        nombre_insumo = _nombre_insumo_para_material(material_id, insumo.nombre)
         factor_ajustado = float(r.factor_multiplicador)
+        cantidad_override = _cantidad_base_metalcon(
+            material_id,
+            insumo.nombre,
+            area_bruta,
+            recintos_payload,
+        )
         nombre_l = (insumo.nombre or "").lower()
         cat_l = (insumo.categoria or "").lower()
 
-        # 1. Correccion por recintos de ampliación vs casa completa:
-        # Siding y Placas de exterior asumen una envolvente 4 caras de casa completa.
-        # Si esto es una ampliacion de 1 recinto, típicamente comparte 1-2 muros. Reducir al 40-50%.
-        if "siding" in nombre_l or "exterior" in nombre_l or "osb" in nombre_l:
-            factor_ajustado *= 0.45
-            
-        # Zincalum y Techumbre no son envolvente 4 caras, pero a menudo los factores en BD
-        # traen sobreestimaciones o doble capa. Ajustamos al 50-60% como tope B2C.
-        if "zincalum" in nombre_l or "cubierta" in nombre_l:
-            factor_ajustado *= 0.55
+        if cantidad_override is not None:
+            cantidad_neta = cantidad_override
+        else:
+            # 1. Correccion por recintos de ampliación vs casa completa:
+            # Siding y Placas de exterior asumen una envolvente 4 caras de casa completa.
+            # Si esto es una ampliacion de 1 recinto, típicamente comparte 1-2 muros. Reducir al 40-50%.
+            if "siding" in nombre_l or "exterior" in nombre_l or "osb" in nombre_l:
+                factor_ajustado *= 0.45
 
-        # 2. Correccion de Volumen de Hormigon vs Cantidad de Insumo por m2 de losa:
-        # La tabla MatrizRendimiento puede tener 1095 (kg gravilla por m3).
-        # Un m2 de losa es ~0.1 m3 de hormigon.
-        if cat_l == "obra gruesa" and any(k in nombre_l for k in ["gravilla", "arena", "cemento", "agua", "ripio"]):
-            # Bajamos de m3 a volumen util de losa (10cm)
-            factor_ajustado *= 0.1
+            # Zincalum y Techumbre no son envolvente 4 caras, pero a menudo los factores en BD
+            # traen sobreestimaciones o doble capa. Ajustamos al 50-60% como tope B2C.
+            if "zincalum" in nombre_l or "cubierta" in nombre_l:
+                factor_ajustado *= 0.55
 
-        # 3. Corrección de Unidades de mercado:
-        # La gravilla y arena a veces entran por m3 de compra en retail (precio ~$17000)
-        # pero el requerimiento es en KG (ej 109kg). Densidad arena/grava ~1600kg/m3.
-        # Si el scraper trajo precio por m3, la API asume unidad ($/bolsa vs $/kg).
-        if ("arena" in nombre_l or "gravilla" in nombre_l or "ripio" in nombre_l):
-            # Convertimos la demanda de KG a m3 para que coincida con el precio retail.
-            factor_ajustado /= 1600.0
+            # 2. Correccion de Volumen de Hormigon vs Cantidad de Insumo por m2 de losa:
+            # La tabla MatrizRendimiento puede tener 1095 (kg gravilla por m3).
+            # Un m2 de losa es ~0.1 m3 de hormigon.
+            if cat_l == "obra gruesa" and any(k in nombre_l for k in ["gravilla", "arena", "cemento", "agua", "ripio"]):
+                # Bajamos de m3 a volumen util de losa (10cm)
+                factor_ajustado *= 0.1
 
-        if "cemento" in nombre_l:
-            # Los rendimientos brutos son kg de cemento, pero en retail se venden en sacos de 25kg
-            # (y su precio es referenciado a un saco).
-            factor_ajustado /= 25.0
+            # 3. Corrección de Unidades de mercado:
+            # La gravilla y arena a veces entran por m3 de compra en retail (precio ~$17000)
+            # pero el requerimiento es en KG (ej 109kg). Densidad arena/grava ~1600kg/m3.
+            # Si el scraper trajo precio por m3, la API asume unidad ($/bolsa vs $/kg).
+            if ("arena" in nombre_l or "gravilla" in nombre_l or "ripio" in nombre_l):
+                # Convertimos la demanda de KG a m3 para que coincida con el precio retail.
+                factor_ajustado /= 1600.0
 
-        cantidad_neta = factor_ajustado * area_neta
+            if "cemento" in nombre_l:
+                # Los rendimientos brutos son kg de cemento, pero en retail se venden en sacos de 25kg
+                # (y su precio es referenciado a un saco).
+                factor_ajustado /= 25.0
+
+            cantidad_neta = factor_ajustado * area_neta
         nesting_result = optimizar_compra_por_nesting(
-            insumo=insumo.nombre,
+            insumo=nombre_insumo,
             categoria=insumo.categoria,
             unidad_medida=insumo.unidad_medida,
             unidad_factor=getattr(r, "unidad_factor", "") or "",
@@ -604,7 +657,7 @@ def calcular_insumos(
             costo_total_simulacion += subt
 
         item = InsumoCalculado(
-            insumo=insumo.nombre,
+            insumo=nombre_insumo,
             cantidad=cantidad_calc,
             unidad=insumo.unidad_medida,
             precio_unitario=precio_unit,
