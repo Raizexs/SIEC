@@ -9,8 +9,9 @@
  *   - Auto-redirect to /login on 401.
  */
 import { useAuthStore } from "../stores/auth";
+import { resolveApiBaseUrl } from "../utils/apiBase";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const API_BASE = resolveApiBaseUrl();
 
 export class HttpError extends Error {
   constructor(status, payload, message) {

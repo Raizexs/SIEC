@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
+import { resolveApiBaseUrl } from '../utils/apiBase';
 import { useProMotion } from '../composables/useProMotion';
 import { useLayoutManager } from '../composables/useLayoutManager';
 import { getMotionPreference, setMotionPreference } from '../design/motionTokens';
@@ -123,9 +124,7 @@ const planModeBadges = computed(() => {
   return badges;
 });
 
-const apiBaseUrl = computed(
-  () => import.meta.env.VITE_API_URL || 'http://localhost:8000',
-);
+const apiBaseUrl = computed(() => resolveApiBaseUrl());
 
 const integrationCards = computed(() => {
   const supabaseConnected = Boolean(auth.session);

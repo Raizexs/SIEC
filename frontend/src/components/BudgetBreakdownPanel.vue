@@ -14,6 +14,7 @@ import { toast } from 'vue-sonner';
 import { exportBudget, getMaterialLabel } from '../utils/budgetExporter';
 import { captureSceneImage } from '../proposal/proposalSceneCapture';
 import { resolveBrandLogoUrl } from '../proposal/proposalBrand';
+import { resolveApiBaseUrl } from '../utils/apiBase';
 
 const { t } = useI18n();
 const recintosStore = useRecintosStore();
@@ -162,9 +163,7 @@ const fetchBudget = async () => {
   error.value = null;
 
   try {
-    const baseUrl =
-      import.meta.env.VITE_API_URL ||
-      (import.meta.env.DEV ? 'http://localhost:8000' : '');
+    const baseUrl = resolveApiBaseUrl();
 
     const counts = buildSelectedCounts();
 

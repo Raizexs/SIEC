@@ -6,7 +6,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "http://10.51.0.26:8000/api/:path*"
+      "destination": "https://api.siec.app/api/:path*"
     }
   ]
 }

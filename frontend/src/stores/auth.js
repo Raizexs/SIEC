@@ -2,6 +2,7 @@ import logger from '../utils/logger.js';
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
+import { resolveApiBaseUrl } from '../utils/apiBase';
 
 /**
  * Hybrid Auth Store
@@ -130,7 +131,7 @@ export const useAuthStore = defineStore('auth', () => {
   const loadProfile = async () => {
     if (!user.value) return;
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const apiUrl = resolveApiBaseUrl();
       const res = await fetch(`${apiUrl}/me`, {
         headers: { Authorization: `Bearer ${accessToken.value}` },
       });

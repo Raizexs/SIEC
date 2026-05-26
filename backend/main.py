@@ -82,7 +82,7 @@ except Exception as _obs_exc:
 
 # CORS — origins are configurable via env to support staging/production.
 # In dev, defaults cover localhost + LAN IP from previous setup.
-_default_origins = "http://localhost:5173,http://127.0.0.1:5173,http://10.51.0.26:5173"
+_default_origins = "http://localhost:5173,http://127.0.0.1:5173,http://10.51.0.26:5173,https://proyectsiec.vercel.app,https://proyectsiec-git-scrum-120-implementar-soporte-completo-para-materialidad-met.vercel.app"
 ALLOWED_ORIGINS = [
     origin.strip()
     for origin in os.getenv("ALLOWED_ORIGINS", _default_origins).split(",")
