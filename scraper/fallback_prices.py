@@ -5,6 +5,9 @@ Precios de respaldo verificados. IDs corregidos segun orden real de la DB
 (init.sql: Obra Gruesa 1-15, Terminaciones 16-24, Instalaciones 25-34, MO 35-38).
 """
 
+from typing import Optional
+
+
 FALLBACK_PRICES = {
     # === Obra Gruesa ===
     1: {  # Cemento Portland (saco 25kg)
@@ -180,6 +183,64 @@ FALLBACK_PRICES = {
         "construmart": {"nombre_producto": "Disyuntor 16A", "precio": 5690, "url": ""},
     },
 }
+
+
+REFERENCE_QUERY_IDS = {
+    "perfil c 60x38mm 3m": 7,
+    "perfil u 62x25mm 3m": 8,
+    "tornillo autoperforante caja 100un": 15,
+}
+
+REFERENCE_KEYWORDS = {
+    "perfil c 60x38mm 3m": ["perfil metalcon c", "perfil c 60x38", "perfil c"],
+    "perfil u 62x25mm 3m": ["perfil metalcon u", "perfil u 62x25", "canal u", "perfil u"],
+    "tornillo autoperforante caja 100un": [
+        "tornillo autoperforante",
+        "tornillo punta broca",
+        "tornillo metalcon",
+    ],
+}
+
+
+def _normalize(text: str) -> str:
+    return " ".join((text or "").strip().lower().split())
+
+
+def _reference_key(query: str) -> Optional[str]:
+    normalized = _normalize(query)
+    for key, keywords in REFERENCE_KEYWORDS.items():
+        if normalized == key or any(keyword in normalized for keyword in keywords):
+            return key
+    return None
+
+
+def _fallback_url(query: str) -> str:
+    return f"fallback://{_normalize(query).replace(' ', '-')}"
+
+
+def lookup_reference_offer(query: str, tienda: str, insumo_id: Optional[int] = None) -> Optional[dict]:
+    """Retorna una oferta referencial para insumos Metalcon cuando el scraping falla."""
+    key = _reference_key(query)
+    if not key:
+        return None
+
+    reference_id = REFERENCE_QUERY_IDS[key]
+    store_prices = FALLBACK_PRICES.get(reference_id, {})
+    offer = store_prices.get(tienda) or next(iter(store_prices.values()), None)
+    if not offer or not offer.get("precio"):
+        return None
+
+    return {
+        "tienda": tienda,
+        "url": offer.get("url") or _fallback_url(query),
+        "nombre_producto": offer["nombre_producto"],
+        "precio": float(offer["precio"]),
+        "precio_descuento": None,
+        "stock": "Referencia",
+        "categoria": "Obra Gruesa",
+        "insumo_id": insumo_id,
+        "exitoso": True,
+    }
 
 
 def get_fallback_results(insumos: list[dict]) -> list[dict]:

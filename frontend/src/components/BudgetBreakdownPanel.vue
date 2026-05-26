@@ -26,6 +26,7 @@ const props = defineProps({
   terrenoAncho: { type: Number, default: 15 },
   terrenoLargo: { type: Number, default: 7 },
   alturaMuroM: { type: Number, default: 2.44 },
+  perimetroMl: { type: Number, default: null },
 });
 
 const isLoading = ref(false);
@@ -39,6 +40,9 @@ const exportFormat = ref(null);
 const exportMenuRef = ref(null);
 
 const perimetroMl = computed(() => {
+  if (props.perimetroMl != null && props.perimetroMl > 0) {
+    return props.perimetroMl;
+  }
   const a = Number(props.terrenoAncho) || 15;
   const l = Number(props.terrenoLargo) || 7;
   return 2 * (a + l);
@@ -120,6 +124,23 @@ const handleGenerateBudget = () => {
   fetchBudget();
 };
 
+const selectedBudgetRooms = computed(() => {
+  const selectedIds = recintosStore.selectedForBudget;
+  const rooms = recintosStore.recintos || [];
+  const selected = rooms.filter((room) => selectedIds?.has?.(room.id));
+
+  return selected.length > 0 ? selected : rooms;
+});
+
+const buildLayoutRecintosPayload = () =>
+  selectedBudgetRooms.value.map((room) => ({
+    piso: room.piso || 1,
+    coords_x: room.coords?.x ?? 0,
+    coords_z: room.coords?.z ?? 0,
+    width: room.dimensions?.w ?? 0,
+    length: room.dimensions?.l ?? 0,
+  }));
+
 const fetchBudget = async () => {
   if (!hasGenerated.value) return;
 
@@ -158,6 +179,11 @@ const fetchBudget = async () => {
       `${baseUrl}/api/simulacion/${simData.idSimulacion}/calcular-insumos`,
       {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          area_bruta_m2: Math.max(1, Math.round(props.m2Totales)),
+          recintos: buildLayoutRecintosPayload(),
+        }),
       },
     );
 

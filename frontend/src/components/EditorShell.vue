@@ -31,6 +31,7 @@ import { useWorkspaceStore } from '../stores/workspace';
 import { useTokenCounter } from '../composables/useTokenCounter';
 import { useLayoutManager } from '../composables/useLayoutManager';
 import { useI18n } from '../composables/useI18n';
+import { useTopologyComputed } from '../composables/useTopologyComputed';
 import { toast } from 'vue-sonner';
 import { generateCommercialPDF } from '../utils/pdfGenerator';
 import {
@@ -52,6 +53,7 @@ const props = defineProps({
 const recintosStore = useRecintosStore();
 const workspaceStore = useWorkspaceStore();
 const authStore = useAuthStore();
+const { totalWallLength } = useTopologyComputed();
 const {
   saveLayout,
   createPresetLayout,
@@ -644,8 +646,7 @@ const startTutorial = () => {
               v-if="recintosStore.selectedM2 > 0"
               :m2Totales="recintosStore.selectedM2"
               :materialEstructuralId="formData.materialEstructuralId"
-              :terrenoAncho="formData.terrenoAncho"
-              :terrenoLargo="formData.terrenoLargo"
+              :perimetroMl="Number(totalWallLength)"
               :alturaMuroM="2.44"
             />
           </section>

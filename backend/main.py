@@ -45,9 +45,19 @@ except ModuleNotFoundError:
         DIMENSIONES_COMERCIALES,
     )
 try:
-    from techumbre import calcular_partida_techumbre
+    from techumbre import (
+        calcular_partida_techumbre,
+        cantidad_insumo_metalcon,
+        es_metalcon_material,
+        nombre_insumo_metalcon,
+    )
 except ModuleNotFoundError:
-    from backend.techumbre import calcular_partida_techumbre
+    from backend.techumbre import (
+        calcular_partida_techumbre,
+        cantidad_insumo_metalcon,
+        es_metalcon_material,
+        nombre_insumo_metalcon,
+    )
 
 # Importar configuración de BD y Modelos
 from database import engine, get_db, SessionLocal
@@ -299,6 +309,28 @@ def normalize_string(s: str) -> str:
     """Remueve acentos y pasa a minúsculas para comparaciones robustas."""
     return "".join(c for c in unicodedata.normalize('NFD', s.lower()) if unicodedata.category(c) != 'Mn')
 
+
+def _es_material_metalcon(material_id: int) -> bool:
+    return es_metalcon_material(material_id)
+
+
+def _nombre_insumo_para_material(material_id: int, nombre_insumo: str) -> str:
+    if not _es_material_metalcon(material_id):
+        return nombre_insumo
+    return nombre_insumo_metalcon(nombre_insumo)
+
+
+def _cantidad_base_metalcon(
+    material_id: int,
+    nombre_insumo: str,
+    area_bruta_m2: float,
+    recintos: list[dict],
+) -> Optional[float]:
+    if not _es_material_metalcon(material_id):
+        return None
+    return cantidad_insumo_metalcon(nombre_insumo, area_bruta_m2, recintos)
+
+
 class RecintoGeometrico(BaseModel):
     tipo: str = Field(..., description="Nombre del tipo de recinto (ej. 'Habitación', 'Baño')")
     ancho: float = Field(..., description="Ancho geométrico del recinto en metros")
@@ -392,6 +424,16 @@ def calcular_insumos(
     cortes_1d_payload = [
         (float(cut.largo), int(cut.cantidad))
         for cut in (payload.cortes_1d if payload else [])
+    ]
+    recintos_payload = [
+        {
+            "piso": int(getattr(recinto, "piso", 1)),
+            "coords_x": float(getattr(recinto, "coords_x", 0.0)),
+            "coords_z": float(getattr(recinto, "coords_z", 0.0)),
+            "width": float(getattr(recinto, "width", 0.0)),
+            "length": float(getattr(recinto, "length", 0.0)),
+        }
+        for recinto in (payload.recintos if payload else [])
     ]
     material_id = simulacion.material_estructural_id
 
@@ -539,7 +581,6 @@ def calcular_insumos(
 
     total_studs = 0
     total_soleras = 0
-    area_muro_neta = perimetro_ml * altura_muro_m if perimetro_ml > 0 and altura_muro_m > 0 else 0.0
 
     def _clasificar_insumo(nombre_l: str, cat_l: str) -> str:
         if any(k in nombre_l for k in ["solera", "montante", "pie derecho", "paral"]):
@@ -553,6 +594,7 @@ def calcular_insumos(
             "placa fibrocemento", "terciado", "plywood", "panel muro",
             "revestimiento mural", "muro perimetral", "m fm",
             "tabiquería", "tabiqueria", "tabique interior",
+            "volcanita rh", "volcanita reforzado",
         ]):
             return "revestimiento_muro"
         if incluir_techumbre and any(k in nombre_l for k in [
@@ -567,12 +609,25 @@ def calcular_insumos(
         return "generico"
 
     for r, insumo in datos_rendimiento:
+        nombre_insumo = _nombre_insumo_para_material(material_id, insumo.nombre)
+        cantidad_override = _cantidad_base_metalcon(
+            material_id,
+            insumo.nombre,
+            area_bruta,
+            recintos_payload,
+        )
         nombre_l = (insumo.nombre or "").lower()
         cat_l = (insumo.categoria or "").lower()
         familia = _clasificar_insumo(nombre_l, cat_l)
+        if familia in ("estructura_muro", "revestimiento_muro") and perimetro_ml <= 0:
+            familia = "generico"
 
         # ── Cálculo por familia ───────────────────────────────────────────────
-        if familia == "estructura_muro" and perimetro_ml > 0:
+        if cantidad_override is not None:
+            cantidad_neta = cantidad_override
+            nesting_result = None
+
+        elif familia == "estructura_muro" and perimetro_ml > 0:
             dim = obtener_dimensiones(insumo.nombre, insumo.categoria or "")
             largo_pieza = dim.get("largo_lineal_m", 3.2)
             desc_l = (getattr(insumo, "descripcion", "") or "").lower()
@@ -649,7 +704,7 @@ def calcular_insumos(
                 piezas_2d=piezas_2d_payload,
                 cortes_1d=cortes_1d_payload,
             )
-        if familia in ("estructura_muro", "revestimiento_muro"):
+        if cantidad_override is not None or familia in ("estructura_muro", "revestimiento_muro"):
             # Estas familias ya calcularon piezas enteras con merma incluida
             factor_perdida = 1.0
             cantidad_calc = cantidad_neta
@@ -666,6 +721,11 @@ def calcular_insumos(
                 cruces_acero=cruces_acero,
             )
             cantidad_calc = cantidad_neta * factor_perdida
+            unidad_l = (insumo.unidad_medida or "").strip().lower()
+            if unidad_l in ("caja", "unidad", "saco", "pack", "kit", "juego"):
+                cantidad_calc = math.ceil(cantidad_calc)
+            elif any(k in nombre_l for k in ("tornillo", "clavo", "perno", "fijacion")):
+                cantidad_calc = math.ceil(cantidad_calc)
         volumen_neto_previo += cantidad_neta
         volumen_compensado_pre_cotizacion += cantidad_calc
 
@@ -673,6 +733,8 @@ def calcular_insumos(
         precio_record = latest_precio_record.get(insumo.id)
         tienda_insumo = getattr(precio_record, 'tienda', None) if precio_record else None
         url_insumo = getattr(precio_record, 'url', None) if precio_record else None
+        if url_insumo is not None and not isinstance(url_insumo, str):
+            url_insumo = None
         precio_unit_normalized = None
         subt = None
         if precio_unit is not None:
@@ -720,17 +782,25 @@ def calcular_insumos(
         )
 
         item = InsumoCalculado(
-            insumo=insumo.nombre,
+            insumo=nombre_insumo,
             cantidad=cantidad_calc,
             unidad=insumo.unidad_medida,
             precio_unitario=precio_unit,
             subtotal=subt,
             tienda=tienda_insumo,
             url_producto=url_insumo,
-            cantidad_objetivo=None,
-            cantidad_compra=None,
+            cantidad_objetivo=(
+                cantidad_neta
+                if cantidad_override is not None
+                else (nesting_result.get("cantidad_objetivo") if nesting_result else None)
+            ),
+            cantidad_compra=(
+                cantidad_calc
+                if cantidad_override is not None
+                else (nesting_result.get("cantidad_compra") if nesting_result else None)
+            ),
             perdida_porcentual=(factor_perdida - 1.0) * 100.0,
-            metodo_optimizacion=None,
+            metodo_optimizacion=nesting_result.get("metodo") if nesting_result else None,
             formato_comercial=formato_final,
         )
         categorias_dict[insumo.categoria].append(item)

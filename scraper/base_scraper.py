@@ -26,6 +26,7 @@ except ImportError:
 
 from models import ResultadoScraping, KEYWORD_INSUMO_MAP
 from normalizer import FuzzyNormalizer
+from fallback_prices import lookup_reference_offer
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +150,13 @@ class BaseScraper(ABC):
         try:
             candidatos = self._scrape_search_results(page, query)
             if not candidatos:
+                fallback = lookup_reference_offer(query, self.store_key, insumo_id)
+                if fallback:
+                    self.logger.info(
+                        f"[{self.store_key}] Fallback de referencia para '{query}': "
+                        f"'{fallback['nombre_producto']}' (${fallback['precio']})"
+                    )
+                    return fallback
                 self.logger.warning(f"[{self.store_key}] No se encontraron resultados para '{query}'")
                 return None
 
@@ -164,6 +172,14 @@ class BaseScraper(ABC):
                 mejor_match["insumo_id"] = insumo_id
                 self._normalize_prices_by_insumo_unit(mejor_match)
                 return mejor_match
+
+            fallback = lookup_reference_offer(query, self.store_key, insumo_id)
+            if fallback:
+                self.logger.info(
+                    f"[{self.store_key}] Fallback de referencia tras fuzzy fail para '{query}': "
+                    f"'{fallback['nombre_producto']}' (${fallback['precio']})"
+                )
+                return fallback
 
             self.logger.warning(f"[{self.store_key}] ⚠️  Ningún resultado de búsqueda superó el umbral de confianza para '{query}'")
             return None

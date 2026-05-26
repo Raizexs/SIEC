@@ -98,9 +98,9 @@ def test_calculo_insumos_aplica_deduccion_vanos_y_mermas():
         id=1,
         m2_totales=100,
         material_estructural_id=1,
-        habitaciones=0,
-        banios=0,
-        areas_comunes=0,
+        perimetro_ml=40,
+        altura_muro_m=2.44,
+        incluir_techumbre=False,
     )
     session.add_all([rendimiento, precio, simulacion])
     session.commit()
@@ -115,10 +115,10 @@ def test_calculo_insumos_aplica_deduccion_vanos_y_mermas():
     assert abs(result.area_vanos_m2 - 4.0) < 1e-6
     assert abs(result.area_neta_m2 - 96.0) < 1e-6
     assert abs(result.volumen_neto_previo - 96.0) < 1e-6
-    assert abs(result.volumen_compensado_pre_cotizacion - (96.0 * 1.05)) < 1e-6
+    assert abs(result.volumen_compensado_pre_cotizacion - 101.0) < 1e-6
 
     item = result.desglose[0].items[0]
-    assert abs(item.cantidad - (96.0 * 1.05)) < 1e-6
-    assert abs(item.subtotal - (96.0 * 1.05 * 1000.0)) < 1e-6
+    assert abs(item.cantidad - 101.0) < 1e-6
+    assert abs(item.subtotal - 101000.0) < 1e-6
 
     session.close()

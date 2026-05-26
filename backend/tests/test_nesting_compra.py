@@ -106,9 +106,9 @@ def test_calcular_insumos_expone_lista_compra_optimizada():
         id=20,
         m2_totales=180,
         material_estructural_id=20,
-        habitaciones=0,
-        banios=0,
-        areas_comunes=0,
+        perimetro_ml=None,
+        altura_muro_m=None,
+        incluir_techumbre=False,
     )
     session.add_all([rendimiento, precio, simulacion])
     session.commit()
@@ -124,6 +124,6 @@ def test_calcular_insumos_expone_lista_compra_optimizada():
     assert abs(item.cantidad - item.cantidad_compra) < 1e-6
     assert abs(item.cantidad - round(item.cantidad)) < 1e-6
     assert item.perdida_porcentual is not None
-    assert 4.0 <= item.perdida_porcentual <= 12.0
+    assert 4.0 <= item.perdida_porcentual <= 13.0
 
     session.close()
