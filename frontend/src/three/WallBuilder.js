@@ -24,6 +24,15 @@ const FACADE_PANEL_THICKNESS = 0.02;
 const PLANCHE_WIDTH = 1.22;     // standard drywall sheet
 const PLANCHE_HEIGHT = 2.44;
 
+// Modular cladding panels
+const PANEL_GAP      = 0.005;   // 5 mm visible joint between sheets
+const DRYWALL_WIDTH  = 1.20;    // Volcanita / yeso-cartón (ancho)
+const DRYWALL_HEIGHT = 2.40;    // Volcanita / yeso-cartón (alto)
+const OSB_WIDTH      = 1.22;    // OSB / terciado estructural (ancho)
+const OSB_HEIGHT     = 2.44;    // OSB / terciado estructural (alto)
+// Anti Z-Fighting
+const ZFIGHT_EPSILON = 0.001;   // offset mínimo para separar capas coplanares
+
 const PIPE_RADIUS = 0.015;
 const PIPE_HEIGHT_AGUA_FRIA = 0.35;
 const PIPE_HEIGHT_AGUA_CALIENTE = 0.55;
@@ -99,7 +108,16 @@ export class WallBuilder {
     const isExterior = wall.tipo === "exterior";
     const matType = matCfg.matTypeKey;
 
-    const faceZ = STUD_DEPTH / 2;  // inner/outer face of stud frame
+    // El extractor de topología normaliza los segmentos canónicamente
+    // (izquierda→derecha, abajo→arriba), por lo que para ~50 % de los muros
+    // el eje local +Z apunta hacia el EXTERIOR del recinto en lugar del interior.
+    // Calculamos el signo correcto comparando la dirección local +Z con el
+    // vector "centro del muro → centro del recinto adyacente".
+    const layerSign = this._layerSignForWall(wall, recintoById);
+
+    // Offsets anti Z-Fighting: el panel arranca justo en la cara del pie derecho.
+    const interiorFaceZ = layerSign  * (STUD_DEPTH / 2 + INTERIOR_PANEL_THICKNESS / 2 + ZFIGHT_EPSILON);
+    const facadeFaceZ   = -layerSign * (STUD_DEPTH / 2 + FACADE_PANEL_THICKNESS / 2 + ZFIGHT_EPSILON);
 
     // 1. Structure — stud frame with diagonal bracing
     const { group: structure, studXs } = this._buildStudFrame(length, matType, openings);
@@ -107,23 +125,18 @@ export class WallBuilder {
     structure.name = "ml-layer-structure";
     group.add(structure);
 
-    // 2. Insulation — individual batts between studs (exterior only)
-    if (isExterior) {
-      const insulation = this._buildInsulationBatts(length, studXs, openings);
-      insulation.userData.layerTags = ["insulation"];
-      insulation.name = "ml-layer-insulation";
-      group.add(insulation);
-    }
+    // 2. Insulation — omitida del render MVP visual (capa invisible por defecto)
+    void studXs; // studXs se preserva por compatibilidad futura
 
-    // 3. Interior drywall — planchas with seams, flush against inner stud face
-    const interiorPanel = this._buildPlanchaLayer(length, faceZ, matType, "interior", INTERIOR_PANEL_THICKNESS);
+    // 3. Interior drywall — planchas modulares pegadas a la cara interior
+    const interiorPanel = this._buildPlanchaLayer(length, interiorFaceZ, matType, "interior", INTERIOR_PANEL_THICKNESS, openings);
     interiorPanel.userData.layerTags = ["interior"];
     interiorPanel.name = "ml-layer-interior";
     group.add(interiorPanel);
 
-    // 4. Facade — flush against outer stud face (exterior only)
+    // 4. Facade — planchas OSB pegadas a la cara exterior (sólo muros exteriores)
     if (isExterior) {
-      const facadePanel = this._buildFacadeLayer(length, -faceZ, matType);
+      const facadePanel = this._buildFacadeLayer(length, facadeFaceZ, matType, openings);
       facadePanel.userData.layerTags = ["facade"];
       facadePanel.name = "ml-layer-facade";
       group.add(facadePanel);
@@ -138,11 +151,96 @@ export class WallBuilder {
       group.add(pipes);
     }
 
+    // 6. Door/window frames and glass panes in each opening
+    if (openings.length > 0) {
+      const framesGroup = this._buildOpeningFrames(openings, length, isExterior);
+      framesGroup.userData.layerTags = ["facade", "interior"];
+      framesGroup.name = "ml-layer-frames";
+      group.add(framesGroup);
+    }
+
+    return group;
+  }
+
+  _buildOpeningFrames(openings, wallLength, isExterior) {
+    const group = new THREE.Group();
+    const hy = WALL_HEIGHT / 2;
+    const totalDepth = STUD_DEPTH + FACADE_PANEL_THICKNESS + INTERIOR_PANEL_THICKNESS;
+
+    const frameMat = new THREE.MeshStandardMaterial({ color: "#D4C4A8", roughness: 0.6, metalness: 0.0 });
+    const glassMat = new THREE.MeshStandardMaterial({
+      color: "#a8d8ea",
+      roughness: 0.05,
+      metalness: 0.1,
+      transparent: true,
+      opacity: 0.35,
+    });
+
+    for (const op of openings) {
+      const cx = (op.center ?? 0.5) * wallLength - wallLength / 2;
+      const width = op.width || (op.type === "door" ? 0.9 : 1.2);
+      const height = op.height || (op.type === "door" ? 2.05 : 1.2);
+      const sill = op.type === "door" ? 0 : (op.sillHeight ?? 1.0);
+      const localY = sill + height / 2 - hy;
+      const frameT = 0.05;
+
+      // Jambs (left and right verticals)
+      for (const side of [-1, 1]) {
+        const jamb = new THREE.Mesh(
+          new THREE.BoxGeometry(frameT, height, totalDepth),
+          frameMat.clone(),
+        );
+        jamb.position.set(cx + side * (width / 2 + frameT / 2), localY, 0);
+        jamb.castShadow = true;
+        group.add(jamb);
+      }
+
+      // Header (top horizontal)
+      const header = new THREE.Mesh(
+        new THREE.BoxGeometry(width + frameT * 2, frameT, totalDepth),
+        frameMat.clone(),
+      );
+      header.position.set(cx, sill + height - hy + frameT / 2, 0);
+      header.castShadow = true;
+      group.add(header);
+
+      // Sill (bottom horizontal, windows only)
+      if (op.type === "window") {
+        const sillMesh = new THREE.Mesh(
+          new THREE.BoxGeometry(width + frameT * 2, frameT, totalDepth),
+          frameMat.clone(),
+        );
+        sillMesh.position.set(cx, sill - hy - frameT / 2, 0);
+        sillMesh.castShadow = true;
+        group.add(sillMesh);
+
+        // Glass pane (exterior walls only)
+        if (isExterior) {
+          const glass = new THREE.Mesh(
+            new THREE.BoxGeometry(width - frameT, height - frameT * 2, 0.006),
+            glassMat.clone(),
+          );
+          glass.position.set(cx, localY, 0);
+          group.add(glass);
+        }
+      }
+    }
+
     return group;
   }
 
   // ── Builders ──────────────────────────────────────────────────────────
 
+  /**
+   * Genera el esqueleto de entramado ligero conforme a norma NCh:
+   *   • Solera inferior continua
+   *   • Doble solera superior superpuesta
+   *   • Pie derechos a 40 cm eje a eje, anclados en ambos extremos del muro
+   *   • Cadenetas (noggins) horizontales a 1.22 m del piso — coinciden con
+   *     el borde superior de las planchas de revestimiento
+   *   • Riostras diagonales que nacen y mueren en nodos estructurales reales
+   *     (esquina superior ↔ base opuesta), sin quedar "flotando"
+   */
   _buildStudFrame(length, matType, openings = []) {
     const group = new THREE.Group();
     const hy = WALL_HEIGHT / 2;
@@ -153,9 +251,9 @@ export class WallBuilder {
 
     const openingZones = openings.map((op) => {
       const center = (op.center ?? 0.5) * length - length / 2;
-      const width = op.width || (op.type === "door" ? 0.9 : 1.2);
+      const width  = op.width  || (op.type === "door" ? 0.9  : 1.2);
       const height = op.height || (op.type === "door" ? 2.05 : 1.2);
-      const sill = op.type === "door" ? 0 : (op.sillHeight ?? 1.0);
+      const sill   = op.type === "door" ? 0 : (op.sillHeight ?? 1.0);
       return {
         type: op.type,
         xMin: center - width / 2,
@@ -176,7 +274,7 @@ export class WallBuilder {
       metalness: isMetal ? 0.25 : 0.0,
     });
 
-    // Bottom plate
+    // ── Solera inferior ───────────────────────────────────────────────
     const bp = new THREE.Mesh(
       new THREE.BoxGeometry(length, PLATE_HEIGHT, PLATE_WIDTH),
       plateMat.clone(),
@@ -185,7 +283,9 @@ export class WallBuilder {
     bp.castShadow = true; bp.receiveShadow = true;
     group.add(bp);
 
-    // Double top plate
+    // ── Doble solera superior ─────────────────────────────────────────
+    // tp1 = plato superior (toca la losa / cubierta)
+    // tp2 = plato inferior de la doble solera (sobre los pie derechos)
     const tp1 = new THREE.Mesh(
       new THREE.BoxGeometry(length, PLATE_HEIGHT, PLATE_WIDTH),
       plateMat.clone(),
@@ -202,15 +302,25 @@ export class WallBuilder {
     tp2.castShadow = true; tp2.receiveShadow = true;
     group.add(tp2);
 
-    // Stud positions — inset first/last so they don't protrude past wall ends
-    const studXs = [];
-    const numStuds = Math.floor(length / STUD_SPACING) + 1;
-    const startX = -length / 2 + STUD_WIDTH / 2;
-    for (let i = 0; i < numStuds; i++) {
-      const x = startX + i * STUD_SPACING;
-      if (x > length / 2 - STUD_WIDTH / 2) break;
-      studXs.push(x);
+    // ── Geometría de los pie derechos ─────────────────────────────────
+    // Altura real del pie derecho: entre cara superior de solera inferior y
+    // cara inferior del segundo plato de la doble solera.
+    const studBottom  = -hy + PLATE_HEIGHT;          // cara superior solera inferior
+    const studTop     =  hy - 2 * PLATE_HEIGHT;      // cara inferior del plato tp2
+    const studHeight  = studTop - studBottom;
+    const studCenterY = (studBottom + studTop) / 2;
+
+    // ── Posiciones de pie derechos: 40 cm eje a eje ───────────────────
+    // Siempre incluye un pie derecho en cada extremo del muro.
+    const firstX = -length / 2 + STUD_WIDTH / 2;
+    const lastX  =  length / 2 - STUD_WIDTH / 2;
+    const studXs = [firstX];
+    let sx = firstX + STUD_SPACING;
+    while (sx < lastX - STUD_SPACING * 0.1) {
+      studXs.push(sx);
+      sx += STUD_SPACING;
     }
+    if (length > STUD_WIDTH * 2 + 0.01) studXs.push(lastX);
 
     for (let i = 0; i < studXs.length; i++) {
       const x = studXs[i];
@@ -225,7 +335,8 @@ export class WallBuilder {
       );
 
       if (winZone) {
-        const aboveH = hy - winZone.yMax;
+        // Tramo sobre la ventana (entre dintel y solera superior)
+        const aboveH = studTop - winZone.yMax;
         if (aboveH > 0.01) {
           const s = new THREE.Mesh(
             new THREE.BoxGeometry(STUD_WIDTH, aboveH, STUD_DEPTH),
@@ -234,61 +345,101 @@ export class WallBuilder {
           s.position.set(x, winZone.yMax + aboveH / 2, 0);
           s.castShadow = true; group.add(s);
         }
-        const belowH = winZone.yMin - (-hy + PLATE_HEIGHT);
+        // Tramo bajo la ventana (entre solera inferior y alféizar)
+        const belowH = winZone.yMin - studBottom;
         if (belowH > 0.01) {
           const s = new THREE.Mesh(
             new THREE.BoxGeometry(STUD_WIDTH, belowH, STUD_DEPTH),
             studMat.clone(),
           );
-          s.position.set(x, -hy + PLATE_HEIGHT + belowH / 2, 0);
+          s.position.set(x, studBottom + belowH / 2, 0);
           s.castShadow = true; group.add(s);
         }
         continue;
       }
 
+      // Pie derecho completo — altura exacta entre ambas soleras
       const stud = new THREE.Mesh(
-        new THREE.BoxGeometry(STUD_WIDTH, WALL_HEIGHT, STUD_DEPTH),
+        new THREE.BoxGeometry(STUD_WIDTH, studHeight, STUD_DEPTH),
         studMat.clone(),
       );
-      stud.position.set(x, 0, 0);
+      stud.position.set(x, studCenterY, 0);
       stud.castShadow = true; stud.receiveShadow = true;
       group.add(stud);
     }
 
-    // Diagonal bracing — every 4th bay
+    // ── Cadenetas a 1.22 m del piso ──────────────────────────────────
+    // Coinciden con el borde horizontal de las planchas de revestimiento,
+    // evitan el pandeo de los pie derechos y rigidizan el sistema.
+    const nogginY   = -hy + 1.22;
+    const nogginMat = new THREE.MeshStandardMaterial({
+      color: woodBase,
+      roughness: 0.65,
+      metalness: isMetal ? 0.3 : 0.0,
+    });
+
+    for (let i = 0; i < studXs.length - 1; i++) {
+      const nx1 = studXs[i]     + STUD_WIDTH / 2;
+      const nx2 = studXs[i + 1] - STUD_WIDTH / 2;
+      const nw  = nx2 - nx1;
+      if (nw < 0.01) continue;
+
+      // Omitir si la cadeneta cae dentro de una apertura
+      const bayMid  = (studXs[i] + studXs[i + 1]) / 2;
+      const blocked = openingZones.some(
+        (z) => z.xMin <= bayMid && z.xMax >= bayMid
+            && z.yMin <= nogginY + PLATE_HEIGHT / 2
+            && z.yMax >= nogginY - PLATE_HEIGHT / 2,
+      );
+      if (blocked) continue;
+
+      const noggin = new THREE.Mesh(
+        new THREE.BoxGeometry(nw, PLATE_HEIGHT, STUD_DEPTH),
+        nogginMat.clone(),
+      );
+      noggin.position.set((nx1 + nx2) / 2, nogginY, 0);
+      noggin.castShadow = true;
+      group.add(noggin);
+    }
+
+    // ── Riostras diagonales ───────────────────────────────────────────
+    // Cada riostra nace en un nodo de esquina de la trama (unión solera /
+    // pie derecho extremo) y desciende en ángulo ~55° hasta la solera
+    // opuesta cruzando los pie derechos intermedios.
+    // Se añade una desde cada extremo del muro (una "V" abierta).
     const braceMat = new THREE.MeshStandardMaterial({
       color: woodBase,
       roughness: 0.6,
       metalness: isMetal ? 0.3 : 0.0,
     });
 
-    for (let i = 0; i < studXs.length - 1; i++) {
-      if (i % 4 !== 0) continue;
+    // Span horizontal de 3 vanos (3 × 40 cm = 1.2 m) → ángulo ≈ 60.6°
+    const BRACE_SPAN = STUD_SPACING * 3;
+    const braceLen   = Math.hypot(BRACE_SPAN, studHeight);
+    const diagAngle  = Math.atan2(studHeight, BRACE_SPAN);
 
-      const x1 = studXs[i];
-      const x2 = studXs[i + 1];
-      if (!x1 || !x2) continue;
-
-      const midX = (x1 + x2) / 2;
-      const bayWidth = x2 - x1;
-      if (bayWidth < STUD_SPACING * 0.8) continue;
-
-      const bayInOpening = openingZones.some(
-        (z) => z.xMin < x2 && z.xMax > x1,
-      );
-      if (bayInOpening) continue;
-
-      const diagLen = Math.hypot(bayWidth, WALL_HEIGHT) * 0.92;
-      const diagAngle = Math.atan2(WALL_HEIGHT, bayWidth);
-
+    const addBrace = (centerX, rotZ) => {
+      const bx1 = centerX - BRACE_SPAN / 2;
+      const bx2 = centerX + BRACE_SPAN / 2;
+      const inOpening = openingZones.some((z) => z.xMin < bx2 && z.xMax > bx1);
+      if (inOpening) return;
       const brace = new THREE.Mesh(
-        new THREE.BoxGeometry(diagLen, STUD_WIDTH * 0.55, STUD_DEPTH * 0.3),
+        new THREE.BoxGeometry(braceLen, STUD_WIDTH * 0.7, STUD_DEPTH * 0.35),
         braceMat.clone(),
       );
-      brace.position.set(midX, 0, 0);
-      brace.rotation.z = diagAngle;
+      brace.position.set(centerX, studCenterY, 0);
+      brace.rotation.z = rotZ;
       brace.castShadow = true;
       group.add(brace);
+    };
+
+    // Riostra izquierda: desciende de esquina sup-izq → inf-der
+    if (length >= BRACE_SPAN + STUD_WIDTH) {
+      addBrace(firstX + BRACE_SPAN / 2, -diagAngle);
+    }
+    // Riostra derecha: desciende de esquina sup-der → inf-izq (espejada)
+    if (length >= BRACE_SPAN * 2 + STUD_WIDTH * 2 + 0.05) {
+      addBrace(lastX - BRACE_SPAN / 2, diagAngle);
     }
 
     return { group, studXs };
@@ -300,7 +451,12 @@ export class WallBuilder {
   _buildInsulationBatts(length, studXs, openings = []) {
     const group = new THREE.Group();
     const hy = WALL_HEIGHT / 2;
-    const battDepth = STUD_DEPTH * 0.85;
+    // Center the batt in the cavity between facade inner face and interior panel inner face
+    // so it doesn't poke through either panel when viewed from the wall sides.
+    const cavityOuter = -STUD_DEPTH / 2 + FACADE_PANEL_THICKNESS / 2; // facade inner face
+    const cavityInner =  STUD_DEPTH / 2 - INTERIOR_PANEL_THICKNESS / 2; // interior inner face
+    const battZ = (cavityOuter + cavityInner) / 2;
+    const battDepth = (cavityInner - cavityOuter) * 0.92;
 
     const insulMat = new THREE.MeshStandardMaterial({
       color: "#F0A0B0",
@@ -337,7 +493,7 @@ export class WallBuilder {
         new THREE.BoxGeometry(bayW, WALL_HEIGHT, battDepth),
         insulMat.clone(),
       );
-      batt.position.set(bayX + bayW / 2, 0, 0);
+      batt.position.set(bayX + bayW / 2, 0, battZ);
       batt.castShadow = true; batt.receiveShadow = true;
       group.add(batt);
 
@@ -353,7 +509,7 @@ export class WallBuilder {
             new THREE.BoxGeometry(bayW, belowH, battDepth),
             insulMat.clone(),
           );
-          b.position.set(bayX + bayW / 2, -hy + PLATE_HEIGHT + belowH / 2, 0);
+          b.position.set(bayX + bayW / 2, -hy + PLATE_HEIGHT + belowH / 2, battZ);
           b.castShadow = true; group.add(b);
         }
         const aboveH = WALL_HEIGHT - winZone.yMax;
@@ -362,7 +518,7 @@ export class WallBuilder {
             new THREE.BoxGeometry(bayW, aboveH, battDepth),
             insulMat.clone(),
           );
-          b.position.set(bayX + bayW / 2, hy - aboveH / 2, 0);
+          b.position.set(bayX + bayW / 2, hy - aboveH / 2, battZ);
           b.castShadow = true; group.add(b);
         }
       }
@@ -372,96 +528,232 @@ export class WallBuilder {
   }
 
   /**
-   * Interior drywall — individual planchas (1.22m x 2.44m) with seams.
-   * Flush against inner face of studs at z = faceZ.
+   * Capa de revestimiento interior (yeso-cartón / Volcanita).
+   * Planchas modulares de DRYWALL_WIDTH × DRYWALL_HEIGHT con junta visible
+   * de PANEL_GAP entre cada unidad. Las juntas verticales coinciden con los
+   * pie derechos (DRYWALL_WIDTH = 3 × STUD_SPACING = 1.20 m).
+   * La capa se posiciona pegada a la cara interior del entramado (faceZ ya
+   * viene desplazado para evitar Z-Fighting).
    */
-  _buildPlanchaLayer(length, faceZ, matType, layer, panelThickness) {
+  _buildPlanchaLayer(length, faceZ, matType, layer, panelThickness, openings = []) {
     const group = new THREE.Group();
     const hy = WALL_HEIGHT / 2;
     const mat = this.materialLibrary.getLayerMaterial(matType, layer);
 
-    // Planchas are horizontal in standard construction (long side horizontal)
-    const numPanels = Math.ceil(length / PLANCHE_WIDTH);
-    const seamGap = 0.003;
+    const isInterior = layer === "interior";
+    const panelW = isInterior ? DRYWALL_WIDTH  : OSB_WIDTH;
+    const panelH = isInterior ? DRYWALL_HEIGHT : OSB_HEIGHT;
 
-    const seamMat = new THREE.MeshStandardMaterial({
-      color: "#D0C8C0",
-      roughness: 0.9,
-      metalness: 0.0,
+    const opZones = openings.map((op) => {
+      const center = (op.center ?? 0.5) * length - length / 2;
+      const width  = op.width  || (op.type === "door" ? 0.9  : 1.2);
+      const height = op.height || (op.type === "door" ? 2.05 : 1.2);
+      const sill   = op.type === "door" ? 0 : (op.sillHeight ?? 1.0);
+      return {
+        xMin: center - width / 2,
+        xMax: center + width / 2,
+        yMin: sill - hy,
+        yMax: sill + height - hy,
+      };
     });
 
-    for (let i = 0; i < numPanels; i++) {
-      const panelX = -length / 2 + i * PLANCHE_WIDTH;
-      let panelW = PLANCHE_WIDTH;
-      if (panelX + panelW > length / 2) {
-        panelW = length / 2 - panelX;
-      }
-      if (panelW < 0.05) continue;
-
-      // Main panel
+    const addPanel = (x1, x2, y1, y2) => {
+      const w = x2 - x1;
+      const h = y2 - y1;
+      if (w < 0.01 || h < 0.01) return;
       const panel = new THREE.Mesh(
-        new THREE.BoxGeometry(panelW - seamGap, WALL_HEIGHT, panelThickness),
+        new THREE.BoxGeometry(w, h, panelThickness),
         mat.clone(),
       );
-      panel.position.set(panelX + panelW / 2, 0, faceZ);
-      panel.castShadow = true; panel.receiveShadow = true;
+      panel.position.set((x1 + x2) / 2, (y1 + y2) / 2, faceZ);
+      panel.castShadow = true;
+      panel.receiveShadow = true;
       group.add(panel);
+    };
 
-      // Seam line between panels (joint compound)
-      if (i < numPanels - 1) {
-        const seamX = panelX + panelW;
-        const seam = new THREE.Mesh(
-          new THREE.BoxGeometry(seamGap * 2, WALL_HEIGHT, panelThickness * 1.1),
-          seamMat.clone(),
-        );
-        seam.position.set(seamX, 0, faceZ);
-        group.add(seam);
-      }
+    // Columnas de planchas (eje X): paso = panelW + PANEL_GAP
+    const columns = [];
+    let cx = -length / 2;
+    while (cx < length / 2 - 0.001) {
+      const cEnd = Math.min(cx + panelW, length / 2);
+      if (cEnd - cx > 0.01) columns.push({ x1: cx, x2: cEnd });
+      cx = cEnd + PANEL_GAP;
     }
 
-    // Horizontal seam at half height (plancha height is 2.44m, wall is 2.4m)
-    const horizSeam = new THREE.Mesh(
-      new THREE.BoxGeometry(length, seamGap * 2, panelThickness * 1.1),
-      seamMat.clone(),
-    );
-    horizSeam.position.set(0, 0, faceZ);
-    group.add(horizSeam);
+    // Filas de planchas (eje Y): paso = panelH + PANEL_GAP
+    const rows = [];
+    let ry = -hy;
+    while (ry < hy - 0.001) {
+      const rEnd = Math.min(ry + panelH, hy);
+      if (rEnd - ry > 0.01) rows.push({ y1: ry, y2: rEnd });
+      ry = rEnd + PANEL_GAP;
+    }
+
+    for (const col of columns) {
+      for (const row of rows) {
+        // ¿Esta celda cruza alguna apertura?
+        const op = opZones.find(
+          (z) => z.xMin < col.x2 && z.xMax > col.x1
+              && z.yMin < row.y2 && z.yMax > row.y1,
+        );
+
+        if (!op) {
+          addPanel(col.x1, col.x2, row.y1, row.y2);
+          continue;
+        }
+
+        // Renderizar los cuatro trozos alrededor de la apertura
+        const ox1 = Math.max(col.x1, op.xMin);
+        const ox2 = Math.min(col.x2, op.xMax);
+        const oy1 = Math.max(row.y1, op.yMin);
+        const oy2 = Math.min(row.y2, op.yMax);
+
+        addPanel(col.x1, col.x2, row.y1, oy1);  // bajo la apertura
+        addPanel(col.x1, col.x2, oy2, row.y2);  // sobre la apertura
+        addPanel(col.x1, ox1,    oy1, oy2);      // izquierda
+        addPanel(ox2,    col.x2, oy1, oy2);      // derecha
+      }
+    }
 
     return group;
   }
 
   /**
-   * Facade layer — flush against outer face of studs.
-   * Shows material-specific finish (siding planks, brick, etc).
+   * Capa de revestimiento exterior.
+   * • Mampostería / hormigón → paneles continuos con textura de la biblioteca.
+   * • Entramado madera / metalcon → planchas OSB 1.22 × 2.44 m a color
+   *   madera cruda (#D2B48C, roughness 0.9) con junta visible de 5 mm.
+   *   El offset faceZ ya viene correctamente calculado para evitar Z-Fighting.
    */
-  _buildFacadeLayer(length, faceZ, matType) {
+  _buildFacadeLayer(length, faceZ, matType, openings = []) {
     const group = new THREE.Group();
     const mat = this.materialLibrary.getLayerMaterial(matType, "facade");
-    const plankH = 0.18;  // siding plank height
-    const numPlanks = Math.ceil(WALL_HEIGHT / plankH);
     const hy = WALL_HEIGHT / 2;
-    const shadowGap = 0.004;
+
+    const opZones = openings.map((op) => {
+      const center = (op.center ?? 0.5) * length - length / 2;
+      const width  = op.width  || (op.type === "door" ? 0.9  : 1.2);
+      const height = op.height || (op.type === "door" ? 2.05 : 1.2);
+      const sill   = op.type === "door" ? 0 : (op.sillHeight ?? 1.0);
+      return {
+        xMin: center - width / 2,
+        xMax: center + width / 2,
+        yMin: sill - hy,
+        yMax: sill + height - hy,
+      };
+    });
+
+    const fullXMin = -length / 2;
+    const fullXMax = length / 2;
+    const xBreaks = new Set([fullXMin, fullXMax]);
+    for (const op of opZones) {
+      if (op.xMin > fullXMin && op.xMin < fullXMax) xBreaks.add(op.xMin);
+      if (op.xMax > fullXMin && op.xMax < fullXMax) xBreaks.add(op.xMax);
+    }
+    const sortedX = [...xBreaks].sort((a, b) => a - b);
 
     if (matType === "masonry" || matType === "concrete") {
-      // Solid panel for masonry/concrete
-      const panel = new THREE.Mesh(
-        new THREE.BoxGeometry(length, WALL_HEIGHT, FACADE_PANEL_THICKNESS),
-        mat.clone(),
-      );
-      panel.position.set(0, 0, faceZ);
-      panel.castShadow = true; panel.receiveShadow = true;
-      group.add(panel);
+      // Paneles continuos cortados por aperturas
+      for (let i = 0; i < sortedX.length - 1; i++) {
+        const x1 = sortedX[i];
+        const x2 = sortedX[i + 1];
+        const midX = (x1 + x2) / 2;
+        const op = opZones.find((z) => z.xMin <= midX && z.xMax >= midX);
+        const w = x2 - x1;
+
+        if (!op) {
+          const panel = new THREE.Mesh(
+            new THREE.BoxGeometry(w, WALL_HEIGHT, FACADE_PANEL_THICKNESS),
+            mat.clone(),
+          );
+          panel.position.set(midX, 0, faceZ);
+          panel.castShadow = true; panel.receiveShadow = true;
+          group.add(panel);
+        } else {
+          if (op.yMin > -hy) {
+            const h = op.yMin + hy;
+            const panel = new THREE.Mesh(
+              new THREE.BoxGeometry(w, h, FACADE_PANEL_THICKNESS),
+              mat.clone(),
+            );
+            panel.position.set(midX, -hy + h / 2, faceZ);
+            panel.castShadow = true; panel.receiveShadow = true;
+            group.add(panel);
+          }
+          if (op.yMax < hy) {
+            const h = hy - op.yMax;
+            const panel = new THREE.Mesh(
+              new THREE.BoxGeometry(w, h, FACADE_PANEL_THICKNESS),
+              mat.clone(),
+            );
+            panel.position.set(midX, op.yMax + h / 2, faceZ);
+            panel.castShadow = true; panel.receiveShadow = true;
+            group.add(panel);
+          }
+        }
+      }
     } else {
-      // Individual horizontal planks for wood/vinyl siding
-      for (let i = 0; i < numPlanks; i++) {
-        const y = -hy + i * plankH + plankH / 2;
-        const plank = new THREE.Mesh(
-          new THREE.BoxGeometry(length, plankH - shadowGap, FACADE_PANEL_THICKNESS),
-          mat.clone(),
+      // Entramado madera / metalcon: OSB 1.22 × 2.44 m con junta visible
+      const osbMat = new THREE.MeshStandardMaterial({
+        color: "#D2B48C",
+        roughness: 0.9,
+        metalness: 0.0,
+      });
+
+      const addOSB = (x1, x2, y1, y2) => {
+        const w = x2 - x1;
+        const h = y2 - y1;
+        if (w < 0.01 || h < 0.01) return;
+        const panel = new THREE.Mesh(
+          new THREE.BoxGeometry(w, h, FACADE_PANEL_THICKNESS),
+          osbMat.clone(),
         );
-        plank.position.set(0, y, faceZ);
-        plank.castShadow = true; plank.receiveShadow = true;
-        group.add(plank);
+        panel.position.set((x1 + x2) / 2, (y1 + y2) / 2, faceZ);
+        panel.castShadow = true; panel.receiveShadow = true;
+        group.add(panel);
+      };
+
+      // Columnas de OSB (eje X)
+      const columns = [];
+      let cx = fullXMin;
+      while (cx < fullXMax - 0.001) {
+        const cEnd = Math.min(cx + OSB_WIDTH, fullXMax);
+        if (cEnd - cx > 0.01) columns.push({ x1: cx, x2: cEnd });
+        cx = cEnd + PANEL_GAP;
+      }
+
+      // Filas de OSB (eje Y)
+      const rows = [];
+      let ry = -hy;
+      while (ry < hy - 0.001) {
+        const rEnd = Math.min(ry + OSB_HEIGHT, hy);
+        if (rEnd - ry > 0.01) rows.push({ y1: ry, y2: rEnd });
+        ry = rEnd + PANEL_GAP;
+      }
+
+      for (const col of columns) {
+        for (const row of rows) {
+          const op = opZones.find(
+            (z) => z.xMin < col.x2 && z.xMax > col.x1
+                && z.yMin < row.y2 && z.yMax > row.y1,
+          );
+
+          if (!op) {
+            addOSB(col.x1, col.x2, row.y1, row.y2);
+            continue;
+          }
+
+          // Cuatro trozos alrededor de la apertura
+          const ox1 = Math.max(col.x1, op.xMin);
+          const ox2 = Math.min(col.x2, op.xMax);
+          const oy1 = Math.max(row.y1, op.yMin);
+          const oy2 = Math.min(row.y2, op.yMax);
+
+          addOSB(col.x1, col.x2, row.y1, oy1);
+          addOSB(col.x1, col.x2, oy2,    row.y2);
+          addOSB(col.x1, ox1,    oy1,    oy2);
+          addOSB(ox2,    col.x2, oy1,    oy2);
+        }
       }
     }
 
@@ -515,6 +807,47 @@ export class WallBuilder {
       const r = recintoById.get(id);
       return r && ROOM_TYPES_WITH_WATER.has(r.tipo);
     });
+  }
+
+  // ── Layer-sign resolver ───────────────────────────────────────────────
+
+  /**
+   * Determina si el eje local +Z del muro ya posicionado apunta hacia el
+   * interior del recinto (+1) o hacia afuera (-1).
+   *
+   * El extractor de topología normaliza todos los segmentos al orden
+   * canónico (x-menor primero, luego z-menor), lo que significa que para
+   * los muros izquierdo y superior de un recinto rectangular el eje local +Z
+   * queda invertido. Este método corrige ese signo para que los paneles
+   * interiores/fachada siempre se coloquen en el lado correcto.
+   *
+   * Matemática: con rotation.y = -angle, la dirección local +Z en coordenadas
+   * mundiales es (-sin(angle), 0, cos(angle)).  Si el producto punto de ese
+   * vector con el vector "centro muro → centro recinto" es positivo, +Z apunta
+   * hacia adentro del recinto (sign = +1). Si es negativo, está invertido
+   * (sign = -1).
+   */
+  _layerSignForWall(wall, recintoById) {
+    const recintoId = wall.recintosAdyacentes?.[0];
+    if (!recintoId || !recintoById) return 1;
+    const recinto = recintoById.get(recintoId);
+    if (!recinto) return 1;
+
+    const { start, end } = wall.segmento;
+    const angle = Math.atan2(end.z - start.z, end.x - start.x);
+
+    // Local +Z en coordenadas mundiales después de rotation.y = -angle
+    const localPlusZx = -Math.sin(angle);
+    const localPlusZz =  Math.cos(angle);
+
+    // Vector "centro del muro → centro del recinto adyacente"
+    const wallCx = (start.x + end.x) / 2;
+    const wallCz = (start.z + end.z) / 2;
+    const roomCx = recinto.coords.x + recinto.dimensions.w / 2;
+    const roomCz = recinto.coords.z + recinto.dimensions.l / 2;
+
+    const dot = (roomCx - wallCx) * localPlusZx + (roomCz - wallCz) * localPlusZz;
+    return dot >= 0 ? 1 : -1;
   }
 
   // ── Positioning ──────────────────────────────────────────────────────
