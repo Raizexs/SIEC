@@ -1437,7 +1437,7 @@ onBeforeUnmount(() => {
                 </p>
 
                 <h3 class="mt-0.5 text-base font-black tracking-tight text-slate-950 dark:text-slate-100">
-                  {{ t('realtime3D') }}
+                  {{ t('scene3DTitle') }}
                 </h3>
               </div>
             </div>
