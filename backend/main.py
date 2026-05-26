@@ -158,35 +158,36 @@ except Exception as exc:  # pragma: no cover
 # Seeding de datos iniciales
 @app.on_event("startup")
 def startup_event():
-    # Inicializar tablas aquí para evitar crash sin DB al importar (Testing)
-    models.Base.metadata.create_all(bind=engine)
-    
-    # Normalizar unidades de mano de obra en la BD (para evitar ambigüedades en seeds/CSV)
+    """DB init is best-effort so Railway /health can pass even if Postgres is slow."""
+    try:
+        models.Base.metadata.create_all(bind=engine)
+    except Exception as exc:
+        log.error("startup_create_tables_failed", error=str(exc))
+
     try:
         from scripts.normalize_unidad_mano_obra import normalize_unidad_mano_obra
-        try:
-            updated = normalize_unidad_mano_obra(os.getenv('DATABASE_URL', None))
-            log.info("normalization_completed", updated_rows=updated)
-        except Exception as e:
-            log.error("normalization_script_failed", error=str(e))
-    except Exception:
-        # If import fails (e.g., during certain test flows), continue without normalization
-        pass
-    
-    db = SessionLocal()
+
+        updated = normalize_unidad_mano_obra(os.getenv("DATABASE_URL", None))
+        log.info("normalization_completed", updated_rows=updated)
+    except Exception as exc:
+        log.error("normalization_script_failed", error=str(exc))
+
     try:
-        # Verificar si ya existen tipos de recinto
-        if db.query(models.TipoRecinto).count() == 0:
-            log.info("seeding_initial_recintos")
-            tipos_iniciales = [
-                models.TipoRecinto(nombre="Habitación", costo_tokens=9),
-                models.TipoRecinto(nombre="Baño", costo_tokens=4),
-                models.TipoRecinto(nombre="Área Común", costo_tokens=12),
-            ]
-            db.add_all(tipos_iniciales)
-            db.commit()
-    finally:
-        db.close()
+        db = SessionLocal()
+        try:
+            if db.query(models.TipoRecinto).count() == 0:
+                log.info("seeding_initial_recintos")
+                tipos_iniciales = [
+                    models.TipoRecinto(nombre="Habitación", costo_tokens=9),
+                    models.TipoRecinto(nombre="Baño", costo_tokens=4),
+                    models.TipoRecinto(nombre="Área Común", costo_tokens=12),
+                ]
+                db.add_all(tipos_iniciales)
+                db.commit()
+        finally:
+            db.close()
+    except Exception as exc:
+        log.error("startup_seed_failed", error=str(exc))
 
 # Materiales permitidos según requerimientos
 ALLOWED_MATERIALS = ["Madera", "Metalcom", "Albañilería", "Hormigón Armado"]
