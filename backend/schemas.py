@@ -1,6 +1,14 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional
 
+
+class LayoutRecintoInput(BaseModel):
+    piso: int = Field(1, ge=1)
+    coords_x: float
+    coords_z: float
+    width: float = Field(..., gt=0)
+    length: float = Field(..., gt=0)
+
 class InsumoCalculado(BaseModel):
     insumo: str
     cantidad: float
@@ -59,3 +67,4 @@ class DeduccionMermasPayload(BaseModel):
     cruces_acero: int = Field(0, ge=0)
     piezas_2d: List[Pieza2DInput] = Field(default_factory=list)
     cortes_1d: List[Corte1DInput] = Field(default_factory=list)
+    recintos: List[LayoutRecintoInput] = Field(default_factory=list)

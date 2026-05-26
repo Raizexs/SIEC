@@ -63,6 +63,7 @@ services:
       - TZ=America/Santiago
       - RUN_NOW=${RUN_NOW:-false}
       - CMF_API_KEY=2bea1a42f6b3d657e19f22c2b01f7ee02d69ebf4
+      - SERPAPI_METALCON_API_KEY=${SERPAPI_METALCON_API_KEY:-}
     depends_on:
       db:
         condition: service_healthy
