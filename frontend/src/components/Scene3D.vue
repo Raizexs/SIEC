@@ -260,11 +260,10 @@ const applyLayerVisibility = (animate = true) => {
         continue;
       }
 
-      // Paneles de relleno de ventana: solo cuando capa estructura aislada
+      // Paneles de relleno de ventana: siempre ocultos (se ven los vanos reales)
       if (child.name === "ml-layer-structure-solid") {
-        const targetVisible = floorVisible && onlyStructure;
-        if (child.visible !== targetVisible) {
-          setChildLayerVisible(child, targetVisible, animate);
+        if (child.visible !== false) {
+          setChildLayerVisible(child, false, animate);
         }
         continue;
       }

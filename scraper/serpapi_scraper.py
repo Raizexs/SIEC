@@ -54,7 +54,7 @@ class SerpAPIScraper:
     """Scraper que consulta Google Shopping via SerpAPI."""
 
     def __init__(self, api_key: Optional[str] = None, store_filter: Optional[str] = None):
-        self.api_key = api_key or os.environ.get("SERPAPI_KEY", "")
+        self.api_key = api_key or os.environ.get("SERPAPI_KEY", "") or os.environ.get("SERPAPI_METALCON_API_KEY", "")
         self.store_filter = store_filter
         if not self.api_key:
             logger.warning("[SerpAPI] No API key set. Set SERPAPI_KEY env var.")
@@ -194,9 +194,9 @@ if __name__ == "__main__":
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
-    key = os.environ.get("SERPAPI_KEY", "")
+    key = os.environ.get("SERPAPI_KEY", "") or os.environ.get("SERPAPI_METALCON_API_KEY", "")
     if not key:
-        print("ERROR: Set SERPAPI_KEY environment variable")
+        print("ERROR: Set SERPAPI_KEY or SERPAPI_METALCON_API_KEY environment variable")
         print("  Get a key at: https://serpapi.com/")
         print("  Usage: $env:SERPAPI_KEY='your_key_here'; python serpapi_scraper.py")
         exit(1)

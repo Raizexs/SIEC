@@ -310,11 +310,11 @@ def get_tipos_recinto(db: Session = Depends(get_db)):
 def crear_simulacion(sim: SimulacionCreate, db: Session = Depends(get_db)):
     """Guarda los parámetros de configuración de la vivienda y crea una nueva simulación."""
 
-    # Validaciones obligatorias (alineadas con CHECK en Postgres: 15–1000 m²)
-    if sim.m2Totales < 15 or sim.m2Totales > 1000:
+    # Validaciones obligatorias (alineadas con CHECK en Postgres: 1–1000 m²)
+    if sim.m2Totales < 1 or sim.m2Totales > 1000:
         raise HTTPException(
             status_code=400,
-            detail="Superficie total debe estar entre 15 y 1000 m².",
+            detail="Superficie total debe estar entre 1 y 1000 m².",
         )
 
     if sim.materialEstructuralId not in [1, 2, 3, 4]:
@@ -348,7 +348,7 @@ def crear_simulacion(sim: SimulacionCreate, db: Session = Depends(get_db)):
                 "Reinicia el backend o ejecuta las migraciones en Supabase."
             )
         elif "check" in raw or "m2_totales" in raw:
-            detail = "Superficie total debe estar entre 15 y 1000 m²."
+            detail = "Superficie total debe estar entre 1 y 1000 m²."
         else:
             detail = "No se pudo guardar la simulación (restricción de base de datos)."
         log.error("simulacion_insert_failed", error=str(exc))
@@ -535,9 +535,13 @@ def calcular_insumos(
         precio_val = pm.precio_descuento if pm.precio_descuento is not None else pm.precio
         if precio_val is not None:
             precios_x_insumo[pm.insumo_id].append(float(precio_val))
-            # Guardar el primer registro (ordenado por fecha desc) como muestra representativa
+            # Guardar el registro más reciente como muestra representativa
             if pm.insumo_id not in latest_precio_record:
                 latest_precio_record[pm.insumo_id] = pm
+            else:
+                if pm.fecha_scraping and latest_precio_record[pm.insumo_id].fecha_scraping:
+                    if pm.fecha_scraping > latest_precio_record[pm.insumo_id].fecha_scraping:
+                        latest_precio_record[pm.insumo_id] = pm
             if pm.fecha_scraping:
                 fechas_usadas.append(pm.fecha_scraping.isoformat() if hasattr(pm.fecha_scraping, 'isoformat') else str(pm.fecha_scraping))
 

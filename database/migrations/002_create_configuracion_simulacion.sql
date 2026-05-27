@@ -9,7 +9,7 @@
 
 CREATE TABLE IF NOT EXISTS Configuracion_Simulacion (
   ID SERIAL PRIMARY KEY,
-  M2_Totales INTEGER NOT NULL CHECK (M2_Totales >= 15 AND M2_Totales <= 1000),
+  M2_Totales INTEGER NOT NULL CHECK (M2_Totales >= 1 AND M2_Totales <= 1000),
   Material_Estructural_ID INTEGER NOT NULL,
   Habitaciones INTEGER NOT NULL DEFAULT 0 CHECK (Habitaciones >= 0),
   Banios INTEGER NOT NULL DEFAULT 0 CHECK (Banios >= 0),
@@ -37,7 +37,7 @@ CREATE INDEX IF NOT EXISTS idx_configuracion_material
 -- ════════════════════════════════════════════════════════════════════════════════
 -- ID: Identificador único de la simulación (Auto-incrementable)
 -- M2_Totales: Metros cuadrados totales de la vivienda
---   - Restricción: debe estar entre 15 y 1000 m²
+--   - Restricción: debe estar entre 1 y 1000 m²
 -- Material_Estructural_ID: FK a la tabla Material_Estructural
 --   - Restricción: Debe existir en Material_Estructural (ON DELETE RESTRICT)
 -- Habitaciones: Cantidad de habitaciones (mínimo 0)

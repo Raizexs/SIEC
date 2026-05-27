@@ -73,7 +73,7 @@ ORDER BY cs.ID;
 -- ════════════════════════════════════════════════════════════════════════════════
 -- Este query debería retornar solo registros válidos
 SELECT ID, M2_Totales FROM Configuracion_Simulacion 
-WHERE M2_Totales < 15 OR M2_Totales > 1000;
+WHERE M2_Totales < 1 OR M2_Totales > 1000;
 -- Resultado esperado: Ninguna fila (0 resultados)
 
 -- ════════════════════════════════════════════════════════════════════════════════
