@@ -294,7 +294,7 @@ const handleSubmit = async () => {
         mfaFactorId.value = res.factorId;
         await switchMode('mfa');
       } else if (res.success) {
-        const redirect = route.query.redirect || '/dashboard';
+        const redirect = route.query.redirect || '/workspace';
         await playSignInSuccessCue();
         router.push(redirect);
       }
@@ -334,7 +334,7 @@ const handleSubmit = async () => {
       const res = await authStore.challengeMFA(mfaFactorId.value, mfaCode.value);
 
       if (res.success) {
-        const redirect = route.query.redirect || '/dashboard';
+        const redirect = route.query.redirect || '/workspace';
         await playSignInSuccessCue();
         router.push(redirect);
       }
@@ -398,13 +398,6 @@ onMounted(() => {
         class="relative z-10 max-w-2xl space-y-6 p-10"
         data-motion="section"
       >
-        <div
-          class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-orange-200 shadow-sm backdrop-blur-xl"
-        >
-          <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-orange-400"></span>
-          Plataforma Cloud · v2.0
-        </div>
-
         <div>
           <h2 class="max-w-xl text-5xl font-black leading-[1.04] tracking-tight text-white">
             Precisión arquitectónica
@@ -418,40 +411,7 @@ onMounted(() => {
           </p>
         </div>
 
-        <div class="grid max-w-xl grid-cols-3 gap-3 pt-2">
-          <div
-            class="rounded-2xl border border-white/10 bg-white/10 p-3 shadow-sm backdrop-blur-xl"
-          >
-            <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
-              Motor
-            </p>
-            <p class="mt-1 text-sm font-black text-white">
-              Tiempo real
-            </p>
-          </div>
-
-          <div
-            class="rounded-2xl border border-white/10 bg-white/10 p-3 shadow-sm backdrop-blur-xl"
-          >
-            <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
-              Equipo
-            </p>
-            <p class="mt-1 text-sm font-black text-white">
-              Multiusuario
-            </p>
-          </div>
-
-          <div
-            class="rounded-2xl border border-white/10 bg-white/10 p-3 shadow-sm backdrop-blur-xl"
-          >
-            <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
-              Salida
-            </p>
-            <p class="mt-1 text-sm font-black text-white">
-              BIM/PDF
-            </p>
-          </div>
-        </div>
+        
       </section>
     </aside>
 
@@ -489,11 +449,7 @@ onMounted(() => {
                 </div>
               </div>
 
-              <span
-                class="rounded-full border border-orange-200 bg-orange-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-tight text-orange-700 dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
-              >
-                v2.0
-              </span>
+              
             </div>
 
             <!-- Headline -->
@@ -779,7 +735,6 @@ onMounted(() => {
         class="shrink-0 border-t border-slate-200/80 bg-white/70 px-8 py-3 text-center backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-950/70"
       >
         <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-          SIEC v2.0 ·
           <span class="text-slate-500 dark:text-slate-400">
             Hecho con propósito en Chile
           </span>
