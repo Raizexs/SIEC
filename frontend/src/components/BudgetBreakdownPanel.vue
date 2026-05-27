@@ -14,6 +14,7 @@ import { toast } from 'vue-sonner';
 import { exportBudget, getMaterialLabel } from '../utils/budgetExporter';
 import { captureSceneImage } from '../proposal/proposalSceneCapture';
 import { resolveBrandLogoUrl } from '../proposal/proposalBrand';
+import { reorganizeDesglose } from '../utils/budgetCategorizer';
 
 const { t, currentLanguage } = useI18n();
 
@@ -42,6 +43,23 @@ const hasGenerated = ref(false);
 const exportMenuOpen = ref(false);
 const exportFormat = ref(null);
 const exportMenuRef = ref(null);
+const disabledCategories = ref(new Set());
+
+const enabledDesglose = computed(() =>
+  desglose.value.filter(cat => !disabledCategories.value.has(cat.categoria)),
+);
+
+const toggleCategoria = (catLabel) => {
+  const next = new Set(disabledCategories.value);
+  if (next.has(catLabel)) {
+    next.delete(catLabel);
+  } else {
+    next.add(catLabel);
+  }
+  disabledCategories.value = next;
+};
+
+const isCategoriaDisabled = (catLabel) => disabledCategories.value.has(catLabel);
 
 const perimetroMl = computed(() => {
   if (props.perimetroMl != null && props.perimetroMl > 0) {
@@ -76,8 +94,10 @@ const formatCurrency = (value) => {
   }).format(value);
 };
 
-/** Total devuelto por el motor (CLP). */
-const motorTotal = computed(() => costoTotal.value);
+/** Total devuelto por el motor (CLP) — solo categorías habilitadas. */
+const motorTotal = computed(() =>
+  enabledDesglose.value.reduce((sum, cat) => sum + (cat.subtotal_categoria || 0), 0),
+);
 
 const subtotalConContingencia = computed(() =>
   withContingency(motorTotal.value, productPreferences.value.contingency),
@@ -195,7 +215,7 @@ const fetchBudget = async () => {
 
     const data = await calcRes.json();
 
-    desglose.value = data.desglose || [];
+    desglose.value = reorganizeDesglose(data.desglose || []);
     costoTotal.value = data.costo_total;
     fechaPrecios.value = data.fecha_precios;
   } catch (err) {
@@ -215,7 +235,7 @@ watch(
 );
 
 const buildExportPayload = () => {
-  const desgloseSnapshot = JSON.parse(JSON.stringify(desglose.value || []));
+  const desgloseSnapshot = JSON.parse(JSON.stringify(enabledDesglose.value || []));
 
   return {
     projectName: workspaceStore.activePresetName,
@@ -584,7 +604,7 @@ onUnmounted(() => {
             <span
               class="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-tight text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400"
             >
-              {{ t('budgetCategoriesCount', { count: desglose.length }) }}
+              {{ t('budgetCategoriesCount', { count: enabledDesglose.length }) }}
             </span>
           </div>
 
@@ -592,23 +612,35 @@ onUnmounted(() => {
             <article
               v-for="cat in desglose"
               :key="cat.categoria"
-              class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md hover:shadow-slate-950/5 dark:border-slate-800 dark:bg-slate-900/70 dark:hover:border-slate-700 dark:hover:shadow-black/20"
+              class="overflow-hidden rounded-2xl border shadow-sm transition-all duration-200"
+              :class="isCategoriaDisabled(cat.categoria)
+                ? 'border-slate-200/60 bg-slate-50/40 opacity-55 dark:border-slate-800/50 dark:bg-slate-900/30'
+                : 'border-slate-200 bg-white hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md hover:shadow-slate-950/5 dark:border-slate-800 dark:bg-slate-900/70 dark:hover:border-slate-700 dark:hover:shadow-black/20'"
             >
               <!-- Category header -->
               <header
-                class="flex flex-col gap-3 border-b border-slate-200/80 bg-slate-50/80 px-4 py-4 dark:border-slate-800/80 dark:bg-slate-950/50 sm:flex-row sm:items-center sm:justify-between sm:px-5"
+                class="flex flex-col gap-3 border-b px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5"
+                :class="isCategoriaDisabled(cat.categoria)
+                  ? 'border-slate-200/50 bg-slate-100/40 dark:border-slate-800/40 dark:bg-slate-950/20'
+                  : 'border-slate-200/80 bg-slate-50/80 dark:border-slate-800/80 dark:bg-slate-950/50'"
               >
                 <div class="flex items-center gap-3">
-                  <div
-                    class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-orange-500 shadow-sm dark:border-slate-700 dark:bg-slate-950 dark:text-orange-300"
+                  <button
+                    type="button"
+                    class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition-all duration-200"
+                    :class="isCategoriaDisabled(cat.categoria)
+                      ? 'border-slate-300 bg-slate-200 text-slate-400 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-500'
+                      : 'border-emerald-300 bg-emerald-50 text-emerald-600 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'"
+                    :title="isCategoriaDisabled(cat.categoria) ? 'Habilitar categoría' : 'Deshabilitar categoría'"
+                    @click="toggleCategoria(cat.categoria)"
                   >
-                    <span class="material-symbols-outlined text-[18px]">
-                      category
+                    <span class="material-symbols-outlined text-[15px]">
+                      {{ isCategoriaDisabled(cat.categoria) ? 'radio_button_unchecked' : 'check_circle' }}
                     </span>
-                  </div>
+                  </button>
 
                   <div>
-                    <p class="font-bold tracking-tight text-slate-900 dark:text-slate-100">
+                    <p class="font-bold tracking-tight" :class="isCategoriaDisabled(cat.categoria) ? 'text-slate-500 dark:text-slate-400' : 'text-slate-900 dark:text-slate-100'">
                       {{ cat.categoria }}
                     </p>
                     <p class="text-xs font-medium text-slate-400 dark:text-slate-500">
@@ -625,7 +657,7 @@ onUnmounted(() => {
                   <p class="text-[10px] font-bold uppercase tracking-tight text-slate-400 dark:text-slate-500">
                     {{ t('budgetSubtotal') }}
                   </p>
-                  <p class="font-mono text-sm font-black text-orange-600 dark:text-orange-300">
+                  <p class="font-mono text-sm font-black" :class="isCategoriaDisabled(cat.categoria) ? 'text-slate-400 dark:text-slate-500' : 'text-orange-600 dark:text-orange-300'">
                     {{ formatCurrencyCell(cat.subtotal_categoria) }}
                   </p>
                 </div>
