@@ -10,7 +10,22 @@
  */
 import { useAuthStore } from "../stores/auth";
 
-const API_BASE = (import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? "http://localhost:8000" : "")).replace(/\/$/, '');
+const API_BASE = (import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? "http://localhost:8000" : "")).replace(/\/$/, "");
+
+function buildApiUrl(path, query) {
+  if (path.startsWith("http")) return new URL(path);
+  const base = API_BASE || (import.meta.env.DEV ? "http://localhost:8000" : "");
+  if (!base) {
+    throw new Error("VITE_API_URL no está configurada en el build de producción.");
+  }
+  const url = new URL(path.startsWith("/") ? path : `/${path}`, `${base}/`);
+  if (query) {
+    Object.entries(query).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) url.searchParams.set(k, String(v));
+    });
+  }
+  return url;
+}
 
 export class HttpError extends Error {
   constructor(status, payload, message) {
@@ -22,13 +37,7 @@ export class HttpError extends Error {
 
 async function request(method, path, { body, query, headers, signal } = {}) {
   const auth = useAuthStore();
-  const fullPath = path.startsWith("http") ? path : `${API_BASE}${path}`;
-  const url = new URL(fullPath, typeof window !== "undefined" ? window.location.origin : "http://localhost");
-  if (query) {
-    Object.entries(query).forEach(([k, v]) => {
-      if (v !== undefined && v !== null) url.searchParams.set(k, String(v));
-    });
-  }
+  const url = buildApiUrl(path, query);
 
   const finalHeaders = {
     "Content-Type": "application/json",
@@ -57,13 +66,18 @@ async function request(method, path, { body, query, headers, signal } = {}) {
   }
 
   if (!res.ok) {
-    if (res.status === 401) {
-      await auth.logout();
-      if (
-        typeof window !== "undefined" &&
-        window.location.pathname !== "/login"
-      ) {
-        window.location.href = "/login";
+    if (res.status === 401 && auth.accessToken) {
+      const detail =
+        typeof payload?.detail === "string" ? payload.detail : String(payload?.detail ?? "");
+      const sessionExpired = /expirado|expired/i.test(detail);
+      if (sessionExpired) {
+        await auth.logout();
+        if (
+          typeof window !== "undefined" &&
+          window.location.pathname !== "/login"
+        ) {
+          window.location.href = "/login";
+        }
       }
     }
     throw new HttpError(res.status, payload);

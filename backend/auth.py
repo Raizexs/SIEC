@@ -32,8 +32,8 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import jwt
 from jose.exceptions import JWTError, ExpiredSignatureError
 
-SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
+SUPABASE_URL = (os.getenv("SUPABASE_URL", "") or "").strip()
+SUPABASE_JWT_SECRET = (os.getenv("SUPABASE_JWT_SECRET", "") or "").strip()
 SUPABASE_JWT_ALGORITHM = os.getenv("SUPABASE_JWT_ALGORITHM", "HS256")
 SUPABASE_JWT_AUDIENCE = os.getenv("SUPABASE_JWT_AUDIENCE", "authenticated")
 ALLOW_ANONYMOUS = os.getenv("ALLOW_ANONYMOUS_DEV", "false").lower() == "true"
@@ -106,16 +106,56 @@ def _decode_with_secret(token: str) -> dict:
         options={"verify_aud": True},
     )
 
-def verify_supabase_jwt(token: str) -> dict:
-    """Verify the Supabase JWT and return its claims."""
+def _jwt_header_alg(token: str) -> str:
     try:
-        if SUPABASE_JWT_ALGORITHM in {"RS256", "ES256", "ES384"}:
-            return _decode_with_jwks(token)
-        return _decode_with_secret(token)
-    except ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expirado") from None
-    except JWTError as exc:
-        raise HTTPException(status_code=401, detail=f"Token inválido: {exc}") from exc
+        return jwt.get_unverified_header(token).get("alg") or SUPABASE_JWT_ALGORITHM
+    except JWTError:
+        return SUPABASE_JWT_ALGORITHM
+
+def verify_supabase_jwt(token: str) -> dict:
+    """Verify the Supabase JWT (HS256 secret and/or JWKS for asymmetric keys)."""
+    alg = _jwt_header_alg(token)
+    errors: list[str] = []
+
+    def _attempt(label: str, fn):
+        try:
+            return fn()
+        except ExpiredSignatureError:
+            raise HTTPException(status_code=401, detail="Token expirado") from None
+        except HTTPException as exc:
+            if exc.status_code >= 500:
+                raise
+            errors.append(f"{label}: {exc.detail}")
+        except JWTError as exc:
+            errors.append(f"{label}: {exc}")
+        return None
+
+    # Primary path from JWT header algorithm
+    if alg in {"RS256", "ES256", "ES384"}:
+        result = _attempt("jwks", lambda: _decode_with_jwks(token))
+        if result is not None:
+            return result
+    else:
+        result = _attempt("secret", lambda: _decode_with_secret(token))
+        if result is not None:
+            return result
+
+    # Fallback: Supabase may issue ES256 while legacy HS256 secret is still set (or vice versa)
+    if SUPABASE_URL:
+        result = _attempt("jwks-fallback", lambda: _decode_with_jwks(token))
+        if result is not None:
+            return result
+    if SUPABASE_JWT_SECRET:
+        result = _attempt("secret-fallback", lambda: _decode_with_secret(token))
+        if result is not None:
+            return result
+
+    hint = (
+        "Revisa SUPABASE_URL y SUPABASE_JWT_SECRET en Railway "
+        "(mismo proyecto que VITE_SUPABASE_URL en Vercel)."
+    )
+    detail = "; ".join(errors) if errors else "No se pudo verificar el token"
+    raise HTTPException(status_code=401, detail=f"{detail}. {hint}")
 
 # ── FastAPI dependencies ─────────────────────────────────────────────────────
 def get_current_user(
@@ -140,12 +180,14 @@ def get_current_user(
         return CurrentUser(id="00000000-0000-0000-0000-000000000000", email="mock@local.dev", role="user", aal=None, raw_claims={})
     try:
         claims = verify_supabase_jwt(creds.credentials)
-    except HTTPException:
+    except HTTPException as exc:
+        if exc.status_code >= 500:
+            raise
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token inválido o expirado",
+            detail=exc.detail,
             headers={"WWW-Authenticate": "Bearer"},
-        )
+        ) from exc
     user_metadata = claims.get("user_metadata", {}) or {}
     role = user_metadata.get("role") or claims.get("role") or "authenticated"
     return CurrentUser(
