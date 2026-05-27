@@ -14,7 +14,7 @@ const csgEvaluator = new Evaluator();
 csgEvaluator.useGroups = false;
 
 const WALL_HEIGHT = 2.4;
-const STUD_SPACING = 0.4;
+const STUD_SPACING = 0.6;
 const STUD_WIDTH = 0.041;       // 2x3 real = ~41x65mm
 const STUD_DEPTH = 0.065;
 const PLATE_WIDTH = 0.065;     // same depth as studs for visual consistency
@@ -358,38 +358,10 @@ export class WallBuilder {
     for (let i = 0; i < studXs.length; i++) {
       const x = studXs[i];
 
-      const inDoor = openingZones.some(
-        (z) => z.type === "door" && x >= z.xMin + STUD_WIDTH && x <= z.xMax - STUD_WIDTH,
+      const inOpening = openingZones.some(
+        (z) => x >= z.xMin + STUD_WIDTH && x <= z.xMax - STUD_WIDTH,
       );
-      if (inDoor) continue;
-
-      const winZone = openingZones.find(
-        (z) => z.type === "window" && x >= z.xMin + STUD_WIDTH && x <= z.xMax - STUD_WIDTH,
-      );
-
-      if (winZone) {
-        // Tramo sobre la ventana (entre dintel y solera superior)
-        const aboveH = studTop - winZone.yMax;
-        if (aboveH > 0.01) {
-          const s = new THREE.Mesh(
-            new THREE.BoxGeometry(STUD_WIDTH, aboveH, STUD_DEPTH),
-            studMat.clone(),
-          );
-          s.position.set(x, winZone.yMax + aboveH / 2, 0);
-          s.castShadow = true; group.add(s);
-        }
-        // Tramo bajo la ventana (entre solera inferior y alféizar)
-        const belowH = winZone.yMin - studBottom;
-        if (belowH > 0.01) {
-          const s = new THREE.Mesh(
-            new THREE.BoxGeometry(STUD_WIDTH, belowH, STUD_DEPTH),
-            studMat.clone(),
-          );
-          s.position.set(x, studBottom + belowH / 2, 0);
-          s.castShadow = true; group.add(s);
-        }
-        continue;
-      }
+      if (inOpening) continue;
 
       // Pie derecho completo — altura exacta entre ambas soleras
       const stud = new THREE.Mesh(
@@ -472,6 +444,61 @@ export class WallBuilder {
     // Riostra derecha: desciende de esquina sup-der → inf-izq (espejada)
     if (length >= BRACE_SPAN * 2 + STUD_WIDTH * 2 + 0.05) {
       addBrace(lastX - BRACE_SPAN / 2, diagAngle);
+    }
+
+    // ── Marcos estructurales de vanos de ventana ─────────────────────
+    // Jambas (pie derecho de vano), dintel y alféizar integrados en la
+    // capa estructura para que el hueco de ventana tenga marco propio
+    // sin depender de las capas de revestimiento.
+    const frameMat = new THREE.MeshStandardMaterial({
+      color: woodDark,
+      roughness: 0.7,
+      metalness: isMetal ? 0.25 : 0.0,
+    });
+
+    for (const z of openingZones) {
+      if (z.type !== "window") continue;
+
+      const openingW = z.xMax - z.xMin;
+      const frameOuterW = openingW + STUD_WIDTH * 2;
+      const headerH = Math.max(studTop - z.yMax, 0);
+
+      // Trimmer studs (jambas estructurales)
+      for (const side of [-1, 1]) {
+        const tx = side === -1 ? z.xMin - STUD_WIDTH / 2 : z.xMax + STUD_WIDTH / 2;
+        const trimmerH = Math.max(z.yMax - studBottom, 0);
+        if (trimmerH < 0.005) continue;
+        const trimmer = new THREE.Mesh(
+          new THREE.BoxGeometry(STUD_WIDTH, trimmerH, STUD_DEPTH),
+          studMat.clone(),
+        );
+        trimmer.position.set(tx, studBottom + trimmerH / 2, 0);
+        trimmer.castShadow = true; trimmer.receiveShadow = true;
+        group.add(trimmer);
+      }
+
+      // Header (dintel)
+      if (headerH > 0.005) {
+        const header = new THREE.Mesh(
+          new THREE.BoxGeometry(frameOuterW, headerH, STUD_DEPTH * 1.5),
+          frameMat.clone(),
+        );
+        header.position.set((z.xMin + z.xMax) / 2, z.yMax + headerH / 2, 0);
+        header.castShadow = true; header.receiveShadow = true;
+        group.add(header);
+      }
+
+      // Sill (alféizar)
+      const sillH = PLATE_HEIGHT;
+      if (sillH > 0.005) {
+        const sill = new THREE.Mesh(
+          new THREE.BoxGeometry(frameOuterW, sillH, STUD_DEPTH),
+          plateMat.clone(),
+        );
+        sill.position.set((z.xMin + z.xMax) / 2, z.yMin - sillH / 2, 0);
+        sill.castShadow = true; sill.receiveShadow = true;
+        group.add(sill);
+      }
     }
 
     return { group, studXs };
