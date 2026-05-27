@@ -48,6 +48,8 @@ import {
   mergePreferences,
   defaultProductPreferences,
 } from '../composables/useProductPreferences';
+import { useProjectsApi } from '../composables/useProjectsApi';
+import logger from '../utils/logger.js';
 
 const props = defineProps({
   projectId: { type: String, default: null },
@@ -63,6 +65,7 @@ const {
   applyLayoutToStore,
   loadLayout: normalizeSavedLayout,
 } = useLayoutManager();
+const projectsApi = useProjectsApi();
 const { t, currentLanguage } = useI18n();
 
 const { productPreferences } = useProductPreferences();
@@ -78,14 +81,6 @@ const sidebarCollapsed = ref(false);
 const motionRoot = ref(null);
 
 useProMotion(motionRoot, { skipIntro: true });
-
-onMounted(async () => {
-  workspaceStore.loadWorkspace();
-  await nextTick();
-  if (recintosStore.recintos.length === 0) {
-    recintosStore.addRecinto('habitacion', 'Habitación', 3.5, 3.0, 2.4);
-  }
-});
 
 const showManual = ref(false);
 
@@ -208,6 +203,93 @@ const estado = computed(() => descripcionEstado.value.status);
 
 let debounceTimer = null;
 const isProgrammaticUpdate = ref(false);
+
+const buildLayoutFromProject = (project) => {
+  const payload =
+    project?.payload && typeof project.payload === "object" ? project.payload : {};
+
+  return {
+    recintos: Array.isArray(payload.recintos) ? payload.recintos : [],
+    terrenoAncho: payload.terrenoAncho ?? payload.terreno_ancho,
+    terrenoLargo: payload.terrenoLargo ?? payload.terreno_largo,
+    m2Totales:
+      payload.m2Totales ??
+      payload.m2_totales ??
+      project?.m2_totales ??
+      project?.m2Totales,
+    materialEstructuralId:
+      payload.materialEstructuralId ??
+      payload.material_estructural_id ??
+      project?.material_id ??
+      project?.materialEstructuralId,
+    currentFloor: payload.currentFloor ?? payload.current_floor ?? 1,
+    habitacionesSimples: payload.habitacionesSimples ?? 0,
+    habitacionesDobles: payload.habitacionesDobles ?? 0,
+    habitacionesTriples: payload.habitacionesTriples ?? 0,
+    banios: payload.banios ?? 0,
+    areasComunes: payload.areasComunes ?? 0,
+  };
+};
+
+const ensureDefaultRecinto = () => {
+  if (recintosStore.recintos.length === 0) {
+    recintosStore.addRecinto("habitacion", "Habitación", 3.5, 3.0, 2.4);
+  }
+};
+
+const hydrateProjectWorkspace = async (projectId) => {
+  isProgrammaticUpdate.value = true;
+
+  try {
+    const project = await projectsApi.get(projectId);
+    if (project?.name) {
+      workspaceStore.activePresetName = project.name;
+    }
+
+    const layoutInput = buildLayoutFromProject(project);
+    if (layoutInput.recintos.length > 0) {
+      const normalized = applyLayoutToStore(layoutInput);
+      syncFormDataFromLayout({ ...layoutInput, ...normalized });
+      return;
+    }
+
+    workspaceStore.loadWorkspace();
+    await nextTick();
+    ensureDefaultRecinto();
+  } catch (error) {
+    logger.warn("[workspace] No se pudo cargar el proyecto", projectId, error);
+    workspaceStore.loadWorkspace();
+    await nextTick();
+    ensureDefaultRecinto();
+  } finally {
+    setTimeout(() => {
+      isProgrammaticUpdate.value = false;
+    }, 500);
+  }
+};
+
+const bootstrapWorkspace = async () => {
+  if (props.projectId) {
+    await hydrateProjectWorkspace(props.projectId);
+    return;
+  }
+
+  workspaceStore.loadWorkspace();
+  await nextTick();
+  ensureDefaultRecinto();
+};
+
+onMounted(() => {
+  bootstrapWorkspace();
+});
+
+watch(
+  () => props.projectId,
+  (id, prev) => {
+    if (id === prev) return;
+    bootstrapWorkspace();
+  },
+);
 
 let prevMaterialId = formData.value.materialEstructuralId;
 

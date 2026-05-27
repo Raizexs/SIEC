@@ -730,20 +730,27 @@ const liveBounds = computed(() => {
 
 const activeBounds = computed(() => frozenBounds.value || liveBounds.value);
 
+const syncAllRoomsToTerrain = () => {
+  const rooms = [...store.recintos];
+  rooms.forEach((room) => normalizeRoomInsideTerrain(room));
+};
+
 watch(
-  () => [props.terrenoAncho, props.terrenoLargo],
+  () => `${props.terrenoAncho}:${props.terrenoLargo}`,
   () => {
     frozenBounds.value = null;
-    nextTick(() => {
-      store.recintos.forEach(normalizeRoomInsideTerrain);
-    });
+    nextTick(syncAllRoomsToTerrain);
   },
+  { immediate: true },
 );
 
-watch(budgetRect, () => {
-  frozenBounds.value = null;
-  store.recintos.forEach(normalizeRoomInsideTerrain);
-}, { deep: true });
+watch(
+  () => store.recintos.map((r) => r.id).join("|"),
+  (ids) => {
+    if (!ids) return;
+    nextTick(syncAllRoomsToTerrain);
+  },
+);
 
 // ── SVG coordinate helpers ────────────────────────────────────────────────────
 const svgW = computed(() => (activeBounds.value.maxX - activeBounds.value.minX) * PPM);
