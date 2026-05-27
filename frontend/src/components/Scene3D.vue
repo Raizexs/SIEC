@@ -109,6 +109,8 @@ let dragControls = null;
 let transformControl = null;
 let transformHelper = null;
 let resizeObserver = null;
+let visibilityObserver = null;
+let handleTabVisibility = null;
 let onDocumentClick = null;
 
 let isManipulating = false;
@@ -1367,6 +1369,33 @@ onMounted(() => {
 
   window.addEventListener('resize', onResize);
   window.addEventListener('siec:capture-scene', handleSceneCaptureRequest);
+
+  // Pausar el render 3D cuando el visor sale del viewport (scroll)
+  if (typeof IntersectionObserver !== 'undefined' && containerRef.value) {
+    visibilityObserver = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting && !document.hidden) {
+            sceneManager?.start();
+          } else {
+            sceneManager?.stop();
+          }
+        }
+      },
+      { threshold: 0 },
+    );
+    visibilityObserver.observe(containerRef.value);
+  }
+
+  // Pausar el render 3D cuando la pestaña está en segundo plano
+  handleTabVisibility = () => {
+    if (document.hidden) {
+      sceneManager?.stop();
+    } else {
+      sceneManager?.start();
+    }
+  };
+  document.addEventListener('visibilitychange', handleTabVisibility);
 });
 
 onBeforeUnmount(() => {
@@ -1391,6 +1420,11 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', onResize);
 
   resizeObserver?.disconnect();
+  visibilityObserver?.disconnect();
+  if (handleTabVisibility) {
+    document.removeEventListener('visibilitychange', handleTabVisibility);
+    handleTabVisibility = null;
+  }
 
   measureTool?.disable();
   walkthrough?.dispose();
