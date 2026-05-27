@@ -109,6 +109,8 @@ let dragControls = null;
 let transformControl = null;
 let transformHelper = null;
 let resizeObserver = null;
+let visibilityObserver = null;
+let handleTabVisibility = null;
 let onDocumentClick = null;
 
 let isManipulating = false;
@@ -242,6 +244,9 @@ const applyLayerVisibility = (animate = true) => {
   if (!sceneManager) return;
 
   const layerState = getCurrentLayerState();
+  const onlyStructure = layerState.constructionModeEnabled
+    && layerState.activeLayerIds.size === 1
+    && layerState.activeLayerIds.has("structure");
 
   for (const [id, group] of wallMeshes.entries()) {
     if (!group || !group.children) continue;
@@ -252,6 +257,25 @@ const applyLayerVisibility = (animate = true) => {
     for (const child of group.children) {
       if (!child.userData?.layerTags) {
         child.visible = floorVisible;
+        continue;
+      }
+
+      // Paneles de relleno de ventana: solo cuando capa estructura aislada
+      if (child.name === "ml-layer-structure-solid") {
+        const targetVisible = floorVisible && onlyStructure;
+        if (child.visible !== targetVisible) {
+          setChildLayerVisible(child, targetVisible, animate);
+        }
+        continue;
+      }
+
+      // Entramado estructural: siempre visible cuando la capa está activa
+      if (child.name === "ml-layer-structure") {
+        const layerVisible = isLayerMeshVisible(child.userData.layerTags, layerState);
+        const targetVisible = layerVisible && floorVisible;
+        if (child.visible !== targetVisible) {
+          setChildLayerVisible(child, targetVisible, animate);
+        }
         continue;
       }
 
@@ -1357,6 +1381,33 @@ onMounted(() => {
 
   window.addEventListener('resize', onResize);
   window.addEventListener('siec:capture-scene', handleSceneCaptureRequest);
+
+  // Pausar el render 3D cuando el visor sale del viewport (scroll)
+  if (typeof IntersectionObserver !== 'undefined' && containerRef.value) {
+    visibilityObserver = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting && !document.hidden) {
+            sceneManager?.start();
+          } else {
+            sceneManager?.stop();
+          }
+        }
+      },
+      { threshold: 0 },
+    );
+    visibilityObserver.observe(containerRef.value);
+  }
+
+  // Pausar el render 3D cuando la pestaña está en segundo plano
+  handleTabVisibility = () => {
+    if (document.hidden) {
+      sceneManager?.stop();
+    } else {
+      sceneManager?.start();
+    }
+  };
+  document.addEventListener('visibilitychange', handleTabVisibility);
 });
 
 onBeforeUnmount(() => {
@@ -1382,6 +1433,11 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', onResize);
 
   resizeObserver?.disconnect();
+  visibilityObserver?.disconnect();
+  if (handleTabVisibility) {
+    document.removeEventListener('visibilitychange', handleTabVisibility);
+    handleTabVisibility = null;
+  }
 
   measureTool?.disable();
   walkthrough?.dispose();
