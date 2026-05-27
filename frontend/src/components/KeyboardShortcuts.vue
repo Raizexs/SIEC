@@ -1,11 +1,38 @@
 <script setup>
-import { onMounted, onBeforeUnmount } from 'vue';
+import { computed, onMounted, onBeforeUnmount, toRef } from 'vue';
+import { useI18n } from '../composables/useI18n';
+import { useBodyScrollLock } from '../composables/useBodyScrollLock';
 
 const props = defineProps({
   show: Boolean,
 });
 
 const emit = defineEmits(['close']);
+
+const { t } = useI18n();
+
+useBodyScrollLock(toRef(props, 'show'));
+
+const modKey = computed(() =>
+  typeof navigator !== 'undefined' &&
+  /Mac|iPhone|iPad|iPod/i.test(navigator.platform)
+    ? 'Cmd'
+    : 'Ctrl',
+);
+
+const shortcuts = computed(() => [
+  { keys: [modKey.value, 'K'], desc: t('shortcutPalette') },
+  { keys: ['?'], desc: t('shortcutHelp') },
+  { keys: ['G', 'D'], desc: t('shortcutDashboard') },
+  { keys: ['G', 'W'], desc: t('shortcutWorkspace') },
+  { keys: ['G', 'S'], desc: t('shortcutSettings') },
+  { keys: [modKey.value, 'S'], desc: t('shortcutSave') },
+  { keys: ['Esc'], desc: t('shortcutEsc') },
+  { keys: ['Suprimir'], desc: t('shortcutDelete') },
+  { keys: ['F'], desc: t('shortcutFullscreen') },
+  { keys: ['M'], desc: t('shortcutMeasure') },
+  { keys: ['V'], desc: t('shortcutWalkthrough') },
+]);
 
 const onKeyDown = (e) => {
   if (e.key === 'Escape' && props.show) {
@@ -15,20 +42,6 @@ const onKeyDown = (e) => {
 
 onMounted(() => document.addEventListener('keydown', onKeyDown));
 onBeforeUnmount(() => document.removeEventListener('keydown', onKeyDown));
-
-const shortcuts = [
-  { keys: ['Cmd', 'K'], desc: 'Abrir paleta de comandos' },
-  { keys: ['?'], desc: 'Mostrar atajos' },
-  { keys: ['G', 'D'], desc: 'Ir al Dashboard' },
-  { keys: ['G', 'W'], desc: 'Ir al Workspace' },
-  { keys: ['G', 'S'], desc: 'Ir a Configuración' },
-  { keys: ['Ctrl', 'S'], desc: 'Guardar versión actual' },
-  { keys: ['Esc'], desc: 'Cerrar / cancelar acción' },
-  { keys: ['Suprimir'], desc: 'Eliminar recinto activo' },
-  { keys: ['F'], desc: 'Pantalla completa' },
-  { keys: ['M'], desc: 'Herramienta medir' },
-  { keys: ['V'], desc: 'Modo walkthrough' },
-];
 </script>
 
 <template>
@@ -36,8 +49,11 @@ const shortcuts = [
     <transition name="shortcut-overlay">
       <div
         v-if="show"
-        class="fixed inset-0 z-[150] flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-md dark:bg-black/50"
+        class="shortcut-overlay fixed inset-0 z-[150] flex touch-none items-center justify-center overflow-hidden overscroll-none bg-slate-950/35 p-4 backdrop-blur-md dark:bg-black/50"
+        data-scroll-lock-root
         @click.self="emit('close')"
+        @wheel.prevent
+        @touchmove.prevent
       >
         <transition name="shortcut-card" appear>
           <section

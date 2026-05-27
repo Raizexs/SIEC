@@ -524,3 +524,8 @@ html.siec-motion-reduced *::after {
   transition-duration: 0.01ms !important;
   scroll-behavior: auto !important;
 }
+
+/* Modales: bloqueo de scroll de fondo (complementa useBodyScrollLock) */
+html.siec-scroll-locked {
+  overflow: hidden !important;
+}

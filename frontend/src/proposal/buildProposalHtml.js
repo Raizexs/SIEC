@@ -90,7 +90,7 @@ const renderFinancialTable = (payload) => {
   </div>`;
 };
 
-const renderDesgloseTable = (desglose) => {
+const renderDesgloseTable = (desglose, payload = null) => {
   const normalized = normalizeDesglose(desglose);
 
   if (!normalized.length) {
@@ -109,7 +109,7 @@ const renderDesgloseTable = (desglose) => {
     );
 
     for (const item of category.items || []) {
-      rows.push(`<tr>
+      rows.push(`<tr class="desglose-item">
         <td>${escapeHtml(item.insumo || "—")}</td>
         <td class="num">${escapeHtml(formatNumber(item.cantidad))}</td>
         <td>${escapeHtml(item.unidad || "—")}</td>
@@ -119,8 +119,27 @@ const renderDesgloseTable = (desglose) => {
     }
   }
 
-  return `<div class="table-wrap">
-    <table class="data">
+  const subtotalInsumos = normalized.reduce(
+    (sum, cat) => sum + (cat.subtotal_categoria || 0),
+    0,
+  );
+  const totalDisplay =
+    payload?.totalFormatted ||
+    formatClp(payload?.totalPreferido ?? subtotalInsumos);
+
+  rows.push(
+    `<tr class="desglose-total-gap" aria-hidden="true"><td colspan="5"></td></tr>`,
+    `<tr class="desglose-grand-total total-row">
+      <td colspan="4">
+        <span class="desglose-grand-total__title">Total</span>
+        <span class="desglose-grand-total__subtitle">Monto total estimado</span>
+      </td>
+      <td class="num">${escapeHtml(totalDisplay)}</td>
+    </tr>`,
+  );
+
+  return `<div class="table-wrap table-wrap--desglose">
+    <table class="data data--desglose">
       <thead>
         <tr>
           <th class="col-insumo">Insumo</th>
@@ -283,7 +302,7 @@ export const buildProposalArticleHtmlCompact = (payload) => {
     materialNombre,
   } = payload;
 
-  const desgloseTable = renderDesgloseTable(payload.desglose);
+  const desgloseTable = renderDesgloseTable(payload.desglose, payload);
   const coverHeader = renderCoverHeader(payload);
 
   return `<article class="proposal">
@@ -415,7 +434,7 @@ export const buildProposalArticleHtml = (payload) => {
     : "";
 
   const financialTable = renderFinancialTable(payload);
-  const desgloseTable = renderDesgloseTable(payload.desglose);
+  const desgloseTable = renderDesgloseTable(payload.desglose, payload);
   const coverHeader = renderCoverHeader(payload);
   const metricsStrip = renderMetricsStrip(payload, totalDisplay);
 

@@ -668,20 +668,22 @@ export const PROPOSAL_CSS = `
     background: var(--siec-ink);
     color: #ffffff;
     text-align: left;
-    padding: 2.4mm 3mm;
+    padding: 3mm 3.2mm;
     font-size: 6.8pt;
     font-weight: 900;
     letter-spacing: 0.08em;
     text-transform: uppercase;
+    line-height: 1.35;
   }
 
   .proposal table.data td {
-    padding: 2.35mm 3mm;
+    padding: 3.1mm 3.2mm;
     border-bottom: 1px solid var(--siec-line);
-    vertical-align: top;
+    vertical-align: middle;
     background: #ffffff;
     color: var(--siec-slate);
     font-weight: 750;
+    line-height: 1.48;
     overflow-wrap: anywhere;
   }
 
@@ -719,8 +721,59 @@ export const PROPOSAL_CSS = `
     background: var(--siec-orange-soft) !important;
     color: var(--siec-ink) !important;
     border-bottom: 1px solid var(--siec-orange-line);
-    font-size: 8.4pt;
+    font-size: 8.6pt;
     font-weight: 900;
+    line-height: 1.4;
+    padding-top: 3.4mm;
+    padding-bottom: 3.4mm;
+  }
+
+  .proposal table.data tbody tr.cat-band:not(:first-child) td {
+    padding-top: 5mm;
+    border-top: 2px solid var(--siec-line-2);
+  }
+
+  .proposal table.data tbody tr.desglose-item td {
+    padding-top: 3.2mm;
+    padding-bottom: 3.2mm;
+  }
+
+  .proposal .desglose-total-gap td {
+    height: 5mm;
+    padding: 0 !important;
+    border: none !important;
+    background: transparent !important;
+  }
+
+  .proposal .desglose-grand-total td {
+    padding-top: 4.2mm !important;
+    padding-bottom: 4.2mm !important;
+    border-top: 2px solid var(--siec-emerald);
+    border-bottom: none;
+  }
+
+  .proposal .desglose-grand-total__title {
+    display: block;
+    color: var(--siec-ink);
+    font-size: 9.6pt;
+    font-weight: 900;
+    line-height: 1.3;
+  }
+
+  .proposal .desglose-grand-total__subtitle {
+    display: block;
+    margin-top: 0.8mm;
+    color: var(--siec-muted);
+    font-size: 7.6pt;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    line-height: 1.35;
+  }
+
+  .proposal .desglose-grand-total td.num {
+    font-size: 10.4pt;
+    font-weight: 900;
+    vertical-align: middle;
   }
 
   .proposal .total-row td {
@@ -960,17 +1013,45 @@ export const PROPOSAL_CSS = `
     padding-top: 8mm;
   }
 
-  .proposal .page--compact-desglose .data {
-    font-size: 8.5px;
+  .proposal .page--compact-desglose table.data {
+    font-size: 8.2pt;
   }
 
-  .proposal .page--compact-desglose .data th,
-  .proposal .page--compact-desglose .data td {
-    padding: 3px 5px;
+  .proposal .page--compact-desglose table.data th {
+    padding: 2.6mm 2.8mm;
+  }
+
+  .proposal .page--compact-desglose table.data td {
+    padding: 2.7mm 2.8mm;
+    line-height: 1.45;
+  }
+
+  .proposal .page--compact-desglose table.data tbody tr.cat-band:not(:first-child) td {
+    padding-top: 4mm;
+  }
+
+  .proposal .page--compact-desglose table.data tbody tr.desglose-item td {
+    padding-top: 2.8mm;
+    padding-bottom: 2.8mm;
   }
 
   .proposal .page--compact-desglose .cat-band td {
-    font-size: 8px;
+    font-size: 8.4pt;
+    padding-top: 3mm;
+    padding-bottom: 3mm;
+  }
+
+  .proposal .page--compact-desglose .desglose-total-gap td {
+    height: 4mm;
+  }
+
+  .proposal .page--compact-desglose .desglose-grand-total td {
+    padding-top: 3.6mm !important;
+    padding-bottom: 3.6mm !important;
+  }
+
+  .proposal .page--compact-desglose .desglose-grand-total td.num {
+    font-size: 9.8pt;
   }
 
   @page {
