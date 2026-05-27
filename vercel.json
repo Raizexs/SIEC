@@ -5,7 +5,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://REEMPLAZAR-CON-URL-RAILWAY.up.railway.app/api/:path*"
+      "destination": "https://TU-SERVICIO.up.railway.app/api/:path*"
     },
     {
       "source": "/(.*)",

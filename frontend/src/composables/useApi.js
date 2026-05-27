@@ -10,7 +10,7 @@
  */
 import { useAuthStore } from "../stores/auth";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const API_BASE = import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? "http://localhost:8000" : "");
 
 export class HttpError extends Error {
   constructor(status, payload, message) {
@@ -22,7 +22,8 @@ export class HttpError extends Error {
 
 async function request(method, path, { body, query, headers, signal } = {}) {
   const auth = useAuthStore();
-  const url = new URL(path.startsWith("http") ? path : `${API_BASE}${path}`);
+  const fullPath = path.startsWith("http") ? path : `${API_BASE}${path}`;
+  const url = new URL(fullPath, typeof window !== "undefined" ? window.location.origin : "http://localhost");
   if (query) {
     Object.entries(query).forEach(([k, v]) => {
       if (v !== undefined && v !== null) url.searchParams.set(k, String(v));
