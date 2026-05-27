@@ -416,39 +416,6 @@ export class WallBuilder {
       group.add(noggin);
     }
 
-    // ── Dinteles y alféizares para ventanas ──────────────────────────
-    // Cada vano de ventana necesita un dintel (viga horizontal superior)
-    // y un alféizar (viga horizontal inferior) para transferir cargas
-    // alrededor de la apertura.
-    const beamMat = new THREE.MeshStandardMaterial({
-      color: woodDark,
-      roughness: 0.7,
-      metalness: isMetal ? 0.25 : 0.0,
-    });
-
-    for (const zn of openingZones) {
-      if (zn.type !== "window") continue;
-      const beamW = zn.xMax - zn.xMin;
-
-      // Dintel — sobre la ventana
-      const dintel = new THREE.Mesh(
-        new THREE.BoxGeometry(beamW, PLATE_HEIGHT, STUD_DEPTH),
-        beamMat.clone(),
-      );
-      dintel.position.set((zn.xMin + zn.xMax) / 2, zn.yMax + PLATE_HEIGHT / 2, 0);
-      dintel.castShadow = true;
-      group.add(dintel);
-
-      // Alféizar — bajo la ventana
-      const alfeizar = new THREE.Mesh(
-        new THREE.BoxGeometry(beamW, PLATE_HEIGHT, STUD_DEPTH),
-        beamMat.clone(),
-      );
-      alfeizar.position.set((zn.xMin + zn.xMax) / 2, zn.yMin - PLATE_HEIGHT / 2, 0);
-      alfeizar.castShadow = true;
-      group.add(alfeizar);
-    }
-
     // ── Riostras diagonales ───────────────────────────────────────────
     // Cada riostra nace en un nodo de esquina de la trama (unión solera /
     // pie derecho extremo) y desciende en ángulo ~55° hasta la solera
