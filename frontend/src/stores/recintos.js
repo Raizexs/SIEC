@@ -20,6 +20,8 @@ export const useRecintosStore = defineStore("recintos", () => {
   const selectedForBudget = ref(new Set());
   const activeRecintoId = ref(null);
   const currentFloor = ref(1);
+  /** True while dragging/resizing in 2D — pauses heavy 3D sync. */
+  const layoutInteractionActive = ref(false);
 
   // SCRUM-98: Validador de cruce Insumo vs Altura (Metalcon)
   const metalconValidator = useMetalconValidator();
@@ -582,6 +584,7 @@ export const useRecintosStore = defineStore("recintos", () => {
     selectedForBudget,
     activeRecintoId,
     currentFloor,
+    layoutInteractionActive,
 
     // Methods
     initializeLayout,

@@ -141,13 +141,20 @@ const selectedBudgetRooms = computed(() => {
 });
 
 const buildLayoutRecintosPayload = () =>
-  selectedBudgetRooms.value.map((room) => ({
-    piso: room.piso || 1,
-    coords_x: room.coords?.x ?? 0,
-    coords_z: room.coords?.z ?? 0,
-    width: room.dimensions?.w ?? 0,
-    length: room.dimensions?.l ?? 0,
-  }));
+  selectedBudgetRooms.value
+    .map((room) => {
+      const width = Number(room.dimensions?.w) || 0;
+      const length = Number(room.dimensions?.l) || 0;
+      if (width <= 0 || length <= 0) return null;
+      return {
+        piso: room.piso || 1,
+        coords_x: room.coords?.x ?? 0,
+        coords_z: room.coords?.z ?? 0,
+        width,
+        length,
+      };
+    })
+    .filter(Boolean);
 
 const fetchBudget = async () => {
   if (!hasGenerated.value) return;
@@ -205,7 +212,22 @@ const fetchBudget = async () => {
       },
     );
 
-    if (!calcRes.ok) throw new Error(t("budgetErrCalc"));
+    if (!calcRes.ok) {
+      let detail = t("budgetErrCalc");
+      try {
+        const errBody = await calcRes.json();
+        if (typeof errBody?.detail === "string") detail = errBody.detail;
+        else if (Array.isArray(errBody?.detail)) {
+          detail = errBody.detail
+            .map((e) => e?.msg || e?.detail)
+            .filter(Boolean)
+            .join("; ");
+        }
+      } catch {
+        /* ignore */
+      }
+      throw new Error(detail);
+    }
 
     const data = await calcRes.json();
 
