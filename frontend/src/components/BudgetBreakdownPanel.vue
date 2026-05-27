@@ -24,6 +24,8 @@ const recintosStore = useRecintosStore();
 const workspaceStore = useWorkspaceStore();
 const { productPreferences } = useProductPreferences();
 
+const emit = defineEmits(["budget-calculated"]);
+
 const props = defineProps({
   m2Totales: { type: Number, required: true },
   materialEstructuralId: { type: Number, required: true },
@@ -234,6 +236,14 @@ const fetchBudget = async () => {
     desglose.value = data.desglose || [];
     costoTotal.value = data.costo_total;
     fechaPrecios.value = data.fecha_precios;
+
+    if (data.costo_total != null && Number.isFinite(data.costo_total)) {
+      emit("budget-calculated", {
+        costoTotal: data.costo_total,
+        m2Totales: props.m2Totales,
+        materialEstructuralId: props.materialEstructuralId,
+      });
+    }
   } catch (err) {
     error.value = err.message;
   } finally {

@@ -286,7 +286,7 @@ onMounted(fetchProjects);
               </div>
 
               <div
-                class="grid w-full grid-cols-2 gap-3 rounded-3xl border border-slate-200 bg-slate-50/80 p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900/60 sm:w-auto sm:min-w-[22rem]"
+                class="rounded-3xl border border-slate-200 bg-slate-50/80 p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900/60 sm:w-auto"
               >
                 <div
                   class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950"
@@ -302,7 +302,6 @@ onMounted(fetchProjects);
                     {{ hasRemoteProjects ? t('dashBackend') : t('dashLocal') }}
                   </p>
                 </div>
-
               </div>
             </div>
           </section>

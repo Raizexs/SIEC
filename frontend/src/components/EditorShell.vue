@@ -437,6 +437,19 @@ const onSaveVersionEvent = () => {
   showSaveDialog.value = true;
 };
 
+const onBudgetCalculated = ({ costoTotal, m2Totales, materialEstructuralId }) => {
+  if (!props.projectId) return;
+  if (!Number.isFinite(costoTotal) || costoTotal <= 0) return;
+
+  projectsApi.autoSave(props.projectId, {
+    estimated_cost: costoTotal,
+    m2_totales: Math.round(m2Totales),
+    material_id: materialEstructuralId,
+  }).catch((err) => {
+    logger.warn("[workspace] No se pudo guardar el costo estimado en el proyecto", err);
+  });
+};
+
 onMounted(() => {
   window.addEventListener('siec:save-version', onSaveVersionEvent);
 });
@@ -730,6 +743,7 @@ const startTutorial = () => {
               :materialEstructuralId="formData.materialEstructuralId"
               :perimetroMl="Number(totalWallLength)"
               :alturaMuroM="2.44"
+              @budget-calculated="onBudgetCalculated"
             />
           </section>
 
