@@ -476,10 +476,15 @@ const onBudgetCalculated = ({ costoTotal, m2Totales, materialEstructuralId }) =>
   if (isLocalProjectId(props.projectId)) return;
   if (!Number.isFinite(costoTotal) || costoTotal <= 0) return;
 
-  projectsApi.autoSave(props.projectId, {
+  // Call update() directly (not autoSave) so the PATCH fires immediately.
+  // autoSave uses setTimeout which can be lost if the user navigates away
+  // before the debounce window elapses.
+  projectsApi.update(props.projectId, {
     estimated_cost: costoTotal,
     m2_totales: Math.round(m2Totales),
     material_id: materialEstructuralId,
+  }).then(() => {
+    logger.debug('[workspace] Costo estimado guardado en el proyecto:', costoTotal);
   }).catch((err) => {
     const msg = err?.message || err?.statusText || JSON.stringify(err) || String(err);
     logger.warn("[workspace] No se pudo guardar el costo estimado en el proyecto:", msg);
