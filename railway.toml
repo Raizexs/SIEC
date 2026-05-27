@@ -13,3 +13,4 @@ startCommand = "/bin/sh -c \"uvicorn main:app --host 0.0.0.0 --port $PORT\""
 [env]
 ALLOWED_ORIGINS = "https://proyectsiec.vercel.app,https://siec.app,https://www.siec.app"
 ENVIRONMENT = "production"
+FORCE_REDEPLOY = "2026-05-27"
