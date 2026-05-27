@@ -158,14 +158,18 @@ def get_me(user: CurrentUser = Depends(get_current_user)):
 
 @app.get("/health", tags=["meta"])
 def healthcheck():
+    from database import check_database_connection
+
+    db = check_database_connection()
     return {
-        "status": "ok",
+        "status": "ok" if db.get("ok") else "degraded",
         "service": "siec-api",
         "auth": {
             "supabase_url_configured": bool(os.getenv("SUPABASE_URL", "").strip()),
             "jwt_secret_configured": bool(os.getenv("SUPABASE_JWT_SECRET", "").strip()),
             "jwt_algorithm_default": os.getenv("SUPABASE_JWT_ALGORITHM", "HS256"),
         },
+        "database": db,
     }
 
 
