@@ -351,6 +351,18 @@ const handleSaveLayout = (name) => {
   }, 3000);
 };
 
+const onSaveVersionEvent = () => {
+  showSaveDialog.value = true;
+};
+
+onMounted(() => {
+  window.addEventListener('siec:save-version', onSaveVersionEvent);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('siec:save-version', onSaveVersionEvent);
+});
+
 const handleNewEstimate = () => {
   if (
     confirm(

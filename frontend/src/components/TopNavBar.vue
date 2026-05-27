@@ -13,15 +13,14 @@ import {
   Building2,
   CheckCircle2,
 } from 'lucide-vue-next';
-import { WORKSPACE_FEATURES } from '../composables/useProductPreferences';
-
 const { t, currentLanguage } = useI18n();
 const router = useRouter();
 const authStore = useAuthStore();
 const { savedLayouts } = useLayoutManager();
 
 defineProps({
-  showShare: { type: Boolean, default: WORKSPACE_FEATURES.projectShare },
+  /** Guardar diseño / layout en el workspace (independiente de compartir proyecto). */
+  showSave: { type: Boolean, default: true },
 });
 
 defineEmits(['save-layout']);
@@ -96,10 +95,10 @@ const logout = async () => {
     <!-- Right: actions -->
     <div class="flex items-center gap-2">
       <button
-        v-if="showShare"
+        v-if="showSave"
         type="button"
-        class="hidden items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold uppercase tracking-tight text-slate-600 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 hover:shadow-md active:scale-[0.98] dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-100 md:inline-flex"
-        title="Guardar diseño actual"
+        class="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold uppercase tracking-tight text-slate-600 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 hover:shadow-md active:scale-[0.98] dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+        :title="t('saveCurrentDesign')"
         @click="$emit('save-layout')"
       >
         <Save class="h-4 w-4" :stroke-width="2.2" />
