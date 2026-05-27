@@ -1,79 +1,47 @@
-export const CATEGORIES = [
-  {
-    id: 'obraGruesa',
-    label: 'Obra Gruesa y Fundaciones',
-    keywords: ['fierro', 'cemento', 'arena', 'ripio', 'hormigón', 'acero', 'malla', 'concreto', 'fundación', 'grava', 'piedra'],
-  },
-  {
-    id: 'tabiqueria',
-    label: 'Estructura de Tabiquería',
-    keywords: ['madera', 'pino', 'tabiquería', 'listón', 'montante', 'solera', 'pie derecho', 'cercha', 'pilar', 'estructural madera', 'entramado'],
-  },
-  {
-    id: 'aislacionRevestimientos',
-    label: 'Aislación y Revestimientos',
-    keywords: ['volcanita', 'lana vidrio', 'lana mineral', 'aislación', 'revestimiento', 'yeso', 'cartón yeso', 'fibrocemento', 'siding', 'tablero osb', 'osb', 'poliestireno', 'plancha'],
-  },
-  {
-    id: 'techumbre',
-    label: 'Techumbre',
-    keywords: ['techo', 'techumbre', 'teja', 'zinc', 'cerámica', 'cubierta', 'alero', 'canal', 'aguas lluvia', 'cercha techo'],
-  },
-  {
-    id: 'instalaciones',
-    label: 'Instalaciones',
-    keywords: ['cable', 'tubo pvc', 'tubería', 'conductor', 'eléctrico', 'agua 75mm', 'sanitaria', 'instalación'],
-  },
-  {
-    id: 'manoObra',
-    label: 'Mano de Obra',
-    keywords: ['mano de obra', 'mano obra'],
-  },
-];
+const CATEGORY_DISPLAY = {
+  'Obra Gruesa': { id: 'obraGruesa', label: 'Obra Gruesa y Fundaciones' },
+  'Obra Gruesa - Complementos': { id: 'complementos', label: 'Complementos Obra Gruesa' },
+  'Terminaciones': { id: 'terminaciones', label: 'Terminaciones y Revestimientos' },
+  'Instalaciones': { id: 'instalaciones', label: 'Instalaciones' },
+  'Techumbre - Estructura': { id: 'techumbre', label: 'Techumbre' },
+  'Techumbre - Cubierta': { id: 'techumbre', label: 'Techumbre' },
+  'Techumbre - Mano de Obra': { id: 'manoObra', label: 'Mano de Obra' },
+  'Mano de Obra': { id: 'manoObra', label: 'Mano de Obra' },
+};
 
-function matchCategory(insumo) {
-  const name = insumo.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  for (const cat of CATEGORIES) {
-    for (const kw of cat.keywords) {
-      if (name.includes(kw)) return cat;
-    }
-  }
-  return null;
-}
+const ORDER = ['obraGruesa', 'complementos', 'terminaciones', 'techumbre', 'instalaciones', 'manoObra'];
 
 export function reorganizeDesglose(desglose) {
-  const allItems = [];
-  for (const cat of desglose) {
-    for (const item of cat.items || []) {
-      allItems.push({ ...item });
-    }
-  }
-
   const grouped = {};
-  for (const item of allItems) {
-    const matched = matchCategory(item.insumo);
-    const catId = matched ? matched.id : 'otros';
-    if (!grouped[catId]) {
-      grouped[catId] = {
-        categoria: matched ? matched.label : 'Otros',
+
+  for (const cat of desglose) {
+    const mapping = CATEGORY_DISPLAY[cat.categoria];
+    const display = mapping || { id: 'otros', label: cat.categoria };
+
+    if (!grouped[display.id]) {
+      grouped[display.id] = {
+        categoria: display.label,
         items: [],
         subtotal_categoria: 0,
       };
     }
-    grouped[catId].items.push(item);
-    grouped[catId].subtotal_categoria += item.subtotal || 0;
-  }
 
-  const ordered = [];
-  for (const cat of CATEGORIES) {
-    if (grouped[cat.id]) {
-      ordered.push(grouped[cat.id]);
-      delete grouped[cat.id];
+    for (const item of cat.items || []) {
+      grouped[display.id].items.push(item);
+      grouped[display.id].subtotal_categoria += item.subtotal || 0;
     }
   }
 
-  if (grouped.otros) {
-    ordered.push(grouped.otros);
+  const ordered = [];
+  for (const id of ORDER) {
+    if (grouped[id]) {
+      ordered.push(grouped[id]);
+      delete grouped[id];
+    }
+  }
+
+  for (const id of Object.keys(grouped)) {
+    ordered.push(grouped[id]);
   }
 
   return ordered;
