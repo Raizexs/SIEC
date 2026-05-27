@@ -130,7 +130,7 @@ export const useAuthStore = defineStore('auth', () => {
   const loadProfile = async () => {
     if (!user.value) return;
     try {
-      const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '');
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
       const res = await fetch(`${apiUrl}/me`, {
         headers: { Authorization: `Bearer ${accessToken.value}` },
       });

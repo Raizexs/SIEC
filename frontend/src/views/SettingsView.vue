@@ -127,7 +127,7 @@ const planModeBadges = computed(() => {
 });
 
 const apiBaseUrl = computed(
-  () => (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, ''),
+  () => import.meta.env.VITE_API_URL || 'http://localhost:8000',
 );
 
 const integrationCards = computed(() => {
