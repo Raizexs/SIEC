@@ -131,242 +131,92 @@ const editorSnapStep = computed(() => 0);
 
 const editor = useInteractiveEditor({ snapStep: editorSnapStep });
 
-// ── Corridor Mode ─────────────────────────────────────────────────────────────
+// ── Corridor Draw Mode ────────────────────────────────────────────────────────
 const corridorMode = ref(false);
-const MIN_CORRIDOR_DIM = 0.8; // metros mínimos en cualquier dirección
-const CORRIDOR_MERGE_EPS = 0.001;
-
-/** Fusiona rectángulos colindantes que forman un rectángulo mayor. */
-const mergeAdjacentCorridorRects = (rects) => {
-  const out = rects.map((rect) => ({ ...rect }));
-  let changed = true;
-
-  while (changed) {
-    changed = false;
-
-    outer:
-    for (let i = 0; i < out.length; i++) {
-      for (let j = i + 1; j < out.length; j++) {
-        const a = out[i];
-        const b = out[j];
-        let merged = null;
-
-        if (
-          Math.abs(a.z0 - b.z0) < CORRIDOR_MERGE_EPS &&
-          Math.abs(a.l - b.l) < CORRIDOR_MERGE_EPS
-        ) {
-          if (Math.abs(a.x0 + a.w - b.x0) < CORRIDOR_MERGE_EPS) {
-            merged = { x0: a.x0, z0: a.z0, w: a.w + b.w, l: a.l };
-          } else if (Math.abs(b.x0 + b.w - a.x0) < CORRIDOR_MERGE_EPS) {
-            merged = { x0: b.x0, z0: a.z0, w: a.w + b.w, l: a.l };
-          }
-        }
-
-        if (
-          !merged &&
-          Math.abs(a.x0 - b.x0) < CORRIDOR_MERGE_EPS &&
-          Math.abs(a.w - b.w) < CORRIDOR_MERGE_EPS
-        ) {
-          if (Math.abs(a.z0 + a.l - b.z0) < CORRIDOR_MERGE_EPS) {
-            merged = { x0: a.x0, z0: a.z0, w: a.w, l: a.l + b.l };
-          } else if (Math.abs(b.z0 + b.l - a.z0) < CORRIDOR_MERGE_EPS) {
-            merged = { x0: b.x0, z0: b.z0, w: a.w, l: a.l + b.l };
-          }
-        }
-
-        if (merged) {
-          out[i] = merged;
-          out.splice(j, 1);
-          changed = true;
-          break outer;
-        }
-      }
-    }
-  }
-
-  return out;
-};
+const MIN_CORRIDOR_DIM = 0.5; // mínimo igual que un recinto normal
 
 /**
- * Cubre celdas de una región ortogonal con pocos rectángulos (greedy maximal).
- * Mejor para pasillos en L/T que la descomposición por franjas horizontales.
+ * Estado del draw-drag de pasillo.
+ * origin: punto mundo donde se hizo pointerdown.
+ * preview: rect normalizado { x0, z0, w, l } que se dibuja en tiempo real.
  */
-const decomposeCellsToCorridorRects = (cells, sortedX, sortedZ) => {
-  const remaining = new Set(cells.map(({ row, col }) => `${row},${col}`));
-  const rects = [];
-
-  const hasBlock = (row, col, wCols, hRows) => {
-    for (let r = row; r < row + hRows; r++) {
-      for (let c = col; c < col + wCols; c++) {
-        if (!remaining.has(`${r},${c}`)) return false;
-      }
-    }
-    return true;
-  };
-
-  while (remaining.size > 0) {
-    let best = null;
-    let bestArea = 0;
-
-    for (const key of remaining) {
-      const [row, col] = key.split(',').map(Number);
-      let maxW = 1;
-      while (hasBlock(row, col, maxW + 1, 1)) maxW++;
-
-      let maxH = 1;
-      let canGrow = true;
-      while (canGrow) {
-        for (let c = col; c < col + maxW; c++) {
-          if (!remaining.has(`${row + maxH},${c}`)) {
-            canGrow = false;
-            break;
-          }
-        }
-        if (canGrow) maxH++;
-      }
-
-      const area = maxW * maxH;
-      if (area > bestArea) {
-        bestArea = area;
-        best = { row, col, wCols: maxW, hRows: maxH };
-      }
-    }
-
-    if (!best) break;
-
-    for (let r = best.row; r < best.row + best.hRows; r++) {
-      for (let c = best.col; c < best.col + best.wCols; c++) {
-        remaining.delete(`${r},${c}`);
-      }
-    }
-
-    const x0 = sortedX[best.col];
-    const x1 = sortedX[best.col + best.wCols];
-    const z0 = sortedZ[best.row];
-    const z1 = sortedZ[best.row + best.hRows];
-    rects.push({ x0, z0, w: x1 - x0, l: z1 - z0 });
-  }
-
-  return mergeAdjacentCorridorRects(rects);
-};
+const corridorDraw = ref(null);
 
 /**
- * Agrupa celdas vacías en REGIONES CONECTADAS usando flood-fill (4-vecinos).
- * Cada hueco libre es una zona independiente; un clic crea solo ese pasillo.
+ * Aplica snap de bordes (igual que drag/resize) sobre una coordenada raw.
+ * Usa las líneas de snap de todos los recintos del piso actual.
  */
-const corridorZones = computed(() => {
-  if (!corridorMode.value) return [];
-
+const snapCorridorCoord = (rawX, rawZ, snapThreshold = 0.25) => {
   const bd    = budgetRect.value;
-  const bW    = bd.w;
-  const bH    = bd.h;
   const floor = store.currentFloor;
-  const rooms = store.recintos.filter(r => (r.piso || 1) === floor);
 
-  // 1. Recopilar coordenadas únicas X y Z
-  const xs = new Set([0, bW]);
-  const zs = new Set([0, bH]);
-  rooms.forEach(r => {
-    xs.add(r.coords.x);       xs.add(r.coords.x + r.dimensions.w);
-    zs.add(r.coords.z);       zs.add(r.coords.z + r.dimensions.l);
-  });
-  const sortedX = [...xs].sort((a, b) => a - b);
-  const sortedZ = [...zs].sort((a, b) => a - b);
-  const cols = sortedX.length - 1;
-  const rows = sortedZ.length - 1;
-
-  // 2. Marcar celdas ocupadas
-  const occupied = Array.from({ length: rows }, () => new Array(cols).fill(false));
-  rooms.forEach(r => {
-    const rx0 = r.coords.x, rx1 = r.coords.x + r.dimensions.w;
-    const rz0 = r.coords.z, rz1 = r.coords.z + r.dimensions.l;
-    for (let row = 0; row < rows; row++) {
-      for (let col = 0; col < cols; col++) {
-        const cx0 = sortedX[col], cx1 = sortedX[col + 1];
-        const cz0 = sortedZ[row], cz1 = sortedZ[row + 1];
-        if (rx0 < cx1 && rx1 > cx0 && rz0 < cz1 && rz1 > cz0) {
-          occupied[row][col] = true;
-        }
-      }
-    }
+  const xLines = [0, bd.w];
+  const zLines = [0, bd.h];
+  store.recintos.forEach((r) => {
+    if ((r.piso || 1) !== floor) return;
+    xLines.push(r.coords.x, r.coords.x + r.dimensions.w);
+    zLines.push(r.coords.z, r.coords.z + r.dimensions.l);
   });
 
-  // 3. Filtrar celdas válidas (dentro del terreno y ambas dims >= MIN)
-  const validCell = (row, col) => {
-    if (occupied[row][col]) return false;
-    const cx0 = sortedX[col], cx1 = sortedX[col + 1];
-    const cz0 = sortedZ[row], cz1 = sortedZ[row + 1];
-    const cw = cx1 - cx0, cl = cz1 - cz0;
-    return cx0 >= 0 && cx1 <= bW && cz0 >= 0 && cz1 <= bH && cw >= 0.01 && cl >= 0.01;
+  const snapLine = (raw, lines) => {
+    let best = raw;
+    let minDiff = snapThreshold;
+    for (const line of lines) {
+      const d = Math.abs(raw - line);
+      if (d < minDiff) { minDiff = d; best = line; }
+    }
+    return best;
   };
 
-  // 4. Flood-fill para etiquetar regiones conectadas
-  const groupId = Array.from({ length: rows }, () => new Array(cols).fill(-1));
-  let numGroups = 0;
-
-  const floodFill = (startRow, startCol, gid) => {
-    const queue = [[startRow, startCol]];
-    groupId[startRow][startCol] = gid;
-    while (queue.length > 0) {
-      const [r, c] = queue.pop();
-      for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
-        const nr = r + dr, nc = c + dc;
-        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols &&
-            groupId[nr][nc] === -1 && validCell(nr, nc)) {
-          groupId[nr][nc] = gid;
-          queue.push([nr, nc]);
-        }
-      }
-    }
+  return {
+    x: snapLine(rawX, xLines),
+    z: snapLine(rawZ, zLines),
   };
+};
 
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      if (validCell(row, col) && groupId[row][col] === -1) {
-        floodFill(row, col, numGroups++);
-      }
-    }
-  }
+/** Normaliza un rect dado dos puntos (cualquier orden de arrastre). */
+const corridorRectFromPoints = (ax, az, bx, bz) => {
+  const bd = budgetRect.value;
+  const x0 = Math.max(0, Math.min(ax, bx));
+  const z0 = Math.max(0, Math.min(az, bz));
+  const x1 = Math.min(bd.w, Math.max(ax, bx));
+  const z1 = Math.min(bd.h, Math.max(az, bz));
+  return { x0, z0, w: x1 - x0, l: z1 - z0 };
+};
 
-  // 5. Por cada región, descomponer en pocos rectángulos (figuras complejas)
-  const groupCells = Array.from({ length: numGroups }, () => []);
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      const gid = groupId[row][col];
-      if (gid >= 0) groupCells[gid].push({ row, col });
-    }
-  }
+/** Inicia el draw de pasillo al hacer pointerdown en el canvas. */
+const startCorridorDraw = (e) => {
+  if (!corridorMode.value) return;
+  e.preventDefault();
+  e.stopPropagation();
+  editor.selectedRecintoId.value = null;
+  const w = toWorld(e.clientX, e.clientY);
+  const snapped = snapCorridorCoord(w.x, w.z);
+  corridorDraw.value = {
+    ox: snapped.x,
+    oz: snapped.z,
+    preview: { x0: snapped.x, z0: snapped.z, w: 0, l: 0 },
+  };
+};
 
-  const groupRects = Array.from({ length: numGroups }, () => []);
-  for (let gid = 0; gid < numGroups; gid++) {
-    const cells = groupCells[gid];
-    if (cells.length === 0) continue;
+/** Actualiza el preview durante el drag de pasillo. */
+const updateCorridorDraw = (clientX, clientY) => {
+  if (!corridorDraw.value) return;
+  const w   = toWorld(clientX, clientY);
+  const end = snapCorridorCoord(w.x, w.z);
+  corridorDraw.value.preview = corridorRectFromPoints(
+    corridorDraw.value.ox, corridorDraw.value.oz,
+    end.x, end.z,
+  );
+};
 
-    const rects = decomposeCellsToCorridorRects(cells, sortedX, sortedZ)
-      .filter((rect) => rect.w >= MIN_CORRIDOR_DIM && rect.l >= MIN_CORRIDOR_DIM);
+/** Confirma el pasillo y lo crea en el store. */
+const commitCorridorDraw = () => {
+  if (!corridorDraw.value) return;
+  const pr = corridorDraw.value.preview;
+  corridorDraw.value = null;
+  if (pr.w < MIN_CORRIDOR_DIM || pr.l < MIN_CORRIDOR_DIM) return;
 
-    groupRects[gid] = rects.map((rect) => ({ ...rect, groupId: gid }));
-  }
-
-  // 6. Una zona clickeable por rectángulo (cada hueco por separado)
-  const zones = [];
-  for (let gid = 0; gid < numGroups; gid++) {
-    const rects = groupRects[gid];
-    rects.forEach((rect) => {
-      zones.push({
-        ...rect,
-        labelX: rect.x0 + rect.w / 2,
-        labelZ: rect.z0 + rect.l / 2,
-        pieceArea: rect.w * rect.l,
-      });
-    });
-  }
-
-  return zones;
-});
-
-/** Crea solo el pasillo de la zona en la que hiciste clic (p. ej. el hueco entre dos recintos). */
-const buildCorridor = (zone) => {
   const floor = store.currentFloor;
   const pasillosEnPiso = store.recintos.filter(
     (r) => r.tipo === 'pasillo' && (r.piso || 1) === floor,
@@ -376,11 +226,13 @@ const buildCorridor = (zone) => {
   const id = store.addRecinto(
     'pasillo',
     nombre,
-    zone.w,
-    zone.l,
+    Number(pr.w.toFixed(3)),
+    Number(pr.l.toFixed(3)),
     Math.max(1.0, Number(props.defaultRoomHeight) || 2.4),
   );
-  store.updateRecinto(id, { coords: { x: zone.x0, z: zone.z0 } });
+  store.updateRecinto(id, { coords: { x: Number(pr.x0.toFixed(3)), z: Number(pr.z0.toFixed(3)) } });
+  editor.selectedRecintoId.value = id;
+  store.saveHistoryState();
 };
 
 
@@ -856,6 +708,12 @@ const isGhostFading = ref(false);
 let pointerMoveFrame = null;
 
 const handlePointerMove = (e) => {
+  // ── Corridor draw preview ─────────────────────────────────────────────
+  if (corridorDraw.value) {
+    updateCorridorDraw(e.clientX, e.clientY);
+    return;
+  }
+
   if (!editor.activeMode.value) return;
   const w = toWorld(e.clientX, e.clientY);
 
@@ -887,6 +745,14 @@ const handlePointerMove = (e) => {
 };
 
 const onPointerMove = (e) => {
+  if (corridorDraw.value) {
+    if (pointerMoveFrame) return;
+    pointerMoveFrame = requestAnimationFrame(() => {
+      pointerMoveFrame = null;
+      handlePointerMove(e);
+    });
+    return;
+  }
   if (!editor.activeMode.value) return;
   if (pointerMoveFrame) return;
   pointerMoveFrame = requestAnimationFrame(() => {
@@ -896,6 +762,12 @@ const onPointerMove = (e) => {
 };
 
 const onPointerUp = () => {
+  // ── Corridor draw commit ──────────────────────────────────────────────
+  if (corridorDraw.value) {
+    commitCorridorDraw();
+    return;
+  }
+
   const mode = editor.activeMode.value;
 
   if (dragPreview.value) {
@@ -1044,8 +916,8 @@ onBeforeUnmount(() => {
 });
 
 // ── Room helpers ───────────────────────────────────────────────────────────────
-const roomFill   = (t) => t === "habitacion" ? "#3b82f6" : t === "banio" ? "#14b8a6" : "#f59e0b";
-const roomEdge   = (t) => t === "habitacion" ? "#60a5fa" : t === "banio" ? "#2dd4bf" : "#fbbf24";
+const roomFill   = (t) => t === "pasillo" ? "#14b8a6" : "#3b82f6";
+const roomEdge   = (t) => t === "pasillo" ? "#2dd4bf" : "#60a5fa";
 const isActive   = (id) => !!editor.activeMode.value && editor.selectedRecintoId.value === id;
 const isSelected = (id) => editor.selectedRecintoId.value === id; // persistent, even after drag ends
 const isResizing = (id) => editor.activeMode.value === "resize" && editor.selectedRecintoId.value === id;
@@ -1329,6 +1201,18 @@ defineExpose({ openAddModal });
               {{ t('addRoomBtn') }}
             </button>
 
+            <!-- Corridor draw-mode toggle -->
+            <button
+              type="button"
+              class="tool-btn tool-btn-sm"
+              :class="corridorMode ? 'tool-btn-teal-active' : 'tool-btn-neutral'"
+              :title="corridorMode ? t('corridorsOn') : t('corridorsOff')"
+              @click="corridorMode = !corridorMode; corridorDraw = null"
+            >
+              <span class="material-symbols-outlined text-[15px]">route</span>
+              {{ t('corridors') }}
+            </button>
+
             <button
               type="button"
               class="tool-btn tool-btn-sm"
@@ -1341,7 +1225,6 @@ defineExpose({ openAddModal });
               </span>
               {{ resizeLocked ? t('resizeLocked') : t('resizeLock') }}
             </button>
-
 
           </div>
         </div>
@@ -1434,7 +1317,8 @@ defineExpose({ openAddModal });
             :width="vbW"
             :height="vbH"
             :fill="canvasBaseFill"
-            @pointerdown="editor.selectedRecintoId.value = null"
+            :class="corridorMode ? 'cursor-crosshair' : ''"
+            @pointerdown="corridorMode ? startCorridorDraw($event) : (editor.selectedRecintoId.value = null)"
           />
 
           <!-- Budget boundary rectangle -->
@@ -1495,67 +1379,69 @@ defineExpose({ openAddModal });
             />
           </g>
 
-          <!-- Corridor Zones -->
-          <g v-if="corridorMode">
-            <g
-              v-for="(zone, idx) in corridorZones"
-              :key="'cz-' + idx"
-              class="corridor-zone-group"
-              @click="buildCorridor(zone)"
-            >
+          <!-- Corridor draw mode: instrucción flotante + preview en tiempo real -->
+          <g v-if="corridorMode" style="pointer-events: none;">
+            <!-- Hint cuando no hay draw activo -->
+            <g v-if="!corridorDraw">
               <rect
-                :x="toSX(zone.x0)"
-                :y="toSZ(zone.z0)"
-                :width="zone.w * PPM"
-                :height="zone.l * PPM"
-                fill="rgba(20,184,166,0.13)"
-                stroke="rgba(20,184,166,0.65)"
-                stroke-width="1.6"
-                stroke-dasharray="6 4"
-                rx="5"
-                class="corridor-zone-rect"
+                :x="toSX(budgetRect.w / 2) - 130"
+                :y="toSZ(0) + 10"
+                width="260"
+                height="24"
+                rx="8"
+                fill="rgba(13,148,136,0.85)"
               />
-
               <text
-                :x="toSX(zone.labelX)"
-                :y="toSZ(zone.labelZ) - 6"
-                fill="rgba(20,184,166,0.95)"
-                font-size="11"
+                :x="toSX(budgetRect.w / 2)"
+                :y="toSZ(0) + 26"
+                fill="white"
+                font-size="10"
                 font-weight="800"
                 text-anchor="middle"
                 dominant-baseline="middle"
-                style="pointer-events: none; user-select: none;"
               >
-                {{ zone.pieceArea.toFixed(1) }} m²
+                ✦ Arrastra para dibujar un pasillo
               </text>
+            </g>
 
+            <!-- Preview rect mientras se arrastra -->
+            <g v-if="corridorDraw && corridorDraw.preview.w > 0 && corridorDraw.preview.l > 0">
+              <!-- Sombra fill igual que un recinto de tipo pasillo -->
+              <rect
+                :x="toSX(corridorDraw.preview.x0)"
+                :y="toSZ(corridorDraw.preview.z0)"
+                :width="corridorDraw.preview.w * PPM"
+                :height="corridorDraw.preview.l * PPM"
+                fill="rgba(20,184,166,0.28)"
+                stroke="rgba(20,184,166,0.95)"
+                stroke-width="2"
+                stroke-dasharray="8 4"
+                rx="5"
+              />
+              <!-- Dimensiones en tiempo real -->
               <text
-                :x="toSX(zone.labelX)"
-                :y="toSZ(zone.labelZ) + 8"
+                :x="toSX(corridorDraw.preview.x0 + corridorDraw.preview.w / 2)"
+                :y="toSZ(corridorDraw.preview.z0 + corridorDraw.preview.l / 2) - 8"
+                fill="rgba(20,184,166,1)"
+                font-size="11"
+                font-weight="900"
+                text-anchor="middle"
+                dominant-baseline="middle"
+              >
+                {{ corridorDraw.preview.w.toFixed(2) }} × {{ corridorDraw.preview.l.toFixed(2) }} m
+              </text>
+              <text
+                :x="toSX(corridorDraw.preview.x0 + corridorDraw.preview.w / 2)"
+                :y="toSZ(corridorDraw.preview.z0 + corridorDraw.preview.l / 2) + 10"
                 fill="rgba(20,184,166,0.72)"
                 font-size="10"
                 font-weight="700"
                 text-anchor="middle"
                 dominant-baseline="middle"
-                style="pointer-events: none; user-select: none;"
               >
-                Clic → pasillo aquí
+                {{ (corridorDraw.preview.w * corridorDraw.preview.l).toFixed(1) }} m²
               </text>
             </g>
-
-            <text
-              v-if="corridorZones.length === 0"
-              :x="toSX(budgetRect.w / 2)"
-              :y="toSZ(budgetRect.h / 2)"
-              fill="rgba(20,184,166,0.65)"
-              font-size="12"
-              font-weight="700"
-              text-anchor="middle"
-              dominant-baseline="middle"
-              style="pointer-events: none;"
-            >
-              Sin espacios ≥ 0.8m disponibles para pasillo
-            </text>
           </g>
 
           <!-- Rooms -->
@@ -1645,19 +1531,27 @@ defineExpose({ openAddModal });
               class="cursor-pointer"
               @pointerdown.stop.prevent="(e) => onToggleBudget(e, recinto.id)"
             >
+              <!-- Invisible hit area 40×40 for easy tapping -->
+              <rect
+                :x="toSX(recinto.coords.x + recinto.dimensions.w) - 36"
+                :y="toSZ(recinto.coords.z) - 4"
+                width="40"
+                height="40"
+                fill="transparent"
+              />
               <circle
-                :cx="toSX(recinto.coords.x + recinto.dimensions.w) - 13"
-                :cy="toSZ(recinto.coords.z) + 13"
-                r="10.5"
-                :fill="isBudgeted(recinto.id) ? '#22c55e' : 'rgba(15,23,42,0.72)'"
-                :stroke="isBudgeted(recinto.id) ? '#86efac' : 'rgba(255,255,255,0.42)'"
-                stroke-width="1.5"
+                :cx="toSX(recinto.coords.x + recinto.dimensions.w) - 16"
+                :cy="toSZ(recinto.coords.z) + 16"
+                r="16"
+                :fill="isBudgeted(recinto.id) ? '#22c55e' : 'rgba(15,23,42,0.80)'"
+                :stroke="isBudgeted(recinto.id) ? '#86efac' : 'rgba(255,255,255,0.50)'"
+                stroke-width="2"
               />
               <text
-                :x="toSX(recinto.coords.x + recinto.dimensions.w) - 13"
-                :y="toSZ(recinto.coords.z) + 13"
+                :x="toSX(recinto.coords.x + recinto.dimensions.w) - 16"
+                :y="toSZ(recinto.coords.z) + 16"
                 fill="white"
-                font-size="11"
+                font-size="13"
                 font-weight="900"
                 text-anchor="middle"
                 dominant-baseline="central"
@@ -2208,18 +2102,17 @@ svg rect.cursor-grabbing {
   color: rgb(252 165 165);
 }
 
-/* Corridor zone hover */
-.corridor-zone-group {
-  cursor: pointer;
+/* Corridor draw-mode button active state */
+.tool-btn-teal-active {
+  border-color: rgb(153 246 228);
+  background: rgb(240 253 250);
+  color: rgb(15 118 110);
 }
 
-.corridor-zone-rect {
-  transition: fill 0.15s ease, stroke 0.15s ease;
-}
-
-.corridor-zone-group:hover .corridor-zone-rect {
-  fill: rgba(20, 184, 166, 0.25);
-  stroke: rgba(20, 184, 166, 0.9);
+.dark .tool-btn-teal-active {
+  border-color: rgba(20, 184, 166, 0.5);
+  background: rgba(13, 148, 136, 0.2);
+  color: rgb(94 234 212);
 }
 
 /* Inspector inputs */
