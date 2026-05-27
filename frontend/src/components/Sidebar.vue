@@ -23,8 +23,6 @@ import {
   Sun,
   Moon,
   Languages,
-  GraduationCap,
-  BookOpen,
   Plus,
   CircleDot,
   CheckCircle2,
@@ -38,9 +36,7 @@ const { savedLayouts, deleteLayout } = useLayoutManager();
 const emit = defineEmits([
   'loadLayout',
   'collapse-change',
-  'open-manual',
   'new-estimate',
-  'start-tutorial',
 ]);
 
 const collapsed = ref(false);
@@ -286,27 +282,6 @@ const formatDate = (value) => {
         >
           <component :is="ThemeIcon" class="h-3.5 w-3.5" :stroke-width="2.2" />
           {{ themeLabel }}
-        </button>
-      </div>
-
-      <!-- Help links -->
-      <div class="grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          class="flex items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-2 py-2.5 text-[10px] font-black uppercase tracking-[0.12em] text-slate-600 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-300 hover:text-orange-700 hover:shadow-md active:scale-[0.98] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:border-orange-900/70 dark:hover:text-orange-300"
-          @click="$emit('start-tutorial')"
-        >
-          <GraduationCap class="h-3.5 w-3.5" :stroke-width="2.2" />
-          {{ t('tutorial') }}
-        </button>
-
-        <button
-          type="button"
-          class="flex items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-2 py-2.5 text-[10px] font-black uppercase tracking-[0.12em] text-slate-600 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:text-slate-950 hover:shadow-md active:scale-[0.98] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:text-slate-100"
-          @click="$emit('open-manual')"
-        >
-          <BookOpen class="h-3.5 w-3.5" :stroke-width="2.2" />
-          {{ t('manual') }}
         </button>
       </div>
 

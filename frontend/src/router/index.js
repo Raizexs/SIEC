@@ -96,7 +96,7 @@ router.beforeEach(async (to) => {
     const redirect =
       to.query.redirect && typeof to.query.redirect === "string"
         ? to.query.redirect
-        : "/dashboard";
+        : "/workspace";
     return redirect;
   }
 
