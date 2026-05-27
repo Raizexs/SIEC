@@ -4,7 +4,7 @@
  * Layout: AppRail at the left + premium content shell at right.
  */
 
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 import { useApi, HttpError } from "../composables/useApi";
@@ -194,6 +194,12 @@ const filters = computed(() => {
 });
 
 onMounted(fetchProjects);
+
+// Refresca proyectos al entrar a la vista analítica para mostrar
+// el estimated_cost actualizado por el workspace.
+watch(isAnalyticsView, (entering) => {
+  if (entering) fetchProjects();
+});
 </script>
 
 <template>
