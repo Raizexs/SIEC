@@ -117,6 +117,7 @@ let isManipulating = false;
 let savedScrollY = 0;
 
 let stopSceneWatcher = null;
+let stopLayoutSyncWatcher = null;
 let stopLayerWatcher = null;
 let stopActiveRoomWatcher = null;
 
@@ -1327,6 +1328,7 @@ onMounted(() => {
     ],
     () => {
       if (!sceneManager) return;
+      if (recintosStore.layoutInteractionActive) return;
 
       syncWalls();
       syncRooms();
@@ -1357,6 +1359,16 @@ onMounted(() => {
         transformControl.attach(mesh);
       } else {
         transformControl.detach();
+      }
+    },
+  );
+
+  stopLayoutSyncWatcher = watch(
+    () => recintosStore.layoutInteractionActive,
+    (active, wasActive) => {
+      if (wasActive && !active && sceneManager) {
+        syncWalls();
+        syncRooms();
       }
     },
   );
@@ -1401,6 +1413,7 @@ onBeforeUnmount(() => {
   stopSceneWatcher?.();
   stopLayerWatcher?.();
   stopActiveRoomWatcher?.();
+  stopLayoutSyncWatcher?.();
 
   document.removeEventListener('fullscreenchange', handleFullscreenChange);
   window.removeEventListener('siec:capture-scene', handleSceneCaptureRequest);

@@ -63,31 +63,40 @@ export function useInteractiveEditor(opts = {}) {
     }
   }
 
-  const dragTo = (pointerWorld, budgetRect) => {
-    if (activeMode.value !== 'drag' || !selectedRecinto.value) return
+  const computeDragPosition = (pointerWorld, budgetRect) => {
+    if (activeMode.value !== 'drag' || !selectedRecinto.value) return null
 
     const room = selectedRecinto.value
     const terrain = terrainFromBudget(budgetRect)
-    const nextX = pointerWorld.x - dragOffset.value.x
-    const nextZ = pointerWorld.z - dragOffset.value.z
+    const { xLines, zLines } = getSnapLines(store.currentFloor, room.id, budgetRect)
+
+    const rawX = pointerWorld.x - dragOffset.value.x
+    const rawZ = pointerWorld.z - dragOffset.value.z
+    const edgeX = snapEdge(rawX, room.dimensions.w, xLines)
+    const edgeZ = snapEdge(rawZ, room.dimensions.l, zLines)
 
     const resolved = resolveRoomDragPosition(
       room,
-      nextX,
-      nextZ,
+      edgeX,
+      edgeZ,
       terrain,
       store.recintos,
       { snapStep: currentSnapStep() },
     )
 
-    if (!resolved) return
+    if (!resolved) return null
 
-    store.updateRecinto(room.id, {
-      coords: {
-        x: Number(resolved.x.toFixed(3)),
-        z: Number(resolved.z.toFixed(3)),
-      },
-    })
+    return {
+      x: Number(resolved.x.toFixed(3)),
+      z: Number(resolved.z.toFixed(3)),
+    }
+  }
+
+  const dragTo = (pointerWorld, budgetRect) => {
+    const coords = computeDragPosition(pointerWorld, budgetRect)
+    if (!coords || !selectedRecinto.value) return
+
+    store.updateRecinto(selectedRecinto.value.id, { coords })
   }
 
   // ── Resize ────────────────────────────────────────────────────────────
@@ -96,16 +105,20 @@ export function useInteractiveEditor(opts = {}) {
     activeMode.value = 'resize'
   }
 
-  const resizeTo = (pointerWorld, budgetRect) => {
-    if (activeMode.value !== 'resize' || !selectedRecinto.value) return
+  const computeResizeDimensions = (pointerWorld, budgetRect) => {
+    if (activeMode.value !== 'resize' || !selectedRecinto.value) return null
 
     const room = selectedRecinto.value
     const terrain = terrainFromBudget(budgetRect)
     const minArea = minAreaByTipo.value[room.tipo] || 2
     const minSide = minSideByTipo.value[room.tipo] || 1.0
 
-    let nextW = Math.max(minSide, snap(pointerWorld.x - room.coords.x))
-    let nextL = Math.max(minSide, snap(pointerWorld.z - room.coords.z))
+    let rawW = Math.max(minSide, pointerWorld.x - room.coords.x)
+    let rawL = Math.max(minSide, pointerWorld.z - room.coords.z)
+    const { xLines, zLines } = getSnapLines(store.currentFloor, room.id, budgetRect)
+
+    let nextW = Math.max(minSide, snapSize(room.coords.x, rawW, xLines))
+    let nextL = Math.max(minSide, snapSize(room.coords.z, rawL, zLines))
 
     if (nextW * nextL < minArea) {
       if (nextW < nextL) {
@@ -124,14 +137,19 @@ export function useInteractiveEditor(opts = {}) {
       { snapStep: currentSnapStep() },
     )
 
-    if (!resolved) return
+    if (!resolved) return null
 
-    store.updateRecinto(room.id, {
-      dimensions: {
-        w: Number(resolved.w.toFixed(3)),
-        l: Number(resolved.l.toFixed(3)),
-      },
-    })
+    return {
+      w: Number(resolved.w.toFixed(3)),
+      l: Number(resolved.l.toFixed(3)),
+    }
+  }
+
+  const resizeTo = (pointerWorld, budgetRect) => {
+    const dims = computeResizeDimensions(pointerWorld, budgetRect)
+    if (!dims || !selectedRecinto.value) return
+
+    store.updateRecinto(selectedRecinto.value.id, { dimensions: dims })
   }
 
   // ── Snap Logic (Soft Snap) ────────────────────────────────────────────
@@ -180,79 +198,6 @@ export function useInteractiveEditor(opts = {}) {
     return snap(bestSize)
   }
 
-  const smartDragTo = (pointerWorld, budgetRect) => {
-    if (activeMode.value !== 'drag' || !selectedRecinto.value) return
-
-    const room = selectedRecinto.value
-    const terrain = terrainFromBudget(budgetRect)
-    const { xLines, zLines } = getSnapLines(store.currentFloor, room.id, budgetRect)
-
-    const rawX = pointerWorld.x - dragOffset.value.x
-    const rawZ = pointerWorld.z - dragOffset.value.z
-    const edgeX = snapEdge(rawX, room.dimensions.w, xLines)
-    const edgeZ = snapEdge(rawZ, room.dimensions.l, zLines)
-
-    const resolved = resolveRoomDragPosition(
-      room,
-      edgeX,
-      edgeZ,
-      terrain,
-      store.recintos,
-      { snapStep: currentSnapStep() },
-    )
-
-    if (!resolved) return
-
-    store.updateRecinto(room.id, {
-      coords: {
-        x: Number(resolved.x.toFixed(3)),
-        z: Number(resolved.z.toFixed(3)),
-      },
-    })
-  }
-
-  const smartResizeTo = (pointerWorld, budgetRect) => {
-    if (activeMode.value !== 'resize' || !selectedRecinto.value) return
-
-    const room = selectedRecinto.value
-    const terrain = terrainFromBudget(budgetRect)
-    const minArea = minAreaByTipo.value[room.tipo] || 2
-    const minSide = minSideByTipo.value[room.tipo] || 1.0
-
-    let rawW = Math.max(minSide, pointerWorld.x - room.coords.x)
-    let rawL = Math.max(minSide, pointerWorld.z - room.coords.z)
-    const { xLines, zLines } = getSnapLines(store.currentFloor, room.id, budgetRect)
-
-    let nextW = Math.max(minSide, snapSize(room.coords.x, rawW, xLines))
-    let nextL = Math.max(minSide, snapSize(room.coords.z, rawL, zLines))
-
-    if (nextW * nextL < minArea) {
-      if (nextW < nextL) {
-        nextW = Math.max(minSide, snap(minArea / nextL))
-      } else {
-        nextL = Math.max(minSide, snap(minArea / nextW))
-      }
-    }
-
-    const resolved = resolveRoomResize(
-      room,
-      nextW,
-      nextL,
-      terrain,
-      store.recintos,
-      { snapStep: currentSnapStep() },
-    )
-
-    if (!resolved) return
-
-    store.updateRecinto(room.id, {
-      dimensions: {
-        w: Number(resolved.w.toFixed(3)),
-        l: Number(resolved.l.toFixed(3)),
-      },
-    })
-  }
-
   const endInteraction = () => {
     activeMode.value = null
   }
@@ -263,9 +208,11 @@ export function useInteractiveEditor(opts = {}) {
     selectedRecinto,
     activeMode,
     beginDrag,
-    dragTo: smartDragTo,
+    computeDragPosition,
+    dragTo,
     beginResize,
-    resizeTo: smartResizeTo,
+    computeResizeDimensions,
+    resizeTo,
     endInteraction,
   }
 }

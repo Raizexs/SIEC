@@ -467,6 +467,73 @@ const clampSelectedRoomToMovementBounds = () => {
   clampRoomToMovementBounds(room);
 };
 
+/** Visual-only coords/dims during drag — avoids Pinia + 3D sync every pointermove. */
+const dragPreview = ref(null);
+
+const roomsForView = computed(() => {
+  const preview = dragPreview.value;
+  if (!preview) return store.recintos;
+
+  return store.recintos.map((r) => {
+    if (r.id !== preview.id) return r;
+    return {
+      ...r,
+      coords: { x: preview.x, z: preview.z },
+      dimensions:
+        preview.w != null && preview.l != null
+          ? { ...r.dimensions, w: preview.w, l: preview.l }
+          : r.dimensions,
+    };
+  });
+});
+
+const applyDragPreviewCoords = (x, z) => {
+  const room = selectedDraggedRoom();
+  if (!room) return null;
+
+  const w = Math.max(MIN_ROOM_DIM, Number(room.dimensions?.w) || MIN_ROOM_DIM);
+  const l = Math.max(MIN_ROOM_DIM, Number(room.dimensions?.l) || MIN_ROOM_DIM);
+  const bounds = movementBoundsForRoom({
+    ...room,
+    coords: { x, z },
+    dimensions: { w, l },
+  });
+
+  let safeX = clampNumber(x, bounds.minX, bounds.maxX);
+  let safeZ = clampNumber(z, bounds.minZ, bounds.maxZ);
+
+  if (roomOverlapsAny(room, safeX, safeZ, w, l)) {
+    const previous = lastValidDragCoords.value;
+    if (previous?.id === room.id) {
+      safeX = previous.x;
+      safeZ = previous.z;
+    }
+  } else {
+    cacheValidDragCoords({ ...room, coords: { x: safeX, z: safeZ } });
+  }
+
+  return { x: safeX, z: safeZ };
+};
+
+const commitDragPreviewToStore = () => {
+  const preview = dragPreview.value;
+  if (!preview) return;
+
+  const room = store.recintos.find((r) => r.id === preview.id);
+  if (!room) return;
+
+  if (preview.w != null && preview.l != null) {
+    store.updateRecinto(preview.id, {
+      coords: { x: preview.x, z: preview.z },
+      dimensions: { w: preview.w, l: preview.l },
+    });
+  } else {
+    store.updateRecinto(preview.id, {
+      coords: { x: preview.x, z: preview.z },
+    });
+  }
+};
+
 const lastValidDragCoords = ref(null);
 
 const selectedDraggedRoom = () => {
@@ -484,30 +551,6 @@ const cacheValidDragCoords = (room) => {
   };
 };
 
-const keepDraggedRoomOutOfCollisions = () => {
-  const room = selectedDraggedRoom();
-  if (!room) return;
-
-  const x = Number(room.coords?.x) || 0;
-  const z = Number(room.coords?.z) || 0;
-  const w = Math.max(MIN_ROOM_DIM, Number(room.dimensions?.w) || MIN_ROOM_DIM);
-  const l = Math.max(MIN_ROOM_DIM, Number(room.dimensions?.l) || MIN_ROOM_DIM);
-
-  if (!roomOverlapsAny(room, x, z, w, l)) {
-    cacheValidDragCoords(room);
-    return;
-  }
-
-  const previous = lastValidDragCoords.value;
-  if (previous?.id === room.id) {
-    store.updateRecinto(room.id, {
-      coords: {
-        x: Number(previous.x.toFixed(3)),
-        z: Number(previous.z.toFixed(3)),
-      },
-    });
-  }
-};
 
 const maxRoomWidthFromPosition = (room) => {
   if (!room) return budgetRect.value.w;
@@ -687,20 +730,27 @@ const liveBounds = computed(() => {
 
 const activeBounds = computed(() => frozenBounds.value || liveBounds.value);
 
+const syncAllRoomsToTerrain = () => {
+  const rooms = [...store.recintos];
+  rooms.forEach((room) => normalizeRoomInsideTerrain(room));
+};
+
 watch(
-  () => [props.terrenoAncho, props.terrenoLargo],
+  () => `${props.terrenoAncho}:${props.terrenoLargo}`,
   () => {
     frozenBounds.value = null;
-    nextTick(() => {
-      store.recintos.forEach(normalizeRoomInsideTerrain);
-    });
+    nextTick(syncAllRoomsToTerrain);
   },
+  { immediate: true },
 );
 
-watch(budgetRect, () => {
-  frozenBounds.value = null;
-  store.recintos.forEach(normalizeRoomInsideTerrain);
-}, { deep: true });
+watch(
+  () => store.recintos.map((r) => r.id).join("|"),
+  (ids) => {
+    if (!ids) return;
+    nextTick(syncAllRoomsToTerrain);
+  },
+);
 
 // ── SVG coordinate helpers ────────────────────────────────────────────────────
 const svgW = computed(() => (activeBounds.value.maxX - activeBounds.value.minX) * PPM);
@@ -803,25 +853,59 @@ const toWorld = (clientX, clientY) => {
 const ghostRoom = ref(null);
 const isGhostFading = ref(false);
 
-const onPointerMove = (e) => {
+let pointerMoveFrame = null;
+
+const handlePointerMove = (e) => {
   if (!editor.activeMode.value) return;
   const w = toWorld(e.clientX, e.clientY);
+
   if (editor.activeMode.value === "drag") {
-    editor.dragTo(w, budgetRect.value);
-    clampSelectedRoomToMovementBounds();
-    keepDraggedRoomOutOfCollisions();
+    const pos = editor.computeDragPosition(w, budgetRect.value);
+    if (!pos) return;
+    const safe = applyDragPreviewCoords(pos.x, pos.z);
+    if (!safe) return;
+    dragPreview.value = {
+      id: editor.selectedRecintoId.value,
+      x: safe.x,
+      z: safe.z,
+    };
+    return;
   }
 
   if (editor.activeMode.value === "resize") {
-    editor.resizeTo(w, budgetRect.value);
+    const dims = editor.computeResizeDimensions(w, budgetRect.value);
+    const room = selectedDraggedRoom();
+    if (!dims || !room) return;
+    dragPreview.value = {
+      id: room.id,
+      x: Number(room.coords?.x) || 0,
+      z: Number(room.coords?.z) || 0,
+      w: dims.w,
+      l: dims.l,
+    };
   }
+};
+
+const onPointerMove = (e) => {
+  if (!editor.activeMode.value) return;
+  if (pointerMoveFrame) return;
+  pointerMoveFrame = requestAnimationFrame(() => {
+    pointerMoveFrame = null;
+    handlePointerMove(e);
+  });
 };
 
 const onPointerUp = () => {
   const mode = editor.activeMode.value;
+
+  if (dragPreview.value) {
+    commitDragPreviewToStore();
+    dragPreview.value = null;
+  }
+
+  store.layoutInteractionActive = false;
+
   if (mode === "drag") {
-    clampSelectedRoomToMovementBounds();
-    keepDraggedRoomOutOfCollisions();
     const dragged = selectedDraggedRoom();
     const flushed = dragged ? applyFlushSnapToRoom(dragged) : null;
     if (flushed) {
@@ -869,12 +953,18 @@ const onPointerUp = () => {
 const startDrag = (e, id) => {
   e.preventDefault(); e.stopPropagation();
   frozenBounds.value = { ...liveBounds.value };
-  
-  // Guardar snapshot para Ghost Mode
-  const r = store.recintos.find(r => r.id === id);
+  store.layoutInteractionActive = true;
+  dragPreview.value = null;
+
+  const r = store.recintos.find((room) => room.id === id);
   if (r) {
-    ghostRoom.value = JSON.parse(JSON.stringify(r)); // deep copy
+    ghostRoom.value = JSON.parse(JSON.stringify(r));
     cacheValidDragCoords(r);
+    dragPreview.value = {
+      id: r.id,
+      x: Number(r.coords?.x) || 0,
+      z: Number(r.coords?.z) || 0,
+    };
   }
   isGhostFading.value = false;
 
@@ -884,15 +974,34 @@ const startDrag = (e, id) => {
 const startResize = (e, id) => {
   e.preventDefault(); e.stopPropagation();
   frozenBounds.value = { ...liveBounds.value };
-  
-  // Guardar snapshot para Ghost Mode
-  const r = store.recintos.find(r => r.id === id);
-  if (r) ghostRoom.value = JSON.parse(JSON.stringify(r));
+  store.layoutInteractionActive = true;
+  dragPreview.value = null;
+
+  const r = store.recintos.find((room) => room.id === id);
+  if (r) {
+    ghostRoom.value = JSON.parse(JSON.stringify(r));
+    dragPreview.value = {
+      id: r.id,
+      x: Number(r.coords?.x) || 0,
+      z: Number(r.coords?.z) || 0,
+      w: Number(r.dimensions?.w) || MIN_ROOM_DIM,
+      l: Number(r.dimensions?.l) || MIN_ROOM_DIM,
+    };
+  }
   isGhostFading.value = false;
 
   const w = toWorld(e.clientX, e.clientY);
   editor.beginResize(id);
-  editor.resizeTo(w, budgetRect.value);
+  const dims = editor.computeResizeDimensions(w, budgetRect.value);
+  if (dims && r) {
+    dragPreview.value = {
+      id: r.id,
+      x: Number(r.coords?.x) || 0,
+      z: Number(r.coords?.z) || 0,
+      w: dims.w,
+      l: dims.l,
+    };
+  }
 };
 
 let savedScrollY = 0;
@@ -926,6 +1035,9 @@ window.addEventListener("pointerup",   onPointerUp);
 document.addEventListener('fullscreenchange', handleFullscreenChange);
 
 onBeforeUnmount(() => {
+  if (pointerMoveFrame) cancelAnimationFrame(pointerMoveFrame);
+  store.layoutInteractionActive = false;
+  dragPreview.value = null;
   window.removeEventListener("pointermove", onPointerMove);
   window.removeEventListener("pointerup",   onPointerUp);
   document.removeEventListener('fullscreenchange', handleFullscreenChange);
@@ -1448,7 +1560,7 @@ defineExpose({ openAddModal });
 
           <!-- Rooms -->
           <g
-            v-for="recinto in store.recintos"
+            v-for="recinto in roomsForView"
             :key="recinto.id"
             :class="(recinto.piso || 1) !== store.currentFloor ? 'opacity-20 pointer-events-none' : ''"
           >
@@ -1492,7 +1604,7 @@ defineExpose({ openAddModal });
               :stroke="isActive(recinto.id) ? '#ffffff' : isSelected(recinto.id) ? '#fb923c' : roomEdge(recinto.tipo)"
               :stroke-width="isActive(recinto.id) ? 2.6 : isSelected(recinto.id) ? 2.2 : 1.5"
               rx="5"
-              filter="url(#room-shadow)"
+              :filter="isActive(recinto.id) ? 'none' : 'url(#room-shadow)'"
               class="cursor-grab"
               :class="{ 'cursor-grabbing': isActive(recinto.id) && editor.activeMode.value === 'drag' }"
               @pointerdown="(e) => startDrag(e, recinto.id)"

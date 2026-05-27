@@ -1,7 +1,8 @@
 import os
+import socket
 from urllib.parse import urlparse
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -34,8 +35,8 @@ def _validate_database_url(url: str) -> str:
             "In Railway → Variables, set DATABASE_URL to your Supabase Postgres URI "
             "(Project Settings → Database → Connection string → URI). "
             "Use postgresql://, URL-encode special characters in the password, "
-            "and prefer the direct session on port 5432 for the API (not the pooler "
-            "unless you know you need it). "
+            "From Railway/Vercel use Supabase Connection pooling → Session mode "
+            "(host *.pooler.supabase.com, port 6543). "
             f"Parsed host: {host}"
         ) from exc
     return normalized
@@ -44,12 +45,43 @@ def _validate_database_url(url: str) -> str:
 SQLALCHEMY_DATABASE_URL = _validate_database_url(_pick_database_url())
 
 
+def _ipv4_hostaddr(hostname: str | None) -> str | None:
+    """Railway often cannot reach Supabase over IPv6 (Network is unreachable)."""
+    if not hostname:
+        return None
+    try:
+        results = socket.getaddrinfo(
+            hostname, None, family=socket.AF_INET, type=socket.SOCK_STREAM
+        )
+        return results[0][4][0] if results else None
+    except OSError:
+        return None
+
+
+def _is_supabase_host(host: str) -> bool:
+    return "supabase.co" in host or "pooler.supabase.com" in host
+
+
 def _engine_connect_args(url: str) -> dict:
-    host = (urlparse(url).hostname or "").lower()
-    # Supabase Postgres requires SSL from external hosts (e.g. Railway).
-    if "supabase.co" in host:
-        return {"sslmode": "require"}
-    return {}
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    if not _is_supabase_host(host):
+        return {}
+    args: dict = {"sslmode": "require"}
+    ipv4 = _ipv4_hostaddr(parsed.hostname)
+    if ipv4:
+        args["hostaddr"] = ipv4
+    return args
+
+
+def check_database_connection() -> dict:
+    """Lightweight connectivity probe for /health and deploy diagnostics."""
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return {"ok": True}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)[:240]}
 
 
 engine = create_engine(

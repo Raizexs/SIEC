@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 import math
 import unicodedata
 import os
@@ -157,7 +158,19 @@ def get_me(user: CurrentUser = Depends(get_current_user)):
 
 @app.get("/health", tags=["meta"])
 def healthcheck():
-    return {"status": "ok", "service": "siec-api"}
+    from database import check_database_connection
+
+    db = check_database_connection()
+    return {
+        "status": "ok" if db.get("ok") else "degraded",
+        "service": "siec-api",
+        "auth": {
+            "supabase_url_configured": bool(os.getenv("SUPABASE_URL", "").strip()),
+            "jwt_secret_configured": bool(os.getenv("SUPABASE_JWT_SECRET", "").strip()),
+            "jwt_algorithm_default": os.getenv("SUPABASE_JWT_ALGORITHM", "HS256"),
+        },
+        "database": db,
+    }
 
 
 # Mount Phase 3 routers (projects, versions, collaboration, comments)
@@ -225,6 +238,17 @@ def startup_event():
                 ]
                 db.add_all(tipos_iniciales)
                 db.commit()
+
+            if db.query(models.MaterialEstructural).count() == 0:
+                log.info("seeding_initial_materials")
+                materiales = [
+                    models.MaterialEstructural(id=1, nombre="Madera", descripcion="", activo=True),
+                    models.MaterialEstructural(id=2, nombre="Metalcom", descripcion="", activo=True),
+                    models.MaterialEstructural(id=3, nombre="Albañilería", descripcion="", activo=True),
+                    models.MaterialEstructural(id=4, nombre="Hormigón Armado", descripcion="", activo=True),
+                ]
+                db.add_all(materiales)
+                db.commit()
         finally:
             db.close()
     except Exception as exc:
@@ -286,9 +310,12 @@ def get_tipos_recinto(db: Session = Depends(get_db)):
 def crear_simulacion(sim: SimulacionCreate, db: Session = Depends(get_db)):
     """Guarda los parámetros de configuración de la vivienda y crea una nueva simulación."""
 
-    # Validaciones obligatorias
-    if sim.m2Totales < 1 or sim.m2Totales > 5000:
-        raise HTTPException(status_code=400, detail="Superficie total debe estar entre 1 y 5000 m².")
+    # Validaciones obligatorias (alineadas con CHECK en Postgres: 15–1000 m²)
+    if sim.m2Totales < 15 or sim.m2Totales > 1000:
+        raise HTTPException(
+            status_code=400,
+            detail="Superficie total debe estar entre 15 y 1000 m².",
+        )
 
     if sim.materialEstructuralId not in [1, 2, 3, 4]:
         raise HTTPException(status_code=400, detail="Material estructural ID no válido.")
@@ -312,9 +339,27 @@ def crear_simulacion(sim: SimulacionCreate, db: Session = Depends(get_db)):
         db.add(db_simulacion)
         db.commit()
         db.refresh(db_simulacion)
-    except Exception as e:
+    except IntegrityError as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail="Error al guardar en la base de datos.")
+        raw = str(getattr(exc, "orig", exc)).lower()
+        if "foreign key" in raw or "material_estructural" in raw:
+            detail = (
+                "Material estructural no registrado en la base de datos. "
+                "Reinicia el backend o ejecuta las migraciones en Supabase."
+            )
+        elif "check" in raw or "m2_totales" in raw:
+            detail = "Superficie total debe estar entre 15 y 1000 m²."
+        else:
+            detail = "No se pudo guardar la simulación (restricción de base de datos)."
+        log.error("simulacion_insert_failed", error=str(exc))
+        raise HTTPException(status_code=400, detail=detail) from exc
+    except SQLAlchemyError as exc:
+        db.rollback()
+        log.error("simulacion_db_error", error=str(exc))
+        raise HTTPException(
+            status_code=400,
+            detail="Error de conexión o esquema en la base de datos. Revisa DATABASE_URL y migraciones.",
+        ) from exc
         
     return {"idSimulacion": db_simulacion.id, "message": "Simulación guardada correctamente"}
 

@@ -24,8 +24,8 @@ const safeParseLayouts = () => {
 const savedLayouts = ref(safeParseLayouts());
 
 const DEFAULT_TERRAIN = {
-  terrenoAncho: 7,
-  terrenoLargo: 15,
+  terrenoAncho: 15,
+  terrenoLargo: 7,
   m2Totales: 105,
 };
 
