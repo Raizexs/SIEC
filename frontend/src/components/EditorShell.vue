@@ -41,6 +41,7 @@ import {
 } from '../proposal/proposalSceneCapture.js';
 import { useAuthStore } from '../stores/auth';
 import { useProMotion } from '../composables/useProMotion';
+import { GraduationCap, BookOpen } from 'lucide-vue-next';
 import {
   useProductPreferences,
   WORKSPACE_FEATURES,
@@ -78,8 +79,12 @@ const motionRoot = ref(null);
 
 useProMotion(motionRoot, { skipIntro: true });
 
-onMounted(() => {
+onMounted(async () => {
   workspaceStore.loadWorkspace();
+  await nextTick();
+  if (recintosStore.recintos.length === 0) {
+    recintosStore.addRecinto('habitacion', 'Habitación', 3.5, 3.0, 2.4);
+  }
 });
 
 const showManual = ref(false);
@@ -92,7 +97,7 @@ const formData = ref({
   terrenoAncho: 15,
   terrenoLargo: 7,
   m2Totales: 105,
-  materialEstructuralId: 4,
+  materialEstructuralId: 1,
   habitacionesSimples: 0,
   habitacionesDobles: 0,
   habitacionesTriples: 0,
@@ -531,9 +536,7 @@ const startTutorial = () => {
     <Sidebar
       @load-layout="loadLayout"
       @collapse-change="(val) => (sidebarCollapsed = val)"
-      @open-manual="showManual = true"
       @new-estimate="handleNewEstimate"
-      @start-tutorial="startTutorial"
     />
 
     <!-- Main editor area -->
@@ -567,23 +570,23 @@ const startTutorial = () => {
             </div>
 
             <div class="flex flex-wrap items-center gap-2">
-              <span
-                class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
+              <button
+                type="button"
+                class="inline-flex items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-600 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-300 hover:text-orange-700 hover:shadow-md active:scale-[0.98] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:border-orange-900/70 dark:hover:text-orange-300"
+                @click="startTutorial"
               >
-                <span class="material-symbols-outlined text-[15px] text-orange-500 dark:text-orange-300">
-                  straighten
-                </span>
-                {{ formData.terrenoAncho }} × {{ formData.terrenoLargo }} m
-              </span>
+                <GraduationCap class="h-3.5 w-3.5" :stroke-width="2.2" />
+                {{ t('tutorial') }}
+              </button>
 
-              <span
-                class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
+              <button
+                type="button"
+                class="inline-flex items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-600 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:text-slate-950 hover:shadow-md active:scale-[0.98] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:text-slate-100"
+                @click="showManual = true"
               >
-                <span class="material-symbols-outlined text-[15px] text-slate-400">
-                  token
-                </span>
-                {{ tokensDisponibles }} m² disponibles
-              </span>
+                <BookOpen class="h-3.5 w-3.5" :stroke-width="2.2" />
+                {{ t('manual') }}
+              </button>
             </div>
           </section>
 
