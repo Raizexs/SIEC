@@ -125,20 +125,19 @@ export class WallBuilder {
     const facadeFaceZ   = -layerSign * (STUD_DEPTH / 2 + FACADE_PANEL_THICKNESS / 2 + ZFIGHT_EPSILON);
 
     // 1. Structure — stud frame with diagonal bracing
-    // Se construyen dos versiones:
-    //   • "cut" — con todas las aperturas (ventanas y puertas) — normal
-    //   • "solid" — solo puertas, sin ventanas — cuando capa estructura aislada
-    const { group: structureCut, studXs } = this._buildStudFrame(length, matType, openings);
-    structureCut.userData.layerTags = ["structure"];
-    structureCut.name = "ml-layer-structure";
-    group.add(structureCut);
+    const { group: structure, studXs } = this._buildStudFrame(length, matType, openings);
+    structure.userData.layerTags = ["structure"];
+    structure.name = "ml-layer-structure";
+    group.add(structure);
 
-    const doorOnly = openings.filter((op) => op.type === "door");
-    const { group: structureSolid } = this._buildStudFrame(length, matType, doorOnly);
-    structureSolid.userData.layerTags = ["structure"];
-    structureSolid.name = "ml-layer-structure-solid";
-    structureSolid.visible = false;
-    group.add(structureSolid);
+    // Paneles de relleno para vanos de ventana — solo se muestran cuando
+    // la capa estructura está aislada (sin fachada ni interior), para que
+    // el entramado se vea completo sin huecos de ventana.
+    const windowFills = this._buildWindowFills(length, openings, matType);
+    windowFills.userData.layerTags = ["structure"];
+    windowFills.name = "ml-layer-structure-solid";
+    windowFills.visible = false;
+    group.add(windowFills);
 
     // 2. Insulation — omitida del render MVP visual (capa invisible por defecto)
     void studXs; // studXs se preserva por compatibilidad futura
@@ -491,6 +490,46 @@ export class WallBuilder {
     }
 
     return { group, studXs };
+  }
+
+  /**
+   * Paneles de relleno para vanos de ventana. Cuando la capa estructura se
+   * muestra aislada, estos paneles tapan los huecos de ventana para que el
+   * entramado se vea completo (sin construir un segundo frame entero).
+   */
+  _buildWindowFills(length, openings, matType) {
+    const group = new THREE.Group();
+    if (!openings || openings.length === 0) return group;
+
+    const hy = WALL_HEIGHT / 2;
+    const isMetal = matType === "steel_framed";
+    const woodDark = isMetal ? "#6B7280" : "#A07850";
+
+    const fillMat = new THREE.MeshStandardMaterial({
+      color: woodDark,
+      roughness: 0.7,
+      metalness: isMetal ? 0.25 : 0.0,
+    });
+
+    for (const op of openings) {
+      if (op.type !== "window") continue;
+      const cx = (op.center ?? 0.5) * length - length / 2;
+      const w = op.width || 1.2;
+      const h = op.height || 1.2;
+      const sill = op.sillHeight ?? 1.0;
+
+      const localY = sill + h / 2 - hy;
+      const fill = new THREE.Mesh(
+        new THREE.BoxGeometry(w, h, STUD_DEPTH),
+        fillMat.clone(),
+      );
+      fill.position.set(cx, localY, 0);
+      fill.castShadow = true;
+      fill.receiveShadow = true;
+      group.add(fill);
+    }
+
+    return group;
   }
 
   /**

@@ -257,7 +257,7 @@ const applyLayerVisibility = (animate = true) => {
         continue;
       }
 
-      // Estructura sólida: visible solo cuando la capa estructura está aislada
+      // Paneles de relleno de ventana: solo cuando capa estructura aislada
       if (child.name === "ml-layer-structure-solid") {
         const targetVisible = floorVisible && onlyStructure;
         if (child.visible !== targetVisible) {
@@ -266,10 +266,10 @@ const applyLayerVisibility = (animate = true) => {
         continue;
       }
 
-      // Estructura con cortes: oculta cuando la capa estructura está aislada
+      // Entramado estructural: siempre visible cuando la capa está activa
       if (child.name === "ml-layer-structure") {
         const layerVisible = isLayerMeshVisible(child.userData.layerTags, layerState);
-        const targetVisible = layerVisible && floorVisible && !onlyStructure;
+        const targetVisible = layerVisible && floorVisible;
         if (child.visible !== targetVisible) {
           setChildLayerVisible(child, targetVisible, animate);
         }
