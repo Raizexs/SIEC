@@ -513,7 +513,7 @@ def calcular_insumos(
         raise HTTPException(status_code=422, detail="No existen rendimientos para el material seleccionado")
 
     # Promediador de Precios de Mercado
-    insumo_ids = [insumo.id for r, insumo in datos_rendimiento]
+    insumo_ids = [insumo.id for r, insumo in datos_rendimiento] + [46, 47, 48, 49, 50, 51]
     
     precios_records = db.query(models.PrecioMercado).distinct(
         models.PrecioMercado.insumo_id, 
@@ -879,21 +879,31 @@ def calcular_insumos(
             subtotal_categoria=subcat
         ))
 
-    # ── Complementos constructivos (hardcoded, sin SerpAPI) ──────────────────
+    # ── Helper: get scraped price/tienda/url from latest_precio_record ────────
+    def _lookup_scraped(insumo_id: int, fallback_price: float):
+        pm = latest_precio_record.get(insumo_id)
+        if pm and pm.precio:
+            return (float(pm.precio), pm.tienda or "", getattr(pm, 'url', '') or "")
+        return (fallback_price, "Referencia", "")
+
+    # ── Complementos constructivos ────────────────────────────────────────────
     complementos_obra_gruesa = []
     if total_studs > 0 or total_soleras > 0:
         piezas_total = total_studs + total_soleras
         clavos_3_cant = math.ceil(piezas_total * 4 / 100)  # ~4 clavos por pieza, cajas de 100
         clavos_4_cant = math.ceil(total_soleras * 2 / 100)
-        clavos_subtotal_3 = clavos_3_cant * 4500
-        clavos_subtotal_4 = clavos_4_cant * 5200
+
+        precio_c3, tienda_c3, url_c3 = _lookup_scraped(46, 4500.0)
+        precio_c4, tienda_c4, url_c4 = _lookup_scraped(47, 5200.0)
+
         complementos_obra_gruesa.append(InsumoCalculado(
             insumo="Clavos estriados 3 pulgadas (caja 100un)",
             cantidad=float(clavos_3_cant),
             unidad="caja",
-            precio_unitario=4500.0,
-            subtotal=float(clavos_subtotal_3),
-            tienda="Referencia",
+            precio_unitario=precio_c3,
+            subtotal=float(clavos_3_cant * precio_c3),
+            tienda=tienda_c3 if tienda_c3 != "Referencia" else "Referencia",
+            url_producto=url_c3 if url_c3 else None,
             perdida_porcentual=10.0,
             formato_comercial="caja 100 unidades",
         ))
@@ -901,23 +911,26 @@ def calcular_insumos(
             insumo="Clavos estriados 4 pulgadas (caja 100un)",
             cantidad=float(clavos_4_cant),
             unidad="caja",
-            precio_unitario=5200.0,
-            subtotal=float(clavos_subtotal_4),
-            tienda="Referencia",
+            precio_unitario=precio_c4,
+            subtotal=float(clavos_4_cant * precio_c4),
+            tienda=tienda_c4 if tienda_c4 != "Referencia" else "Referencia",
+            url_producto=url_c4 if url_c4 else None,
             perdida_porcentual=10.0,
             formato_comercial="caja 100 unidades",
         ))
 
     if area_muro_neta > 0:
         rollos_lana_muro = math.ceil(area_muro_neta / 14.4)  # rollo 14.4m2
-        subtotal_lana_muro = rollos_lana_muro * 18500
+        precio_lana, tienda_lana, url_lana = _lookup_scraped(48, 18500.0)
+
         complementos_obra_gruesa.append(InsumoCalculado(
             insumo="Lana vidrio 50mm muro (rollo 14.4m2)",
             cantidad=float(rollos_lana_muro),
             unidad="rollo",
-            precio_unitario=18500.0,
-            subtotal=float(subtotal_lana_muro),
-            tienda="Referencia",
+            precio_unitario=precio_lana,
+            subtotal=float(rollos_lana_muro * precio_lana),
+            tienda=tienda_lana if tienda_lana != "Referencia" else "Referencia",
+            url_producto=url_lana if url_lana else None,
             perdida_porcentual=10.0,
             formato_comercial="rollo 14.4 m2",
         ))
@@ -937,6 +950,7 @@ def calcular_insumos(
     if incluir_techumbre:
         categorias_techumbre = calcular_partida_techumbre(
             area_m2_planta=m2_totales,
+            latest_precio_record=latest_precio_record,
         )
         desglose_list.extend(categorias_techumbre)
         for cat in categorias_techumbre:
