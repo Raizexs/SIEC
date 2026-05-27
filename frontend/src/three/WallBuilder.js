@@ -288,14 +288,33 @@ export class WallBuilder {
       metalness: isMetal ? 0.25 : 0.0,
     });
 
-    // ── Solera inferior ───────────────────────────────────────────────
-    const bp = new THREE.Mesh(
-      new THREE.BoxGeometry(length, PLATE_HEIGHT, PLATE_WIDTH),
-      plateMat.clone(),
-    );
-    bp.position.set(0, -hy + PLATE_HEIGHT / 2, 0);
-    bp.castShadow = true; bp.receiveShadow = true;
-    group.add(bp);
+    // ── Solera inferior (segmentada en puertas) ───────────────────────
+    const plateY = -hy + PLATE_HEIGHT / 2;
+    const doorZones = openingZones
+      .filter((z) => z.type === "door")
+      .sort((a, b) => a.xMin - b.xMin);
+    const bottomBreaks = new Set([-length / 2, length / 2]);
+    for (const dz of doorZones) {
+      bottomBreaks.add(dz.xMin);
+      bottomBreaks.add(dz.xMax);
+    }
+    const sortedBreaks = [...bottomBreaks].sort((a, b) => a - b);
+    for (let i = 0; i < sortedBreaks.length - 1; i++) {
+      const x1 = sortedBreaks[i];
+      const x2 = sortedBreaks[i + 1];
+      const segW = x2 - x1;
+      if (segW < 0.001) continue;
+      const midX = (x1 + x2) / 2;
+      const inDoor = doorZones.some((dz) => midX > dz.xMin && midX < dz.xMax);
+      if (inDoor) continue;
+      const seg = new THREE.Mesh(
+        new THREE.BoxGeometry(segW, PLATE_HEIGHT, PLATE_WIDTH),
+        plateMat.clone(),
+      );
+      seg.position.set(midX, plateY, 0);
+      seg.castShadow = true; seg.receiveShadow = true;
+      group.add(seg);
+    }
 
     // ── Doble solera superior ─────────────────────────────────────────
     // tp1 = plato superior (toca la losa / cubierta)
@@ -398,10 +417,9 @@ export class WallBuilder {
       const nw  = nx2 - nx1;
       if (nw < 0.01) continue;
 
-      // Omitir si la cadeneta cae dentro de una apertura
-      const bayMid  = (studXs[i] + studXs[i + 1]) / 2;
+      // Omitir si la cadeneta solapa una apertura (usa el ancho total del vano)
       const blocked = openingZones.some(
-        (z) => z.xMin <= bayMid && z.xMax >= bayMid
+        (z) => z.xMin < nx2 && z.xMax > nx1
             && z.yMin <= nogginY + PLATE_HEIGHT / 2
             && z.yMax >= nogginY - PLATE_HEIGHT / 2,
       );
