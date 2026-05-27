@@ -15,7 +15,7 @@ export const defaultProductPreferences = () => ({
   unit: 'metric',
   contingency: 10,
   includeTax: true,
-  defaultMaterial: 4,
+  defaultMaterial: 1,
   defaultRoomHeight: 2.4,
   useCustomRoomHeight: false,
   features: { ...WORKSPACE_FEATURES },

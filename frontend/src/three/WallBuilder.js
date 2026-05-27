@@ -125,10 +125,20 @@ export class WallBuilder {
     const facadeFaceZ   = -layerSign * (STUD_DEPTH / 2 + FACADE_PANEL_THICKNESS / 2 + ZFIGHT_EPSILON);
 
     // 1. Structure — stud frame with diagonal bracing
-    const { group: structure, studXs } = this._buildStudFrame(length, matType, openings);
-    structure.userData.layerTags = ["structure"];
-    structure.name = "ml-layer-structure";
-    group.add(structure);
+    // Se construyen dos versiones:
+    //   • "cut" — con todas las aperturas (ventanas y puertas) — normal
+    //   • "solid" — solo puertas, sin ventanas — cuando capa estructura aislada
+    const { group: structureCut, studXs } = this._buildStudFrame(length, matType, openings);
+    structureCut.userData.layerTags = ["structure"];
+    structureCut.name = "ml-layer-structure";
+    group.add(structureCut);
+
+    const doorOnly = openings.filter((op) => op.type === "door");
+    const { group: structureSolid } = this._buildStudFrame(length, matType, doorOnly);
+    structureSolid.userData.layerTags = ["structure"];
+    structureSolid.name = "ml-layer-structure-solid";
+    structureSolid.visible = false;
+    group.add(structureSolid);
 
     // 2. Insulation — omitida del render MVP visual (capa invisible por defecto)
     void studXs; // studXs se preserva por compatibilidad futura
@@ -405,6 +415,39 @@ export class WallBuilder {
       noggin.position.set((nx1 + nx2) / 2, nogginY, 0);
       noggin.castShadow = true;
       group.add(noggin);
+    }
+
+    // ── Dinteles y alféizares para ventanas ──────────────────────────
+    // Cada vano de ventana necesita un dintel (viga horizontal superior)
+    // y un alféizar (viga horizontal inferior) para transferir cargas
+    // alrededor de la apertura.
+    const beamMat = new THREE.MeshStandardMaterial({
+      color: woodDark,
+      roughness: 0.7,
+      metalness: isMetal ? 0.25 : 0.0,
+    });
+
+    for (const zn of openingZones) {
+      if (zn.type !== "window") continue;
+      const beamW = zn.xMax - zn.xMin;
+
+      // Dintel — sobre la ventana
+      const dintel = new THREE.Mesh(
+        new THREE.BoxGeometry(beamW, PLATE_HEIGHT, STUD_DEPTH),
+        beamMat.clone(),
+      );
+      dintel.position.set((zn.xMin + zn.xMax) / 2, zn.yMax + PLATE_HEIGHT / 2, 0);
+      dintel.castShadow = true;
+      group.add(dintel);
+
+      // Alféizar — bajo la ventana
+      const alfeizar = new THREE.Mesh(
+        new THREE.BoxGeometry(beamW, PLATE_HEIGHT, STUD_DEPTH),
+        beamMat.clone(),
+      );
+      alfeizar.position.set((zn.xMin + zn.xMax) / 2, zn.yMin - PLATE_HEIGHT / 2, 0);
+      alfeizar.castShadow = true;
+      group.add(alfeizar);
     }
 
     // ── Riostras diagonales ───────────────────────────────────────────

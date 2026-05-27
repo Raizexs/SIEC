@@ -241,6 +241,9 @@ const applyLayerVisibility = (animate = true) => {
   if (!sceneManager) return;
 
   const layerState = getCurrentLayerState();
+  const onlyStructure = layerState.constructionModeEnabled
+    && layerState.activeLayerIds.size === 1
+    && layerState.activeLayerIds.has("structure");
 
   for (const [id, group] of wallMeshes.entries()) {
     if (!group || !group.children) continue;
@@ -251,6 +254,25 @@ const applyLayerVisibility = (animate = true) => {
     for (const child of group.children) {
       if (!child.userData?.layerTags) {
         child.visible = floorVisible;
+        continue;
+      }
+
+      // Estructura sólida: visible solo cuando la capa estructura está aislada
+      if (child.name === "ml-layer-structure-solid") {
+        const targetVisible = floorVisible && onlyStructure;
+        if (child.visible !== targetVisible) {
+          setChildLayerVisible(child, targetVisible, animate);
+        }
+        continue;
+      }
+
+      // Estructura con cortes: oculta cuando la capa estructura está aislada
+      if (child.name === "ml-layer-structure") {
+        const layerVisible = isLayerMeshVisible(child.userData.layerTags, layerState);
+        const targetVisible = layerVisible && floorVisible && !onlyStructure;
+        if (child.visible !== targetVisible) {
+          setChildLayerVisible(child, targetVisible, animate);
+        }
         continue;
       }
 
