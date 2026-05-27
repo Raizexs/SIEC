@@ -23,6 +23,7 @@ const INTERIOR_PANEL_THICKNESS = 0.012;
 const FACADE_PANEL_THICKNESS = 0.02;
 const PLANCHE_WIDTH = 1.22;     // standard drywall sheet
 const PLANCHE_HEIGHT = 2.44;
+const STRUCTURE_INSET = 0.045; // inset for U-channel placement at top/bottom plates
 
 // Modular cladding panels
 const PANEL_GAP      = 0.005;   // 5 mm visible joint between sheets
@@ -93,7 +94,7 @@ export class WallBuilder {
         : ["structure", "facade", "insulation"];
 
     if (matCfg.matTypeKey === "steel_framed") {
-      mesh.add(this._buildStudFrame(length, wall.thickness));
+      mesh.add(this._buildMetalconStudFrame(length, wall.thickness));
     }
 
     this.cache.set(cacheKey, mesh);
@@ -886,7 +887,7 @@ export class WallBuilder {
     return brush;
   }
 
-  _buildStudFrame(length, thickness) {
+  _buildMetalconStudFrame(length, thickness) {
     const frame = new THREE.Group();
     frame.name = "metalcon-stud-frame";
     const structureMaterial = this.materialLibrary.getMaterial("steel_framed", "structure");

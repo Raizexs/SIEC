@@ -215,6 +215,8 @@ const translations = {
     noSpace: "Sin espacio",
     tokensFree: "m² libres",
     tokensExcess: "m² en exceso",
+    freeM2: "{area} m² libres",
+    areaUsage: "{used} / {total} m² usados",
 
     // Actions
     save: "Guardar",
@@ -458,6 +460,8 @@ const translations = {
     noSpace: "No space",
     tokensFree: "m² free",
     tokensExcess: "m² excess",
+    freeM2: "{area} m² free",
+    areaUsage: "{used} / {total} m² used",
 
     // Actions
     save: "Save",

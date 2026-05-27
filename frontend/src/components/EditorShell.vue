@@ -558,11 +558,11 @@ const startTutorial = () => {
               </p>
 
               <h1 class="mt-1 text-xl font-black tracking-tight text-slate-950 dark:text-slate-100">
-                {{ t('smartConstructionSim') }}
+                {{ t('workspaceTitle') }}
               </h1>
 
               <p class="mt-1 text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400">
-                {{ t('workspaceDescription') }}
+                {{ t('workspaceSubtitle') }}
               </p>
             </div>
 
@@ -582,7 +582,7 @@ const startTutorial = () => {
                 <span class="material-symbols-outlined text-[15px] text-slate-400">
                   token
                 </span>
-                {{ t('tokensAvailable', { count: tokensDisponibles }) }}
+                {{ tokensDisponibles }} m² disponibles
               </span>
             </div>
           </section>
@@ -644,7 +644,7 @@ const startTutorial = () => {
             </p>
 
             <p class="text-xs font-medium text-slate-400 dark:text-slate-500">
-              {{ t('workspaceFooter') }}
+              {{ t('workspaceFooterLine') }}
             </p>
           </footer>
         </div>

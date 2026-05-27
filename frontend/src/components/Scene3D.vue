@@ -12,7 +12,7 @@ import logger from '../utils/logger.js';
  *
  * Backwards-compatible with existing Scene3D consumers in EditorShell.vue.
  */
-import { onBeforeUnmount, onMounted, ref, watch, nextTick } from 'vue';
+import { onBeforeUnmount, onMounted, ref, watch, nextTick, computed } from 'vue';
 import * as THREE from 'three';
 import { DragControls } from 'three/examples/jsm/controls/DragControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
@@ -1437,7 +1437,7 @@ onBeforeUnmount(() => {
                 </p>
 
                 <h3 class="mt-0.5 text-base font-black tracking-tight text-slate-950 dark:text-slate-100">
-                  {{ t('realtime3D') }}
+                  {{ t('scene3DTitle') }}
                 </h3>
               </div>
             </div>
