@@ -16,7 +16,8 @@ const FRONT_DOOR = { width: 1.1, height: 2.1, sillHeight: 0 };
 const CLOSED_ROOM_TYPES = new Set(["habitacion", "banio", "areaComun"]);
 const MIN_DOOR_WALL_LEN = 1.0;
 const MIN_WINDOW_WALL_LEN = 3.2;
-const MIN_ROOM_AREA_FOR_WINDOW = 9;
+const MIN_ROOM_AREA_FOR_WINDOW = 10;
+const MAX_WINDOW_WALL_RATIO = 0.38;
 
 export class DoorWindowSystem {
   /**
@@ -69,7 +70,7 @@ export class DoorWindowSystem {
       if ((windowsPerRoom.get(room.id) || 0) >= 1) continue;
       if (len < MIN_WINDOW_WALL_LEN) continue;
 
-      const width = Math.min(WINDOW_DEFAULTS.width, len - 0.8);
+      const width = Math.min(WINDOW_DEFAULTS.width, len - 0.8, len * MAX_WINDOW_WALL_RATIO);
       if (width < 0.7) continue;
 
       this._pushOpening(result, wall.id, {
