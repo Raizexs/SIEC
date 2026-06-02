@@ -30,6 +30,12 @@
     --siec-text: #102a43;
     --siec-text-muted: #486581;
     --siec-text-soft: #829ab1;
+    --siec-gradient-brand: linear-gradient(90deg, #fb923c 0%, #f97316 46%, #1e293b 100%);
+    --siec-gradient-accent: linear-gradient(135deg, #fb923c 0%, #f97316 100%);
+    --siec-gradient-mesh:
+      radial-gradient(ellipse 72% 48% at 100% 0%, rgba(251, 146, 60, 0.11) 0%, transparent 52%),
+      radial-gradient(ellipse 48% 40% at 0% 100%, rgba(14, 165, 233, 0.05) 0%, transparent 48%),
+      radial-gradient(circle at top right, #eef4ff 0%, var(--siec-rail) 45%, #f7faff 100%);
   }
 
   html {
@@ -39,7 +45,7 @@
   html.dark { color-scheme: dark; }
 
   body {
-    background: radial-gradient(circle at top right, #eef4ff 0%, var(--siec-rail) 45%, #f7faff 100%);
+    background: var(--siec-gradient-mesh);
     color: var(--siec-text);
     font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
@@ -56,7 +62,7 @@
   }
 
   canvas {
-    cursor: auto;
+    cursor: default;
   }
 
   a,
@@ -225,8 +231,48 @@
 ═══════════════════════════════════════════════════════════════════════ */
 
 @layer components {
+  .siec-accent-bar {
+    height: 2px;
+    width: 100%;
+    flex-shrink: 0;
+    background: var(--siec-gradient-brand);
+  }
+
+  .siec-header-shell {
+    @apply relative;
+  }
+  .siec-header-shell::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    z-index: 1;
+    height: 2px;
+    background: var(--siec-gradient-brand);
+    pointer-events: none;
+  }
+
+  .siec-surface-accent {
+    @apply relative overflow-hidden;
+  }
+  .siec-surface-accent::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    z-index: 1;
+    height: 2px;
+    background: var(--siec-gradient-brand);
+    pointer-events: none;
+  }
+
+  .siec-app-canvas {
+    background:
+      radial-gradient(ellipse 70% 42% at 100% 0%, rgba(251, 146, 60, 0.06), transparent 50%),
+      radial-gradient(ellipse 55% 38% at 0% 100%, rgba(56, 189, 248, 0.04), transparent 45%),
+      color-mix(in oklab, var(--siec-rail) 92%, var(--siec-canvas));
+  }
+
   .shell-header {
-    @apply sticky top-0 z-20 border-b border-slate-200/70;
+    @apply sticky top-0 z-20 border-b border-slate-200/70 siec-header-shell;
     background: color-mix(in oklab, var(--siec-canvas) 88%, transparent);
     backdrop-filter: blur(12px);
   }
@@ -257,17 +303,17 @@
   /* Accent CTA (orange — high-volatility actions: New Estimate, Generate report) */
   .btn-accent {
     @apply inline-flex items-center gap-2 px-4 py-2.5 rounded-md
-           bg-orange text-white font-semibold text-sm tracking-tight
+           text-white font-semibold text-sm tracking-tight
            shadow-card disabled:opacity-50 disabled:cursor-not-allowed;
+    background: var(--siec-gradient-accent);
     transition:
       color 0.22s cubic-bezier(0.4, 0, 0.2, 1),
-      background-color 0.22s cubic-bezier(0.4, 0, 0.2, 1),
       box-shadow 0.26s cubic-bezier(0.4, 0, 0.2, 1),
       filter 0.22s cubic-bezier(0.4, 0, 0.2, 1);
-    @apply hover:bg-orange-600 hover:shadow-card-hover;
+    @apply hover:shadow-card-hover;
   }
   .btn-accent:hover {
-    filter: brightness(1.04);
+    filter: brightness(1.05);
   }
 
   /* Tertiary / ghost */
@@ -369,11 +415,23 @@
     --siec-text: #e8f1fb;
     --siec-text-muted: #b5c7da;
     --siec-text-soft: #8ca5bf;
+    --siec-gradient-brand: linear-gradient(90deg, #fb923c 0%, #f97316 42%, #94a3b8 100%);
+    --siec-gradient-mesh:
+      radial-gradient(ellipse 72% 48% at 100% 0%, rgba(251, 146, 60, 0.14) 0%, transparent 52%),
+      radial-gradient(ellipse 48% 40% at 0% 100%, rgba(56, 189, 248, 0.06) 0%, transparent 48%),
+      radial-gradient(circle at top right, #0c1728 0%, #060d18 48%, #050a12 100%);
   }
 
   .dark body {
-    background: radial-gradient(circle at top right, #0c1728 0%, #060d18 48%, #050a12 100%);
+    background: var(--siec-gradient-mesh);
     color: var(--siec-text);
+  }
+
+  .dark .siec-app-canvas {
+    background:
+      radial-gradient(ellipse 70% 42% at 100% 0%, rgba(251, 146, 60, 0.1), transparent 50%),
+      radial-gradient(ellipse 55% 38% at 0% 100%, rgba(56, 189, 248, 0.05), transparent 45%),
+      color-mix(in oklab, #060d18 88%, #0c1828);
   }
   .dark .bg-rail     { background-color: #060d18 !important; }
   .dark .bg-canvas   { background-color: #0c1828 !important; }

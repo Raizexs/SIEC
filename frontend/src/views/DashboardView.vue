@@ -205,7 +205,7 @@ watch(isAnalyticsView, (entering) => {
 <template>
   <div
     ref="motionRoot"
-    class="flex min-h-screen bg-slate-50 text-slate-950 transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100"
+    class="siec-app-canvas flex min-h-screen text-slate-950 transition-colors duration-300 dark:text-slate-100"
   >
     <AppRail active="dashboard" />
 
