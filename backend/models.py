@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, Numeric, ForeignKey, DateTime, Text, JSON, Index, BigInteger
+from sqlalchemy import Column, Integer, String, Boolean, Numeric, ForeignKey, DateTime, Date, Text, JSON, Index, BigInteger
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from database import Base
@@ -201,3 +201,26 @@ class Notificacion(Base):
     payload = Column(JSON, default=dict)
     read_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class UserSubscription(Base):
+    __tablename__ = "user_subscription"
+
+    user_id = Column(UUID(as_uuid=True), primary_key=True)
+    plan = Column(Text, nullable=False, default="free")
+    status = Column(Text, nullable=False, default="active")
+    provider = Column(Text)
+    provider_subscription_id = Column(Text)
+    current_period_start = Column(DateTime(timezone=True))
+    current_period_end = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class UserUsage(Base):
+    __tablename__ = "user_usage"
+
+    user_id = Column(UUID(as_uuid=True), primary_key=True)
+    exports_this_month = Column(Integer, nullable=False, default=0)
+    usage_month = Column(Date, nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

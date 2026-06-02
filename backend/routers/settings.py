@@ -1,6 +1,12 @@
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from typing import Optional
+from sqlalchemy.orm import Session
+
+try:
+    from database import get_db
+except ModuleNotFoundError:
+    from backend.database import get_db  # type: ignore
 
 try:
     from auth import get_current_user, CurrentUser
@@ -73,13 +79,28 @@ def put_integrations(payload: dict, user: CurrentUser = Depends(get_current_user
 
 
 @router.get("/billing/plan")
-def get_billing_plan(user: CurrentUser = Depends(get_current_user)):
-    return {"plan": "Free", "user_id": user.id, "upgrade_recommended": "Pro"}
+def get_billing_plan(
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        from billing.service import build_plan_payload
+    except ModuleNotFoundError:
+        from backend.billing.service import build_plan_payload  # type: ignore
+    return build_plan_payload(db, user.id)
 
 
 @router.get("/billing/usage")
-def get_billing_usage(user: CurrentUser = Depends(get_current_user)):
-    return {"projects": 2, "exports": 8, "collaborators": 1, "storage_gb": 0.6}
+def get_billing_usage(
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        from billing.service import build_plan_payload
+    except ModuleNotFoundError:
+        from backend.billing.service import build_plan_payload  # type: ignore
+    payload = build_plan_payload(db, user.id)
+    return payload["usage"]
 
 
 @router.get("/projects/{project_id}/site-profile")

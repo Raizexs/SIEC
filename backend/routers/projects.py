@@ -113,7 +113,19 @@ def create_project(
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    project = models.Proyecto(owner_id=user.id, **payload.model_dump())
+    try:
+        from billing.service import assert_can_create_project
+    except ModuleNotFoundError:
+        from backend.billing.service import assert_can_create_project  # type: ignore
+    assert_can_create_project(db, user.id)
+    data = payload.model_dump()
+    if data.get("material_id") is not None:
+        try:
+            from billing.service import assert_material_allowed
+        except ModuleNotFoundError:
+            from backend.billing.service import assert_material_allowed  # type: ignore
+        assert_material_allowed(db, user.id, int(data["material_id"]))
+    project = models.Proyecto(owner_id=user.id, **data)
     db.add(project)
     db.flush()
     _audit(db, user, "project.created", str(project.id), {"name": project.name})
@@ -148,7 +160,14 @@ def update_project(
         raise HTTPException(404, "Proyecto no encontrado")
     if not _user_can_edit(db, project, user):
         raise HTTPException(403, "Sin permisos de edición")
-    for field, value in update.model_dump(exclude_unset=True).items():
+    patch = update.model_dump(exclude_unset=True)
+    if patch.get("material_id") is not None:
+        try:
+            from billing.service import assert_material_allowed
+        except ModuleNotFoundError:
+            from backend.billing.service import assert_material_allowed  # type: ignore
+        assert_material_allowed(db, user.id, int(patch["material_id"]))
+    for field, value in patch.items():
         setattr(project, field, value)
     _audit(db, user, "project.updated", str(project.id))
     db.commit()
