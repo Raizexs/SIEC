@@ -20,6 +20,9 @@ import Sidebar from './Sidebar.vue';
 import TopNavBar from './TopNavBar.vue';
 import ConfigurationPanel from './ConfigurationPanel.vue';
 import MetricsPanel from './MetricsPanel.vue';
+import MetricsBar from './workspace/MetricsBar.vue';
+import WorkspaceStepper from './workspace/WorkspaceStepper.vue';
+import FlowGuide from './workspace/FlowGuide.vue';
 import RoomEditor2D from './RoomEditor2D.vue';
 import Scene3D from './Scene3D.vue';
 import BudgetBreakdownPanel from './BudgetBreakdownPanel.vue';
@@ -49,6 +52,8 @@ import {
   defaultProductPreferences,
 } from '../composables/useProductPreferences';
 import { useProjectsApi } from '../composables/useProjectsApi';
+import { useWorkspaceFlow } from '../composables/useWorkspaceFlow';
+import { useBilling } from '../composables/useBilling';
 import logger from '../utils/logger.js';
 
 const props = defineProps({
@@ -83,6 +88,46 @@ const motionRoot = ref(null);
 useProMotion(motionRoot, { skipIntro: true });
 
 const showManual = ref(false);
+const hasBudget = ref(false);
+const metricsExpanded = ref(false);
+
+const { fetchBilling, limits, isFree, canUseMaterial, clampMaterialId } = useBilling();
+
+const enforceMaterialForPlan = (materialId) => clampMaterialId(materialId);
+
+const applyMaterialPlanLimits = () => {
+  const clamped = enforceMaterialForPlan(formData.value.materialEstructuralId);
+  if (formData.value.materialEstructuralId !== clamped) {
+    formData.value.materialEstructuralId = clamped;
+    prevMaterialId = clamped;
+    if (recintosStore.configMetadata) {
+      recintosStore.configMetadata.materialEstructuralId = clamped;
+    }
+  }
+};
+
+const recintosCount = computed(() => recintosStore.recintos?.length ?? 0);
+const selectedM2 = computed(() => recintosStore.selectedM2 ?? 0);
+
+const {
+  currentStep,
+  suggestedStep,
+  goToStep,
+  nextStep,
+  prevStep,
+  showConfigure,
+  showDesignStep,
+  showBudgetStep,
+  showExportStep,
+  showMetricsBar,
+  isFlowGuideDismissed,
+  dismissFlowGuide,
+  WORKSPACE_STEPS,
+} = useWorkspaceFlow({
+  recintosCount,
+  hasBudget,
+  selectedM2,
+});
 
 const appKey = computed(() => `app-${currentLanguage.value}`);
 
@@ -105,12 +150,21 @@ watch(
   (id) => {
     if (props.projectId) return;
     const n = Number(id);
-    if (!Number.isFinite(n)) return;
-    if (formData.value.materialEstructuralId !== n) {
-      formData.value.materialEstructuralId = n;
+    if (!Number.isFinite(n) || !canUseMaterial(n)) return;
+    const allowed = enforceMaterialForPlan(n);
+    if (formData.value.materialEstructuralId !== allowed) {
+      formData.value.materialEstructuralId = allowed;
     }
   },
   { immediate: true },
+);
+
+watch(
+  () => limits.value.allowed_material_ids,
+  () => {
+    applyMaterialPlanLimits();
+  },
+  { deep: true },
 );
 
 watchEffect(() => {
@@ -313,15 +367,18 @@ const bootstrapWorkspace = async () => {
   ensureDefaultRecinto();
 };
 
-onMounted(() => {
-  bootstrapWorkspace();
+onMounted(async () => {
+  await fetchBilling();
+  await bootstrapWorkspace();
+  applyMaterialPlanLimits();
 });
 
 watch(
   () => props.projectId,
-  (id, prev) => {
+  async (id, prev) => {
     if (id === prev) return;
-    bootstrapWorkspace();
+    await bootstrapWorkspace();
+    applyMaterialPlanLimits();
   },
 );
 
@@ -372,6 +429,11 @@ watch(
 watch(
   () => formData.value.materialEstructuralId,
   (newId) => {
+    if (!canUseMaterial(newId)) {
+      const clamped = enforceMaterialForPlan(newId);
+      formData.value.materialEstructuralId = clamped;
+      return;
+    }
     if (newId === prevMaterialId) return;
     prevMaterialId = newId;
     if (recintosStore.configMetadata) {
@@ -406,6 +468,13 @@ const hasRecintos = computed(() => recintosStore.recintos.length > 0);
 const updateFormData = (patch) => {
   if (!patch || typeof patch !== 'object') return;
 
+  if (Object.prototype.hasOwnProperty.call(patch, 'materialEstructuralId')) {
+    patch = {
+      ...patch,
+      materialEstructuralId: enforceMaterialForPlan(patch.materialEstructuralId),
+    };
+  }
+
   Object.assign(formData.value, patch);
 
   const w = Number(formData.value.terrenoAncho) || 0;
@@ -419,8 +488,9 @@ const syncFormDataFromLayout = (layout) => {
     terrenoAncho: layout.terrenoAncho,
     terrenoLargo: layout.terrenoLargo,
     m2Totales: layout.m2Totales,
-    materialEstructuralId:
+    materialEstructuralId: enforceMaterialForPlan(
       layout.materialEstructuralId || formData.value.materialEstructuralId,
+    ),
     habitacionesSimples: layout.habitacionesSimples || 0,
     habitacionesDobles: layout.habitacionesDobles || 0,
     habitacionesTriples: layout.habitacionesTriples || 0,
@@ -472,6 +542,7 @@ const onSaveVersionEvent = () => {
 };
 
 const onBudgetCalculated = ({ costoTotal, m2Totales, materialEstructuralId }) => {
+  hasBudget.value = true;
   if (!props.projectId) return;
   if (isLocalProjectId(props.projectId)) return;
   if (!Number.isFinite(costoTotal) || costoTotal <= 0) return;
@@ -482,7 +553,7 @@ const onBudgetCalculated = ({ costoTotal, m2Totales, materialEstructuralId }) =>
   projectsApi.update(props.projectId, {
     estimated_cost: costoTotal,
     m2_totales: Math.round(m2Totales),
-    material_id: materialEstructuralId,
+    material_id: enforceMaterialForPlan(materialEstructuralId),
   }).then(() => {
     logger.debug('[workspace] Costo estimado guardado en el proyecto:', costoTotal);
   }).catch((err) => {
@@ -580,6 +651,14 @@ const onSiecExport = async (e) => {
   await executePdfExport(raw);
 };
 
+const prepareTutorialStep = async (stepId) => {
+  goToStep(stepId);
+  await nextTick();
+  await new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(resolve));
+  });
+};
+
 const startTutorial = () => {
   const driverObj = driver({
     showProgress: true,
@@ -590,66 +669,141 @@ const startTutorial = () => {
     stagePadding: 10,
     stageRadius: 22,
     popoverClass: 'siec-driver-theme',
-    nextBtnText: 'Siguiente',
-    prevBtnText: 'Atrás',
-    doneBtnText: 'Empezar',
-    progressText: '{{current}} de {{total}}',
+    nextBtnText: t('tourBtnNext'),
+    prevBtnText: t('tourBtnPrev'),
+    doneBtnText: t('tourBtnDone'),
+    progressText: '{{current}} / {{total}}',
     steps: [
       {
         popover: {
-          title: 'Bienvenido a SIEC',
-          description:
-            'Este tour te muestra el flujo principal: configurar terreno, controlar métricas, editar en 2D, revisar en 3D y presupuestar recintos.',
-          side: 'left',
+          title: t('tourWelcomeTitle'),
+          description: t('tourWelcomeDesc'),
+          side: 'over',
+          align: 'center',
+        },
+      },
+      {
+        element: '.tour-workspace-stepper',
+        popover: {
+          title: t('tourStepperTitle'),
+          description: t('tourStepperDesc'),
+          side: 'bottom',
           align: 'start',
         },
       },
       {
         element: '.tour-config-panel',
+        onHighlightStarted: () => {
+          void prepareTutorialStep('configure');
+        },
         popover: {
-          title: 'Configuración del terreno',
-          description:
-            'Define dimensiones, superficie disponible y materialidad estructural. Esta información alimenta el diseño, las métricas y el presupuesto.',
+          title: t('tourConfigureTitle'),
+          description: t('tourConfigureDesc'),
           side: 'right',
           align: 'start',
         },
       },
       {
-        element: '.tour-metrics-panel',
+        element: '.tour-metrics-bar',
+        onHighlightStarted: () => {
+          void prepareTutorialStep('design');
+        },
         popover: {
-          title: 'Presupuesto espacial',
-          description:
-            'Aquí ves el área usada, el espacio disponible y el estado del proyecto. Si te pasas del límite, SIEC te lo avisa antes de presupuestar mal.',
-          side: 'left',
+          title: t('tourMetricsTitle'),
+          description: t('tourMetricsDesc'),
+          side: 'bottom',
           align: 'start',
+        },
+      },
+      {
+        element: '.tour-editor-2d-toolbar',
+        onHighlightStarted: () => {
+          void prepareTutorialStep('design');
+        },
+        popover: {
+          title: t('tourEditorToolsTitle'),
+          description: t('tourEditorToolsDesc'),
+          side: 'bottom',
+          align: 'start',
+        },
+      },
+      {
+        element: '.tour-editor-2d-actions',
+        onHighlightStarted: () => {
+          void prepareTutorialStep('design');
+        },
+        popover: {
+          title: t('tourEditorActionsTitle'),
+          description: t('tourEditorActionsDesc'),
+          side: 'left',
+          align: 'center',
         },
       },
       {
         element: '.tour-editor-2d',
+        onHighlightStarted: () => {
+          void prepareTutorialStep('design');
+        },
         popover: {
-          title: 'Editor 2D',
-          description:
-            'Crea recintos con medidas exactas. Puedes mover, redimensionar y activar el símbolo $ para incluir espacios específicos en el presupuesto.',
+          title: t('tourEditorCanvasTitle'),
+          description: t('tourEditorCanvasDesc'),
+          side: 'top',
+          align: 'center',
+        },
+      },
+      {
+        element: '.tour-scene-3d-tools',
+        onHighlightStarted: () => {
+          void prepareTutorialStep('design');
+        },
+        popover: {
+          title: t('tourSceneToolsTitle'),
+          description: t('tourSceneToolsDesc'),
+          side: 'bottom',
+          align: 'start',
+        },
+      },
+      {
+        element: '.tour-scene-3d-actions',
+        onHighlightStarted: () => {
+          void prepareTutorialStep('design');
+        },
+        popover: {
+          title: t('tourSceneActionsTitle'),
+          description: t('tourSceneActionsDesc'),
+          side: 'left',
+          align: 'center',
+        },
+      },
+      {
+        element: '.tour-budget-step',
+        onHighlightStarted: () => {
+          void prepareTutorialStep('budget');
+        },
+        popover: {
+          title: t('tourBudgetTitle'),
+          description: t('tourBudgetDesc'),
           side: 'top',
           align: 'start',
         },
       },
       {
-        element: '.tour-scene-3d',
+        element: '.tour-export-step',
+        onHighlightStarted: () => {
+          void prepareTutorialStep('export');
+        },
         popover: {
-          title: 'Vista 3D en tiempo real',
-          description:
-            'El modelo se actualiza visualmente mientras diseñas. Úsalo para validar proporciones, materialidad y presentación del proyecto.',
+          title: t('tourExportTitle'),
+          description: t('tourExportDesc'),
           side: 'top',
           align: 'start',
         },
       },
       {
         popover: {
-          title: 'Listo para diseñar',
-          description:
-            'Empieza agregando recintos desde el editor 2D. Cuando tengas espacios seleccionados para presupuesto, SIEC generará el desglose constructivo.',
-          side: 'top',
+          title: t('tourDoneTitle'),
+          description: t('tourDoneDesc'),
+          side: 'over',
           align: 'center',
         },
       },
@@ -665,17 +819,8 @@ const startTutorial = () => {
     ref="motionRoot"
     data-siec-workspace-shell
     :key="appKey"
-    class="flex min-h-screen bg-slate-50 font-sans text-slate-950 antialiased transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100"
+    class="siec-app-canvas flex min-h-screen font-sans text-slate-950 antialiased transition-colors duration-300 dark:text-slate-100"
   >
-    <!-- Background accents -->
-    <div class="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-      <div
-        class="absolute -left-40 top-20 h-96 w-96 rounded-full bg-orange-500/5 blur-3xl dark:bg-orange-400/5"
-      ></div>
-      <div
-        class="absolute -right-40 bottom-10 h-96 w-96 rounded-full bg-slate-900/5 blur-3xl dark:bg-white/5"
-      ></div>
-    </div>
 
     <!-- Primary navigation -->
     <AppRail active="workspace" />
@@ -698,7 +843,7 @@ const startTutorial = () => {
         <div class="mx-auto w-full max-w-[1600px] px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
           <!-- Workspace header strip -->
           <section
-            class="mb-6 flex flex-col gap-4 rounded-3xl border border-slate-200/90 bg-white/75 p-4 shadow-sm backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/75 sm:flex-row sm:items-center sm:justify-between"
+            class="siec-surface-accent mb-6 flex flex-col gap-4 rounded-2xl border border-slate-200/90 bg-white/80 p-4 shadow-sm backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/80 sm:flex-row sm:items-center sm:justify-between"
             data-motion="section"
           >
             <div>
@@ -738,54 +883,161 @@ const startTutorial = () => {
             </div>
           </section>
 
-          <!-- Top row: Configuration + Metrics -->
-          <section class="grid grid-cols-12 gap-6" data-motion="section">
-            <ConfigurationPanel
-              class="tour-config-panel"
-              :formData="formData"
-              :costs="costs"
-              @update:formData="updateFormData"
-            />
+          <WorkspaceStepper
+            :steps="WORKSPACE_STEPS"
+            :current-step="currentStep"
+            :suggested-step="suggestedStep"
+            @go="goToStep"
+          />
 
+          <FlowGuide
+            :current-step="currentStep"
+            :dismissed="isFlowGuideDismissed()"
+            @dismiss="dismissFlowGuide"
+          />
+
+          <div
+            v-if="showMetricsBar"
+            class="mb-4"
+          >
+            <MetricsBar
+              :form-data="formData"
+              :descripcion-estado="descripcionEstado"
+              :area-recintos="totalAreaOcupada"
+              :expanded="metricsExpanded"
+              @toggle-expand="metricsExpanded = !metricsExpanded"
+            />
             <MetricsPanel
-              class="tour-metrics-panel"
+              v-if="metricsExpanded"
+              class="tour-metrics-panel mt-3"
               :form-data="formData"
               :descripcion-estado="descripcionEstado"
               :area-recintos="totalAreaOcupada"
             />
+          </div>
+
+          <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <button
+              type="button"
+              class="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-900"
+              :disabled="currentStep === 'configure'"
+              @click="prevStep"
+            >
+              {{ t('wsPrev') }}
+            </button>
+            <button
+              type="button"
+              class="rounded-xl bg-orange-500 px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-orange-600 disabled:opacity-40"
+              :disabled="currentStep === 'export'"
+              @click="nextStep"
+            >
+              {{ t('wsNext') }}
+            </button>
+          </div>
+
+          <section v-show="showConfigure" data-motion="section">
+            <ConfigurationPanel
+              class="tour-config-panel"
+              :formData="formData"
+              :allowed-material-ids="limits.allowed_material_ids"
+              :hide-locked-materials="isFree"
+              @update:formData="updateFormData"
+            />
           </section>
 
-          <!-- Layers + 2D + 3D + Budget stack -->
-          <section class="mt-6 space-y-6" data-motion="section">
+          <section v-show="showDesignStep" class="space-y-4" data-motion="section">
+            <div class="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-stretch">
+              <RoomEditor2D
+                class="tour-editor-2d min-h-[420px] xl:min-h-[520px]"
+                :editor-visible="showDesignStep"
+                :m2-totales="terrainM2FromDimensions"
+                v-model:terrenoAncho="formData.terrenoAncho"
+                v-model:terrenoLargo="formData.terrenoLargo"
+                :descripcionEstado="descripcionEstado"
+                :show-grid="productPreferences.editor.showGrid"
+                :show-labels="productPreferences.editor.showLabels"
+                :default-room-height="productPreferences.defaultRoomHeight"
+              />
 
+              <Scene3D
+                class="tour-scene-3d min-h-[420px] xl:min-h-[520px]"
+                :materialEstructuralId="formData.materialEstructuralId"
+                :terreno-ancho="formData.terrenoAncho"
+                :terreno-largo="formData.terrenoLargo"
+                :show-minimap="productPreferences.editor.showMinimap"
+              />
+            </div>
+          </section>
 
-            <RoomEditor2D
-              class="tour-editor-2d"
-              :m2-totales="terrainM2FromDimensions"
-              v-model:terrenoAncho="formData.terrenoAncho"
-              v-model:terrenoLargo="formData.terrenoLargo"
-              :descripcionEstado="descripcionEstado"
-              :show-grid="productPreferences.editor.showGrid"
-              :show-labels="productPreferences.editor.showLabels"
-              :default-room-height="productPreferences.defaultRoomHeight"
-            />
-
-            <Scene3D
-              class="tour-scene-3d"
-              :materialEstructuralId="formData.materialEstructuralId"
-              :terreno-ancho="formData.terrenoAncho"
-              :terreno-largo="formData.terrenoLargo"
-              :show-minimap="productPreferences.editor.showMinimap"
-            />
-
+          <section v-show="showBudgetStep" class="tour-budget-step space-y-4" data-motion="section">
             <BudgetBreakdownPanel
               v-if="recintosStore.selectedM2 > 0"
               :m2Totales="recintosStore.selectedM2"
               :materialEstructuralId="formData.materialEstructuralId"
               :perimetroMl="Number(totalWallLength)"
               :alturaMuroM="2.44"
+              :pdf-watermark="limits.pdf_watermark"
               @budget-calculated="onBudgetCalculated"
             />
+            <div
+              v-else
+              class="flex flex-col items-center justify-center rounded-3xl border border-dashed border-emerald-300/80 bg-emerald-50/50 px-6 py-14 text-center dark:border-emerald-800/80 dark:bg-emerald-950/20"
+            >
+              <div
+                class="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-emerald-200 bg-white text-emerald-600 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300"
+              >
+                <span class="material-symbols-outlined text-[32px]">paid</span>
+              </div>
+              <h3 class="text-lg font-bold text-slate-950 dark:text-slate-100">
+                {{ t('budgetStepEmptyTitle') }}
+              </h3>
+              <p class="mt-3 max-w-lg text-sm font-medium leading-relaxed text-slate-600 dark:text-slate-400">
+                {{ t('budgetStepEmptyHint') }}
+              </p>
+              <button
+                type="button"
+                class="mt-6 inline-flex items-center gap-2 rounded-2xl border border-emerald-300 bg-white px-5 py-2.5 text-sm font-bold text-emerald-800 shadow-sm transition hover:bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
+                @click="goToStep('design')"
+              >
+                <span class="material-symbols-outlined text-[18px]">edit_square</span>
+                {{ t('budgetStepGoDesign') }}
+              </button>
+            </div>
+          </section>
+
+          <section v-show="showExportStep" class="tour-export-step space-y-4" data-motion="section">
+            <BudgetBreakdownPanel
+              v-if="recintosStore.selectedM2 > 0 && hasBudget"
+              :m2Totales="recintosStore.selectedM2"
+              :materialEstructuralId="formData.materialEstructuralId"
+              :perimetroMl="Number(totalWallLength)"
+              :alturaMuroM="2.44"
+              :pdf-watermark="limits.pdf_watermark"
+              @budget-calculated="onBudgetCalculated"
+            />
+            <div
+              v-else
+              class="flex flex-col items-center justify-center rounded-3xl border border-dashed border-violet-300/80 bg-violet-50/50 px-6 py-14 text-center dark:border-violet-800/80 dark:bg-violet-950/20"
+            >
+              <div
+                class="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-violet-200 bg-white text-violet-600 shadow-sm dark:border-violet-900 dark:bg-violet-950/50 dark:text-violet-300"
+              >
+                <span class="material-symbols-outlined text-[32px]">upload_file</span>
+              </div>
+              <h3 class="text-lg font-bold text-slate-950 dark:text-slate-100">
+                {{ t('exportStepEmptyTitle') }}
+              </h3>
+              <p class="mt-3 max-w-lg text-sm font-medium leading-relaxed text-slate-600 dark:text-slate-400">
+                {{ t('exportStepEmptyHint') }}
+              </p>
+              <button
+                type="button"
+                class="mt-6 inline-flex items-center gap-2 rounded-2xl border border-violet-300 bg-white px-5 py-2.5 text-sm font-bold text-violet-800 shadow-sm transition hover:bg-violet-50 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-200"
+                @click="goToStep('design')"
+              >
+                {{ t('budgetStepGoDesign') }}
+              </button>
+            </div>
           </section>
 
           <footer
@@ -1133,5 +1385,16 @@ const startTutorial = () => {
 
 .dark .siec-driver-theme .driver-popover-arrow-side-bottom.driver-popover-arrow {
   border-bottom-color: rgba(15, 23, 42, 0.98) !important;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
 }
 </style>

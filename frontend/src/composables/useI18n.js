@@ -65,7 +65,83 @@ const translations = {
     workspaceActive: "Workspace activo",
     workspaceTitle: "Simulación constructiva inteligente",
     workspaceSubtitle:
-      "Configura el terreno, edita recintos, visualiza el modelo 3D y genera presupuesto desde una única experiencia.",
+      "Configura el terreno, diseña en 2D con vista 3D al lado y cotiza con el icono de precio sin salir del plano.",
+    wsStepConfigure: "Configurar",
+    wsStepDesign: "Diseñar",
+    wsStepBudget: "Presupuesto",
+    wsStepExport: "Exportar",
+    wsNext: "Siguiente paso",
+    wsPrev: "Paso anterior",
+    wsOpenBudgetPanel: "Ver presupuesto · {m2} m²",
+    wsCloseBudgetPanel: "Cerrar presupuesto",
+    budgetSelectWithIconHint:
+      "Marca recintos con el icono de precio en el plano 2D (no uses solo «Añadir recinto»).",
+    budgetStepEmptyTitle: "Selecciona recintos para presupuestar",
+    budgetStepEmptyHint:
+      "En el paso Diseñar, activa el icono de precio en cada recinto que quieras incluir. Solo esos espacios se calcularán y podrás exportar el presupuesto.",
+    budgetStepGoDesign: "Ir a diseñar",
+    exportStepEmptyTitle: "Presupuesto requerido para exportar",
+    exportStepEmptyHint:
+      "Primero marca recintos con el icono de precio en Diseñar, genera el presupuesto en este paso y luego podrás exportar PDF o Excel.",
+    flowGuideTitle: "¿Qué hacer ahora?",
+    flowGuideDismiss: "Ocultar guía",
+    flowHintConfigure: "Define el terreno y el material. Luego avanza a diseñar recintos.",
+    flowHintDesign:
+      "Diseña en 2D y revisa el 3D al lado. Usa el icono de precio en cada recinto que quieras cotizar; luego ve a Presupuesto.",
+    flowHintBudget:
+      "Aquí se calcula el presupuesto de los recintos que marcaste con el icono de precio en Diseñar. Sin selección, verás las instrucciones.",
+    flowHintExport: "Exporta PDF o Excel para compartir con tu maestro de obra.",
+    tourWelcomeTitle: "Bienvenido a SIEC",
+    tourWelcomeDesc:
+      "Este recorrido sigue el flujo actual del workspace: Configurar → Diseñar → Presupuesto → Exportar. Puedes saltarlo cuando quieras.",
+    tourStepperTitle: "Flujo en 4 pasos",
+    tourStepperDesc:
+      "Usa la barra superior para moverte entre configuración, diseño 2D/3D, presupuesto y exportación. Los pasos completados quedan marcados.",
+    tourConfigureTitle: "Configurar terreno",
+    tourConfigureDesc:
+      "Define ancho, largo, material estructural y parámetros del proyecto. Todo lo que diseñes y presupuestes parte de aquí.",
+    tourMetricsTitle: "Ocupación del terreno",
+    tourMetricsDesc:
+      "En Diseñar ves cuántos m² usas y cuánto queda libre. Si te pasas del límite, SIEC te avisa antes de cotizar mal.",
+    tourEditorToolsTitle: "Herramientas 2D",
+    tourEditorToolsDesc:
+      "Añade recintos, dibuja pasillos y bloquea el redimensionado si lo necesitas. El selector de piso aplica a todo el plano.",
+    tourEditorActionsTitle: "Vista ampliada 2D",
+    tourEditorActionsDesc:
+      "Pantalla completa para trabajar cómodo en plantas grandes. Ideal en portátiles o presentaciones.",
+    tourEditorCanvasTitle: "Plano 2D",
+    tourEditorCanvasDesc:
+      "Arrastra recintos para ubicarlos, redimensiona desde la esquina y pulsa el icono $ en cada recinto que quieras incluir en el presupuesto.",
+    tourSceneToolsTitle: "Herramientas 3D",
+    tourSceneToolsDesc:
+      "Mover, escalar y medir en la vista 3D. El modelo se actualiza en vivo mientras editas el plano.",
+    tourSceneActionsTitle: "Capas y exportación 3D",
+    tourSceneActionsDesc:
+      "Capas constructivas, muebles, exportar imagen/HTML, recorrido a pie y centrar cámara. Complementa la validación del diseño.",
+    tourBudgetTitle: "Presupuesto",
+    tourBudgetDesc:
+      "Solo se cotizan los recintos marcados con $ en el plano 2D. Revisa partidas, totales y ajustes antes de exportar.",
+    tourExportTitle: "Exportar",
+    tourExportDesc:
+      "Genera PDF o Excel con el desglose constructivo. Necesitas recintos presupuestados y el cálculo hecho en el paso anterior.",
+    tourDoneTitle: "Listo para diseñar",
+    tourDoneDesc:
+      "Empieza en Configurar, pasa a Diseñar y marca con $ los espacios a cotizar. El 3D te ayuda a validar proporciones en tiempo real.",
+    tourBtnNext: "Siguiente",
+    tourBtnPrev: "Atrás",
+    tourBtnDone: "Entendido",
+    layersBtn: "Capas",
+    showFurniture: "Mostrar muebles",
+    hideFurniture: "Ocultar muebles",
+    walkthrough: "Recorrido 3D",
+    metricsBarUsed: "Ocupado",
+    metricsBarFree: "Libre",
+    metricsBarTokens: "Tokens",
+    planMaterialLocked: "Disponible en Pro o Pro+",
+    planMaterialFreeOnlyTitle: "Solo Madera en plan Free",
+    planMaterialFreeOnlyHint:
+      "Metalcom, albañilería y hormigón armado requieren Pro o Pro+. No se pueden seleccionar ni usar en cotizaciones.",
+    planUpgradeCta: "Mejorar plan",
     addRecintosTitle: "Agregar recintos",
     addRecintosBadge: "Paso clave",
     addRecintosHint:
@@ -152,7 +228,9 @@ const translations = {
     widthM: "Ancho (m)",
     lengthM: "Largo (m)",
     structuralMaterialSelectHint:
-      "Selecciona la base constructiva para estimar comportamiento y costo.",
+      "Define la base constructiva del proyecto antes de diseñar.",
+    terrainTotalArea: "Superficie total",
+    terrainDimensionsSummary: "{w} × {l} m",
     currentMaterial: "Material actual",
     heavyLogisticsBadge: "Requiere logística pesada",
     materialWoodHint: "Económico · Liviano · Apto sismo",
@@ -184,10 +262,10 @@ const translations = {
     woodFrame: "Estructura de Madera",
     steelFramed: "Acero Galvanizado",
     masonry: "Mampostería Portante",
-    concrete: "Ferrocemento",
-    heavyLogisticsTitle: "Requisitos Logísticos Pesados.",
+    concrete: "Hormigón armado",
+    heavyLogisticsTitle: "Requisitos logísticos pesados",
     heavyLogisticsMessage:
-      "El Ferrocemento requiere maquinaria pesada para carga, descarga y montaje. En obras menores esto puede aumentar costos logísticos y tiempos de ejecución.",
+      "El hormigón armado requiere maquinaria pesada para carga, descarga y montaje. En obras menores esto puede aumentar costos logísticos y tiempos de ejecución.",
     quoteWithLightMaterials: "Cotizar con Materiales Ligeros",
     dismissLogisticsAlert: "Descartar y Continuar",
 
@@ -310,7 +388,83 @@ const translations = {
     workspaceActive: "Active workspace",
     workspaceTitle: "Intelligent construction simulation",
     workspaceSubtitle:
-      "Configure terrain, edit rooms, view the 3D model, and generate budget from one experience.",
+      "Set up terrain, design in 2D with 3D beside you, and quote with the price icon without leaving the plan.",
+    wsStepConfigure: "Configure",
+    wsStepDesign: "Design",
+    wsStepBudget: "Budget",
+    wsStepExport: "Export",
+    wsNext: "Next step",
+    wsPrev: "Previous step",
+    wsOpenBudgetPanel: "View budget · {m2} m²",
+    wsCloseBudgetPanel: "Close budget",
+    budgetSelectWithIconHint:
+      "Mark rooms with the price icon on the 2D plan (not only «Add room»).",
+    budgetStepEmptyTitle: "Select rooms to budget",
+    budgetStepEmptyHint:
+      "In the Design step, turn on the price icon on each room to include. Only those spaces will be calculated and can be exported.",
+    budgetStepGoDesign: "Go to design",
+    exportStepEmptyTitle: "Budget required to export",
+    exportStepEmptyHint:
+      "First mark rooms with the price icon in Design, generate the budget here, then you can export PDF or Excel.",
+    flowGuideTitle: "What to do now",
+    flowGuideDismiss: "Hide guide",
+    flowHintConfigure: "Set terrain and material, then move on to design rooms.",
+    flowHintDesign:
+      "Design in 2D and review 3D side by side. Use the price icon on each room to quote; then go to Budget.",
+    flowHintBudget:
+      "The budget is calculated for rooms you marked with the price icon in Design. Without a selection, you will see instructions.",
+    flowHintExport: "Export PDF or Excel to share with your contractor.",
+    tourWelcomeTitle: "Welcome to SIEC",
+    tourWelcomeDesc:
+      "This tour follows the current workspace flow: Configure → Design → Budget → Export. You can close it anytime.",
+    tourStepperTitle: "4-step flow",
+    tourStepperDesc:
+      "Use the top bar to move between setup, 2D/3D design, budget, and export. Completed steps stay marked.",
+    tourConfigureTitle: "Configure terrain",
+    tourConfigureDesc:
+      "Set width, length, structural material, and project parameters. Everything you design and budget starts here.",
+    tourMetricsTitle: "Terrain usage",
+    tourMetricsDesc:
+      "On Design you see used vs free m². SIEC warns you before you overfill the plot or budget incorrectly.",
+    tourEditorToolsTitle: "2D tools",
+    tourEditorToolsDesc:
+      "Add rooms, draw corridors, and lock resize when needed. The floor selector applies to the whole plan.",
+    tourEditorActionsTitle: "2D fullscreen",
+    tourEditorActionsDesc:
+      "Fullscreen mode for large layouts—especially helpful on laptops or when presenting.",
+    tourEditorCanvasTitle: "2D plan",
+    tourEditorCanvasDesc:
+      "Drag rooms into place, resize from the corner, and tap the $ icon on each room you want in the budget.",
+    tourSceneToolsTitle: "3D tools",
+    tourSceneToolsDesc:
+      "Move, scale, and measure in 3D. The model updates live as you edit the floor plan.",
+    tourSceneActionsTitle: "3D layers & export",
+    tourSceneActionsDesc:
+      "Construction layers, furniture, image/HTML export, walkthrough, and camera center—validate your design in 3D.",
+    tourBudgetTitle: "Budget",
+    tourBudgetDesc:
+      "Only rooms marked with $ on the 2D plan are quoted. Review line items and totals before exporting.",
+    tourExportTitle: "Export",
+    tourExportDesc:
+      "Generate PDF or Excel with the construction breakdown. You need budgeted rooms and a completed calculation.",
+    tourDoneTitle: "Ready to design",
+    tourDoneDesc:
+      "Start in Configure, move to Design, and mark rooms with $ to budget. Use 3D to check proportions in real time.",
+    tourBtnNext: "Next",
+    tourBtnPrev: "Back",
+    tourBtnDone: "Got it",
+    layersBtn: "Layers",
+    showFurniture: "Show furniture",
+    hideFurniture: "Hide furniture",
+    walkthrough: "3D walkthrough",
+    metricsBarUsed: "Used",
+    metricsBarFree: "Free",
+    metricsBarTokens: "Tokens",
+    planMaterialLocked: "Available on Pro or Pro+",
+    planMaterialFreeOnlyTitle: "Wood only on Free plan",
+    planMaterialFreeOnlyHint:
+      "Steel frame, masonry and reinforced concrete require Pro or Pro+. They cannot be selected or used in budgets.",
+    planUpgradeCta: "Upgrade plan",
     addRecintosTitle: "Add rooms",
     addRecintosBadge: "Key step",
     addRecintosHint:
@@ -397,7 +551,9 @@ const translations = {
     widthM: "Width (m)",
     lengthM: "Length (m)",
     structuralMaterialSelectHint:
-      "Select the structural base to estimate behavior and cost.",
+      "Set the project's structural base before designing.",
+    terrainTotalArea: "Total area",
+    terrainDimensionsSummary: "{w} × {l} m",
     currentMaterial: "Current material",
     heavyLogisticsBadge: "Requires heavy logistics",
     materialWoodHint: "Economical · Lightweight · Seismic-friendly",
@@ -429,7 +585,7 @@ const translations = {
     woodFrame: "Wood Frame Structure",
     steelFramed: "Galvanized Steel",
     masonry: "Load-Bearing Masonry",
-    concrete: "Ferrocement",
+    concrete: "Reinforced concrete",
     heavyLogisticsTitle: "Heavy Logistics Requirements.",
     heavyLogisticsMessage:
       "Ferrocement requires heavy machinery for loading, unloading, and assembly. In small projects this can increase logistics costs and execution time.",

@@ -50,7 +50,7 @@ const steps = [
   {
     title: 'Presupuesto y PDF',
     description:
-      'Activa el icono $ para incluir recintos en el presupuesto y exporta el resultado como PDF profesional.',
+      'Activa el icono de precio para incluir recintos en el presupuesto y exporta el resultado como PDF profesional.',
     icon: 'payments',
   },
 ];
