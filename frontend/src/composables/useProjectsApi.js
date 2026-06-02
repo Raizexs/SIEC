@@ -16,6 +16,7 @@ import logger from '../utils/logger.js';
  */
 import { ref } from "vue";
 import { useApi, HttpError } from "./useApi";
+import { useBilling } from "./useBilling";
 import {
   cacheProjects,
   cacheProject,
@@ -35,6 +36,7 @@ if (typeof window !== "undefined") {
 
 export function useProjectsApi() {
   const api = useApi();
+  const { handlePlanLimitError } = useBilling();
   const list = async ({ archived = false, search = "" } = {}) => {
     try {
       const data = await api.get("/projects", { query: { archived, search } });
@@ -75,9 +77,14 @@ export function useProjectsApi() {
       await cacheProject(local);
       return local;
     }
-    const created = await api.post("/projects", data);
-    await cacheProject(created);
-    return created;
+    try {
+      const created = await api.post("/projects", data);
+      await cacheProject(created);
+      return created;
+    } catch (err) {
+      if (handlePlanLimitError(err)) throw err;
+      throw err;
+    }
   };
 
   const update = async (id, patch) => {

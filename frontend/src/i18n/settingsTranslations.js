@@ -32,6 +32,11 @@ export const settingsTranslationsEs = {
   settingsSensitiveHint:
     "Usa esta opción solo si perdiste acceso a un dispositivo o sospechas actividad no autorizada.",
   settingsLogoutAllDevices: "Cerrar sesión en todos los dispositivos",
+  settingsAppearance: "Apariencia",
+  settingsAppearanceSub: "Idioma e interfaz clara u oscura",
+  settingsAppearanceDesc: "Personaliza cómo se ve SIEC en tu dispositivo.",
+  settingsLanguageLabel: "Idioma de la interfaz",
+  settingsThemeLabel: "Tema de color",
   settingsExperience: "Experiencia",
   settingsAnimation: "Animación y fluidez",
   settingsAnimationLegend: "Intensidad de animación",
@@ -146,6 +151,11 @@ export const settingsTranslationsEn = {
   settingsSensitiveHint:
     "Use this only if you lost access to a device or suspect unauthorized activity.",
   settingsLogoutAllDevices: "Sign out on all devices",
+  settingsAppearance: "Appearance",
+  settingsAppearanceSub: "Language and light or dark interface",
+  settingsAppearanceDesc: "Customize how SIEC looks on your device.",
+  settingsLanguageLabel: "Interface language",
+  settingsThemeLabel: "Color theme",
   settingsExperience: "Experience",
   settingsAnimation: "Animation and fluidity",
   settingsAnimationLegend: "Animation intensity",
