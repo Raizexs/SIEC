@@ -138,5 +138,6 @@ export const normalizeProposalPayload = (raw = {}) => {
     desglose: normalizeDesglose(raw.desglose),
     counts: normalizeCounts(raw.counts),
     sceneImageDataUrl: sceneImage || null,
+    pdfWatermark: Boolean(raw.pdfWatermark),
   };
 };

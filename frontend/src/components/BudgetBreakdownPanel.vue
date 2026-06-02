@@ -11,7 +11,9 @@ import {
   CHILE_IVA_RATE,
 } from "../utils/budgetPreferenceMath";
 import { toast } from "vue-sonner";
-import { exportBudget, getMaterialLabel } from "../utils/budgetExporter";
+import { exportBudget, getMaterialLabel, flattenDesgloseRows } from "../utils/budgetExporter";
+import { useBilling } from "../composables/useBilling";
+import { useApi, HttpError } from "../composables/useApi";
 import { captureSceneImage } from "../proposal/proposalSceneCapture";
 import { resolveBrandLogoUrl } from "../proposal/proposalBrand";
 import { reorganizeDesglose } from "../utils/budgetCategorizer";
@@ -24,6 +26,8 @@ const numberLocale = computed(() =>
 const recintosStore = useRecintosStore();
 const workspaceStore = useWorkspaceStore();
 const { productPreferences } = useProductPreferences();
+const api = useApi();
+const { recordExport, handlePlanLimitError, clampMaterialId, canUseMaterial } = useBilling();
 
 const emit = defineEmits(["budget-calculated"]);
 
@@ -34,6 +38,7 @@ const props = defineProps({
   terrenoLargo: { type: Number, default: 7 },
   alturaMuroM: { type: Number, default: 2.44 },
   perimetroMl: { type: Number, default: null },
+  pdfWatermark: { type: Boolean, default: true },
 });
 
 const isLoading = ref(false);
@@ -121,6 +126,21 @@ const totalPreferido = computed(() => {
 
 const monedaPreferida = computed(() => productPreferences.value.currency);
 
+const quoteStats = computed(() => {
+  const rows = flattenDesgloseRows(enabledDesglose.value);
+  const total = rows.length;
+  const quoted = rows.filter((row) => {
+    const price = Number(row.precio_unitario);
+    return Number.isFinite(price) && price > 0;
+  }).length;
+  return {
+    total,
+    quoted,
+    hasPartial: total > 0 && quoted > 0 && quoted < total,
+    hasNone: total > 0 && quoted === 0,
+  };
+});
+
 const deltaContingencia = computed(() => {
   const m = motorTotal.value;
   const s = subtotalConContingencia.value;
@@ -197,66 +217,26 @@ const fetchBudget = async () => {
   error.value = null;
 
   try {
-    const baseUrl = (
-      import.meta.env.VITE_API_URL ||
-      (import.meta.env.DEV ? "http://localhost:8000" : "")
-    ).replace(/\/$/, "");
+    const materialId = clampMaterialId(props.materialEstructuralId);
+    if (!canUseMaterial(props.materialEstructuralId)) {
+      throw new Error(t("planMaterialLocked"));
+    }
 
-    const simRes = await fetch(`${baseUrl}/api/simulacion/parametros`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        m2Totales: Math.max(1, Math.round(props.m2Totales)),
-        materialEstructuralId: props.materialEstructuralId,
-        perimetro_ml: Math.round(perimetroMl.value * 100) / 100,
-        altura_muro_m: props.alturaMuroM,
-        incluir_techumbre: true,
-      }),
+    const simData = await api.post("/api/simulacion/parametros", {
+      m2Totales: Math.max(1, Math.round(props.m2Totales)),
+      materialEstructuralId: materialId,
+      perimetro_ml: Math.round(perimetroMl.value * 100) / 100,
+      altura_muro_m: props.alturaMuroM,
+      incluir_techumbre: true,
     });
 
-    if (!simRes.ok) {
-      let detail = t("budgetErrSim");
-      try {
-        const errBody = await simRes.json();
-        if (typeof errBody?.detail === "string") detail = errBody.detail;
-      } catch {
-        /* ignore */
-      }
-      throw new Error(detail);
-    }
-
-    const simData = await simRes.json();
-
-    const calcRes = await fetch(
-      `${baseUrl}/api/simulacion/${simData.idSimulacion}/calcular-insumos`,
+    const data = await api.post(
+      `/api/simulacion/${simData.idSimulacion}/calcular-insumos`,
       {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          area_bruta_m2: Math.max(1, Math.round(props.m2Totales)),
-          recintos: buildLayoutRecintosPayload(),
-        }),
+        area_bruta_m2: Math.max(1, Math.round(props.m2Totales)),
+        recintos: buildLayoutRecintosPayload(),
       },
     );
-
-    if (!calcRes.ok) {
-      let detail = t("budgetErrCalc");
-      try {
-        const errBody = await calcRes.json();
-        if (typeof errBody?.detail === "string") detail = errBody.detail;
-        else if (Array.isArray(errBody?.detail)) {
-          detail = errBody.detail
-            .map((e) => e?.msg || e?.detail)
-            .filter(Boolean)
-            .join("; ");
-        }
-      } catch {
-        /* ignore */
-      }
-      throw new Error(detail);
-    }
-
-    const data = await calcRes.json();
 
     desglose.value = reorganizeDesglose(data.desglose || []);
     costoTotal.value = data.costo_total;
@@ -270,7 +250,15 @@ const fetchBudget = async () => {
       });
     }
   } catch (err) {
-    error.value = err.message;
+    if (err instanceof HttpError && err.status === 403) {
+      const detail = err.payload?.detail;
+      const msg =
+        typeof detail === "object" ? detail.message : detail || t("planMaterialLocked");
+      error.value = msg;
+      handlePlanLimitError(err);
+    } else {
+      error.value = err.message;
+    }
   } finally {
     isLoading.value = false;
   }
@@ -311,6 +299,7 @@ const buildExportPayload = () => {
     includeTax: productPreferences.value.includeTax,
     includeLogo: productPreferences.value.export?.includeLogo !== false,
     logoUrl: resolveBrandLogoUrl(),
+    pdfWatermark: props.pdfWatermark,
   };
 };
 
@@ -342,6 +331,7 @@ const handleExport = async (format) => {
 
   const toastId = format === "pdf" ? "budget-pdf-export" : null;
   try {
+    await recordExport();
     const payload = buildExportPayload();
     if (format === "pdf") {
       payload.sceneImageDataUrl = await captureSceneImage();
@@ -355,6 +345,7 @@ const handleExport = async (format) => {
     );
   } catch (err) {
     if (toastId) toast.dismiss(toastId);
+    if (handlePlanLimitError(err)) return;
     console.error("Error al exportar presupuesto:", err);
     toast.error(err?.message || t("budgetExportFailed"));
   } finally {
@@ -530,6 +521,31 @@ onUnmounted(() => {
                 class="text-[11px] font-bold uppercase tracking-[0.18em] text-orange-300"
               >
                 {{ t("budgetTotalEstimated") }}
+                <span
+                  v-if="quoteStats.hasPartial"
+                  class="ml-2 normal-case tracking-normal text-amber-300"
+                >
+                  {{ t("budgetPartialTotal") }}
+                </span>
+              </p>
+
+              <p
+                v-if="quoteStats.total > 0"
+                class="mt-1 text-xs font-medium text-slate-400"
+              >
+                {{
+                  t("budgetQuoteStats", {
+                    quoted: quoteStats.quoted,
+                    total: quoteStats.total,
+                  })
+                }}
+              </p>
+
+              <p
+                v-if="quoteStats.hasNone"
+                class="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100"
+              >
+                {{ t("budgetNoPricesWarning") }}
               </p>
 
               <div
