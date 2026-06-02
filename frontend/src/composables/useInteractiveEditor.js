@@ -166,7 +166,7 @@ export function useInteractiveEditor(opts = {}) {
     return { xLines, zLines }
   }
 
-  const snapEdge = (rawPos, size, lines, threshold = 0.25) => {
+  const snapEdge = (rawPos, size, lines, threshold = 0.38) => {
     let bestPos = rawPos
     let minDiff = threshold
 
@@ -207,6 +207,7 @@ export function useInteractiveEditor(opts = {}) {
     selectedRecintoId,
     selectedRecinto,
     activeMode,
+    dragOffset,
     beginDrag,
     computeDragPosition,
     dragTo,
