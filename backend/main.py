@@ -274,6 +274,16 @@ except Exception:
 if HOURS_PER_DAY <= 0 or HOURS_PER_DAY > 24:
     HOURS_PER_DAY = 8.0
 
+# Espesores estándar por material estructural (metros)
+# Se usan en cálculo de volúmenes y se inyectan en la respuesta al frontend.
+ESPESORES_POR_DEFECTO = {
+    1: 0.09,  # Madera - 9 cm
+    2: 0.09,  # Metalcom - 9 cm
+    3: 0.14,  # Albañilería - 14 cm (muro)
+    4: 0.18,  # Hormigón Armado - 18 cm (muro)
+}
+ESPESOR_LOSA_HA = 0.10  # Losa hormigón armado: 10 cm
+
 class ProjectConfig(BaseModel):
     material_estructural: str
 
@@ -641,10 +651,37 @@ def calcular_insumos(
     # ── Área base para techumbre ──────────────────────────────────────────────
     area_techumbre = m2_totales * 1.15 if incluir_techumbre else 0.0
 
+    # ── Geometría específica por material (para Albañilería y H. Armado) ──
+    espesor_muro = ESPESORES_POR_DEFECTO.get(material_id, 0.14)
+    # area_muro_bruta ya está calculada arriba (linea ~484)
+    volumen_muro = area_muro_bruta * espesor_muro
+    volumen_losa = m2_totales * ESPESOR_LOSA_HA
+
     total_studs = 0
     total_soleras = 0
 
-    def _clasificar_insumo(nombre_l: str, cat_l: str) -> str:
+    def _clasificar_insumo(nombre_l: str, cat_l: str, material_id: int = 0) -> str:
+        # ── Albañilería ─────────────────────────────────────────────────
+        if material_id == 3:
+            if any(k in nombre_l for k in ["ladrillo", "bloque"]):
+                return "albanileria_mamposteria"
+            if any(k in nombre_l for k in ["mortero pega", "mortero estuco"]):
+                return "albanileria_mortero"
+            if any(k in nombre_l for k in ["enfierradura"]):
+                return "albanileria_enfierradura"
+            if any(k in nombre_l for k in ["hormigón pilar", "hormigón cadena"]):
+                return "albanileria_hormigon"
+        # ── Hormigón Armado ──────────────────────────────────────────────
+        if material_id == 4:
+            if any(k in nombre_l for k in ["hormigón h25", "hormigón h30"]):
+                return "ha_hormigon"
+            if any(k in nombre_l for k in ["acero", "ø", "ø8", "ø10", "ø12", "ø16"]):
+                return "ha_acero"
+            if any(k in nombre_l for k in ["moldaje"]):
+                return "ha_moldaje"
+            if any(k in nombre_l for k in ["alambre negro", "separadores", "desmoldante"]):
+                return "ha_complementos"
+        # ── Madera / Metalcom ───────────────────────────────────────────
         if any(k in nombre_l for k in ["solera", "montante", "pie derecho", "paral"]):
             return "estructura_muro"
         if any(k in nombre_l for k in ["perfil metalcon", "perfil acero", "perfil galvanizado"]):
@@ -680,7 +717,7 @@ def calcular_insumos(
         )
         nombre_l = (insumo.nombre or "").lower()
         cat_l = (insumo.categoria or "").lower()
-        familia = _clasificar_insumo(nombre_l, cat_l)
+        familia = _clasificar_insumo(nombre_l, cat_l, material_id)
         if familia in ("estructura_muro", "revestimiento_muro") and perimetro_ml <= 0:
             familia = "generico"
 
@@ -751,6 +788,84 @@ def calcular_insumos(
                 piezas_2d=piezas_2d_payload,
                 cortes_1d=cortes_1d_payload,
             )
+
+        # ── Albañilería ────────────────────────────────────────────────────
+        elif familia == "albanileria_mamposteria" and perimetro_ml > 0:
+            # Ladrillos/bloques: área_muro × factor (unidades por m² de muro)
+            cantidad_neta = float(r.factor_multiplicador) * area_muro_bruta
+            nesting_result = None
+
+        elif familia == "albanileria_mortero" and perimetro_ml > 0:
+            # Mortero: factor (m³ por m² de muro) × área de muro
+            cantidad_neta = float(r.factor_multiplicador) * area_muro_bruta
+            nesting_result = None
+
+        elif familia == "albanileria_enfierradura" and perimetro_ml > 0:
+            # Enfierradura: factor × perímetro (horizontal) o × altura×esquinas (vertical)
+            desc_l = (getattr(insumo, "descripcion", "") or "").lower()
+            if "horizontal" in desc_l or "horizontal" in nombre_l:
+                cantidad_neta = float(r.factor_multiplicador) * perimetro_ml
+            else:
+                # Vertical: kg por metro de altura, cada ~1.2 m → pilares por ml
+                pilares_por_ml = math.ceil(perimetro_ml / 1.2)
+                cantidad_neta = float(r.factor_multiplicador) * altura_muro_m * pilares_por_ml
+            nesting_result = None
+
+        elif familia == "albanileria_hormigon" and perimetro_ml > 0:
+            # Hormigón para pilares/cadenas: factor × perímetro o × altura×esquinas
+            desc_l = (getattr(insumo, "descripcion", "") or "").lower()
+            if "cadena" in desc_l or "cadena" in nombre_l:
+                cantidad_neta = float(r.factor_multiplicador) * perimetro_ml
+            else:
+                pilares_por_ml = math.ceil(perimetro_ml / 1.2)
+                cantidad_neta = float(r.factor_multiplicador) * altura_muro_m * pilares_por_ml
+            nesting_result = None
+
+        # ── Hormigón Armado ───────────────────────────────────────────────
+        elif familia == "ha_hormigon":
+            # Hormigón H25/H30: volumen losa + volumen muros (o solo losa si no hay muros)
+            vol = volumen_losa
+            if perimetro_ml > 0 and altura_muro_m > 0:
+                vol += volumen_muro
+            cantidad_neta = vol * float(r.factor_multiplicador)
+            nesting_result = None
+
+        elif familia == "ha_acero":
+            # Acero: volumen total de hormigón × factor (kg/m³)
+            vol = volumen_losa
+            if perimetro_ml > 0 and altura_muro_m > 0:
+                vol += volumen_muro
+            cantidad_neta = vol * float(r.factor_multiplicador)
+            nesting_result = None
+
+        elif familia == "ha_moldaje" and perimetro_ml > 0:
+            # Moldaje: 2 caras × área de muro + borde de losa
+            area_muro = perimetro_ml * altura_muro_m
+            moldaje_muros = 2.0 * area_muro * float(r.factor_multiplicador)
+            borde_losa = perimetro_ml * ESPESOR_LOSA_HA
+            cantidad_neta = moldaje_muros + borde_losa
+            nesting_result = None
+
+        elif familia == "ha_complementos":
+            # Alambre, separadores, desmoldante: dependen de acero o moldaje
+            vol = volumen_losa
+            if perimetro_ml > 0 and altura_muro_m > 0:
+                vol += volumen_muro
+            kg_acero_total = vol * 100.0  # estimación 100 kg/m³
+            area_moldaje = 0.0
+            if perimetro_ml > 0 and altura_muro_m > 0:
+                area_moldaje = 2.0 * perimetro_ml * altura_muro_m
+            cantidad_neta = 0.0
+            if "alambre" in nombre_l:
+                # 10 kg por tonelada de acero
+                cantidad_neta = float(r.factor_multiplicador) * (kg_acero_total / 1000.0)
+            elif "separador" in nombre_l:
+                # 4 unidades por m² de moldaje
+                cantidad_neta = float(r.factor_multiplicador) * max(area_moldaje, m2_totales)
+            elif "desmoldante" in nombre_l:
+                # 0.15 L por m² de moldaje
+                cantidad_neta = float(r.factor_multiplicador) * max(area_moldaje, m2_totales)
+            nesting_result = None
 
         else:  # ── familia "generico" ─────────────────────────────────────────
             # Cálculo original: factor DB × área base (piso)
@@ -886,54 +1001,77 @@ def calcular_insumos(
             return (float(pm.precio), pm.tienda or "", getattr(pm, 'url', '') or "")
         return (fallback_price, "Referencia", "")
 
-    # ── Complementos constructivos ────────────────────────────────────────────
+    # ── Complementos constructivos (según material) ───────────────────────────
     complementos_obra_gruesa = []
-    if total_studs > 0 or total_soleras > 0:
-        piezas_total = total_studs + total_soleras
-        clavos_3_cant = math.ceil(piezas_total * 4 / 100)  # ~4 clavos por pieza, cajas de 100
-        clavos_4_cant = math.ceil(total_soleras * 2 / 100)
+    if material_id in (1, 2):
+        if total_studs > 0 or total_soleras > 0:
+            piezas_total = total_studs + total_soleras
+            clavos_3_cant = math.ceil(piezas_total * 4 / 100)
+            clavos_4_cant = math.ceil(total_soleras * 2 / 100)
 
-        precio_c3, tienda_c3, url_c3 = _lookup_scraped(46, 4500.0)
-        precio_c4, tienda_c4, url_c4 = _lookup_scraped(47, 5200.0)
+            precio_c3, tienda_c3, url_c3 = _lookup_scraped(46, 4500.0)
+            precio_c4, tienda_c4, url_c4 = _lookup_scraped(47, 5200.0)
 
-        complementos_obra_gruesa.append(InsumoCalculado(
-            insumo="Clavos estriados 3 pulgadas (caja 100un)",
-            cantidad=float(clavos_3_cant),
-            unidad="caja",
-            precio_unitario=precio_c3,
-            subtotal=float(clavos_3_cant * precio_c3),
-            tienda=tienda_c3 if tienda_c3 != "Referencia" else "Referencia",
-            url_producto=url_c3 if url_c3 else None,
-            perdida_porcentual=10.0,
-            formato_comercial="caja 100 unidades",
-        ))
-        complementos_obra_gruesa.append(InsumoCalculado(
-            insumo="Clavos estriados 4 pulgadas (caja 100un)",
-            cantidad=float(clavos_4_cant),
-            unidad="caja",
-            precio_unitario=precio_c4,
-            subtotal=float(clavos_4_cant * precio_c4),
-            tienda=tienda_c4 if tienda_c4 != "Referencia" else "Referencia",
-            url_producto=url_c4 if url_c4 else None,
-            perdida_porcentual=10.0,
-            formato_comercial="caja 100 unidades",
-        ))
+            complementos_obra_gruesa.append(InsumoCalculado(
+                insumo="Clavos estriados 3 pulgadas (caja 100un)",
+                cantidad=float(clavos_3_cant),
+                unidad="caja",
+                precio_unitario=precio_c3,
+                subtotal=float(clavos_3_cant * precio_c3),
+                tienda=tienda_c3 if tienda_c3 != "Referencia" else "Referencia",
+                url_producto=url_c3 if url_c3 else None,
+                perdida_porcentual=10.0,
+                formato_comercial="caja 100 unidades",
+            ))
+            complementos_obra_gruesa.append(InsumoCalculado(
+                insumo="Clavos estriados 4 pulgadas (caja 100un)",
+                cantidad=float(clavos_4_cant),
+                unidad="caja",
+                precio_unitario=precio_c4,
+                subtotal=float(clavos_4_cant * precio_c4),
+                tienda=tienda_c4 if tienda_c4 != "Referencia" else "Referencia",
+                url_producto=url_c4 if url_c4 else None,
+                perdida_porcentual=10.0,
+                formato_comercial="caja 100 unidades",
+            ))
 
-    if area_muro_neta > 0:
-        rollos_lana_muro = math.ceil(area_muro_neta / 14.4)  # rollo 14.4m2
-        precio_lana, tienda_lana, url_lana = _lookup_scraped(48, 18500.0)
+        if area_muro_neta > 0:
+            rollos_lana_muro = math.ceil(area_muro_neta / 14.4)
+            precio_lana, tienda_lana, url_lana = _lookup_scraped(48, 18500.0)
 
-        complementos_obra_gruesa.append(InsumoCalculado(
-            insumo="Lana vidrio 50mm muro (rollo 14.4m2)",
-            cantidad=float(rollos_lana_muro),
-            unidad="rollo",
-            precio_unitario=precio_lana,
-            subtotal=float(rollos_lana_muro * precio_lana),
-            tienda=tienda_lana if tienda_lana != "Referencia" else "Referencia",
-            url_producto=url_lana if url_lana else None,
-            perdida_porcentual=10.0,
-            formato_comercial="rollo 14.4 m2",
-        ))
+            complementos_obra_gruesa.append(InsumoCalculado(
+                insumo="Lana vidrio 50mm muro (rollo 14.4m2)",
+                cantidad=float(rollos_lana_muro),
+                unidad="rollo",
+                precio_unitario=precio_lana,
+                subtotal=float(rollos_lana_muro * precio_lana),
+                tienda=tienda_lana if tienda_lana != "Referencia" else "Referencia",
+                url_producto=url_lana if url_lana else None,
+                perdida_porcentual=10.0,
+                formato_comercial="rollo 14.4 m2",
+            ))
+    elif material_id == 3:
+        # Albañilería: alambre de amarre para enfierradura
+        kg_enfierradura_total = 0.0
+        for r, insumo in datos_rendimiento:
+            nl = (insumo.nombre or "").lower()
+            if "enfierradura" in nl:
+                kg_enfierradura_total += float(r.factor_multiplicador) * perimetro_ml
+        alambre_amarre = math.ceil(kg_enfierradura_total * 0.02)
+        if alambre_amarre > 0:
+            precio_alambre = _lookup_scraped(46, 3500.0)[0]
+            complementos_obra_gruesa.append(InsumoCalculado(
+                insumo="Alambre de amarre (kg)",
+                cantidad=float(alambre_amarre),
+                unidad="kg",
+                precio_unitario=precio_alambre,
+                subtotal=float(alambre_amarre * precio_alambre),
+                tienda="Referencia",
+                perdida_porcentual=5.0,
+            ))
+    elif material_id == 4:
+        # Hormigón Armado: alambre negro (ya incluido en Matriz como complemento genérico)
+        pass
 
     if complementos_obra_gruesa:
         subcat_comp = sum((i.subtotal or 0) for i in complementos_obra_gruesa)
@@ -951,6 +1089,7 @@ def calcular_insumos(
         categorias_techumbre = calcular_partida_techumbre(
             area_m2_planta=m2_totales,
             latest_precio_record=latest_precio_record,
+            material_id=material_id,
         )
         desglose_list.extend(categorias_techumbre)
         for cat in categorias_techumbre:
@@ -981,6 +1120,7 @@ def calcular_insumos(
         altura_muro_m=altura_muro_m,
         area_muro_neta_m2=area_muro_neta if area_muro_neta > 0 else None,
         incluir_techumbre=incluir_techumbre,
+        espesor_muro_m=espesor_muro,
     )
 
 ## SCRUM-97

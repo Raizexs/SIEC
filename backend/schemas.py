@@ -50,6 +50,8 @@ class DesgloseResponse(BaseModel):
     altura_muro_m: Optional[float] = None
     area_muro_neta_m2: Optional[float] = None
     incluir_techumbre: Optional[bool] = None
+    # Espesor estándar del material estructural en metros
+    espesor_muro_m: Optional[float] = None
 
 
 class VanoInput(BaseModel):
