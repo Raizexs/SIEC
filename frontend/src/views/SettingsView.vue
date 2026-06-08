@@ -42,9 +42,14 @@ import {
   X,
   ChevronDown,
   Sparkles,
+  Sun,
+  Moon,
+  Languages,
 } from 'lucide-vue-next';
 import AppRail from '../components/shell/AppRail.vue';
+import BillingPlansSection from '../components/billing/BillingPlansSection.vue';
 import { useI18n } from '../composables/useI18n';
+import { useTheme } from '../composables/useTheme';
 import {
   useProductPreferences,
 } from '../composables/useProductPreferences';
@@ -54,7 +59,8 @@ const { productPreferences, saveProductPreferences: persistProductPreferences } 
 
 const router = useRouter();
 const route = useRoute();
-const { t, currentLanguage } = useI18n();
+const { t, currentLanguage, setLanguage } = useI18n();
+const theme = useTheme();
 const auth = useAuthStore();
 const { savedLayouts } = useLayoutManager();
 
@@ -89,11 +95,31 @@ const preferenceMessage = ref('');
 const preferenceMessageType = ref('success');
 
 const openPreferenceSections = ref({
-  experience: true,
+  appearance: true,
+  experience: false,
   editor: false,
   estimation: false,
   export: false,
 });
+
+const themeLabel = computed(() =>
+  theme.isDark.value ? t('themeDark') : t('themeLight'),
+);
+
+const cycleTheme = () => {
+  const switchTheme = () => {
+    theme.setTheme(theme.isDark.value ? 'light' : 'dark');
+  };
+  if (typeof document !== 'undefined' && document.startViewTransition) {
+    document.startViewTransition(switchTheme);
+  } else {
+    switchTheme();
+  }
+};
+
+const toggleLanguage = () => {
+  setLanguage(currentLanguage.value === 'es' ? 'en' : 'es');
+};
 
 const togglePreferenceSection = (section) => {
   openPreferenceSections.value[section] = !openPreferenceSections.value[section];
@@ -558,7 +584,7 @@ watch(
 <template>
   <div
     ref="motionRoot"
-    class="flex min-h-screen bg-slate-50 text-slate-950 transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100"
+    class="siec-app-canvas flex min-h-screen text-slate-950 transition-colors duration-300 dark:text-slate-100"
   >
     <AppRail active="settings" />
 
@@ -1041,6 +1067,74 @@ watch(
 
             <!-- Preferences -->
             <div v-if="tab === 'preferences'" class="space-y-4">
+              <!-- Apariencia: idioma + tema -->
+              <section
+                class="overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30"
+              >
+                <button
+                  type="button"
+                  class="flex w-full items-center gap-4 border-b border-slate-200/80 bg-slate-50/80 px-5 py-4 text-left transition-colors hover:bg-slate-100/70 dark:border-slate-800/80 dark:bg-slate-900/60 dark:hover:bg-slate-900/85"
+                  :aria-expanded="openPreferenceSections.appearance"
+                  @click="togglePreferenceSection('appearance')"
+                >
+                  <div
+                    class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-sky-200 bg-sky-50 text-sky-600 shadow-sm dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-300"
+                  >
+                    <Sun class="h-5 w-5" :stroke-width="2.2" />
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <p
+                      class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
+                    >
+                      {{ t('settingsAppearance') }}
+                    </p>
+                    <h3 class="mt-1 text-lg font-black tracking-tight text-slate-950 dark:text-slate-100">
+                      {{ t('settingsAppearanceSub') }}
+                    </h3>
+                    <p class="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                      {{ t('settingsAppearanceDesc') }}
+                    </p>
+                  </div>
+                  <ChevronDown
+                    class="h-5 w-5 shrink-0 text-slate-400 transition-transform duration-200 dark:text-slate-500"
+                    :class="{ 'rotate-180': openPreferenceSections.appearance }"
+                    :stroke-width="2.2"
+                  />
+                </button>
+
+                <Transition name="pref-accordion">
+                  <div v-show="openPreferenceSections.appearance" class="grid gap-3 p-5 sm:grid-cols-2">
+                    <div class="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-900/50">
+                      <p class="text-xs font-bold text-slate-700 dark:text-slate-200">
+                        {{ t('settingsLanguageLabel') }}
+                      </p>
+                      <button
+                        type="button"
+                        class="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 shadow-sm transition hover:border-sky-300 hover:text-sky-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
+                        @click="toggleLanguage"
+                      >
+                        <Languages class="h-4 w-4" :stroke-width="2.2" />
+                        {{ currentLanguage === 'es' ? 'Español' : 'English' }}
+                      </button>
+                    </div>
+                    <div class="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-900/50">
+                      <p class="text-xs font-bold text-slate-700 dark:text-slate-200">
+                        {{ t('settingsThemeLabel') }}
+                      </p>
+                      <button
+                        type="button"
+                        class="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 shadow-sm transition hover:border-sky-300 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
+                        @click="cycleTheme"
+                      >
+                        <Moon v-if="theme.isDark.value" class="h-4 w-4" :stroke-width="2.2" />
+                        <Sun v-else class="h-4 w-4" :stroke-width="2.2" />
+                        {{ themeLabel }}
+                      </button>
+                    </div>
+                  </div>
+                </Transition>
+              </section>
+
               <section
                 class="overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30"
               >
@@ -1753,124 +1847,7 @@ watch(
             </div>
 
             <!-- Billing / Plan -->
-            <div v-if="tab === 'billing'" class="space-y-6">
-              <article
-                class="relative overflow-hidden rounded-3xl border border-orange-200/90 bg-orange-50/80 p-6 shadow-xl shadow-orange-500/10 backdrop-blur-xl dark:border-orange-900/50 dark:bg-orange-950/25 dark:shadow-black/30"
-              >
-                <div
-                  class="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-orange-400/25 blur-3xl"
-                ></div>
-                <div class="relative z-10">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <p
-                      class="text-[10px] font-black uppercase tracking-[0.16em] text-orange-800 dark:text-orange-200"
-                    >
-                      Uso del sistema
-                    </p>
-                    <span
-                      v-for="b in planModeBadges"
-                      :key="b.id"
-                      class="inline-flex items-center rounded-full border border-orange-300/80 bg-white/90 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-tight text-orange-800 shadow-sm dark:border-orange-800/80 dark:bg-orange-950/50 dark:text-orange-200"
-                    >
-                      {{ b.label }}
-                    </span>
-                  </div>
-                  <h2 class="mt-2 text-3xl font-black tracking-tight text-orange-950 dark:text-orange-50">
-                    Plan Free
-                  </h2>
-                  <p class="mt-2 max-w-2xl text-sm font-medium leading-relaxed text-orange-900/85 dark:text-orange-100/85">
-                    {{ t('settingsPlanLocal') }}
-                  </p>
-
-                  <dl class="mt-6 grid gap-3 sm:grid-cols-2">
-                    <div
-                      class="rounded-2xl border border-orange-200/80 bg-white/90 p-4 dark:border-orange-900/60 dark:bg-slate-950/40"
-                    >
-                      <dt class="text-[10px] font-black uppercase tracking-[0.14em] text-orange-800/80 dark:text-orange-200/80">
-                        Proyectos locales
-                      </dt>
-                      <dd class="mt-1 text-sm font-black text-orange-950 dark:text-orange-50">
-                        {{ t('settingsPlanLocalSession') }}
-                      </dd>
-                    </div>
-                    <div
-                      class="rounded-2xl border border-orange-200/80 bg-white/90 p-4 dark:border-orange-900/60 dark:bg-slate-950/40"
-                    >
-                      <dt class="text-[10px] font-black uppercase tracking-[0.14em] text-orange-800/80 dark:text-orange-200/80">
-                        Layouts guardados
-                      </dt>
-                      <dd class="mt-1 text-sm font-black text-orange-950 dark:text-orange-50">
-                        {{ t('settingsPlanLayouts', { count: savedLayoutsCount }) }}
-                      </dd>
-                    </div>
-                    <div
-                      class="rounded-2xl border border-orange-200/80 bg-white/90 p-4 dark:border-orange-900/60 dark:bg-slate-950/40"
-                    >
-                      <dt class="text-[10px] font-black uppercase tracking-[0.14em] text-orange-800/80 dark:text-orange-200/80">
-                        Exportaciones
-                      </dt>
-                      <dd class="mt-1 text-sm font-bold leading-snug text-orange-950 dark:text-orange-50">
-                        {{ t('settingsPlanExports') }}
-                      </dd>
-                    </div>
-                    <div
-                      class="rounded-2xl border border-orange-200/80 bg-white/90 p-4 dark:border-orange-900/60 dark:bg-slate-950/40"
-                    >
-                      <dt class="text-[10px] font-black uppercase tracking-[0.14em] text-orange-800/80 dark:text-orange-200/80">
-                        Colaboradores
-                      </dt>
-                      <dd class="mt-1 text-sm font-black text-orange-950 dark:text-orange-50">
-                        0 · no disponible en Free
-                      </dd>
-                    </div>
-                    <div
-                      class="rounded-2xl border border-orange-200/80 bg-white/90 p-4 sm:col-span-2 dark:border-orange-900/60 dark:bg-slate-950/40"
-                    >
-                      <dt class="text-[10px] font-black uppercase tracking-[0.14em] text-orange-800/80 dark:text-orange-200/80">
-                        {{ t('settingsLastSync') }}
-                      </dt>
-                      <dd class="mt-1 text-sm font-black text-orange-950 dark:text-orange-50">
-                        {{
-                          auth.session
-                            ? t('settingsSessionSupabase')
-                            : t('settingsSessionLocal')
-                        }}
-                      </dd>
-                    </div>
-                  </dl>
-                </div>
-              </article>
-
-              <article
-                class="overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30"
-              >
-                <header
-                  class="border-b border-slate-200/80 bg-slate-50/80 px-5 py-4 dark:border-slate-800/80 dark:bg-slate-900/60"
-                >
-                  <h3 class="text-lg font-black tracking-tight text-slate-950 dark:text-slate-100">
-                    {{ t('settingsProLimits') }}
-                  </h3>
-                  <p class="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-                    {{ t('settingsProRoadmap') }}
-                  </p>
-                </header>
-                <ul class="divide-y divide-slate-200/80 dark:divide-slate-800/80">
-                  <li
-                    v-for="item in proRoadmapItems"
-                    :key="item"
-                    class="flex items-start gap-3 px-5 py-3.5"
-                  >
-                    <CheckCircle2
-                      class="mt-0.5 h-4 w-4 shrink-0 text-orange-500 dark:text-orange-300"
-                      :stroke-width="2.2"
-                    />
-                    <span class="text-sm font-semibold leading-relaxed text-slate-600 dark:text-slate-300">
-                      {{ item }}
-                    </span>
-                  </li>
-                </ul>
-              </article>
-            </div>
+            <BillingPlansSection v-if="tab === 'billing'" />
           </section>
         </div>
       </main>

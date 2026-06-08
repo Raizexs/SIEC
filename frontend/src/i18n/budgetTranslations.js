@@ -24,6 +24,11 @@ export const budgetTranslationsEs = {
     "La moneda mostrada arriba es vista; el cálculo sigue en CLP hasta integrar tipo de cambio.",
   budgetRefValueNote:
     "Valor referencial sujeto a disponibilidad y actualización de precios.",
+  budgetQuoteStats: "{quoted} de {total} insumos cotizados",
+  budgetPartialTotal: "(total parcial)",
+  budgetNoPriceBadge: "Sin cotización",
+  budgetNoPricesWarning:
+    "No hay precios de mercado para este presupuesto. Revisa el scraper o tu plan.",
   budgetUpdated: "Actualizado:",
   budgetExportTitle: "Exportar presupuesto",
   budgetExport: "Exportar presupuesto",
@@ -73,6 +78,11 @@ export const budgetTranslationsEn = {
     "Currency shown above is display-only; calculation remains in CLP until FX is integrated.",
   budgetRefValueNote:
     "Reference value subject to price availability and updates.",
+  budgetQuoteStats: "{quoted} of {total} supplies quoted",
+  budgetPartialTotal: "(partial total)",
+  budgetNoPriceBadge: "No quote",
+  budgetNoPricesWarning:
+    "No market prices for this budget. Check the scraper or your plan.",
   budgetUpdated: "Updated:",
   budgetExportTitle: "Export budget",
   budgetExport: "Export budget",

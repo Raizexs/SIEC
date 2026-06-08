@@ -43,8 +43,8 @@ export class SceneManager {
   }
 
   _setup() {
-    const w = this.container.clientWidth;
-    const h = this.container.clientHeight;
+    const w = Math.max(1, this.container.clientWidth || 0);
+    const h = Math.max(1, this.container.clientHeight || 0);
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color("#0b1220");
@@ -188,6 +188,10 @@ export class SceneManager {
     if (this.frameId) return;
     const loop = () => {
       this.frameId = requestAnimationFrame(loop);
+      const cw = this.container?.clientWidth ?? 0;
+      const ch = this.container?.clientHeight ?? 0;
+      if (cw < 1 || ch < 1) return;
+
       const dt = this.clock.getDelta();
       if (this.mode === "orbit") this.orbit.update();
       for (const fn of this.tickCallbacks) fn(dt);

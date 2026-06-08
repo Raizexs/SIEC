@@ -704,7 +704,7 @@ export const buildProposalHtml = (rawPayload, options = {}) => {
   <style>${PROPOSAL_CSS}</style>
 </head>
 
-<body>
+<body class="${payload.pdfWatermark ? "pdf-watermark" : ""}">
   ${articleHtml}
 </body>
 </html>`;

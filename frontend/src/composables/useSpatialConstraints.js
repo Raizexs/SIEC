@@ -8,7 +8,7 @@ export const MIN_ROOM_HEIGHT = 1.0;
 export const MOVE_OVERFLOW_MARGIN = 0; // 0 = no salir del terreno. Usa 0.5/0.75 si quieres tolerancia visual.
 export const OVERLAP_EPS = 0.001;
 /** Si dos bordes quedan a esta distancia o menos, se alinean sin hueco (evita “muro fantasma” en 3D). */
-export const SNAP_FLUSH_EPS = 0.12;
+export const SNAP_FLUSH_EPS = 0.2;
 
 export const toFiniteNumber = (value, fallback = 0) => {
   const n = Number(value);
@@ -86,16 +86,13 @@ export const clampRectToTerrain = (
   return { ...r, x, z, w, l };
 };
 
+/** Solapamiento con área (permite compartir borde al unir pasillo ↔ recinto). */
 export const rectsOverlap = (a, b, epsilon = OVERLAP_EPS) => {
   const ra = normalizeRoomRect(a);
   const rb = normalizeRoomRect(b);
-
-  return (
-    ra.x < rb.x + rb.w - epsilon &&
-    ra.x + ra.w > rb.x + epsilon &&
-    ra.z < rb.z + rb.l - epsilon &&
-    ra.z + ra.l > rb.z + epsilon
-  );
+  const overlapX = Math.min(ra.x + ra.w, rb.x + rb.w) - Math.max(ra.x, rb.x);
+  const overlapZ = Math.min(ra.z + ra.l, rb.z + rb.l) - Math.max(ra.z, rb.z);
+  return overlapX > epsilon && overlapZ > epsilon;
 };
 
 export const roomOverlapsAny = (
@@ -231,9 +228,11 @@ export const resolveRoomDragPosition = (
 
   const accept = (candidate) => {
     if (!candidate) return null;
+    if (roomOverlapsAny(candidate, rooms)) return null;
     const flushed = snapRectFlushToNeighbors(candidate, rooms);
-    if (roomOverlapsAny(flushed, rooms)) return null;
-    return flushed;
+    if (!roomOverlapsAny(flushed, rooms)) return flushed;
+    // Mantener posición válida aunque el flush genere solape momentáneo
+    return candidate;
   };
 
   const direct = accept(tryRect(x, z));

@@ -1469,25 +1469,25 @@ onBeforeUnmount(() => {
 <template>
   <section
     ref="rootRef"
-    class="scene3d-root relative overflow-visible rounded-3xl border border-slate-200/90 bg-white/85 p-4 shadow-2xl shadow-slate-950/10 backdrop-blur-xl transition-all duration-300 dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/35"
+    class="scene3d-root relative flex w-full flex-col rounded-3xl border border-slate-200/90 bg-white/85 p-4 shadow-2xl shadow-slate-950/10 backdrop-blur-xl transition-all duration-300 dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/35"
     :class="isFullScreen ? 'fullscreen-active' : 'normal-mode'"
   >
     <PropertiesSidebar />
 
-    <!-- Top accent -->
-    <div
-      class="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-orange-400 via-orange-500 to-slate-900 dark:to-orange-300"
-    ></div>
-
     <!-- Header -->
     <header
       ref="headerRef"
-      class="relative z-20 mb-4 flex shrink-0 flex-col gap-4 rounded-3xl border border-slate-200/90 bg-slate-50/80 p-4 shadow-sm backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-900/60"
+      class="scene3d-header relative z-20 mb-4 flex shrink-0 flex-col rounded-3xl border border-slate-200/90 bg-slate-50/80 shadow-sm backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-900/60"
     >
-      <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-        <!-- Left: identity + core controls -->
-        <div class="min-w-0 space-y-3">
-          <div class="flex flex-wrap items-center gap-3">
+      <div
+        class="h-1 w-full shrink-0 overflow-hidden rounded-t-3xl bg-gradient-to-r from-orange-400 via-orange-500 to-slate-900 dark:to-orange-300"
+        aria-hidden="true"
+      />
+
+      <div class="flex flex-col gap-3 p-4">
+        <!-- Fila 1: identidad + badge | iconos de vista -->
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex min-w-0 flex-wrap items-center gap-3">
             <div class="flex items-center gap-3">
               <div
                 class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-orange-200 bg-orange-50 text-orange-600 shadow-sm dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
@@ -1497,31 +1497,75 @@ onBeforeUnmount(() => {
                 </span>
               </div>
 
-              <div>
+              <div class="min-w-0">
                 <p
                   class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
                 >
                   {{ t('renderer') }}
                 </p>
 
-                <h3 class="mt-0.5 text-base font-black tracking-tight text-slate-950 dark:text-slate-100">
+                <h3 class="mt-0.5 truncate text-base font-black tracking-tight text-slate-950 dark:text-slate-100">
                   {{ t('scene3DTitle') }}
                 </h3>
               </div>
             </div>
 
             <span
-              class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-tight text-emerald-700 shadow-sm dark:border-emerald-900/70 dark:bg-emerald-950/25 dark:text-emerald-300"
+              class="inline-flex shrink-0 items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-tight text-emerald-700 shadow-sm dark:border-emerald-900/70 dark:bg-emerald-950/25 dark:text-emerald-300"
             >
               <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
               {{ t('liveRender') }}
             </span>
           </div>
 
-          <div class="flex flex-wrap items-center gap-2">
-            <!-- Tool selector -->
+          <div
+            class="scene3d-icon-rail inline-flex shrink-0 items-center gap-1 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm dark:border-slate-800 dark:bg-slate-950"
+          >
+            <button
+              type="button"
+              class="icon-action"
+              :class="showFurniture ? 'is-active' : ''"
+              :title="showFurniture ? t('hideFurniture') : t('showFurniture')"
+              @click="showFurniture = !showFurniture"
+            >
+              <span class="material-symbols-outlined text-[18px]">{{ showFurniture ? 'chair' : 'chair_alt' }}</span>
+            </button>
+
+            <button
+              type="button"
+              class="icon-action"
+              :class="isWalkthrough ? 'is-active' : ''"
+              :title="t('walkthrough')"
+              @click="toggleWalkthrough"
+            >
+              <span class="material-symbols-outlined text-[18px]">{{ isWalkthrough ? 'directions_run' : 'directions_walk' }}</span>
+            </button>
+
+            <button
+              type="button"
+              class="icon-action"
+              :title="t('centerCamera')"
+              @click="centerCamera"
+            >
+              <span class="material-symbols-outlined text-[18px]">my_location</span>
+            </button>
+
+            <button
+              type="button"
+              class="icon-action"
+              :title="isFullScreen ? t('exitFullscreen') : t('fullscreen')"
+              @click="toggleFullScreen"
+            >
+              <span class="material-symbols-outlined text-[18px]">{{ isFullScreen ? 'fullscreen_exit' : 'fullscreen' }}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Fila 2: herramientas + piso | capas + exportar -->
+        <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <div class="tour-scene-3d-tools flex min-w-0 flex-wrap items-center gap-2">
             <div
-              class="inline-flex items-center gap-1 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm dark:border-slate-800 dark:bg-slate-950"
+              class="inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1 shadow-sm dark:border-slate-800 dark:bg-slate-950"
             >
               <button
                 v-for="tool in [
@@ -1531,7 +1575,7 @@ onBeforeUnmount(() => {
                 ]"
                 :key="tool.id"
                 type="button"
-                class="inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] transition-all duration-200 active:scale-[0.98]"
+                class="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2.5 py-2 text-[10px] font-black uppercase tracking-[0.08em] transition-all duration-200 active:scale-[0.98] sm:px-3"
                 :class="
                   currentTool === tool.id
                     ? 'bg-orange-500 text-white shadow-sm shadow-orange-500/20 dark:bg-orange-400 dark:text-orange-950'
@@ -1543,13 +1587,12 @@ onBeforeUnmount(() => {
                 <span class="material-symbols-outlined text-[15px]">
                   {{ tool.icon }}
                 </span>
-                {{ tool.label }}
+                <span class="hidden min-[420px]:inline">{{ tool.label }}</span>
               </button>
             </div>
 
-            <!-- Floor selector -->
             <div
-              class="inline-flex items-center gap-1 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm dark:border-slate-800 dark:bg-slate-950"
+              class="inline-flex shrink-0 items-center gap-1 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm dark:border-slate-800 dark:bg-slate-950"
             >
               <button
                 type="button"
@@ -1561,7 +1604,7 @@ onBeforeUnmount(() => {
               </button>
 
               <span
-                class="rounded-xl border border-orange-200 bg-orange-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-orange-700 dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
+                class="whitespace-nowrap rounded-xl border border-orange-200 bg-orange-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-orange-700 dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
               >
                 {{ t('floor') }} {{ recintosStore.currentFloor }}
               </span>
@@ -1574,124 +1617,91 @@ onBeforeUnmount(() => {
               >
                 +
               </button>
+            </div>
           </div>
 
-          <!-- Layers dropdown moved to right side -->
-
-          </div>
-        </div>
-
-        <!-- Right: layers + view controls -->
-        <div class="flex flex-wrap items-center gap-2 xl:justify-end">
-          <!-- Layers dropdown -->
-          <div class="relative scene3d-layers-menu">
-            <button
-              type="button"
-              class="toolbar-btn is-active"
-              @click.stop="showLayersMenu = !showLayersMenu"
+          <div class="tour-scene-3d-actions flex shrink-0 items-center">
+            <div
+              class="scene3d-labeled-actions inline-flex items-stretch overflow-visible rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950"
             >
-              <span class="material-symbols-outlined text-[17px]">layers</span>
-              Capas
-            </button>
-            <Transition name="export-menu">
-              <div
-                v-if="showLayersMenu"
-                class="absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-3xl border border-slate-200/90 bg-white/95 p-3 shadow-2xl shadow-slate-950/15 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/40"
-              >
-                <div class="space-y-1">
-                  <label
-                    v-for="layer in layersStore.layers"
-                    :key="layer.id"
-                    class="flex cursor-pointer items-center justify-between rounded-xl px-3 py-2 transition-colors hover:bg-slate-50 dark:hover:bg-slate-900"
-                  >
-                    <span class="flex items-center gap-2.5">
-                      <span class="material-symbols-outlined text-[16px] text-slate-500 dark:text-slate-400">{{ layer.icon }}</span>
-                      <span class="text-xs font-semibold" :class="layerVisibility[layer.id] ? 'text-slate-800 dark:text-slate-200' : 'text-slate-400 dark:text-slate-500'">{{ t(layer.labelKey) }}</span>
-                    </span>
-                    <span
-                      class="relative inline-flex h-5 w-9 items-center rounded-full border transition-colors duration-300"
-                      :class="layerVisibility[layer.id] ? 'border-emerald-400 bg-emerald-500 shadow-sm shadow-emerald-500/20' : 'border-slate-300 bg-slate-200 dark:border-slate-700 dark:bg-slate-800'"
-                    >
-                      <span class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform duration-300" :class="layerVisibility[layer.id] ? 'translate-x-4' : 'translate-x-0.5'" />
-                    </span>
-                    <input :checked="layerVisibility[layer.id]" type="checkbox" class="sr-only" @change="layersStore.toggleLayer(layer.id)" />
-                  </label>
-                </div>
-                <div class="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
-                  {{ layersStore.activeLayerCount }} de 3 capas activas
-                </div>
-              </div>
-            </Transition>
-          </div>
-
-          <button
-            type="button"
-            class="icon-action"
-            :title="showFurniture ? 'Ocultar muebles' : 'Mostrar muebles'"
-            @click="showFurniture = !showFurniture"
-          >
-            <span class="material-symbols-outlined text-[18px]">{{ showFurniture ? 'chair' : 'chair_alt' }}</span>
-          </button>
-
-          <!-- Export dropdown -->
-          <div class="relative scene3d-export-menu">
-            <button type="button" class="toolbar-btn" @click.stop="exportMenuOpen = !exportMenuOpen">
-              <span class="material-symbols-outlined text-[17px]">download</span>
-              Exportar
-            </button>
-            <Transition name="export-menu">
-              <div
-                v-if="exportMenuOpen"
-                class="export-menu-panel absolute right-0 top-full z-[100] mt-2 min-w-[14rem] w-56 rounded-3xl border border-orange-200/90 bg-white p-2 shadow-2xl shadow-orange-500/15 dark:border-orange-800/80 dark:bg-slate-950 dark:shadow-black/50"
-                role="menu"
-              >
+              <div class="relative scene3d-layers-menu">
                 <button
-                  v-for="fmt in [
-                    { id: 'png', label: 'Imagen PNG', icon: 'image' },
-                    { id: 'html', label: 'Visor HTML', icon: 'language' },
-                  ]"
-                  :key="fmt.id"
                   type="button"
-                  class="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-xs font-bold text-slate-700 transition-all duration-200 hover:bg-slate-50 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-slate-100"
-                  @click="handleExport(fmt.id)"
+                  class="toolbar-btn toolbar-btn-segment"
+                  :class="showLayersMenu ? 'is-menu-open' : ''"
+                  @click.stop="showLayersMenu = !showLayersMenu; exportMenuOpen = false"
                 >
-                  <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-orange-200 bg-orange-50 text-orange-600 dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300">
-                    <span class="material-symbols-outlined text-[16px]">{{ fmt.icon }}</span>
-                  </span>
-                  <span class="min-w-0 flex-1">{{ fmt.label }}</span>
-                  <span v-if="exportFormat === fmt.id" class="material-symbols-outlined animate-spin text-[15px] text-orange-500">progress_activity</span>
+                  <span class="material-symbols-outlined text-[17px]">layers</span>
+                  <span class="whitespace-nowrap">{{ t('layersBtn') }}</span>
                 </button>
+                <Transition name="export-menu">
+                  <div
+                    v-if="showLayersMenu"
+                    class="absolute right-0 top-full z-[120] mt-2 w-64 overflow-hidden rounded-3xl border border-slate-200/90 bg-white/95 p-3 shadow-2xl shadow-slate-950/15 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/40"
+                  >
+                    <div class="space-y-1">
+                      <label
+                        v-for="layer in layersStore.layers"
+                        :key="layer.id"
+                        class="flex cursor-pointer items-center justify-between rounded-xl px-3 py-2 transition-colors hover:bg-slate-50 dark:hover:bg-slate-900"
+                      >
+                        <span class="flex min-w-0 items-center gap-2.5">
+                          <span class="material-symbols-outlined shrink-0 text-[16px] text-slate-500 dark:text-slate-400">{{ layer.icon }}</span>
+                          <span class="truncate text-xs font-semibold" :class="layerVisibility[layer.id] ? 'text-slate-800 dark:text-slate-200' : 'text-slate-400 dark:text-slate-500'">{{ t(layer.labelKey) }}</span>
+                        </span>
+                        <span
+                          class="relative ml-2 inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-colors duration-300"
+                          :class="layerVisibility[layer.id] ? 'border-emerald-400 bg-emerald-500 shadow-sm shadow-emerald-500/20' : 'border-slate-300 bg-slate-200 dark:border-slate-700 dark:bg-slate-800'"
+                        >
+                          <span class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform duration-300" :class="layerVisibility[layer.id] ? 'translate-x-4' : 'translate-x-0.5'" />
+                        </span>
+                        <input :checked="layerVisibility[layer.id]" type="checkbox" class="sr-only" @change="layersStore.toggleLayer(layer.id)" />
+                      </label>
+                    </div>
+                    <div class="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+                      {{ layersStore.activeLayerCount }} de 3 capas activas
+                    </div>
+                  </div>
+                </Transition>
               </div>
-            </Transition>
+
+              <div class="relative scene3d-export-menu border-l border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  class="toolbar-btn toolbar-btn-segment toolbar-btn-export"
+                  :class="exportMenuOpen ? 'is-menu-open' : ''"
+                  @click.stop="exportMenuOpen = !exportMenuOpen; showLayersMenu = false"
+                >
+                  <span class="material-symbols-outlined text-[17px]">download</span>
+                  <span class="whitespace-nowrap">{{ t('export') }}</span>
+                </button>
+                <Transition name="export-menu">
+                  <div
+                    v-if="exportMenuOpen"
+                    class="export-menu-panel absolute right-0 top-full z-[120] mt-2 min-w-[14rem] w-56 rounded-3xl border border-orange-200/90 bg-white p-2 shadow-2xl shadow-orange-500/15 dark:border-orange-800/80 dark:bg-slate-950 dark:shadow-black/50"
+                    role="menu"
+                  >
+                    <button
+                      v-for="fmt in [
+                        { id: 'png', label: 'Imagen PNG', icon: 'image' },
+                        { id: 'html', label: 'Visor HTML', icon: 'language' },
+                      ]"
+                      :key="fmt.id"
+                      type="button"
+                      class="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-xs font-bold text-slate-700 transition-all duration-200 hover:bg-slate-50 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-slate-100"
+                      @click="handleExport(fmt.id)"
+                    >
+                      <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-orange-200 bg-orange-50 text-orange-600 dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300">
+                        <span class="material-symbols-outlined text-[16px]">{{ fmt.icon }}</span>
+                      </span>
+                      <span class="min-w-0 flex-1">{{ fmt.label }}</span>
+                      <span v-if="exportFormat === fmt.id" class="material-symbols-outlined animate-spin text-[15px] text-orange-500">progress_activity</span>
+                    </button>
+                  </div>
+                </Transition>
+              </div>
+            </div>
           </div>
-
-          <button
-            type="button"
-            class="icon-action"
-            :class="isWalkthrough ? 'is-active' : ''"
-            title="Walkthrough"
-            @click="toggleWalkthrough"
-          >
-            <span class="material-symbols-outlined text-[18px]">{{ isWalkthrough ? 'directions_run' : 'directions_walk' }}</span>
-          </button>
-
-          <button
-            type="button"
-            class="icon-action"
-            title="Centrar cámara"
-            @click="centerCamera"
-          >
-            <span class="material-symbols-outlined text-[18px]">my_location</span>
-          </button>
-
-          <button
-            type="button"
-            class="icon-action"
-            title="Pantalla completa"
-            @click="toggleFullScreen"
-          >
-            <span class="material-symbols-outlined text-[18px]">{{ isFullScreen ? 'fullscreen_exit' : 'fullscreen' }}</span>
-          </button>
         </div>
       </div>
     </header>
@@ -1699,7 +1709,7 @@ onBeforeUnmount(() => {
     <!-- Canvas shell -->
     <div
       ref="containerRef"
-      class="scene3d-canvas relative overflow-hidden rounded-3xl border border-slate-200 bg-slate-950 shadow-inner dark:border-slate-800"
+      class="scene3d-canvas scene3d-canvas--interaction relative overflow-hidden rounded-3xl border border-slate-200 bg-slate-950 shadow-inner dark:border-slate-800"
     >
       <MiniMap2D
         :visible="showMinimap"
@@ -1710,7 +1720,7 @@ onBeforeUnmount(() => {
       <transition name="fade">
         <div
           v-if="isWalkthrough"
-          class="absolute left-1/2 top-4 z-30 flex -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-full border border-emerald-200 bg-white/90 px-4 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-700 shadow-xl shadow-slate-950/10 backdrop-blur-xl dark:border-emerald-900/70 dark:bg-slate-950/90 dark:text-slate-200 dark:shadow-black/30"
+          class="scene3d-walkthrough-hud absolute left-1/2 top-4 z-30 flex -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-full border border-emerald-200 bg-white/90 px-4 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-700 shadow-xl shadow-slate-950/10 backdrop-blur-xl dark:border-emerald-900/70 dark:bg-slate-950/90 dark:text-slate-200 dark:shadow-black/30"
         >
           <span class="text-emerald-600 dark:text-emerald-300">WASD</span>
           Mover
@@ -1740,48 +1750,107 @@ onBeforeUnmount(() => {
   width: 100%;
   display: flex;
   flex-direction: column;
+  overflow: visible;
 }
 
 .scene3d-root.normal-mode .scene3d-canvas {
   width: 100%;
-  height: 560px;
+  height: 420px;
   position: relative;
+}
+
+.scene3d-header {
+  overflow: visible;
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.scene3d-header .toolbar-btn,
+.scene3d-header .icon-action,
+.scene3d-header button:not(:disabled),
+.scene3d-header .premium-range {
+  cursor: pointer;
+}
+
+.scene3d-canvas--interaction {
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.scene3d-canvas--interaction :deep(canvas) {
+  cursor: default;
+}
+
+.scene3d-canvas--interaction :deep([data-siec-minimap]) {
+  cursor: default;
+}
+
+.scene3d-canvas--interaction :deep([data-siec-minimap] canvas) {
+  cursor: default;
+}
+
+.scene3d-walkthrough-hud,
+.scene3d-walkthrough-hud span {
+  cursor: default;
+}
+
+.scene3d-labeled-actions {
+  overflow: visible;
 }
 
 .toolbar-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.45rem;
+  gap: 0.4rem;
   height: 2.5rem;
+  min-height: 2.5rem;
   border-radius: 1rem;
   border: 1px solid rgb(226 232 240);
   background: white;
-  padding: 0 0.85rem;
+  padding: 0 0.9rem;
   color: rgb(71 85 105);
-  font-size: 0.68rem;
-  font-weight: 900;
-  letter-spacing: 0.12em;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
   transition:
-    transform 0.18s ease,
-    border-color 0.18s ease,
     background-color 0.18s ease,
-    color 0.18s ease,
-    box-shadow 0.18s ease;
+    color 0.18s ease;
+}
+
+.toolbar-btn-segment {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  height: 2.5rem;
+}
+
+.toolbar-btn-segment:first-of-type {
+  border-radius: 0.85rem 0 0 0.85rem;
+}
+
+.scene3d-export-menu .toolbar-btn-segment {
+  border-radius: 0 0.85rem 0.85rem 0;
 }
 
 .toolbar-btn:hover {
-  transform: translateY(-1px);
-  border-color: rgb(203 213 225);
   background: rgb(248 250 252);
   color: rgb(15 23 42);
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
 }
 
 .toolbar-btn:active {
   transform: scale(0.98);
+}
+
+.toolbar-btn.is-menu-open:not(.toolbar-btn-export) {
+  background: rgb(241 245 249);
+  color: rgb(15 23 42);
 }
 
 .dark .toolbar-btn {
@@ -1790,43 +1859,56 @@ onBeforeUnmount(() => {
   color: rgb(203 213 225);
 }
 
+.dark .toolbar-btn-segment {
+  border: none;
+  background: transparent;
+}
+
 .dark .toolbar-btn:hover {
-  border-color: rgb(51 65 85);
+  background: rgb(30 41 59);
+  color: rgb(248 250 252);
+}
+
+.dark .toolbar-btn.is-menu-open:not(.toolbar-btn-export) {
   background: rgb(30 41 59);
   color: rgb(248 250 252);
 }
 
 .toolbar-btn-export {
   cursor: pointer;
-  border-color: rgb(253 186 116);
-  background: linear-gradient(135deg, rgb(255 247 237), rgb(255 255 255));
   color: rgb(194 65 12);
-  box-shadow:
-    0 1px 2px rgba(15, 23, 42, 0.06),
-    0 4px 14px rgba(249, 115, 22, 0.14);
+  background: rgb(255 247 237);
 }
 
 .toolbar-btn-export:hover,
-.toolbar-btn-export.is-open {
-  border-color: rgb(249 115 22);
-  background: rgb(255 247 237);
+.toolbar-btn-export.is-menu-open {
+  background: rgb(255 237 213);
   color: rgb(154 52 18);
-  box-shadow:
-    0 4px 12px rgba(15, 23, 42, 0.08),
-    0 10px 24px rgba(249, 115, 22, 0.22);
 }
 
 .dark .toolbar-btn-export {
-  border-color: rgba(251, 146, 60, 0.55);
-  background: linear-gradient(135deg, rgba(67, 20, 7, 0.45), rgba(15, 23, 42, 0.95));
   color: rgb(253 186 116);
+  background: rgba(67, 20, 7, 0.35);
 }
 
 .dark .toolbar-btn-export:hover,
-.dark .toolbar-btn-export.is-open {
-  border-color: rgb(251 146 60);
+.dark .toolbar-btn-export.is-menu-open {
   background: rgba(67, 20, 7, 0.55);
   color: rgb(254 215 170);
+}
+
+.scene3d-icon-rail .icon-action {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+.scene3d-icon-rail .icon-action:hover {
+  background: rgb(248 250 252);
+}
+
+.dark .scene3d-icon-rail .icon-action:hover {
+  background: rgb(30 41 59);
 }
 
 .export-menu-item {
@@ -1839,29 +1921,24 @@ onBeforeUnmount(() => {
 
 .icon-action {
   display: inline-flex;
-  height: 2.5rem;
-  width: 2.5rem;
+  height: 2.25rem;
+  width: 2.25rem;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  border-radius: 1rem;
-  border: 1px solid rgb(226 232 240);
-  background: white;
+  border-radius: 0.75rem;
+  border: 1px solid transparent;
+  background: transparent;
   color: rgb(71 85 105);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
   transition:
     transform 0.18s ease,
-    border-color 0.18s ease,
     background-color 0.18s ease,
-    color 0.18s ease,
-    box-shadow 0.18s ease;
+    color 0.18s ease;
 }
 
 .icon-action:hover {
-  transform: translateY(-1px);
-  border-color: rgb(203 213 225);
   background: rgb(248 250 252);
   color: rgb(15 23 42);
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
 }
 
 .icon-action:active {
@@ -1875,13 +1952,10 @@ onBeforeUnmount(() => {
 }
 
 .dark .icon-action {
-  border-color: rgb(30 41 59);
-  background: rgb(15 23 42);
   color: rgb(203 213 225);
 }
 
 .dark .icon-action:hover {
-  border-color: rgb(51 65 85);
   background: rgb(30 41 59);
   color: rgb(248 250 252);
 }

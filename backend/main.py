@@ -201,6 +201,12 @@ try:
 except Exception as exc:  # pragma: no cover
     log.error("router_mount_failed", router="settings", error=str(exc))
 
+try:
+    from routers.billing import router as billing_router
+    app.include_router(billing_router)
+except Exception as exc:  # pragma: no cover
+    log.error("router_mount_failed", router="billing", error=str(exc))
+
 # PDF vectorial (Playwright / Chromium print)
 try:
     from routers.export import router as export_router
@@ -307,7 +313,11 @@ def get_tipos_recinto(db: Session = Depends(get_db)):
     return db.query(models.TipoRecinto).all()
 
 @app.post("/api/simulacion/parametros", status_code=status.HTTP_201_CREATED)
-def crear_simulacion(sim: SimulacionCreate, db: Session = Depends(get_db)):
+def crear_simulacion(
+    sim: SimulacionCreate,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_optional_user),
+):
     """Guarda los parámetros de configuración de la vivienda y crea una nueva simulación."""
 
     # Validaciones obligatorias (alineadas con CHECK en Postgres: 1–1000 m²)
@@ -319,6 +329,12 @@ def crear_simulacion(sim: SimulacionCreate, db: Session = Depends(get_db)):
 
     if sim.materialEstructuralId not in [1, 2, 3, 4]:
         raise HTTPException(status_code=400, detail="Material estructural ID no válido.")
+
+    try:
+        from billing.service import enforce_simulation_material
+    except ModuleNotFoundError:
+        from backend.billing.service import enforce_simulation_material  # type: ignore
+    enforce_simulation_material(db, user, sim.materialEstructuralId)
     
     if sim.perimetro_ml <= 0:
         raise HTTPException(status_code=400, detail="El perímetro debe ser mayor a 0 metros lineales.")
@@ -448,6 +464,7 @@ def calcular_insumos(
     simulacion_id: int,
     payload: Optional[DeduccionMermasPayload] = None,
     db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_optional_user),
 ):
     """
     Calcula el desglose de insumos para una simulación usando la Matriz de Rendimiento.
@@ -456,6 +473,12 @@ def calcular_insumos(
     simulacion = db.query(models.ConfiguracionSimulacion).filter(models.ConfiguracionSimulacion.id == simulacion_id).first()
     if not simulacion:
         raise HTTPException(status_code=404, detail="La simulación especificada no existe.")
+
+    try:
+        from billing.service import enforce_simulation_material
+    except ModuleNotFoundError:
+        from backend.billing.service import enforce_simulation_material  # type: ignore
+    enforce_simulation_material(db, user, int(simulacion.material_estructural_id))
         
     m2_totales = simulacion.m2_totales
     area_bruta = float(payload.area_bruta_m2) if payload and payload.area_bruta_m2 is not None else float(m2_totales)

@@ -11,7 +11,6 @@ import {
   FileText,
   LogOut,
   Building2,
-  CheckCircle2,
 } from 'lucide-vue-next';
 const { t, currentLanguage } = useI18n();
 const router = useRouter();
@@ -68,7 +67,7 @@ const logout = async () => {
 
 <template>
   <header
-    class="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-slate-200/80 bg-white/80 px-4 shadow-sm shadow-slate-950/[0.03] backdrop-blur-xl transition-colors duration-300 dark:border-slate-800/80 dark:bg-slate-950/80 dark:shadow-black/20 sm:px-6"
+    class="siec-header-shell sticky top-0 z-40 flex h-14 items-center justify-between border-b border-slate-200/80 bg-white/85 px-4 shadow-sm shadow-slate-950/[0.03] backdrop-blur-xl transition-colors duration-300 dark:border-slate-800/80 dark:bg-slate-950/85 dark:shadow-black/20 sm:px-6"
   >
     <!-- Left: title -->
     <div class="flex min-w-0 items-center gap-3">
@@ -79,16 +78,9 @@ const logout = async () => {
       </div>
 
       <div class="min-w-0">
-        <h2 class="truncate text-base font-black tracking-tight text-slate-950 dark:text-slate-100">
+        <h2 class="truncate text-sm font-black tracking-tight text-slate-950 dark:text-slate-100 sm:text-base">
           {{ t('estimationConfigurator') }}
         </h2>
-
-        <p
-          class="mt-0.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500"
-        >
-          <CheckCircle2 class="h-3 w-3 text-emerald-500" :stroke-width="2.4" />
-          {{ t('editModeActive') }}
-        </p>
       </div>
     </div>
 
