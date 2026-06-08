@@ -147,6 +147,14 @@ def ejecutar_scrapers() -> None:
         total_errores += 1
 
     duracion = round((datetime.now() - inicio).total_seconds(), 1)
+    cobertura_pct = round((len(insumos_cubiertos) / len(insumos)) * 100, 1) if insumos else 0.0
+    if cobertura_pct < 85:
+        logger.error(
+            f"[Health] Cobertura insufos {cobertura_pct}% (< 85%). "
+            f"Pendientes: {[i['nombre'] for i in insumos if i.get('id') not in insumos_cubiertos]}"
+        )
+    else:
+        logger.info(f"[Health] Cobertura insumos: {cobertura_pct}% ({len(insumos_cubiertos)}/{len(insumos)})")
 
     # Criterio 4: resumen final con formato exacto requerido
     logger.info(sep)

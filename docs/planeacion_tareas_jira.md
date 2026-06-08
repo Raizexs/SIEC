@@ -1,6 +1,6 @@
 # Backlog de Tareas — SIEC
-> Actualizado: 2026-05-19 | Solo contiene tareas pendientes o en curso.
-> Las tareas completadas (T12.1, T13.1, T13.2, T14.2, T15.2, T15.3, T18.2, T18.3) fueron removidas de este documento.
+> Actualizado: 2026-06-08 | Solo contiene tareas pendientes o en curso.
+> Las tareas completadas (T12.1, T12.2, T13.1, T13.2, T14.2, T15.2, T15.3, T18.2, T18.3, SIEC-105, SIEC-128) fueron removidas de este documento.
 
 ---
 
@@ -307,3 +307,60 @@ Tarea SIEC-108: Agregar Indicadores del Flujo Principal en el Área de Trabajo `
   - El indicador puede ocultarse manualmente y no reaparece en la misma sesión si el usuario lo cierra.
   - Un usuario sin experiencia previa puede generar su primer presupuesto en menos de 5 minutos siguiendo las señales visuales.
 - Dependencias: Ninguna.
+
+---
+
+### User Story HU19: Cotización Multi-Tienda en el Presupuesto
+
+- Resumen: Cada material del presupuesto debe mostrar al menos 3 tiendas distintas con sus precios, y el usuario debe poder intercambiar entre ellas para ver cómo cambia el costo total de su proyecto.
+
+#### Caso de Uso:
+- Como propietario que está cotizando materiales para su construcción
+- Quiero ver en el presupuesto los precios de un mismo material en distintas tiendas (Sodimac, Easy, Construmart) y poder elegir cuál me conviene más
+- Para tomar decisiones de compra informadas y ajustar el presupuesto total según dónde me salga más barato comprar cada cosa.
+
+#### Criterios de Aceptación Generales (Definition of Done):
+- Cada material en el presupuesto muestra al menos 3 opciones de tienda cuando están disponibles.
+- El usuario puede cambiar la tienda de cualquier material individualmente y el costo total se actualiza.
+- La elección de tienda se mantiene mientras no se cambie el material estructural del proyecto.
+- Los archivos exportados (PDF, Excel, CSV) reflejan la tienda que el usuario seleccionó para cada material.
+
+---
+
+#### Tareas
+
+Tarea SIEC-109: Exponer Todas las Tiendas Disponibles por Material en la Respuesta del Presupuesto `[BACKEND]`
+- Descripción: Actualmente el motor de cálculo consulta correctamente los precios de todas las tiendas disponibles para cada insumo, pero al armar la respuesta del presupuesto descarta esa información y envía al frontend los datos de una sola tienda por material. El usuario final solo ve una opción de compra cuando en realidad existen múltiples alternativas con precios distintos. Esta tarea modifica la respuesta de la API para que cada material incluya un listado con todas las tiendas donde se encontró precio (nombre de tienda, precio en esa tienda, enlace al producto), limitado a un máximo de 5 tiendas por material y sin duplicados. La tienda mostrada por defecto debe ser la que ofrezca el mejor precio para el usuario, y esto debe aplicar tanto para los insumos regulares como para los de techumbre.
+- Criterios de Aceptación:
+  - Si un insumo tiene precios en Sodimac, Easy y Construmart, la respuesta incluye las tres tiendas con sus respectivos precios y enlaces.
+  - La tienda por defecto es la de menor precio entre todas las disponibles.
+  - Si un insumo solo tiene precio en una tienda, el listado de alternativas contiene solo esa tienda o aparece vacío.
+  - Si un insumo no tiene precios scrapeados y usa valor de referencia, se muestra como "Referencia" sin tiendas alternativas.
+  - Si existen múltiples registros para la misma tienda y material (por actualizaciones diarias), solo aparece la entrada más reciente.
+  - El precio de la tienda por defecto coincide con el que figura en el listado de alternativas para esa misma tienda.
+  - Los insumos de techumbre (cerchas, zinc, costaneras, aislación) también incluyen su listado de tiendas alternativas.
+- Dependencias: Relacionada con SIEC-102 (precios de referencia cargados en el sistema).
+
+Tarea SIEC-110: Permitir al Usuario Cambiar de Tienda en Cada Línea del Presupuesto `[FRONTEND]`
+- Descripción: El panel de presupuesto actualmente muestra una sola tienda por material sin permitir cambiarla. Esta tarea agrega a cada fila de material un control que permite al usuario ver las tiendas alternativas disponibles y seleccionar una distinta. Al cambiar de tienda, deben actualizarse inmediatamente el precio unitario, el subtotal de esa línea, el subtotal de la categoría y el costo total del presupuesto. El enlace al producto también debe cambiar para reflejar la tienda seleccionada. La selección de tienda que haga el usuario debe persistir al recalcular el presupuesto con los mismos parámetros, pero debe reiniciarse al valor por defecto si el usuario cambia el tipo de material estructural. El control debe funcionar tanto en la vista de escritorio (tabla) como en la vista móvil (tarjetas), y debe indicar claramente cuántas tiendas alternativas hay disponibles.
+- Criterios de Aceptación:
+  - Existe un control visible en cada fila de material que muestra la tienda activa y permite elegir entre las alternativas.
+  - El control indica cuántas tiendas adicionales hay disponibles (por ejemplo: un distintivo con "+2").
+  - Al seleccionar una tienda distinta, el precio unitario, subtotal de la fila, subtotal de categoría y costo total se actualizan inmediatamente.
+  - El enlace al producto cambia para apuntar al sitio de la tienda recién seleccionada.
+  - Si un material solo tiene una tienda o es valor de referencia, no se muestra el selector (no hay alternativas que elegir).
+  - La selección de tienda persiste al recalcular el presupuesto sin cambiar el material estructural.
+  - La selección de tienda se resetea a su valor por defecto cuando el usuario cambia el material estructural del proyecto.
+  - El selector funciona correctamente en la vista móvil (tarjetas).
+- Dependencias: Requiere SIEC-109.
+
+Tarea SIEC-111: Reflejar la Tienda Seleccionada por el Usuario en los Archivos de Exportación `[FRONTEND]`
+- Descripción: Al exportar el presupuesto a PDF, Excel o CSV, debe aparecer la tienda que el usuario eligió para cada material, no una tienda por defecto ni la que venía originalmente en la respuesta del servidor. Si el propietario seleccionó Easy para el cemento porque es más barato, el PDF que le entregue a su maestro debe decir "Easy" y mostrar el precio de Easy. La exportación debe ser un fiel reflejo de lo que el usuario ve en pantalla al momento de exportar, incluyendo: nombre de la tienda, precio unitario, subtotal, y enlace al producto (cuando aplique). El enlace en el PDF debe dirigir al producto en la tienda correcta.
+- Criterios de Aceptación:
+  - El PDF muestra para cada material la tienda que el usuario seleccionó en el panel, no una tienda por defecto.
+  - El costo total del PDF coincide exactamente con el costo total visible en pantalla.
+  - El Excel contiene en la columna de tienda el nombre correcto según la selección del usuario.
+  - El CSV contiene en la columna de tienda el nombre correcto según la selección del usuario.
+  - Los materiales sin tienda seleccionable (como "Mano de obra" con valor "Referencia") se exportan correctamente y sin enlace.
+  - Al hacer clic en el enlace de un producto en el PDF, dirige al sitio de la tienda que el usuario seleccionó para ese material.
+- Dependencias: Requiere SIEC-110.

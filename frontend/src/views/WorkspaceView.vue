@@ -105,7 +105,7 @@ watch(
 <template>
   <main
     ref="motionRoot"
-    class="min-h-screen bg-slate-50 text-slate-950 transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100"
+    class="siec-app-canvas min-h-screen text-slate-950 transition-colors duration-300 dark:text-slate-100"
   >
     <!-- Preparing state -->
     <section
@@ -204,10 +204,6 @@ watch(
       class="relative min-h-screen"
       data-motion="section"
     >
-      <div
-        class="pointer-events-none absolute inset-x-0 top-0 z-10 h-1 bg-gradient-to-r from-orange-400 via-orange-500 to-slate-900 dark:to-orange-300"
-      ></div>
-
       <EditorShell :project-id="projectId" />
     </section>
   </main>

@@ -1,6 +1,6 @@
 <script setup>
 import logger from '../utils/logger.js';
-import { computed, onBeforeUnmount, ref, reactive, watch, onMounted, onUnmounted, nextTick } from "vue";
+import { computed, ref, reactive, watch, onMounted, onUnmounted, nextTick } from "vue";
 import { useRecintosStore } from "../stores/recintos";
 import { useInteractiveEditor } from "../composables/useInteractiveEditor";
 import { useTheme } from "../composables/useTheme";
@@ -11,6 +11,7 @@ import {
   snapRectFlushToNeighbors,
   terrainFromEditor,
 } from "../composables/useSpatialConstraints.js";
+import { prefersReducedMotion } from "../design/motionTokens.js";
 
 const props = defineProps({
   m2Totales:         { type: Number, default: 100 },
@@ -20,6 +21,8 @@ const props = defineProps({
   showGrid:          { type: Boolean, default: true },
   showLabels:        { type: Boolean, default: true },
   defaultRoomHeight: { type: Number, default: 2.4 },
+  /** true cuando el paso Diseñar está visible (v-show); evita medir aspecto con ancho 0 */
+  editorVisible:     { type: Boolean, default: true },
 });
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -43,6 +46,9 @@ const clampNumber = (value, min, max) => {
 // ── Store & editor ───────────────────────────────────────────────────────────
 const svgRef = ref(null);
 const rootRef = ref(null);
+const svgViewportRef = ref(null);
+/** 0 = aún no medido; no usar aspecto por defecto para no generar franjas */
+const viewportAspect = ref(0);
 const isFullScreen = ref(false);
 const store  = useRecintosStore();
 const { t } = useI18n();
@@ -189,6 +195,8 @@ const startCorridorDraw = (e) => {
   if (!corridorMode.value) return;
   e.preventDefault();
   e.stopPropagation();
+  pointerSessionId.value = e.pointerId;
+  capturePointer(e);
   editor.selectedRecintoId.value = null;
   const w = toWorld(e.clientX, e.clientY);
   const snapped = snapCorridorCoord(w.x, w.z);
@@ -232,6 +240,20 @@ const commitCorridorDraw = () => {
   );
   store.updateRecinto(id, { coords: { x: Number(pr.x0.toFixed(3)), z: Number(pr.z0.toFixed(3)) } });
   editor.selectedRecintoId.value = id;
+
+  nextTick(() => {
+    const placed = store.recintos.find((r) => r.id === id);
+    if (placed) {
+      const flushed = applyFlushSnapToRoom(placed);
+      if (flushed) {
+        store.updateRecinto(id, {
+          coords: { x: flushed.x, z: flushed.z },
+        });
+      }
+    }
+    scheduleViewportAspectSync();
+  });
+
   store.saveHistoryState();
 };
 
@@ -339,6 +361,9 @@ const roomsForView = computed(() => {
   });
 });
 
+const dragCoordsFit = (room, tx, tz, w, l) => !roomOverlapsAny(room, tx, tz, w, l);
+
+/** Durante el arrastre: solo clamp + anti-solape; el snap magnético va al soltar. */
 const applyDragPreviewCoords = (x, z) => {
   const room = selectedDraggedRoom();
   if (!room) return null;
@@ -354,17 +379,27 @@ const applyDragPreviewCoords = (x, z) => {
   let safeX = clampNumber(x, bounds.minX, bounds.maxX);
   let safeZ = clampNumber(z, bounds.minZ, bounds.maxZ);
 
-  if (roomOverlapsAny(room, safeX, safeZ, w, l)) {
+  if (!dragCoordsFit(room, safeX, safeZ, w, l)) {
     const previous = lastValidDragCoords.value;
-    if (previous?.id === room.id) {
+    if (previous?.id === room.id && dragCoordsFit(room, previous.x, previous.z, w, l)) {
       safeX = previous.x;
       safeZ = previous.z;
+    } else {
+      return null;
     }
-  } else {
-    cacheValidDragCoords({ ...room, coords: { x: safeX, z: safeZ } });
   }
 
+  cacheValidDragCoords({ ...room, coords: { x: safeX, z: safeZ } });
   return { x: safeX, z: safeZ };
+};
+
+const applyLiveDragCoords = (roomId, x, z) => {
+  const safe = applyDragPreviewCoords(x, z);
+  if (!safe || !roomId) return null;
+
+  store.updateRecinto(roomId, { coords: { x: safe.x, z: safe.z } });
+  dragPreview.value = { id: roomId, x: safe.x, z: safe.z };
+  return safe;
 };
 
 const commitDragPreviewToStore = () => {
@@ -481,12 +516,9 @@ const roomOverlapsAny = (room, x, z, w, l) => {
     const bz0 = other.coords.z;
     const bz1 = other.coords.z + other.dimensions.l;
 
-    return (
-      ax0 < bx1 - OVERLAP_EPS &&
-      ax1 > bx0 + OVERLAP_EPS &&
-      az0 < bz1 - OVERLAP_EPS &&
-      az1 > bz0 + OVERLAP_EPS
-    );
+    const overlapX = Math.min(ax1, bx1) - Math.max(ax0, bx0);
+    const overlapZ = Math.min(az1, bz1) - Math.max(az0, bz0);
+    return overlapX > OVERLAP_EPS && overlapZ > OVERLAP_EPS;
   });
 };
 
@@ -582,7 +614,40 @@ const liveBounds = computed(() => {
 
 const activeBounds = computed(() => frozenBounds.value || liveBounds.value);
 
+const padBoundsToViewportAspect = (b, target) => {
+  const w = b.maxX - b.minX;
+  const h = b.maxZ - b.minZ;
+  if (w <= 0 || h <= 0 || !Number.isFinite(target) || target <= 0) return b;
+
+  const aspect = w / h;
+  if (Math.abs(aspect - target) < 0.004) return b;
+
+  if (aspect < target) {
+    const newW = h * target;
+    const pad = (newW - w) / 2;
+    return { minX: b.minX - pad, minZ: b.minZ, maxX: b.maxX + pad, maxZ: b.maxZ };
+  }
+
+  const newH = w / target;
+  const pad = (newH - h) / 2;
+  return { minX: b.minX, minZ: b.minZ - pad, maxX: b.maxX, maxZ: b.maxZ + pad };
+};
+
+const effectiveViewportAspect = computed(() => {
+  if (viewportAspect.value > 0) return viewportAspect.value;
+  const b = activeBounds.value;
+  const w = b.maxX - b.minX;
+  const h = b.maxZ - b.minZ;
+  return h > 0 ? w / h : 1;
+});
+
+/** Ajusta el viewBox al aspecto del viewport: meet sin franjas y sin recortar el terreno */
+const viewBounds = computed(() =>
+  padBoundsToViewportAspect(activeBounds.value, effectiveViewportAspect.value),
+);
+
 const syncAllRoomsToTerrain = () => {
+  if (store.layoutInteractionActive) return;
   const rooms = [...store.recintos];
   rooms.forEach((room) => normalizeRoomInsideTerrain(room));
 };
@@ -605,8 +670,8 @@ watch(
 );
 
 // ── SVG coordinate helpers ────────────────────────────────────────────────────
-const svgW = computed(() => (activeBounds.value.maxX - activeBounds.value.minX) * PPM);
-const svgH = computed(() => (activeBounds.value.maxZ - activeBounds.value.minZ) * PPM);
+const svgW = computed(() => (viewBounds.value.maxX - viewBounds.value.minX) * PPM);
+const svgH = computed(() => (viewBounds.value.maxZ - viewBounds.value.minZ) * PPM);
 
 const emit = defineEmits(['update:terrenoAncho', 'update:terrenoLargo']);
 
@@ -663,16 +728,37 @@ const viewBox = computed(() => `0 0 ${svgW.value} ${svgH.value}`);
 const vbW = computed(() => svgW.value);
 const vbH = computed(() => svgH.value);
 
+const worldGroupTransform = computed(() => {
+  if (!visualRotation.value) return undefined;
+  const cx = vbW.value / 2;
+  const cy = vbH.value / 2;
+  return `rotate(${visualRotation.value}, ${cx}, ${cy})`;
+});
+
+const worldGroupStyle = computed(() => ({
+  transition:
+    !prefersReducedMotion() && isVisualAnimating.value
+      ? 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+      : 'none',
+}));
+
+const disableRectTransitions = computed(
+  () =>
+    isMathUpdating.value
+    || !!editor.activeMode.value
+    || store.layoutInteractionActive,
+);
+
 // Grid offset: shift pattern so that world integer-metre lines land on grid lines
 const gridOffsetX = computed(() => {
   const m = gridMajorM.value;
-  const minX = activeBounds.value.minX;
+  const minX = viewBounds.value.minX;
   const mod = ((-minX % m) + m) % m;
   return mod * PPM;
 });
 const gridOffsetZ = computed(() => {
   const m = gridMajorM.value;
-  const minZ = activeBounds.value.minZ;
+  const minZ = viewBounds.value.minZ;
   const mod = ((-minZ % m) + m) % m;
   return mod * PPM;
 });
@@ -682,32 +768,148 @@ const patternMinorPx = computed(() => patternMajorPx.value / 2);
 
 const canvasBaseFill = computed(() => {
   if (showEditorGrid.value) return "url(#grid-major)";
-  return isDark.value ? "rgb(15 23 42 / 0.96)" : "rgb(248 250 252)";
+  return "rgb(2 6 23 / 0.98)";
 });
 
-const toSX = (x) => (x - activeBounds.value.minX) * PPM;
-const toSZ = (z) => (z - activeBounds.value.minZ) * PPM;
+const gridMinorStroke = "rgba(100,116,139,0.28)";
+const gridMajorStroke = "rgba(148,163,184,0.42)";
+
+const toSX = (x) => (x - viewBounds.value.minX) * PPM;
+const toSZ = (z) => (z - viewBounds.value.minZ) * PPM;
+
+/** Hint de pasillo: en el margen superior del plano, fuera del recuadro naranja del terreno */
+const corridorDrawHintLayout = computed(() => {
+  const cx = toSX(budgetRect.value.w / 2);
+  const worldZAbove = -0.78;
+  const textY = toSZ(worldZAbove);
+  const rectH = 30;
+  const rectW = 340;
+  return {
+    cx,
+    textY,
+    rectX: cx - rectW / 2,
+    rectY: textY - rectH / 2,
+    rectW,
+    rectH,
+    fontSize: 12,
+  };
+});
 
 // ── Pointer → world ───────────────────────────────────────────────────────────
+/** Mapeo manual respetando preserveAspectRatio="meet" (letterboxing). */
+const toWorldFromMeet = (clientX, clientY) => {
+  const svg = svgRef.value;
+  if (!svg) return null;
+
+  const rect = svg.getBoundingClientRect();
+  if (rect.width < 1 || rect.height < 1) return null;
+
+  const contentW = svgW.value;
+  const contentH = svgH.value;
+  if (contentW < 1 || contentH < 1) return null;
+
+  const vb = viewBounds.value;
+  const contentAspect = contentW / contentH;
+  const viewAspect = rect.width / rect.height;
+
+  let drawW;
+  let drawH;
+  let offsetX;
+  let offsetY;
+
+  if (contentAspect > viewAspect) {
+    drawW = rect.width;
+    drawH = rect.width / contentAspect;
+    offsetX = 0;
+    offsetY = (rect.height - drawH) / 2;
+  } else {
+    drawH = rect.height;
+    drawW = rect.height * contentAspect;
+    offsetX = (rect.width - drawW) / 2;
+    offsetY = 0;
+  }
+
+  const spX = ((clientX - rect.left - offsetX) / drawW) * contentW;
+  const spY = ((clientY - rect.top - offsetY) / drawH) * contentH;
+
+  return {
+    x: vb.minX + spX / PPM,
+    z: vb.minZ + spY / PPM,
+  };
+};
+
 const toWorld = (clientX, clientY) => {
   const svg = svgRef.value;
   if (!svg) return { x: 0, z: 0 };
-  const pt = svg.createSVGPoint();
-  pt.x = clientX; pt.y = clientY;
-  const sp = pt.matrixTransform(svg.getScreenCTM().inverse());
+
+  if (typeof svg.createSVGPoint === 'function') {
+    const ctm = svg.getScreenCTM();
+    if (ctm) {
+      try {
+        const pt = svg.createSVGPoint();
+        pt.x = clientX;
+        pt.y = clientY;
+        const sp = pt.matrixTransform(ctm.inverse());
+        return {
+          x: viewBounds.value.minX + sp.x / PPM,
+          z: viewBounds.value.minZ + sp.y / PPM,
+        };
+      } catch {
+        /* usar fallback meet */
+      }
+    }
+  }
+
+  return toWorldFromMeet(clientX, clientY) ?? { x: 0, z: 0 };
+};
+
+/** Respaldo si resolveRoomDragPosition no encuentra posición (evita arrastre bloqueado). */
+const computeDragFallbackPosition = (pointerWorld) => {
+  const room = selectedDraggedRoom();
+  if (!room || editor.activeMode.value !== 'drag') return null;
+
+  const w = Math.max(MIN_ROOM_DIM, Number(room.dimensions?.w) || MIN_ROOM_DIM);
+  const l = Math.max(MIN_ROOM_DIM, Number(room.dimensions?.l) || MIN_ROOM_DIM);
+  const bounds = movementBoundsForRoom({
+    ...room,
+    dimensions: { w, l },
+  });
+  const rawX = pointerWorld.x - editor.dragOffset.value.x;
+  const rawZ = pointerWorld.z - editor.dragOffset.value.z;
+
   return {
-    x: activeBounds.value.minX + sp.x / PPM,
-    z: activeBounds.value.minZ + sp.y / PPM,
+    x: clampNumber(rawX, bounds.minX, bounds.maxX),
+    z: clampNumber(rawZ, bounds.minZ, bounds.maxZ),
   };
+};
+
+const capturePointer = (e) => {
+  const el = e.currentTarget;
+  if (el?.setPointerCapture && e.pointerId != null) {
+    try {
+      el.setPointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+  }
 };
 
 // ── Interaction handlers ──────────────────────────────────────────────────────
 const ghostRoom = ref(null);
 const isGhostFading = ref(false);
+/** pointerId activo del drag/resize actual (evita pointerup ajenos). */
+const pointerSessionId = ref(null);
 
 let pointerMoveFrame = null;
 
 const handlePointerMove = (e) => {
+  if (
+    pointerSessionId.value != null
+    && e.pointerId !== pointerSessionId.value
+  ) {
+    return;
+  }
+
   // ── Corridor draw preview ─────────────────────────────────────────────
   if (corridorDraw.value) {
     updateCorridorDraw(e.clientX, e.clientY);
@@ -718,15 +920,14 @@ const handlePointerMove = (e) => {
   const w = toWorld(e.clientX, e.clientY);
 
   if (editor.activeMode.value === "drag") {
-    const pos = editor.computeDragPosition(w, budgetRect.value);
+    const roomId = editor.selectedRecintoId.value;
+    if (!roomId) return;
+
+    let pos = editor.computeDragPosition(w, budgetRect.value);
+    if (!pos) pos = computeDragFallbackPosition(w);
     if (!pos) return;
-    const safe = applyDragPreviewCoords(pos.x, pos.z);
-    if (!safe) return;
-    dragPreview.value = {
-      id: editor.selectedRecintoId.value,
-      x: safe.x,
-      z: safe.z,
-    };
+
+    applyLiveDragCoords(roomId, pos.x, pos.z);
     return;
   }
 
@@ -744,107 +945,139 @@ const handlePointerMove = (e) => {
   }
 };
 
+const useInstantPointerMove = () =>
+  prefersReducedMotion()
+  || editor.activeMode.value === 'drag'
+  || editor.activeMode.value === 'resize';
+
 const onPointerMove = (e) => {
-  if (corridorDraw.value) {
+  if (useInstantPointerMove()) {
+    handlePointerMove(e);
+    return;
+  }
+
+  if (corridorDraw.value || editor.activeMode.value) {
     if (pointerMoveFrame) return;
     pointerMoveFrame = requestAnimationFrame(() => {
       pointerMoveFrame = null;
       handlePointerMove(e);
     });
-    return;
   }
-  if (!editor.activeMode.value) return;
-  if (pointerMoveFrame) return;
-  pointerMoveFrame = requestAnimationFrame(() => {
-    pointerMoveFrame = null;
-    handlePointerMove(e);
-  });
 };
 
-const onPointerUp = () => {
-  // ── Corridor draw commit ──────────────────────────────────────────────
-  if (corridorDraw.value) {
-    commitCorridorDraw();
+const onPointerUp = (e) => {
+  if (
+    pointerSessionId.value != null
+    && e?.pointerId != null
+    && e.pointerId !== pointerSessionId.value
+  ) {
     return;
   }
 
   const mode = editor.activeMode.value;
 
-  if (dragPreview.value) {
-    commitDragPreviewToStore();
-    dragPreview.value = null;
+  if (!mode && !corridorDraw.value) {
+    pointerSessionId.value = null;
+    return;
   }
 
-  store.layoutInteractionActive = false;
-
-  if (mode === "drag") {
-    const dragged = selectedDraggedRoom();
-    const flushed = dragged ? applyFlushSnapToRoom(dragged) : null;
-    if (flushed) {
-      store.updateRecinto(dragged.id, {
-        coords: { x: flushed.x, z: flushed.z },
-      });
+  try {
+    if (corridorDraw.value) {
+      commitCorridorDraw();
+      return;
     }
-    lastValidDragCoords.value = null;
-  }
 
-  if (mode === "resize") {
-    const resized = selectedDraggedRoom();
-    if (resized) {
-      normalizeRoomInsideTerrain(resized);
-      const placed = store.recintos.find((r) => r.id === resized.id);
-      const flushed = placed ? applyFlushSnapToRoom(placed) : null;
+    if (mode === "drag") {
+      const dragged = selectedDraggedRoom();
+      const flushed = dragged ? applyFlushSnapToRoom(dragged) : null;
       if (flushed) {
-        store.updateRecinto(resized.id, {
+        store.updateRecinto(dragged.id, {
           coords: { x: flushed.x, z: flushed.z },
-          dimensions: {
-            ...placed.dimensions,
-            w: flushed.w,
-            l: flushed.l,
-          },
         });
       }
+      lastValidDragCoords.value = null;
     }
-  }
 
-  editor.endInteraction();
-  if (mode === "drag" || mode === "resize") {
-    store.saveHistoryState();
-  }
-  frozenBounds.value = null;
-  
-  if (ghostRoom.value) {
-    isGhostFading.value = true;
-    setTimeout(() => {
-      ghostRoom.value = null;
-      isGhostFading.value = false;
-    }, 1500); // Desvanecimiento rápido de 1.5s
+    if (mode === "resize") {
+      if (dragPreview.value) {
+        commitDragPreviewToStore();
+      }
+      const resized = selectedDraggedRoom();
+      if (resized) {
+        normalizeRoomInsideTerrain(resized);
+        const placed = store.recintos.find((r) => r.id === resized.id);
+        const flushed = placed ? applyFlushSnapToRoom(placed) : null;
+        if (flushed) {
+          store.updateRecinto(resized.id, {
+            coords: { x: flushed.x, z: flushed.z },
+            dimensions: {
+              ...placed.dimensions,
+              w: flushed.w,
+              l: flushed.l,
+            },
+          });
+        }
+      }
+    }
+
+    editor.endInteraction();
+    dragPreview.value = null;
+    if (mode === "drag" || mode === "resize") {
+      store.saveHistoryState();
+    }
+    frozenBounds.value = null;
+
+    if (ghostRoom.value) {
+      const fadeMs = prefersReducedMotion() ? 0 : 1500;
+      if (fadeMs <= 0) {
+        ghostRoom.value = null;
+        isGhostFading.value = false;
+      } else {
+        isGhostFading.value = true;
+        setTimeout(() => {
+          ghostRoom.value = null;
+          isGhostFading.value = false;
+        }, fadeMs);
+      }
+    }
+  } finally {
+    pointerSessionId.value = null;
+    store.layoutInteractionActive = false;
+    scheduleViewportAspectSync();
   }
 };
 
 const startDrag = (e, id) => {
-  e.preventDefault(); e.stopPropagation();
+  e.preventDefault();
+  e.stopPropagation();
+  pointerSessionId.value = e.pointerId;
+  capturePointer(e);
   frozenBounds.value = { ...liveBounds.value };
   store.layoutInteractionActive = true;
   dragPreview.value = null;
 
   const r = store.recintos.find((room) => room.id === id);
-  if (r) {
-    ghostRoom.value = JSON.parse(JSON.stringify(r));
-    cacheValidDragCoords(r);
-    dragPreview.value = {
-      id: r.id,
-      x: Number(r.coords?.x) || 0,
-      z: Number(r.coords?.z) || 0,
-    };
+  if (!r) {
+    pointerSessionId.value = null;
+    store.layoutInteractionActive = false;
+    return;
   }
+
+  editor.selectedRecintoId.value = id;
+  ghostRoom.value = JSON.parse(JSON.stringify(r));
+  cacheValidDragCoords(r);
   isGhostFading.value = false;
 
-  editor.beginDrag(id, toWorld(e.clientX, e.clientY));
+  const world = toWorld(e.clientX, e.clientY);
+  editor.beginDrag(id, world);
+  applyLiveDragCoords(id, Number(r.coords?.x) || 0, Number(r.coords?.z) || 0);
 };
 
 const startResize = (e, id) => {
-  e.preventDefault(); e.stopPropagation();
+  e.preventDefault();
+  e.stopPropagation();
+  pointerSessionId.value = e.pointerId;
+  capturePointer(e);
   frozenBounds.value = { ...liveBounds.value };
   store.layoutInteractionActive = true;
   dragPreview.value = null;
@@ -894,26 +1127,23 @@ const toggleFullScreen = async () => {
 const handleFullscreenChange = () => {
   const isEntering = !!document.fullscreenElement;
   isFullScreen.value = isEntering;
-  
+
+  scheduleViewportAspectSync();
+  [0, 50, 150, 320].forEach((ms) => {
+    setTimeout(scheduleViewportAspectSync, ms);
+  });
+
   if (!isEntering) {
     setTimeout(() => {
       window.scrollTo({ top: savedScrollY, behavior: 'instant' });
+      scheduleViewportAspectSync();
     }, 10);
   }
 };
 
-window.addEventListener("pointermove", onPointerMove);
-window.addEventListener("pointerup",   onPointerUp);
-document.addEventListener('fullscreenchange', handleFullscreenChange);
+const interactionCapture = { capture: true };
 
-onBeforeUnmount(() => {
-  if (pointerMoveFrame) cancelAnimationFrame(pointerMoveFrame);
-  store.layoutInteractionActive = false;
-  dragPreview.value = null;
-  window.removeEventListener("pointermove", onPointerMove);
-  window.removeEventListener("pointerup",   onPointerUp);
-  document.removeEventListener('fullscreenchange', handleFullscreenChange);
-});
+watch(isFullScreen, () => scheduleViewportAspectSync());
 
 // ── Room helpers ───────────────────────────────────────────────────────────────
 const roomFill   = (t) => t === "pasillo" ? "#14b8a6" : "#3b82f6";
@@ -1086,16 +1316,92 @@ const handleKeyDown = (e) => {
 
 const handleSiecCancel = () => {
   if (showAddModal.value) showAddModal.value = false;
+  if (corridorDraw.value) {
+    corridorDraw.value = null;
+    scheduleViewportAspectSync();
+  }
 };
+
+let viewportResizeObserver = null;
+
+const syncViewportAspect = () => {
+  if (corridorDraw.value) return;
+  const el = svgViewportRef.value;
+  if (!el || !props.editorVisible) return;
+  const width = el.clientWidth;
+  const height = el.clientHeight;
+  if (width > 0 && height > 0) viewportAspect.value = width / height;
+};
+
+const scheduleViewportAspectSync = () => {
+  nextTick(() => {
+    syncViewportAspect();
+    requestAnimationFrame(syncViewportAspect);
+  });
+};
+
+watch(
+  () => props.editorVisible,
+  (visible) => {
+    if (visible) scheduleViewportAspectSync();
+  },
+  { immediate: true },
+);
+
+watch(
+  () => editor.selectedRecintoId.value,
+  () => {
+    scheduleViewportAspectSync();
+    setTimeout(scheduleViewportAspectSync, 320);
+  },
+);
+
+watch(
+  () => `${props.terrenoAncho}:${props.terrenoLargo}`,
+  () => scheduleViewportAspectSync(),
+);
+
+if (typeof ResizeObserver !== 'undefined') {
+  viewportResizeObserver = new ResizeObserver(() => scheduleViewportAspectSync());
+}
+
+watch(
+  svgViewportRef,
+  (el) => {
+    viewportResizeObserver?.disconnect();
+    if (el) {
+      viewportResizeObserver.observe(el);
+      scheduleViewportAspectSync();
+    }
+  },
+  { immediate: true },
+);
 
 onMounted(() => {
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('siec:cancel', handleSiecCancel);
+  window.addEventListener('resize', syncViewportAspect);
+  scheduleViewportAspectSync();
+  document.addEventListener('pointermove', onPointerMove, interactionCapture);
+  document.addEventListener('pointerup', onPointerUp, interactionCapture);
+  document.addEventListener('pointercancel', onPointerUp, interactionCapture);
+  document.addEventListener('fullscreenchange', handleFullscreenChange);
 });
 
 onUnmounted(() => {
+  if (pointerMoveFrame) cancelAnimationFrame(pointerMoveFrame);
+  store.layoutInteractionActive = false;
+  dragPreview.value = null;
+  pointerSessionId.value = null;
   window.removeEventListener('keydown', handleKeyDown);
   window.removeEventListener('siec:cancel', handleSiecCancel);
+  window.removeEventListener('resize', syncViewportAspect);
+  document.removeEventListener('pointermove', onPointerMove, interactionCapture);
+  document.removeEventListener('pointerup', onPointerUp, interactionCapture);
+  document.removeEventListener('pointercancel', onPointerUp, interactionCapture);
+  document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  viewportResizeObserver?.disconnect();
+  viewportResizeObserver = null;
 });
 
 defineExpose({ openAddModal });
@@ -1104,20 +1410,22 @@ defineExpose({ openAddModal });
 <template>
   <div
     ref="rootRef"
-    class="relative flex w-full flex-col overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 shadow-2xl shadow-slate-950/10 backdrop-blur-xl transition-all duration-300 dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/35"
-    :class="isFullScreen ? 'h-screen rounded-none border-none' : ''"
+    class="editor2d-root relative flex w-full flex-col overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 p-4 shadow-2xl shadow-slate-950/10 backdrop-blur-xl transition-all duration-300 dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/35"
+    :class="isFullScreen ? 'editor2d-root--fs h-screen min-h-0 rounded-none border-none p-0' : 'normal-mode'"
   >
-    <!-- Top accent -->
-    <div class="h-1 w-full shrink-0 bg-gradient-to-r from-orange-400 via-orange-500 to-slate-900 dark:to-orange-300"></div>
-
     <!-- Header -->
     <header
-      class="shrink-0 border-b border-slate-200/80 bg-slate-50/80 px-4 py-4 dark:border-slate-800/80 dark:bg-slate-900/60"
+      class="relative z-20 mb-4 flex shrink-0 flex-col overflow-hidden rounded-3xl border border-slate-200/90 bg-slate-50/80 shadow-sm backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-900/60"
     >
-      <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-        <!-- Identity + metrics -->
-        <div class="flex min-w-0 flex-col gap-3">
-          <div class="flex flex-wrap items-center gap-3">
+      <div
+        class="h-1 w-full shrink-0 bg-gradient-to-r from-orange-400 via-orange-500 to-slate-900 dark:to-orange-300"
+        aria-hidden="true"
+      />
+
+      <div class="flex flex-col gap-3 p-4">
+        <!-- Fila superior: identidad + métricas | acciones rápidas -->
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="flex min-w-0 flex-wrap items-center gap-3">
             <div class="flex items-center gap-3">
               <div
                 class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-orange-200 bg-orange-50 text-orange-600 shadow-sm dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
@@ -1158,121 +1466,124 @@ defineExpose({ openAddModal });
                 {{ t('areaUsage', { used: usedArea.toFixed(1), total: m2Totales }) }}
               </span>
             </div>
-
-            <!-- Floor selector -->
-            <div
-              class="inline-flex items-center gap-1 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm dark:border-slate-800 dark:bg-slate-950"
-            >
-              <button
-                type="button"
-                class="flex h-7 w-7 items-center justify-center rounded-xl text-xs font-black text-slate-500 transition-all duration-200 hover:bg-slate-100 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-30 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
-                :disabled="store.currentFloor <= 1"
-                @click="store.setFloor(store.currentFloor - 1)"
-              >
-                -
-              </button>
-
-              <span
-                class="rounded-xl border border-orange-200 bg-orange-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-orange-700 dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
-              >
-                {{ t('floor') }} {{ store.currentFloor }}
-              </span>
-
-              <button
-                type="button"
-                class="flex h-7 w-7 items-center justify-center rounded-xl text-xs font-black text-slate-500 transition-all duration-200 hover:bg-slate-100 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-30 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
-                :disabled="store.currentFloor >= 3"
-                @click="store.setFloor(store.currentFloor + 1)"
-              >
-                +
-              </button>
-            </div>
           </div>
 
-          <!-- Tools row -->
-          <div class="flex flex-wrap items-center gap-2">
+          <div
+            class="editor2d-icon-rail tour-editor-2d-actions inline-flex shrink-0 items-center gap-1 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm dark:border-slate-800 dark:bg-slate-950"
+          >
             <button
               type="button"
-              class="tool-btn tool-btn-primary add-room-glow"
-              title="Añadir recinto con medidas"
-              @click="openAddModal"
+              class="editor2d-icon-action"
+              :title="isFullScreen ? t('exitFullscreen') : t('fullscreen')"
+              :aria-label="isFullScreen ? t('exitFullscreen') : t('fullscreen')"
+              @click="toggleFullScreen"
             >
-              <span class="material-symbols-outlined text-[20px]">add_home</span>
-              {{ t('addRoomBtn') }}
-            </button>
-
-            <!-- Corridor draw-mode toggle -->
-            <button
-              type="button"
-              class="tool-btn tool-btn-sm"
-              :class="corridorMode ? 'tool-btn-teal-active' : 'tool-btn-neutral'"
-              :title="corridorMode ? t('corridorsOn') : t('corridorsOff')"
-              @click="corridorMode = !corridorMode; corridorDraw = null"
-            >
-              <span class="material-symbols-outlined text-[15px]">route</span>
-              {{ t('corridors') }}
-            </button>
-
-            <button
-              type="button"
-              class="tool-btn tool-btn-sm"
-              :class="resizeLocked ? 'tool-btn-danger' : 'tool-btn-neutral'"
-              :title="resizeLocked ? t('unlockResize') : t('lockResize')"
-              @click="resizeLocked = !resizeLocked"
-            >
-              <span class="material-symbols-outlined text-[15px]">
-                {{ resizeLocked ? 'lock' : 'lock_open' }}
+              <span class="material-symbols-outlined text-[20px]">
+                {{ isFullScreen ? 'fullscreen_exit' : 'fullscreen' }}
               </span>
-              {{ resizeLocked ? t('resizeLocked') : t('resizeLock') }}
             </button>
-
           </div>
         </div>
 
-        <!-- Fullscreen -->
-        <button
-          type="button"
-          class="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-slate-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 hover:shadow-md active:scale-[0.98] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200 dark:hover:border-slate-700 dark:hover:bg-slate-900"
-          @click="toggleFullScreen"
-        >
-          <span class="material-symbols-outlined text-[18px]">
-            {{ isFullScreen ? 'fullscreen_exit' : 'fullscreen' }}
-          </span>
+        <!-- Fila inferior: piso + herramientas -->
+        <div class="tour-editor-2d-toolbar flex flex-wrap items-center gap-2">
+          <div
+            class="inline-flex items-center gap-1 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm dark:border-slate-800 dark:bg-slate-950"
+          >
+            <button
+              type="button"
+              class="flex h-8 w-8 items-center justify-center rounded-xl text-xs font-black text-slate-500 transition-all duration-200 hover:bg-slate-100 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-30 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+              :disabled="store.currentFloor <= 1"
+              @click="store.setFloor(store.currentFloor - 1)"
+            >
+              -
+            </button>
 
-          <span>
-            {{ isFullScreen ? t('exitFullscreen') : t('fullscreen') }}
-          </span>
-        </button>
+            <span
+              class="rounded-xl border border-orange-200 bg-orange-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-orange-700 dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
+            >
+              {{ t('floor') }} {{ store.currentFloor }}
+            </span>
+
+            <button
+              type="button"
+              class="flex h-8 w-8 items-center justify-center rounded-xl text-xs font-black text-slate-500 transition-all duration-200 hover:bg-slate-100 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-30 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+              :disabled="store.currentFloor >= 3"
+              @click="store.setFloor(store.currentFloor + 1)"
+            >
+              +
+            </button>
+          </div>
+
+          <button
+            type="button"
+            class="tool-btn tool-btn-primary add-room-glow"
+            :title="t('addRoomBtn')"
+            @click="openAddModal"
+          >
+            <span class="material-symbols-outlined text-[20px]">add_home</span>
+            {{ t('addRoomBtn') }}
+          </button>
+
+          <button
+            type="button"
+            class="tool-btn tool-btn-sm"
+            :class="corridorMode ? 'tool-btn-teal-active' : 'tool-btn-neutral'"
+            :title="corridorMode ? t('corridorsOn') : t('corridorsOff')"
+            @click="corridorMode = !corridorMode; corridorDraw = null; scheduleViewportAspectSync()"
+          >
+            <span class="material-symbols-outlined text-[15px]">route</span>
+            {{ t('corridors') }}
+          </button>
+
+          <button
+            type="button"
+            class="tool-btn tool-btn-sm"
+            :class="resizeLocked ? 'tool-btn-danger' : 'tool-btn-neutral'"
+            :title="resizeLocked ? t('unlockResize') : t('lockResize')"
+            @click="resizeLocked = !resizeLocked"
+          >
+            <span class="material-symbols-outlined text-[15px]">
+              {{ resizeLocked ? 'lock' : 'lock_open' }}
+            </span>
+            {{ resizeLocked ? t('resizeLocked') : t('resizeLock') }}
+          </button>
+        </div>
       </div>
     </header>
 
-    <!-- Usage bar -->
-    <div class="h-1 w-full shrink-0 overflow-hidden bg-slate-100 dark:bg-slate-800">
-      <div
-        class="h-full rounded-r-full transition-all duration-300 ease-out"
-        :style="{ width: `${freePct}%`, backgroundColor: descripcionEstado.color }"
-      ></div>
-    </div>
+    <!-- Canvas shell (aligned with Scene3D viewport) -->
+    <div
+      class="editor2d-canvas relative flex min-h-0 flex-row overflow-hidden rounded-3xl border border-slate-200 bg-slate-950 shadow-inner dark:border-slate-800"
+      :class="isFullScreen ? 'flex-1' : ''"
+      style="perspective: 1000px;"
+    >
+      <div class="pointer-events-none absolute inset-x-0 top-0 z-10 h-1 overflow-hidden bg-slate-800/80">
+        <div
+          class="h-full rounded-r-full transition-all duration-300 ease-out"
+          :style="{ width: `${freePct}%`, backgroundColor: descripcionEstado.color }"
+        />
+      </div>
 
-    <!-- Canvas + side panel wrapper -->
-    <div class="relative flex min-h-[420px] flex-1 flex-row overflow-hidden" style="perspective: 1000px;">
-      <div class="relative flex flex-1 items-center justify-center overflow-hidden bg-slate-50 dark:bg-slate-950">
+      <div
+        ref="svgViewportRef"
+        class="editor2d-viewport relative min-h-0 min-w-0 flex-1 overflow-hidden bg-slate-950"
+      >
         <svg
           ref="svgRef"
           :viewBox="viewBox"
           width="100%"
-          :height="isFullScreen ? '100%' : '420'"
-          class="w-full editor-svg"
-          :class="{ 'disable-rect-transitions': isMathUpdating }"
-          style="touch-action: none; transform-origin: center;"
-          :style="{
-            transition: isVisualAnimating ? 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)' : 'none',
-            transform: `rotate(${visualRotation}deg)`
-          }"
+          height="100%"
+          class="block h-full w-full editor-svg editor-svg--viewport"
+          :class="{ 'disable-rect-transitions': disableRectTransitions }"
+          style="touch-action: none;"
           preserveAspectRatio="xMidYMid meet"
+          @pointermove="onPointerMove"
+          @pointerup="onPointerUp"
+          @pointercancel="onPointerUp"
         >
           <defs>
-            <!-- Grid menor: 0.5 m -->
+            <!-- Grid menor: 0,25 m (mitad de 0,5 m) -->
             <pattern
               id="grid-minor"
               :width="patternMinorPx"
@@ -1283,7 +1594,7 @@ defineExpose({ openAddModal });
               <path
                 :d="`M ${patternMinorPx} 0 L 0 0 0 ${patternMinorPx}`"
                 fill="none"
-                stroke="rgba(148,163,184,0.16)"
+                :stroke="gridMinorStroke"
                 stroke-width="0.5"
               />
             </pattern>
@@ -1300,7 +1611,7 @@ defineExpose({ openAddModal });
               <path
                 :d="`M ${patternMajorPx} 0 L 0 0 0 ${patternMajorPx}`"
                 fill="none"
-                stroke="rgba(148,163,184,0.38)"
+                :stroke="gridMajorStroke"
                 stroke-width="1"
               />
             </pattern>
@@ -1310,6 +1621,7 @@ defineExpose({ openAddModal });
             </filter>
           </defs>
 
+          <g :transform="worldGroupTransform" :style="worldGroupStyle">
           <!-- Canvas base -->
           <rect
             x="0"
@@ -1317,9 +1629,32 @@ defineExpose({ openAddModal });
             :width="vbW"
             :height="vbH"
             :fill="canvasBaseFill"
-            :class="corridorMode ? 'cursor-crosshair' : ''"
+            :class="corridorMode ? 'editor-hit-crosshair' : 'editor-hit-surface'"
             @pointerdown="corridorMode ? startCorridorDraw($event) : (editor.selectedRecintoId.value = null)"
           />
+
+          <!-- Corridor draw hint (fuera del recuadro del terreno) -->
+          <g v-if="corridorMode && !corridorDraw" style="pointer-events: none;">
+            <rect
+              :x="corridorDrawHintLayout.rectX"
+              :y="corridorDrawHintLayout.rectY"
+              :width="corridorDrawHintLayout.rectW"
+              :height="corridorDrawHintLayout.rectH"
+              rx="8"
+              fill="rgba(13,148,136,0.88)"
+            />
+            <text
+              :x="corridorDrawHintLayout.cx"
+              :y="corridorDrawHintLayout.textY"
+              fill="white"
+              :font-size="corridorDrawHintLayout.fontSize"
+              font-weight="800"
+              text-anchor="middle"
+              dominant-baseline="middle"
+            >
+              ✦ Arrastra para dibujar un pasillo
+            </text>
+          </g>
 
           <!-- Budget boundary rectangle -->
           <rect
@@ -1362,8 +1697,10 @@ defineExpose({ openAddModal });
           <!-- Ghost Trace -->
           <g
             v-if="ghostRoom"
-            class="transition-opacity duration-1000 ease-out"
-            :class="isGhostFading ? 'opacity-0' : 'opacity-80'"
+            :class="[
+              isGhostFading ? 'opacity-0' : 'opacity-80',
+              prefersReducedMotion() ? '' : 'transition-opacity duration-1000 ease-out',
+            ]"
           >
             <rect
               :x="toSX(ghostRoom.coords.x)"
@@ -1379,32 +1716,8 @@ defineExpose({ openAddModal });
             />
           </g>
 
-          <!-- Corridor draw mode: instrucción flotante + preview en tiempo real -->
+          <!-- Corridor draw mode: preview en tiempo real -->
           <g v-if="corridorMode" style="pointer-events: none;">
-            <!-- Hint cuando no hay draw activo -->
-            <g v-if="!corridorDraw">
-              <rect
-                :x="toSX(budgetRect.w / 2) - 130"
-                :y="toSZ(0) + 10"
-                width="260"
-                height="24"
-                rx="8"
-                fill="rgba(13,148,136,0.85)"
-              />
-              <text
-                :x="toSX(budgetRect.w / 2)"
-                :y="toSZ(0) + 26"
-                fill="white"
-                font-size="10"
-                font-weight="800"
-                text-anchor="middle"
-                dominant-baseline="middle"
-              >
-                ✦ Arrastra para dibujar un pasillo
-              </text>
-            </g>
-
-            <!-- Preview rect mientras se arrastra -->
             <g v-if="corridorDraw && corridorDraw.preview.w > 0 && corridorDraw.preview.l > 0">
               <!-- Sombra fill igual que un recinto de tipo pasillo -->
               <rect
@@ -1491,8 +1804,8 @@ defineExpose({ openAddModal });
               :stroke-width="isActive(recinto.id) ? 2.6 : isSelected(recinto.id) ? 2.2 : 1.5"
               rx="5"
               :filter="isActive(recinto.id) ? 'none' : 'url(#room-shadow)'"
-              class="cursor-grab"
-              :class="{ 'cursor-grabbing': isActive(recinto.id) && editor.activeMode.value === 'drag' }"
+              class="editor-hit-pointer"
+              :class="{ 'editor-hit-grabbing': isActive(recinto.id) && editor.activeMode.value === 'drag' }"
               @pointerdown="(e) => startDrag(e, recinto.id)"
             />
 
@@ -1528,7 +1841,7 @@ defineExpose({ openAddModal });
             <!-- Budget toggle -->
             <g
               v-if="(recinto.piso || 1) === store.currentFloor"
-              class="cursor-pointer"
+              class="editor-hit-pointer"
               @pointerdown.stop.prevent="(e) => onToggleBudget(e, recinto.id)"
             >
               <!-- Invisible hit area 40×40 for easy tapping -->
@@ -1569,7 +1882,7 @@ defineExpose({ openAddModal });
               width="30"
               height="30"
               fill="transparent"
-              class="cursor-nwse-resize"
+              class="editor-hit-resize"
               @pointerdown="(e) => startResize(e, recinto.id)"
             />
 
@@ -1715,6 +2028,7 @@ defineExpose({ openAddModal });
                 </text>
               </g>
             </g>
+          </g>
           </g>
         </svg>
       </div>
@@ -1949,24 +2263,106 @@ defineExpose({ openAddModal });
 </template>
 
 <style scoped>
-.editor-svg {
+.editor2d-root.normal-mode {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.editor2d-root.normal-mode .editor2d-canvas {
+  width: 100%;
+  height: 420px;
+  flex: 0 0 auto;
+}
+
+.editor2d-root.editor2d-root--fs,
+.editor2d-root:fullscreen {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  max-height: 100dvh;
+  min-height: 0;
+}
+
+.editor2d-root.editor2d-root--fs .editor2d-canvas,
+.editor2d-root:fullscreen .editor2d-canvas {
+  flex: 1 1 auto;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+}
+
+.editor2d-root.editor2d-root--fs header,
+.editor2d-root:fullscreen header {
+  flex-shrink: 0;
+}
+
+.editor2d-viewport {
+  height: 100%;
+  min-height: 0;
+}
+
+.editor-svg--viewport {
   background:
-    radial-gradient(circle at top left, rgba(249, 115, 22, 0.08), transparent 28%),
-    linear-gradient(135deg, #f8fafc, #eef2f7);
+    radial-gradient(circle at 18% 12%, rgba(249, 115, 22, 0.09), transparent 34%),
+    transparent;
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
-.dark .editor-svg {
-  background:
-    radial-gradient(circle at top left, rgba(251, 146, 60, 0.08), transparent 28%),
-    linear-gradient(135deg, #0f172a, #020617);
+.editor2d-viewport {
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
-svg rect.cursor-grab:hover {
-  filter: brightness(1.12);
+.editor2d-canvas {
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
-svg rect.cursor-grabbing {
+.editor2d-root header {
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.editor2d-root header .tool-btn,
+.editor2d-root header .icon-action,
+.editor2d-root header button:not(:disabled) {
+  cursor: pointer;
+}
+
+.editor-svg--viewport text,
+.editor-svg--viewport tspan {
+  cursor: default;
+  pointer-events: none;
+}
+
+.editor-svg--viewport .editor-hit-surface {
+  cursor: default;
+}
+
+.editor-svg--viewport .editor-hit-pointer {
+  cursor: pointer;
+}
+
+.editor-svg--viewport .editor-hit-grabbing {
   cursor: grabbing;
+}
+
+.editor-svg--viewport .editor-hit-resize {
+  cursor: nwse-resize;
+}
+
+.editor-svg--viewport .editor-hit-crosshair {
+  cursor: crosshair;
+}
+
+svg rect.editor-hit-pointer:hover {
+  filter: brightness(1.12);
 }
 
 .tool-btn {
@@ -2003,6 +2399,45 @@ svg rect.cursor-grabbing {
   border-color: rgb(254 215 170);
   background: rgb(255 247 237);
   color: rgb(194 65 12);
+}
+
+.editor2d-icon-action {
+  display: inline-flex;
+  height: 2.25rem;
+  width: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
+  border: 1px solid transparent;
+  color: rgb(71 85 105);
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    background-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.editor2d-icon-action:hover {
+  transform: translateY(-1px);
+  border-color: rgb(226 232 240);
+  background: rgb(248 250 252);
+  color: rgb(15 23 42);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+}
+
+.editor2d-icon-action:active {
+  transform: scale(0.96);
+}
+
+.dark .editor2d-icon-action {
+  color: rgb(148 163 184);
+}
+
+.dark .editor2d-icon-action:hover {
+  border-color: rgb(51 65 85);
+  background: rgb(30 41 59);
+  color: rgb(248 250 252);
 }
 
 .add-room-glow {

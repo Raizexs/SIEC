@@ -83,7 +83,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - working-directory: ./scraper
+      - name: Install scraper deps
+        working-directory: ./scraper
         run: |
+          pip install pytest
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          if [ -f tests/test_smoke.py ]; then pytest tests/test_smoke.py -q; fi
+      - name: Scraper tests
+        working-directory: ./scraper
+        run: pytest tests/ -q --ignore=tests/test_search.py

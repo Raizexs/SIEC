@@ -1054,6 +1054,23 @@ export const PROPOSAL_CSS = `
     font-size: 9.8pt;
   }
 
+  body.pdf-watermark .proposal .page {
+    position: relative;
+  }
+
+  body.pdf-watermark .proposal .page::after {
+    content: 'SIEC · Plan Free';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%) rotate(-35deg);
+    font: 700 42px/1 Helvetica, Arial, sans-serif;
+    color: rgba(15, 23, 42, 0.1);
+    pointer-events: none;
+    z-index: 50;
+    white-space: nowrap;
+  }
+
   @page {
     size: A4 portrait;
     margin: 0;

@@ -15,6 +15,7 @@ import {
   CheckCircle2,
 } from 'lucide-vue-next';
 import AppRail from '../components/shell/AppRail.vue';
+import BillingPlansSection from '../components/billing/BillingPlansSection.vue';
 import { useI18n } from '../composables/useI18n';
 
 const SettingsProfileCard = defineAsyncComponent(() =>
@@ -353,6 +354,8 @@ watch(
                   </dl>
                 </div>
               </article>
+
+              <BillingPlansSection />
 
               <article
                 class="overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30"
