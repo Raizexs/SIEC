@@ -17,6 +17,8 @@ import { toast } from "vue-sonner";
 import { exportBudget, getMaterialLabel, flattenDesgloseRows } from "../utils/budgetExporter";
 import { useBilling } from "../composables/useBilling";
 import { useApi, HttpError } from "../composables/useApi";
+import { useSiecPlace } from "../composables/useSiecPlace";
+import { useRoute } from "vue-router";
 import { captureSceneImage } from "../proposal/proposalSceneCapture";
 import { resolveBrandLogoUrl } from "../proposal/proposalBrand";
 import { reorganizeDesglose } from "../utils/budgetCategorizer";
@@ -30,7 +32,9 @@ const recintosStore = useRecintosStore();
 const workspaceStore = useWorkspaceStore();
 const { productPreferences } = useProductPreferences();
 const api = useApi();
-const { recordExport, handlePlanLimitError, clampMaterialId, canUseMaterial, limits } = useBilling();
+const route = useRoute();
+const { recordExport, handlePlanLimitError, clampMaterialId, canUseMaterial, limits, hasMarketplaceAccess } = useBilling();
+const { createListing, checkoutPublish } = useSiecPlace();
 
 const emit = defineEmits(["budget-calculated"]);
 
@@ -48,6 +52,7 @@ const props = defineProps({
     default: "full",
     validator: (value) => ["full", "budget", "export"].includes(value),
   },
+  projectId: { type: String, default: null },
 });
 
 const sharedSession = inject(WORKSPACE_BUDGET_SESSION_KEY, null);
@@ -122,6 +127,57 @@ const canExport = computed(
 const showBudgetExportFooter = computed(
   () => props.panelMode === "budget" && canExport.value,
 );
+
+const resolvedProjectId = computed(
+  () => props.projectId || route.params.projectId || null,
+);
+
+const isPublishableProject = computed(() => {
+  const id = resolvedProjectId.value;
+  if (!id) return false;
+  if (String(id).startsWith("local-")) return false;
+  return !/^\d+$/.test(String(id));
+});
+
+const showSiecPlacePublish = computed(
+  () =>
+    canExport.value &&
+    hasMarketplaceAccess.value &&
+    isPublishableProject.value &&
+    (props.panelMode === "budget" || props.panelMode === "export"),
+);
+
+const publishDialogOpen = ref(false);
+const publishTitle = ref("");
+const publishRegion = ref("");
+const publishLoading = ref(false);
+
+const openPublishDialog = () => {
+  publishTitle.value = workspaceStore.activePresetName || t("siecplacePublishTitle");
+  publishRegion.value = "";
+  publishDialogOpen.value = true;
+};
+
+const submitPublish = async () => {
+  if (!resolvedProjectId.value) return;
+  publishLoading.value = true;
+  try {
+    const listing = await createListing({
+      project_id: String(resolvedProjectId.value),
+      title: publishTitle.value.trim() || t("siecplacePublishTitle"),
+      region: publishRegion.value.trim() || null,
+      m2: Math.round(props.m2Totales),
+      material_id: props.materialEstructuralId,
+      estimated_total_clp: totalPreferido.value ?? motorTotal.value,
+    });
+    publishDialogOpen.value = false;
+    await checkoutPublish(listing.id);
+  } catch (err) {
+    console.error("[siecplace] publish failed", err);
+  } finally {
+    publishLoading.value = false;
+  }
+};
 
 const showPrintExportHint = computed(
   () =>
@@ -747,6 +803,17 @@ onUnmounted(() => {
                 {{ t("budgetUpdated") }} {{ formatDate(fechaPrecios) }}
               </div>
 
+              <div v-if="(showExportInHeader && canExport) || showSiecPlacePublish" class="flex flex-wrap items-center gap-2">
+                <button
+                  v-if="showSiecPlacePublish"
+                  type="button"
+                  class="inline-flex items-center justify-center gap-2 rounded-2xl border border-violet-300/70 bg-violet-600 px-4 py-2.5 text-xs font-bold uppercase tracking-tight text-white shadow-lg shadow-violet-600/20 transition-all duration-200 hover:-translate-y-0.5 hover:bg-violet-500"
+                  @click="openPublishDialog"
+                >
+                  <span class="material-symbols-outlined text-[16px]">storefront</span>
+                  {{ t("siecplacePublishCta") }}
+                </button>
+
               <div v-if="showExportInHeader && canExport" class="relative budget-export-menu">
                 <button
                   type="button"
@@ -805,6 +872,7 @@ onUnmounted(() => {
                     </button>
                   </div>
                 </Transition>
+              </div>
               </div>
             </div>
           </div>
@@ -1090,7 +1158,18 @@ onUnmounted(() => {
               </p>
             </div>
 
-            <div class="relative shrink-0 budget-export-menu">
+            <div class="relative shrink-0 flex flex-col gap-2 sm:flex-row sm:items-center">
+              <button
+                v-if="showSiecPlacePublish"
+                type="button"
+                class="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-violet-300/70 bg-violet-600 px-5 py-3 text-sm font-bold uppercase tracking-tight text-white shadow-lg shadow-violet-600/20 transition-all duration-200 hover:-translate-y-0.5 hover:bg-violet-500 sm:w-auto"
+                @click="openPublishDialog"
+              >
+                <span class="material-symbols-outlined text-[18px]">storefront</span>
+                {{ t("siecplacePublishCta") }}
+              </button>
+
+              <div class="relative budget-export-menu">
               <button
                 type="button"
                 :title="t('budgetExportTitle')"
@@ -1144,9 +1223,64 @@ onUnmounted(() => {
                   </button>
                 </div>
               </Transition>
+              </div>
             </div>
           </div>
         </section>
+      </div>
+    </div>
+
+    <div
+      v-if="publishDialogOpen"
+      class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      :aria-label="t('siecplacePublishTitle')"
+    >
+      <div class="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-950">
+        <h3 class="text-lg font-black text-slate-950 dark:text-slate-50">
+          {{ t("siecplacePublishTitle") }}
+        </h3>
+        <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">
+          {{ t("siecplacePublishHint") }}
+        </p>
+
+        <label class="mt-5 block text-xs font-bold uppercase tracking-wide text-slate-500">
+          {{ t("budgetExportTitle") }}
+          <input
+            v-model="publishTitle"
+            type="text"
+            class="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-900"
+          />
+        </label>
+
+        <label class="mt-4 block text-xs font-bold uppercase tracking-wide text-slate-500">
+          {{ t("siecplacePublishRegion") }}
+          <input
+            v-model="publishRegion"
+            type="text"
+            class="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-900"
+          />
+        </label>
+
+        <div class="mt-6 flex gap-2">
+          <button
+            type="button"
+            class="flex-1 rounded-2xl border border-slate-200 py-2.5 text-sm font-bold dark:border-slate-700"
+            :disabled="publishLoading"
+            @click="publishDialogOpen = false"
+          >
+            {{ t("settingsBack") }}
+          </button>
+          <button
+            type="button"
+            class="flex-1 rounded-2xl bg-violet-600 py-2.5 text-sm font-bold text-white hover:bg-violet-500 disabled:opacity-60"
+            :disabled="publishLoading"
+            @click="submitPublish"
+          >
+            {{ publishLoading ? "…" : t("siecplacePublishSubmit") }}
+          </button>
+        </div>
       </div>
     </div>
   </section>

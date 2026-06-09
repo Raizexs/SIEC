@@ -4,8 +4,8 @@
  * Layout: AppRail at the left + premium content shell at right.
  */
 
-import { ref, computed, onMounted, watch } from "vue";
-import { useRouter, useRoute } from "vue-router";
+import { ref, computed, onMounted } from "vue";
+import { useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 import { useApi, HttpError } from "../composables/useApi";
 import { useLayoutManager } from "../composables/useLayoutManager";
@@ -29,13 +29,11 @@ import {
 
 import AppRail from "../components/shell/AppRail.vue";
 import AppTopBar from "../components/shell/AppTopBar.vue";
-import PortfolioAnalyticsPanel from "./PortfolioAnalyticsPanel.vue";
 import { useProMotion } from "../composables/useProMotion";
-import { usePortfolioAnalytics, materialName } from "../composables/usePortfolioAnalytics";
+import { materialName } from "../composables/usePortfolioAnalytics";
 import { useI18n } from "../composables/useI18n";
 
 const router = useRouter();
-const route = useRoute();
 const { t, currentLanguage } = useI18n();
 const auth = useAuthStore();
 const api = useApi();
@@ -93,14 +91,6 @@ const filtered = computed(() => {
     return true;
   });
 });
-
-const isAnalyticsView = computed(() => route.query.view === "analytics");
-
-const { analytics } = usePortfolioAnalytics(
-  projects,
-  savedLayouts,
-  fetchError,
-);
 
 const firstName = computed(() => {
   void currentLanguage.value;
@@ -194,12 +184,6 @@ const filters = computed(() => {
 });
 
 onMounted(fetchProjects);
-
-// Refresca proyectos al entrar a la vista analítica para mostrar
-// el estimated_cost actualizado por el workspace.
-watch(isAnalyticsView, (entering) => {
-  if (entering) fetchProjects();
-});
 </script>
 
 <template>
@@ -222,7 +206,7 @@ watch(isAnalyticsView, (entering) => {
             <h1
               class="mt-0.5 truncate text-base font-black tracking-tight text-slate-950 dark:text-slate-100"
             >
-              {{ isAnalyticsView ? t('dashAnalytics') : t('dashProjects') }}
+              {{ t('dashProjects') }}
             </h1>
           </div>
         </template>
@@ -243,17 +227,6 @@ watch(isAnalyticsView, (entering) => {
         <div
           class="mx-auto max-w-7xl space-y-8 px-4 py-6 sm:px-6 lg:px-8 lg:py-8"
         >
-          <PortfolioAnalyticsPanel
-            v-if="isAnalyticsView"
-            :snapshot="analytics"
-            :is-loading="isLoadingProjects"
-            :fetch-error="fetchError"
-            :has-remote-projects="hasRemoteProjects"
-            @open-project="openProject"
-            @new-project="newProject"
-          />
-
-          <template v-else>
           <!-- Hero -->
           <section
             data-motion="hero"
@@ -681,7 +654,6 @@ watch(isAnalyticsView, (entering) => {
               </span>
             </p>
           </transition>
-          </template>
         </div>
       </main>
     </div>

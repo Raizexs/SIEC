@@ -1006,6 +1006,7 @@ const startTutorial = () => {
             <BudgetBreakdownPanel
               v-if="recintosStore.selectedM2 > 0"
               panel-mode="budget"
+              :project-id="projectId"
               :m2Totales="recintosStore.selectedM2"
               :materialEstructuralId="formData.materialEstructuralId"
               :perimetroMl="Number(totalWallLength)"
@@ -1043,6 +1044,7 @@ const startTutorial = () => {
             <BudgetBreakdownPanel
               v-if="recintosStore.selectedM2 > 0 && hasBudget"
               panel-mode="export"
+              :project-id="projectId"
               :m2Totales="recintosStore.selectedM2"
               :materialEstructuralId="formData.materialEstructuralId"
               :perimetroMl="Number(totalWallLength)"
