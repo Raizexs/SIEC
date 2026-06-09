@@ -1,9 +1,12 @@
 <script setup>
-import { ref, watch, computed, nextTick, onMounted, onUnmounted } from "vue";
+import { ref, watch, computed, nextTick, onMounted, onUnmounted, inject } from "vue";
 import { useI18n } from "../composables/useI18n";
 import { useRecintosStore } from "../stores/recintos";
 import { useWorkspaceStore } from "../stores/workspace";
 import { useProductPreferences } from "../composables/useProductPreferences";
+import {
+  WORKSPACE_BUDGET_SESSION_KEY,
+} from "../composables/useWorkspaceBudgetSession";
 import {
   withContingency,
   ivaOnAmount,
@@ -27,7 +30,7 @@ const recintosStore = useRecintosStore();
 const workspaceStore = useWorkspaceStore();
 const { productPreferences } = useProductPreferences();
 const api = useApi();
-const { recordExport, handlePlanLimitError, clampMaterialId, canUseMaterial } = useBilling();
+const { recordExport, handlePlanLimitError, clampMaterialId, canUseMaterial, limits } = useBilling();
 
 const emit = defineEmits(["budget-calculated"]);
 
@@ -39,18 +42,50 @@ const props = defineProps({
   alturaMuroM: { type: Number, default: 2.44 },
   perimetroMl: { type: Number, default: null },
   pdfWatermark: { type: Boolean, default: true },
+  /** full | budget | export — recorta UI según paso del workspace */
+  panelMode: {
+    type: String,
+    default: "full",
+    validator: (value) => ["full", "budget", "export"].includes(value),
+  },
 });
 
-const isLoading = ref(false);
-const error = ref(null);
-const desglose = ref([]);
-const costoTotal = ref(null);
-const fechaPrecios = ref(null);
-const hasGenerated = ref(false);
+const sharedSession = inject(WORKSPACE_BUDGET_SESSION_KEY, null);
+
+const localHasGenerated = ref(false);
+const localDesglose = ref([]);
+const localCostoTotal = ref(null);
+const localFechaPrecios = ref(null);
+const localError = ref(null);
+const localIsLoading = ref(false);
+const localDisabledCategories = ref(new Set());
+
+const hasGenerated = sharedSession?.hasGenerated ?? localHasGenerated;
+const desglose = sharedSession?.desglose ?? localDesglose;
+const costoTotal = sharedSession?.costoTotal ?? localCostoTotal;
+const fechaPrecios = sharedSession?.fechaPrecios ?? localFechaPrecios;
+const error = sharedSession?.error ?? localError;
+const isLoading = sharedSession?.isLoading ?? localIsLoading;
+const disabledCategories = sharedSession?.disabledCategories ?? localDisabledCategories;
+
+const showExportControls = computed(
+  () => props.panelMode === "full" || props.panelMode === "export",
+);
+const showBreakdown = computed(
+  () => props.panelMode === "full" || props.panelMode === "budget",
+);
+const showCalculateState = computed(
+  () => props.panelMode !== "export" && !hasGenerated.value,
+);
+const isExportPanel = computed(() => props.panelMode === "export");
+const showPrintExportHint = computed(
+  () =>
+    isExportPanel.value &&
+    productPreferences.value.export?.includePrintReviewBlock !== true,
+);
 const exportMenuOpen = ref(false);
 const exportFormat = ref(null);
 const exportMenuRef = ref(null);
-const disabledCategories = ref(new Set());
 
 const enabledDesglose = computed(() =>
   desglose.value.filter(cat => !disabledCategories.value.has(cat.categoria)),
@@ -275,11 +310,16 @@ watch(
 
 const buildExportPayload = () => {
   const desgloseSnapshot = JSON.parse(JSON.stringify(enabledDesglose.value || []));
+  const canBrand = limits.value.custom_export_branding === true;
 
   return {
     projectName: workspaceStore.activePresetName,
-    businessName: productPreferences.value.export?.businessName?.trim() || "",
-    reportFooter: productPreferences.value.export?.reportFooter?.trim() || "",
+    businessName: canBrand
+      ? productPreferences.value.export?.businessName?.trim() || ""
+      : "",
+    reportFooter: canBrand
+      ? productPreferences.value.export?.reportFooter?.trim() || ""
+      : "",
     m2Totales: props.m2Totales,
     materialEstructuralId: props.materialEstructuralId,
     materialNombre: getMaterialLabel(props.materialEstructuralId),
@@ -297,7 +337,16 @@ const buildExportPayload = () => {
         : formatCurrency(costoTotal.value),
     contingencyPct: productPreferences.value.contingency,
     includeTax: productPreferences.value.includeTax,
-    includeLogo: productPreferences.value.export?.includeLogo !== false,
+    includeLogo: canBrand
+      ? productPreferences.value.export?.includeLogo !== false
+      : true,
+    includeMaterialsBreakdown:
+      productPreferences.value.export?.includeMaterialsBreakdown !== false,
+    includeUnitPrices: productPreferences.value.export?.includeUnitPrices !== false,
+    includeSnapshots: productPreferences.value.export?.includeSnapshots !== false,
+    includePrintReviewBlock:
+      productPreferences.value.export?.includePrintReviewBlock === true,
+    export: { ...productPreferences.value.export },
     logoUrl: resolveBrandLogoUrl(),
     pdfWatermark: props.pdfWatermark,
   };
@@ -334,7 +383,9 @@ const handleExport = async (format) => {
     await recordExport();
     const payload = buildExportPayload();
     if (format === "pdf") {
-      payload.sceneImageDataUrl = await captureSceneImage();
+      if (payload.includeSnapshots !== false) {
+        payload.sceneImageDataUrl = await captureSceneImage();
+      }
       toast.loading(t("budgetPdfGenerating"), { id: toastId });
     }
     await exportBudget(format, payload);
@@ -379,6 +430,7 @@ onUnmounted(() => {
 
     <!-- Header -->
     <header
+      v-if="!isExportPanel"
       class="relative z-10 mb-7 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"
     >
       <div class="flex items-start gap-3">
@@ -421,9 +473,71 @@ onUnmounted(() => {
       </div>
     </header>
 
+    <header
+      v-else
+      class="relative z-10 mb-7 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"
+    >
+      <div class="flex items-start gap-3">
+        <div
+          class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-violet-200 bg-violet-50 text-violet-600 shadow-sm dark:border-violet-900/60 dark:bg-violet-950/30 dark:text-violet-300"
+        >
+          <span class="material-symbols-outlined text-[23px]">
+            upload_file
+          </span>
+        </div>
+
+        <div>
+          <p
+            class="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
+          >
+            {{ t("budgetExportTitle") }}
+          </p>
+
+          <h2
+            class="mt-1 text-2xl font-black tracking-tight text-slate-950 dark:text-slate-100"
+          >
+            {{ t("exportPanelTitle") }}
+          </h2>
+
+          <p
+            class="mt-1 max-w-2xl text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400"
+          >
+            {{ t("exportPanelSubtitle") }}
+          </p>
+        </div>
+      </div>
+
+      <div
+        class="inline-flex w-fit items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
+      >
+        <span class="material-symbols-outlined text-[15px] text-slate-400">
+          square_foot
+        </span>
+        {{ t("budgetM2Calculated", { m2: Math.round(m2Totales) }) }}
+      </div>
+    </header>
+
+    <div
+      v-if="showPrintExportHint && hasGenerated && !isLoading"
+      class="relative z-10 mb-5 flex items-start gap-3 rounded-2xl border border-sky-200/90 bg-sky-50/90 px-4 py-3 dark:border-sky-900/60 dark:bg-sky-950/30"
+    >
+      <span class="material-symbols-outlined mt-0.5 text-[18px] text-sky-600 dark:text-sky-300">
+        info
+      </span>
+      <p class="text-xs font-medium leading-relaxed text-sky-900 dark:text-sky-100">
+        {{ t("budgetPrintPrefHint") }}
+        <a
+          href="/settings?tab=preferences"
+          class="font-bold underline decoration-sky-400/70 underline-offset-2 hover:text-sky-700 dark:hover:text-sky-200"
+        >
+          {{ t("budgetPrintPrefLink") }}
+        </a>
+      </p>
+    </div>
+
     <!-- Initial state -->
     <div
-      v-if="!hasGenerated"
+      v-if="showCalculateState"
       class="relative z-10 flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-slate-50/70 px-5 py-14 text-center dark:border-slate-700 dark:bg-slate-900/50"
     >
       <div
@@ -624,7 +738,7 @@ onUnmounted(() => {
                 {{ t("budgetUpdated") }} {{ formatDate(fechaPrecios) }}
               </div>
 
-              <div v-if="canExport" class="relative budget-export-menu">
+              <div v-if="showExportControls && canExport" class="relative budget-export-menu">
                 <button
                   type="button"
                   :title="t('budgetExportTitle')"
@@ -688,7 +802,7 @@ onUnmounted(() => {
         </section>
 
         <!-- Breakdown -->
-        <section class="space-y-3">
+        <section v-if="showBreakdown" class="space-y-3">
           <div class="flex items-center justify-between gap-3">
             <div>
               <h3
