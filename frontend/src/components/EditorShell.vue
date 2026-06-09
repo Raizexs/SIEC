@@ -134,6 +134,7 @@ const selectedM2 = computed(() => recintosStore.selectedM2 ?? 0);
 const {
   currentStep,
   suggestedStep,
+  resetToConfigure,
   goToStep,
   nextStep,
   prevStep,
@@ -379,6 +380,8 @@ const hydrateProjectWorkspace = async (projectId) => {
 };
 
 const bootstrapWorkspace = async () => {
+  resetToConfigure();
+
   if (props.projectId) {
     await hydrateProjectWorkspace(props.projectId);
     return;

@@ -1,4 +1,4 @@
-import { ref, computed, watch } from 'vue';
+import { ref, computed } from 'vue';
 
 /** @typedef {'configure' | 'design' | 'budget' | 'export'} WorkspaceStepId */
 
@@ -48,20 +48,9 @@ export function useWorkspaceFlow({ recintosCount, hasBudget, selectedM2 }) {
     return 'configure';
   });
 
-  watch(
-    suggestedStep,
-    (next) => {
-      // Nunca saltar automáticamente a Exportar: el usuario exporta desde Presupuesto.
-      if (next === 'export') return;
-
-      const order = WORKSPACE_STEPS.findIndex((s) => s.id === currentStep.value);
-      const nextOrder = WORKSPACE_STEPS.findIndex((s) => s.id === next);
-      if (nextOrder > order) {
-        currentStep.value = next;
-      }
-    },
-    { flush: 'post' },
-  );
+  const resetToConfigure = () => {
+    currentStep.value = 'configure';
+  };
 
   const goToStep = (stepId) => {
     currentStep.value = stepId;
@@ -108,6 +97,7 @@ export function useWorkspaceFlow({ recintosCount, hasBudget, selectedM2 }) {
   return {
     currentStep,
     suggestedStep,
+    resetToConfigure,
     goToStep,
     nextStep,
     prevStep,
