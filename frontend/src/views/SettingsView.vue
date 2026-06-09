@@ -44,7 +44,16 @@ const route = useRoute();
 const { t, currentLanguage } = useI18n();
 const auth = useAuthStore();
 const { savedLayouts } = useLayoutManager();
-const { fetchBilling } = useBilling();
+const {
+  fetchBilling,
+  plan,
+  limits,
+  usage,
+  isFree,
+  isPro,
+  isProPlus,
+  hasMarketplaceAccess,
+} = useBilling();
 
 const tab = ref('profile');
 const motionRoot = ref(null);
@@ -103,7 +112,15 @@ const tabHeroDescription = computed(() => {
 
 const planModeBadges = computed(() => {
   void currentLanguage.value;
-  const badges = [{ id: 'free', label: t('settingsPlanBadgeFree') }];
+  const badges = [];
+
+  if (isProPlus.value) {
+    badges.push({ id: 'pro_plus', label: t('settingsPlanBadgeProPlus') });
+  } else if (isPro.value) {
+    badges.push({ id: 'pro', label: t('settingsPlanBadgePro') });
+  } else {
+    badges.push({ id: 'free', label: t('settingsPlanBadgeFree') });
+  }
 
   if (!isSupabaseConfigured || !auth.session) {
     badges.push({ id: 'local', label: t('settingsLocalMode') });
@@ -112,6 +129,109 @@ const planModeBadges = computed(() => {
   badges.push({ id: 'beta', label: t('settingsPlanBadgeBeta') });
 
   return badges;
+});
+
+const activePlanTitle = computed(() => {
+  void currentLanguage.value;
+  if (isProPlus.value) return t('settingsPlanProPlus');
+  if (isPro.value) return t('settingsPlanPro');
+  return t('settingsPlanFree');
+});
+
+const activePlanDescription = computed(() => {
+  void currentLanguage.value;
+  if (isProPlus.value) return t('settingsPlanProPlusDesc');
+  if (isPro.value) return t('settingsPlanProDesc');
+  return t('settingsPlanLocal');
+});
+
+const formatUsageLimit = (used, max) => {
+  if (max == null) return `${used ?? 0} · ${t('settingsPlanUnlimited')}`;
+  return `${used ?? 0} / ${max}`;
+};
+
+const usageCardRows = computed(() => {
+  void currentLanguage.value;
+  void plan.value;
+
+  const showLocalFreeCard =
+    isFree.value && (!isSupabaseConfigured || !auth.session);
+
+  if (showLocalFreeCard) {
+    return [
+      {
+        label: t('settingsLocalProjects'),
+        value: t('settingsPlanLocalSession'),
+      },
+      {
+        label: t('settingsSavedLayouts'),
+        value: t('settingsPlanLayouts', { count: savedLayoutsCount.value }),
+      },
+      {
+        label: t('settingsExports'),
+        value: t('settingsPlanExports'),
+      },
+      {
+        label: t('settingsCollaborators'),
+        value: t('settingsNotAvailableFree'),
+      },
+      {
+        label: t('settingsLastSync'),
+        value: auth.session
+          ? t('settingsSessionSupabase')
+          : t('settingsSessionLocal'),
+        span: 2,
+      },
+    ];
+  }
+
+  const rows = [
+    {
+      label: t('settingsPlanActiveProjects'),
+      value: formatUsageLimit(
+        usage.value.active_projects,
+        limits.value.max_active_projects,
+      ),
+    },
+    {
+      label: t('settingsPlanSavedProjects'),
+      value: formatUsageLimit(
+        usage.value.saved_projects,
+        limits.value.max_saved_projects,
+      ),
+    },
+    {
+      label: t('settingsPlanExportsMonth'),
+      value: formatUsageLimit(
+        usage.value.exports_this_month,
+        limits.value.max_exports_per_month,
+      ),
+    },
+  ];
+
+  if (hasMarketplaceAccess.value) {
+    rows.push({
+      label: t('settingsPlanMarketplace'),
+      value: t('settingsPlanMarketplaceActive'),
+    });
+  } else {
+    rows.push({
+      label: t('settingsCollaborators'),
+      value: t('settingsCollabNotAvailable', {
+        plan: isPro.value ? 'Pro' : 'Free',
+      }),
+    });
+  }
+
+  rows.push({
+    label: t('settingsLastSync'),
+    value: auth.session
+      ? t('settingsSessionSupabase')
+      : t('settingsSessionLocal'),
+    span: 2,
+  });
+
+  return rows;
 });
 
 const savedLayoutsCount = computed(() => savedLayouts.value?.length ?? 0);
@@ -206,11 +326,13 @@ watch(
   { immediate: true },
 );
 
-watch(tab, (value, previous) => {
-  if (value === 'billing' && previous !== undefined) {
-    fetchBilling(true);
-  }
-});
+watch(
+  tab,
+  (value) => {
+    if (value === 'billing') fetchBilling(true);
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
@@ -381,65 +503,24 @@ watch(tab, (value, previous) => {
                     </span>
                   </div>
                   <h2 class="mt-2 text-3xl font-black tracking-tight text-orange-950 dark:text-orange-50">
-                    {{ t('settingsPlanFree') }}
+                    {{ activePlanTitle }}
                   </h2>
                   <p class="mt-2 max-w-2xl text-sm font-medium leading-relaxed text-orange-900/85 dark:text-orange-100/85">
-                    {{ t('settingsPlanLocal') }}
+                    {{ activePlanDescription }}
                   </p>
 
                   <dl class="mt-6 grid gap-3 sm:grid-cols-2">
                     <div
+                      v-for="row in usageCardRows"
+                      :key="row.label"
                       class="rounded-2xl border border-orange-200/80 bg-white/90 p-4 dark:border-orange-900/60 dark:bg-slate-950/40"
+                      :class="row.span === 2 ? 'sm:col-span-2' : ''"
                     >
                       <dt class="text-[10px] font-black uppercase tracking-[0.14em] text-orange-800/80 dark:text-orange-200/80">
-                        {{ t('settingsLocalProjects') }}
+                        {{ row.label }}
                       </dt>
                       <dd class="mt-1 text-sm font-black text-orange-950 dark:text-orange-50">
-                        {{ t('settingsPlanLocalSession') }}
-                      </dd>
-                    </div>
-                    <div
-                      class="rounded-2xl border border-orange-200/80 bg-white/90 p-4 dark:border-orange-900/60 dark:bg-slate-950/40"
-                    >
-                      <dt class="text-[10px] font-black uppercase tracking-[0.14em] text-orange-800/80 dark:text-orange-200/80">
-                        {{ t('settingsSavedLayouts') }}
-                      </dt>
-                      <dd class="mt-1 text-sm font-black text-orange-950 dark:text-orange-50">
-                        {{ t('settingsPlanLayouts', { count: savedLayoutsCount }) }}
-                      </dd>
-                    </div>
-                    <div
-                      class="rounded-2xl border border-orange-200/80 bg-white/90 p-4 dark:border-orange-900/60 dark:bg-slate-950/40"
-                    >
-                      <dt class="text-[10px] font-black uppercase tracking-[0.14em] text-orange-800/80 dark:text-orange-200/80">
-                        {{ t('settingsExports') }}
-                      </dt>
-                      <dd class="mt-1 text-sm font-bold leading-snug text-orange-950 dark:text-orange-50">
-                        {{ t('settingsPlanExports') }}
-                      </dd>
-                    </div>
-                    <div
-                      class="rounded-2xl border border-orange-200/80 bg-white/90 p-4 dark:border-orange-900/60 dark:bg-slate-950/40"
-                    >
-                      <dt class="text-[10px] font-black uppercase tracking-[0.14em] text-orange-800/80 dark:text-orange-200/80">
-                        {{ t('settingsCollaborators') }}
-                      </dt>
-                      <dd class="mt-1 text-sm font-black text-orange-950 dark:text-orange-50">
-                        {{ t('settingsNotAvailableFree') }}
-                      </dd>
-                    </div>
-                    <div
-                      class="rounded-2xl border border-orange-200/80 bg-white/90 p-4 sm:col-span-2 dark:border-orange-900/60 dark:bg-slate-950/40"
-                    >
-                      <dt class="text-[10px] font-black uppercase tracking-[0.14em] text-orange-800/80 dark:text-orange-200/80">
-                        {{ t('settingsLastSync') }}
-                      </dt>
-                      <dd class="mt-1 text-sm font-black text-orange-950 dark:text-orange-50">
-                        {{
-                          auth.session
-                            ? t('settingsSessionSupabase')
-                            : t('settingsSessionLocal')
-                        }}
+                        {{ row.value }}
                       </dd>
                     </div>
                   </dl>
