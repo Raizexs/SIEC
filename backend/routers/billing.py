@@ -14,12 +14,12 @@ try:
     from auth import CurrentUser, get_current_user
     from database import get_db
     from billing.service import build_plan_payload, record_export, set_plan
-    from billing.plans import PLAN_LIMITS, STRIPE_PRICE_ENV
+    from billing.plans import PLAN_LIMITS, STRIPE_PRICE_ENV, STRIPE_PRICE_ENV_FALLBACK
 except ModuleNotFoundError:
     from backend.auth import CurrentUser, get_current_user  # type: ignore
     from backend.database import get_db  # type: ignore
     from backend.billing.service import build_plan_payload, record_export, set_plan  # type: ignore
-    from backend.billing.plans import PLAN_LIMITS, STRIPE_PRICE_ENV  # type: ignore
+    from backend.billing.plans import PLAN_LIMITS, STRIPE_PRICE_ENV, STRIPE_PRICE_ENV_FALLBACK  # type: ignore
 
 router = APIRouter(prefix="/billing", tags=["billing"])
 
@@ -68,6 +68,9 @@ def create_checkout(
     price_env = STRIPE_PRICE_ENV.get(body.plan)
     price_id = (os.getenv(price_env or "") or "").strip() if price_env else ""
     if not price_id:
+        fallback_env = STRIPE_PRICE_ENV_FALLBACK.get(body.plan)
+        price_id = (os.getenv(fallback_env or "") or "").strip() if fallback_env else ""
+    if not price_id:
         raise HTTPException(
             status_code=503,
             detail={
@@ -81,7 +84,7 @@ def create_checkout(
     cancel_url = f"{FRONTEND_URL}/settings?tab=billing&checkout=cancel"
 
     data = {
-        "mode": "subscription",
+        "mode": "payment",
         "success_url": success_url,
         "cancel_url": cancel_url,
         "client_reference_id": user.id,
@@ -90,8 +93,7 @@ def create_checkout(
         "line_items[0][quantity]": "1",
         "metadata[plan]": body.plan,
         "metadata[user_id]": user.id,
-        "subscription_data[metadata][plan]": body.plan,
-        "subscription_data[metadata][user_id]": user.id,
+        "metadata[payment_kind]": "plan",
     }
     data = {k: v for k, v in data.items() if v is not None}
 
@@ -112,7 +114,7 @@ def create_checkout(
         "session_id": session.get("id"),
         "plan": body.plan,
         "plan_label": limits.label,
-        "amount_clp_hint": limits.price_clp_month,
+        "amount_clp_hint": limits.price_clp_one_time,
     }
 
 
@@ -138,12 +140,30 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     data_obj = _event_data(event)
 
     if event_type == "checkout.session.completed":
-        user_id = (data_obj.get("metadata") or {}).get("user_id") or data_obj.get("client_reference_id")
-        plan = (data_obj.get("metadata") or {}).get("plan", "pro")
-        sub_id = data_obj.get("subscription")
-        if user_id and plan in PLAN_LIMITS:
-            set_plan(db, str(user_id), plan, provider="stripe", sub_id=str(sub_id) if sub_id else None)
+        metadata = data_obj.get("metadata") or {}
+        payment_kind = metadata.get("payment_kind", "plan")
+
+        if payment_kind in ("listing_fee", "lead_fee"):
+            try:
+                from siecplace.payments import handle_siecplace_checkout_completed
+            except ModuleNotFoundError:
+                from backend.siecplace.payments import handle_siecplace_checkout_completed  # type: ignore
+            handle_siecplace_checkout_completed(db, data_obj)
             db.commit()
+        else:
+            user_id = metadata.get("user_id") or data_obj.get("client_reference_id")
+            plan = metadata.get("plan", "pro")
+            session_id = data_obj.get("id")
+            if user_id and plan in PLAN_LIMITS:
+                set_plan(
+                    db,
+                    str(user_id),
+                    plan,
+                    provider="stripe",
+                    sub_id=str(session_id) if session_id else None,
+                    lifetime=True,
+                )
+                db.commit()
 
     elif event_type in ("customer.subscription.updated", "customer.subscription.created"):
         meta = data_obj.get("metadata") or {}
