@@ -70,6 +70,12 @@ const rootRef = ref(null);
 const headerRef = ref(null);
 
 const isFullScreen = ref(false);
+/** Minimapa: compacto en workspace; tamaño original en pantalla completa. */
+const MINIMAP_SIZE = 100;
+const MINIMAP_SIZE_FULLSCREEN = 128;
+const minimapSize = computed(() =>
+  isFullScreen.value ? MINIMAP_SIZE_FULLSCREEN : MINIMAP_SIZE,
+);
 const currentTool = ref('move'); // move | scale | measure
 const isWalkthrough = ref(false);
 const showFurniture = ref(true);
@@ -1795,7 +1801,7 @@ onBeforeUnmount(() => {
         :visible="showMinimap"
         :recintos="recintosStore.recintos"
         :camera-pos="cameraInfo"
-        :size="128"
+        :size="minimapSize"
       />
 
       <transition name="fade">

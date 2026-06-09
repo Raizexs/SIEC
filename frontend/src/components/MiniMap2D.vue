@@ -23,7 +23,7 @@ const props = defineProps({
   },
   size: {
     type: Number,
-    default: 128,
+    default: 100,
   },
   /** Si es false, no se monta el minimapa (preferencia de producto). */
   visible: {
@@ -78,7 +78,7 @@ const hexToRgba = (hex, alpha = 1) => {
 
 const drawEmptyState = (ctx, width, dark) => {
   ctx.fillStyle = dark ? '#94a3b8' : '#64748b';
-  ctx.font = '700 11px Inter, system-ui, sans-serif';
+  ctx.font = `700 ${Math.max(8, Math.round(props.size * 0.1))}px Inter, system-ui, sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText('Sin recintos', width / 2, width / 2);
@@ -147,7 +147,7 @@ const draw = () => {
   const dx = maxX - minX;
   const dz = maxZ - minZ;
 
-  const padding = 10;
+  const padding = Math.max(6, Math.round(props.size * 0.1));
   const scale = (width - padding * 2) / Math.max(dx, dz);
   const offsetX = padding + (width - padding * 2 - dx * scale) / 2;
   const offsetY = padding + (height - padding * 2 - dz * scale) / 2;
@@ -208,7 +208,7 @@ const draw = () => {
   // Camera glow
   ctx.fillStyle = dark ? 'rgba(251, 191, 36, 0.16)' : 'rgba(245, 158, 11, 0.16)';
   ctx.beginPath();
-  ctx.arc(0, 0, 13, 0, Math.PI * 2);
+  ctx.arc(0, 0, Math.max(8, props.size * 0.1), 0, Math.PI * 2);
   ctx.fill();
 
   // Camera triangle
@@ -217,10 +217,11 @@ const draw = () => {
   ctx.lineWidth = 1;
 
   ctx.beginPath();
-  ctx.moveTo(0, -8);
-  ctx.lineTo(6, 5);
-  ctx.lineTo(0, 2);
-  ctx.lineTo(-6, 5);
+  const cam = Math.max(4, props.size * 0.06);
+  ctx.moveTo(0, -cam);
+  ctx.lineTo(cam * 0.75, cam * 0.6);
+  ctx.lineTo(0, cam * 0.25);
+  ctx.lineTo(-cam * 0.75, cam * 0.6);
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
@@ -229,23 +230,25 @@ const draw = () => {
 
   // North indicator
   ctx.fillStyle = textColor;
-  ctx.font = '900 10px Inter, system-ui, sans-serif';
+  const northX = width - padding - 2;
+  const northY = padding + 4;
+  ctx.font = `900 ${Math.max(7, Math.round(props.size * 0.09))}px Inter, system-ui, sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('N', width - 16, 15);
+  ctx.fillText('N', northX, northY);
 
   ctx.strokeStyle = mutedTextColor;
   ctx.lineWidth = 1.2;
   ctx.beginPath();
-  ctx.moveTo(width - 16, 23);
-  ctx.lineTo(width - 16, 31);
+  ctx.moveTo(northX, northY + 6);
+  ctx.lineTo(northX, northY + 12);
   ctx.stroke();
 
   ctx.beginPath();
-  ctx.moveTo(width - 16, 23);
-  ctx.lineTo(width - 19, 27);
-  ctx.moveTo(width - 16, 23);
-  ctx.lineTo(width - 13, 27);
+  ctx.moveTo(northX, northY + 6);
+  ctx.lineTo(northX - 2, northY + 9);
+  ctx.moveTo(northX, northY + 6);
+  ctx.lineTo(northX + 2, northY + 9);
   ctx.stroke();
 };
 
@@ -273,23 +276,23 @@ watch(
   <aside
     v-if="visible"
     data-siec-minimap
-    class="absolute bottom-3 right-3 z-20 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/85 p-1.5 shadow-2xl shadow-slate-950/15 backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-950/85 dark:shadow-black/35"
-    :style="{ width: `${size + 12}px` }"
+    class="absolute bottom-3 right-3 z-20 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/85 p-1.5 shadow-xl shadow-slate-950/12 backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-950/85 dark:shadow-black/30"
+    :style="{ width: `${size + 10}px` }"
     aria-label="Mini mapa 2D"
   >
     <!-- Header -->
-    <div class="mb-1.5 flex items-center justify-between gap-2 px-0.5">
+    <div class="mb-1.5 flex items-center justify-between gap-1.5 px-0.5">
       <div class="flex items-center gap-1.5">
         <span
           class="flex h-5 w-5 items-center justify-center rounded-md border border-orange-200 bg-orange-50 text-orange-600 shadow-sm dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
         >
-          <span class="material-symbols-outlined text-[13px]">
+          <span class="material-symbols-outlined text-[12px]">
             radar
           </span>
         </span>
 
         <span
-          class="text-[9px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400"
+          class="text-[9px] font-black uppercase tracking-[0.13em] text-slate-500 dark:text-slate-400"
         >
           Mini-map
         </span>
