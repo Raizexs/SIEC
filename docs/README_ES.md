@@ -61,29 +61,29 @@ El sistema se enfoca en transformar decisiones espaciales en etapas tempranas en
 
 ## Módulos del Producto
 
-| Módulo | Propósito |
-| --- | --- |
-| Workspace | Entorno principal de simulación 2D/3D para construcción. |
-| Dashboard | Acceso, gestión rápida y visión general de proyectos. |
-| Analytics | Insights a nivel de portafolio, distribución de costos, riesgos y actividad. |
-| Settings | Cuenta, seguridad, preferencias, integraciones y plan contratado. |
-| Backend API | Lógica de negocio, acceso a datos y capa de integración de servicios. |
-| Database | Persistencia relacional de datos estructurados del sistema y proyectos. |
-| Scraper | Módulo de recopilación y normalización de precios, cuando está habilitado. |
+| Módulo      | Propósito                                                                    |
+| ----------- | ---------------------------------------------------------------------------- |
+| Workspace   | Entorno principal de simulación 2D/3D para construcción.                     |
+| Dashboard   | Acceso, gestión rápida y visión general de proyectos.                        |
+| Analytics   | Insights a nivel de portafolio, distribución de costos, riesgos y actividad. |
+| Settings    | Cuenta, seguridad, preferencias, integraciones y plan contratado.            |
+| Backend API | Lógica de negocio, acceso a datos y capa de integración de servicios.        |
+| Database    | Persistencia relacional de datos estructurados del sistema y proyectos.      |
+| Scraper     | Módulo de recopilación y normalización de precios, cuando está habilitado.   |
 
 ## Stack Tecnológico
 
-| Área | Tecnología |
-| --- | --- |
-| Frontend | Vue 3, Vite, TailwindCSS |
-| Gestión de Estado | Pinia |
-| Routing | Vue Router |
-| Renderizado 3D | Three.js |
-| Backend | FastAPI |
-| Base de Datos | PostgreSQL |
-| Autenticación | Supabase |
-| Infraestructura | Docker, Vercel, Railway |
-| Iconos UI | Lucide Icons |
+| Área              | Tecnología               |
+| ----------------- | ------------------------ |
+| Frontend          | Vue 3, Vite, TailwindCSS |
+| Gestión de Estado | Pinia                    |
+| Routing           | Vue Router               |
+| Renderizado 3D    | Three.js                 |
+| Backend           | FastAPI                  |
+| Base de Datos     | PostgreSQL               |
+| Autenticación     | Supabase                 |
+| Infraestructura   | Docker, Vercel, Railway  |
+| Iconos UI         | Lucide Icons             |
 
 ## Arquitectura
 
