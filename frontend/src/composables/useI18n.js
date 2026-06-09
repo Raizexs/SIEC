@@ -90,7 +90,7 @@ const translations = {
     flowHintDesign:
       "Diseña en 2D y revisa el 3D al lado. Usa el icono de precio en cada recinto que quieras cotizar; luego ve a Presupuesto.",
     flowHintBudget:
-      "Aquí se calcula el presupuesto de los recintos que marcaste con el icono de precio en Diseñar. Sin selección, verás las instrucciones.",
+      "Calcula el presupuesto aquí: verás el total, el desglose y al final podrás exportar sin cambiar de paso.",
     flowHintExport: "Descarga PDF, Excel o CSV del presupuesto ya calculado.",
     tourWelcomeTitle: "Bienvenido a SIEC",
     tourWelcomeDesc:
@@ -414,7 +414,7 @@ const translations = {
     flowHintDesign:
       "Design in 2D and review 3D side by side. Use the price icon on each room to quote; then go to Budget.",
     flowHintBudget:
-      "The budget is calculated for rooms you marked with the price icon in Design. Without a selection, you will see instructions.",
+      "Calculate the budget here: you'll see the total, breakdown, and export at the bottom without leaving this step.",
     flowHintExport: "Download PDF, Excel, or CSV for the calculated budget.",
     tourWelcomeTitle: "Welcome to SIEC",
     tourWelcomeDesc:

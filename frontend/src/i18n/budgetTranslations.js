@@ -35,6 +35,9 @@ export const budgetTranslationsEs = {
   exportPanelTitle: "Entregables del proyecto",
   exportPanelSubtitle:
     "Descarga el presupuesto en PDF, Excel o CSV con las preferencias de exportación.",
+  budgetReadyExportTitle: "Presupuesto listo para exportar",
+  budgetReadyExportHint:
+    "Revisa el desglose arriba. Cuando estés conforme, descarga el archivo o continúa al paso Exportar en la barra superior.",
   budgetPrintPrefHint:
     "¿Vas a imprimir el PDF? Activa el registro opcional para impresión en ",
   budgetPrintPrefLink: "Ajustes → Entregables",
@@ -95,6 +98,9 @@ export const budgetTranslationsEn = {
   exportPanelTitle: "Project deliverables",
   exportPanelSubtitle:
     "Download the budget as PDF, Excel, or CSV using your export preferences.",
+  budgetReadyExportTitle: "Budget ready to export",
+  budgetReadyExportHint:
+    "Review the breakdown above. When you're ready, download the file or continue to the Export step in the top bar.",
   budgetPrintPrefHint:
     "Printing the PDF? Enable the optional print review block in ",
   budgetPrintPrefLink: "Settings → Deliverables",

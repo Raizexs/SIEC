@@ -43,6 +43,7 @@ export function useWorkspaceFlow({ recintosCount, hasBudget, selectedM2 }) {
 
   const suggestedStep = computed(() => {
     if (selectedM2.value > 0 && hasBudget.value) return 'export';
+    if (selectedM2.value > 0) return 'budget';
     if (recintosCount.value > 0) return 'design';
     return 'configure';
   });
@@ -50,6 +51,9 @@ export function useWorkspaceFlow({ recintosCount, hasBudget, selectedM2 }) {
   watch(
     suggestedStep,
     (next) => {
+      // Nunca saltar automáticamente a Exportar: el usuario exporta desde Presupuesto.
+      if (next === 'export') return;
+
       const order = WORKSPACE_STEPS.findIndex((s) => s.id === currentStep.value);
       const nextOrder = WORKSPACE_STEPS.findIndex((s) => s.id === next);
       if (nextOrder > order) {

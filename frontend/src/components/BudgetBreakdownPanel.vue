@@ -71,6 +71,9 @@ const disabledCategories = sharedSession?.disabledCategories ?? localDisabledCat
 const showExportControls = computed(
   () => props.panelMode === "full" || props.panelMode === "export",
 );
+const showExportInHeader = computed(
+  () => showExportControls.value && props.panelMode !== "budget",
+);
 const showBreakdown = computed(
   () => props.panelMode === "full" || props.panelMode === "budget",
 );
@@ -78,11 +81,6 @@ const showCalculateState = computed(
   () => props.panelMode !== "export" && !hasGenerated.value,
 );
 const isExportPanel = computed(() => props.panelMode === "export");
-const showPrintExportHint = computed(
-  () =>
-    isExportPanel.value &&
-    productPreferences.value.export?.includePrintReviewBlock !== true,
-);
 const exportMenuOpen = ref(false);
 const exportFormat = ref(null);
 const exportMenuRef = ref(null);
@@ -119,6 +117,17 @@ const canExport = computed(
     !isLoading.value &&
     !error.value &&
     (costoTotal.value != null || desglose.value.length > 0),
+);
+
+const showBudgetExportFooter = computed(
+  () => props.panelMode === "budget" && canExport.value,
+);
+
+const showPrintExportHint = computed(
+  () =>
+    (isExportPanel.value || props.panelMode === "budget") &&
+    canExport.value &&
+    productPreferences.value.export?.includePrintReviewBlock !== true,
 );
 
 const exportOptions = [
@@ -518,7 +527,7 @@ onUnmounted(() => {
     </header>
 
     <div
-      v-if="showPrintExportHint && hasGenerated && !isLoading"
+      v-if="showPrintExportHint && isExportPanel && hasGenerated && !isLoading"
       class="relative z-10 mb-5 flex items-start gap-3 rounded-2xl border border-sky-200/90 bg-sky-50/90 px-4 py-3 dark:border-sky-900/60 dark:bg-sky-950/30"
     >
       <span class="material-symbols-outlined mt-0.5 text-[18px] text-sky-600 dark:text-sky-300">
@@ -738,7 +747,7 @@ onUnmounted(() => {
                 {{ t("budgetUpdated") }} {{ formatDate(fechaPrecios) }}
               </div>
 
-              <div v-if="showExportControls && canExport" class="relative budget-export-menu">
+              <div v-if="showExportInHeader && canExport" class="relative budget-export-menu">
                 <button
                   type="button"
                   :title="t('budgetExportTitle')"
@@ -1043,6 +1052,99 @@ onUnmounted(() => {
             >
               {{ t("budgetEmptyHint") }}
             </p>
+          </div>
+        </section>
+
+        <section
+          v-if="showBudgetExportFooter"
+          class="relative overflow-hidden rounded-3xl border border-emerald-200/90 bg-gradient-to-br from-emerald-50/95 to-white p-6 shadow-lg shadow-emerald-500/10 dark:border-emerald-900/60 dark:from-emerald-950/30 dark:to-slate-950/80 sm:p-7"
+        >
+          <div
+            class="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-emerald-400/15 blur-3xl"
+          ></div>
+
+          <div class="relative z-10 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <div class="min-w-0">
+              <p class="text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-300">
+                {{ t("budgetReadyExportTitle") }}
+              </p>
+              <p class="mt-2 text-sm font-medium leading-relaxed text-slate-600 dark:text-slate-300">
+                {{ t("budgetReadyExportHint") }}
+              </p>
+              <p
+                v-if="showPrintExportHint"
+                class="mt-3 flex items-start gap-2 text-[11px] font-medium leading-relaxed text-sky-800 dark:text-sky-200"
+              >
+                <span class="material-symbols-outlined mt-0.5 text-[16px] text-sky-600 dark:text-sky-300">
+                  info
+                </span>
+                <span>
+                  {{ t("budgetPrintPrefHint") }}
+                  <a
+                    href="/settings?tab=preferences"
+                    class="font-bold underline decoration-sky-400/70 underline-offset-2"
+                  >
+                    {{ t("budgetPrintPrefLink") }}
+                  </a>
+                </span>
+              </p>
+            </div>
+
+            <div class="relative shrink-0 budget-export-menu">
+              <button
+                type="button"
+                :title="t('budgetExportTitle')"
+                aria-haspopup="menu"
+                :aria-expanded="exportMenuOpen"
+                class="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald-500/40 bg-emerald-600 px-5 py-3 text-sm font-bold uppercase tracking-tight text-white shadow-lg shadow-emerald-600/25 transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-500 hover:shadow-emerald-500/30 active:scale-[0.98] sm:w-auto"
+                @click.stop="handleToggleExportMenu"
+              >
+                <span class="material-symbols-outlined text-[18px]">
+                  download
+                </span>
+                {{ t("budgetExport") }}
+                <span class="material-symbols-outlined text-[16px] opacity-80">
+                  expand_more
+                </span>
+              </button>
+
+              <Transition name="export-menu">
+                <div
+                  v-if="exportMenuOpen"
+                  ref="exportMenuRef"
+                  role="menu"
+                  class="absolute bottom-full right-0 z-[70] mb-2 max-h-[min(320px,60vh)] w-56 overflow-y-auto rounded-3xl border border-slate-200/90 bg-white/95 p-2 shadow-2xl shadow-slate-950/15 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/40 sm:bottom-auto sm:top-full sm:mt-2 sm:mb-0"
+                >
+                  <button
+                    v-for="option in exportOptions"
+                    :key="option.id"
+                    type="button"
+                    role="menuitem"
+                    class="group flex min-h-12 w-full cursor-pointer items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-xs font-bold text-slate-700 transition-all duration-200 hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70 active:scale-[0.99] dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-slate-100"
+                    @click.stop.prevent="handleExport(option.id)"
+                  >
+                    <span
+                      class="pointer-events-none flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-600 transition-colors duration-200 group-hover:border-emerald-300 group-hover:bg-emerald-100 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300 dark:group-hover:border-emerald-700 dark:group-hover:bg-emerald-950/60"
+                    >
+                      <span class="material-symbols-outlined text-[16px]">
+                        {{ option.icon }}
+                      </span>
+                    </span>
+
+                    <span class="pointer-events-none min-w-0 flex-1 select-none">
+                      {{ option.label }}
+                    </span>
+
+                    <span
+                      v-if="exportFormat === option.id"
+                      class="pointer-events-none material-symbols-outlined animate-spin text-[15px] text-emerald-500 dark:text-emerald-300"
+                    >
+                      progress_activity
+                    </span>
+                  </button>
+                </div>
+              </Transition>
+            </div>
           </div>
         </section>
       </div>
