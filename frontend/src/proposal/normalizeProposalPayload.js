@@ -63,10 +63,24 @@ const toIsoDateString = (value, fallback = new Date().toISOString()) => {
 /**
  * @param {unknown} counts
  */
-const normalizeCounts = (counts) => ({
-  habitaciones: Math.max(0, Math.round(toFiniteNumber(counts?.habitaciones, 0))),
-  banios: Math.max(0, Math.round(toFiniteNumber(counts?.banios, 0))),
-});
+const normalizeCounts = (counts) => {
+  const pasillos = Math.max(0, Math.round(toFiniteNumber(counts?.pasillos, 0)));
+  const explicitRecintos = counts?.recintos;
+
+  const recintos =
+    explicitRecintos != null
+      ? Math.max(0, Math.round(toFiniteNumber(explicitRecintos, 0)))
+      : Math.max(
+          0,
+          Math.round(
+            toFiniteNumber(counts?.habitaciones, 0) +
+              toFiniteNumber(counts?.banios, 0) +
+              toFiniteNumber(counts?.areasComunes, 0),
+          ),
+        );
+
+  return { recintos, pasillos };
+};
 
 /**
  * Normaliza el payload de exportación antes de renderizar la propuesta PDF.
@@ -105,6 +119,8 @@ export const normalizeProposalPayload = (raw = {}) => {
     trimText(raw.totalFormatted) || formatClp(totalPreferido ?? motorTotal);
 
   const sceneImage = trimText(raw.sceneImageDataUrl);
+  const exportPrefs =
+    raw.export && typeof raw.export === 'object' ? raw.export : {};
 
   return {
     projectName: normalizeCoverTitle(raw.projectName),
@@ -139,5 +155,15 @@ export const normalizeProposalPayload = (raw = {}) => {
     counts: normalizeCounts(raw.counts),
     sceneImageDataUrl: sceneImage || null,
     pdfWatermark: Boolean(raw.pdfWatermark),
+    includeMaterialsBreakdown:
+      raw.includeMaterialsBreakdown ??
+      exportPrefs.includeMaterialsBreakdown ??
+      true,
+    includeUnitPrices:
+      raw.includeUnitPrices ?? exportPrefs.includeUnitPrices ?? true,
+    includeSnapshots:
+      raw.includeSnapshots ?? exportPrefs.includeSnapshots ?? true,
+    includePrintReviewBlock:
+      raw.includePrintReviewBlock ?? exportPrefs.includePrintReviewBlock ?? false,
   };
 };

@@ -75,19 +75,27 @@ export const settingsTranslationsEs = {
   settingsIntegrationsStatus:
     "Estado técnico de cada capa externa. Los botones reflejan disponibilidad real: nada de acciones simuladas.",
   settingsPlanLocal:
-    "Operación local del simulador con límites de almacenamiento en sesión. La facturación Pro llegará cuando el backend de planes esté activo.",
+    "Límites según tu plan activo. Al iniciar sesión, tus proyectos se sincronizan con tu cuenta.",
   settingsPlanLocalSession: "Modo local · sesión del navegador",
   settingsPlanLayouts: "{count} / 5 en esta sesión",
   settingsPlanExports:
     "PDF disponible · IFC en beta · GLB disponible / beta según escena",
   settingsLastSync: "Última sincronización",
-  settingsSessionSupabase: "Sesión Supabase activa en este dispositivo",
-  settingsSessionLocal: "Sesión local (sin identidad en nube)",
-  settingsProLimits: "Próximos límites Pro",
-  settingsProRoadmap:
-    "Hoja de ruta realista; sujeto a priorización de producto e infraestructura.",
-  settingsProBim: "Exportación BIM / IFC con validaciones",
-  settingsProCollab: "Colaboración multiusuario en tiempo casi real",
+  settingsSessionSupabase: "Conectado a tu cuenta",
+  settingsSessionLocal: "Solo en este dispositivo",
+  settingsProPlusLimits: "Próximos límites Pro+",
+  settingsProPlusRoadmap:
+    "Capacidades en evaluación para cuentas Pro+; priorizadas según el ecosistema SIEC y feedback de obra.",
+  settingsProPlusMarketplace:
+    "SIEC Place ampliado: matching obra–contratista, reputación y seguimiento de leads",
+  settingsProPlusIntegrations:
+    "Respaldo en Google Drive y conectores Revit, IFC y AutoCAD desde Integraciones",
+  settingsProPlusBim:
+    "Coordinación BIM bidireccional con modelos externos y validación de capas constructivas",
+  settingsProPlusCollab:
+    "Equipo en obra: colaboración multiusuario, permisos e historial compartido del proyecto",
+  settingsProPlusPricing:
+    "Fuentes estructuradas de precios unitarios y alertas tempranas de desviación presupuestaria",
   settingsIntGdriveDesc: "Respaldos y exportaciones en la nube.",
   settingsIntGdriveHint: "En evaluación de alcance y permisos OAuth.",
   settingsIntRevitDesc: "Coordinación BIM e intercambio IFC.",
@@ -115,9 +123,6 @@ export const settingsTranslationsEs = {
   settingsBusinessPlaceholder: "Ej. Estudio Arquitectura Norte",
   settingsNo: "No",
   settingsVatIncluded: "IVA incluido en totales",
-  settingsProUnlimited: "Proyectos ilimitados y versionado remoto",
-  settingsProHistory: "Historial avanzado de cambios y comparativas",
-  settingsProSupport: "Soporte prioritario y SLA de incidentes",
   settingsProfileUpdated: "Perfil actualizado.",
   settingsImageTooLarge: "La imagen debe pesar menos de 4MB.",
   settingsPhotoUpdated: "Foto de perfil actualizada.",
@@ -129,12 +134,34 @@ export const settingsTranslationsEs = {
   settingsMaterialDefault: "Materialidad por defecto",
   settingsCustomHeight: "Personalizada",
   settingsDeliverables: "Entregables",
-  settingsExportHint: "El generador PDF ya consume parte de estas opciones; IFC/GLB siguen en roadmap.",
-  settingsFormatPreferred: "Formato preferido",
+  settingsExportHint: "Estas opciones se aplican al PDF de presupuesto exportado desde el panel de estimación.",
+  settingsExportBrandingLocked: "Marca personalizada",
+  settingsExportBrandingLockedHint: "Nombre comercial, pie legal y logo propio requieren plan Pro o Pro+. En Free se usa la marca SIEC.",
+  settingsBrandNameHint: "Aparece en la portada y en el cierre del PDF.",
+  settingsLegalFooterHint: "Texto legal o comercial en la página de cierre del documento.",
+  settingsPrintReviewBlock: "Registro para impresión",
+  settingsPrintReviewBlockSub:
+    "Añade campos opcionales (revisado por, fecha, observaciones) al final del PDF.",
+  settingsPrintReviewAlert:
+    "Si vas a imprimir el presupuesto y necesitas dejar constancia en obra, activa «Registro para impresión» arriba.",
+  settingsPrefWithPrintBlock: "Con registro impreso",
+  settingsPrefNoPrintBlock: "Sin registro impreso",
   settingsEcosystem: "Ecosistema",
   settingsIntegrationsTitle: "Integraciones y conectores",
   settingsUsageSystem: "Uso del sistema",
   settingsPlanFree: "Plan Free",
+  settingsPlanPro: "Plan Pro",
+  settingsPlanProPlus: "Plan Pro+",
+  settingsPlanProDesc:
+    "Proyectos, exportaciones y materialidades ampliadas según tu plan activo.",
+  settingsPlanProPlusDesc:
+    "Acceso completo: 4 materialidades, branding en PDF, capas 3D, walkthrough y SIEC Place.",
+  settingsPlanActiveProjects: "Proyectos activos",
+  settingsPlanSavedProjects: "Proyectos guardados",
+  settingsPlanExportsMonth: "Exportaciones este mes",
+  settingsPlanMarketplace: "SIEC Place",
+  settingsPlanMarketplaceActive: "Activo en tu cuenta",
+  settingsPlanUnlimited: "Ilimitado",
   settingsLocalProjects: "Proyectos locales",
   settingsSavedLayouts: "Layouts guardados",
   settingsExports: "Exportaciones",
@@ -146,6 +173,8 @@ export const settingsTranslationsEs = {
   settingsMaterialMasonry: "Masonry",
   settingsMaterialConcrete: "Concrete",
   settingsPlanBadgeFree: "Free",
+  settingsPlanBadgePro: "Pro",
+  settingsPlanBadgeProPlus: "Pro+",
   settingsPlanBadgeBeta: "Beta",
   settingsCollabNotAvailable: "0 · no disponible en {plan}",
 };
@@ -222,19 +251,27 @@ export const settingsTranslationsEn = {
   settingsIntegrationsStatus:
     "Technical status of each external layer. Buttons reflect real availability—no simulated actions.",
   settingsPlanLocal:
-    "Local simulator operation with session storage limits. Pro billing will arrive when the plans backend is active.",
+    "Limits follow your active plan. When you sign in, your projects sync with your account.",
   settingsPlanLocalSession: "Local mode · browser session",
   settingsPlanLayouts: "{count} / 5 this session",
   settingsPlanExports:
     "PDF available · IFC in beta · GLB available / beta per scene",
   settingsLastSync: "Last sync",
-  settingsSessionSupabase: "Active Supabase session on this device",
-  settingsSessionLocal: "Local session (no cloud identity)",
-  settingsProLimits: "Upcoming Pro limits",
-  settingsProRoadmap:
-    "Realistic roadmap; subject to product and infrastructure prioritization.",
-  settingsProBim: "BIM / IFC export with validations",
-  settingsProCollab: "Near real-time multi-user collaboration",
+  settingsSessionSupabase: "Connected to your account",
+  settingsSessionLocal: "This device only",
+  settingsProPlusLimits: "Upcoming Pro+ limits",
+  settingsProPlusRoadmap:
+    "Capabilities under evaluation for Pro+ accounts; prioritized by the SIEC ecosystem and field feedback.",
+  settingsProPlusMarketplace:
+    "Expanded SIEC Place: project–contractor matching, reputation, and lead follow-up",
+  settingsProPlusIntegrations:
+    "Google Drive backup and Revit, IFC, and AutoCAD connectors from Integrations",
+  settingsProPlusBim:
+    "Bidirectional BIM coordination with external models and construction layer validation",
+  settingsProPlusCollab:
+    "On-site team: multi-user collaboration, permissions, and shared project history",
+  settingsProPlusPricing:
+    "Structured unit-price sources and early budget deviation alerts",
   settingsIntGdriveDesc: "Backups and cloud exports.",
   settingsIntGdriveHint: "Evaluating scope and OAuth permissions.",
   settingsIntRevitDesc: "BIM coordination and IFC exchange.",
@@ -262,9 +299,6 @@ export const settingsTranslationsEn = {
   settingsBusinessPlaceholder: "e.g. North Architecture Studio",
   settingsNo: "No",
   settingsVatIncluded: "VAT included in totals",
-  settingsProUnlimited: "Unlimited projects and remote versioning",
-  settingsProHistory: "Advanced change history and comparisons",
-  settingsProSupport: "Priority support and incident SLA",
   settingsProfileUpdated: "Profile updated.",
   settingsImageTooLarge: "Image must be under 4MB.",
   settingsPhotoUpdated: "Profile photo updated.",
@@ -276,12 +310,34 @@ export const settingsTranslationsEn = {
   settingsMaterialDefault: "Default material",
   settingsCustomHeight: "Custom",
   settingsDeliverables: "Deliverables",
-  settingsExportHint: "The PDF generator already uses some of these options; IFC/GLB remain on the roadmap.",
-  settingsFormatPreferred: "Preferred format",
+  settingsExportHint: "These options apply to the budget PDF exported from the estimation panel.",
+  settingsExportBrandingLocked: "Custom branding",
+  settingsExportBrandingLockedHint: "Trade name, legal footer, and custom logo require Pro or Pro+. Free uses SIEC branding.",
+  settingsBrandNameHint: "Shown on the cover and document closing page in the PDF.",
+  settingsLegalFooterHint: "Legal or commercial text on the document closing page.",
+  settingsPrintReviewBlock: "Print review block",
+  settingsPrintReviewBlockSub:
+    "Adds optional fields (reviewed by, date, notes) at the end of the PDF.",
+  settingsPrintReviewAlert:
+    "If you will print the budget and need an on-site paper record, enable «Print review block» above.",
+  settingsPrefWithPrintBlock: "With print block",
+  settingsPrefNoPrintBlock: "Without print block",
   settingsEcosystem: "Ecosystem",
   settingsIntegrationsTitle: "Integrations and connectors",
   settingsUsageSystem: "System usage",
   settingsPlanFree: "Free Plan",
+  settingsPlanPro: "Pro Plan",
+  settingsPlanProPlus: "Pro+ Plan",
+  settingsPlanProDesc:
+    "Expanded projects, exports, and materials according to your active plan.",
+  settingsPlanProPlusDesc:
+    "Full access: all 4 materials, PDF branding, 3D layers, walkthrough, and SIEC Place.",
+  settingsPlanActiveProjects: "Active projects",
+  settingsPlanSavedProjects: "Saved projects",
+  settingsPlanExportsMonth: "Exports this month",
+  settingsPlanMarketplace: "SIEC Place",
+  settingsPlanMarketplaceActive: "Active on your account",
+  settingsPlanUnlimited: "Unlimited",
   settingsLocalProjects: "Local projects",
   settingsSavedLayouts: "Saved layouts",
   settingsExports: "Exports",
@@ -293,6 +349,8 @@ export const settingsTranslationsEn = {
   settingsMaterialMasonry: "Masonry",
   settingsMaterialConcrete: "Concrete",
   settingsPlanBadgeFree: "Free",
+  settingsPlanBadgePro: "Pro",
+  settingsPlanBadgeProPlus: "Pro+",
   settingsPlanBadgeBeta: "Beta",
   settingsCollabNotAvailable: "0 · not available in {plan}",
 };

@@ -95,6 +95,7 @@ def build_plan_payload(db: Session, user_id: str) -> dict[str, Any]:
             "custom_export_branding": limits.custom_export_branding,
             "construction_layers_3d": limits.construction_layers_3d,
             "walkthrough_3d": limits.walkthrough_3d,
+            "marketplace_access": limits.marketplace_access,
         },
         "usage": {
             "active_projects": counts["active_projects"],
@@ -103,8 +104,11 @@ def build_plan_payload(db: Session, user_id: str) -> dict[str, Any]:
             "usage_month": usage_row.usage_month.isoformat(),
         },
         "pricing": {
-            "pro_clp_month": PLAN_LIMITS["pro"].price_clp_month,
-            "pro_plus_clp_month": PLAN_LIMITS["pro_plus"].price_clp_month,
+            "pro_clp_month": PLAN_LIMITS["pro"].price_clp_one_time,
+            "pro_plus_clp_month": PLAN_LIMITS["pro_plus"].price_clp_one_time,
+            "billing_mode": get_limits(plan_id).billing_mode,
+            "listing_fee_clp": 4990,
+            "lead_fee_clp": 2990,
         },
     }
 
@@ -198,7 +202,29 @@ def record_export(db: Session, user_id: str) -> dict[str, Any]:
     }
 
 
-def set_plan(db: Session, user_id: str, plan: str, provider: str | None = None, sub_id: str | None = None) -> None:
+def require_marketplace_access(db: Session, user_id: str) -> None:
+    plan_id = get_user_plan_id(db, user_id)
+    limits = get_limits(plan_id)
+    if not limits.marketplace_access:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "SIECPLACE_PLAN_REQUIRED",
+                "message": "SIEC Place requiere plan Pro+. Mejora tu plan para publicar o desbloquear contactos.",
+                "plan": plan_id,
+            },
+        )
+
+
+def set_plan(
+    db: Session,
+    user_id: str,
+    plan: str,
+    provider: str | None = None,
+    sub_id: str | None = None,
+    *,
+    lifetime: bool = True,
+) -> None:
     if plan not in PLAN_LIMITS:
         raise ValueError(f"Plan inválido: {plan}")
     uid = UUID(user_id)
@@ -213,5 +239,10 @@ def set_plan(db: Session, user_id: str, plan: str, provider: str | None = None, 
     row.provider = provider
     row.provider_subscription_id = sub_id
     row.current_period_start = now
-    row.current_period_end = now + timedelta(days=30)
+    if lifetime and plan in ("pro", "pro_plus"):
+        row.current_period_end = now + timedelta(days=365 * 100)
+    elif plan == "free":
+        row.current_period_end = None
+    else:
+        row.current_period_end = now + timedelta(days=30)
     db.flush()

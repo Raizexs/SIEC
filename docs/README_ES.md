@@ -29,7 +29,7 @@ La plataforma está diseñada para ayudar a equipos de construcción, arquitectu
 
 ## Descripción General
 
-SIEC combina un editor de espacios en 2D, un visor 3D en tiempo real, validación de áreas, configuración de materiales, dashboards de proyectos y analítica en un único flujo de trabajo para estimación en construcción.
+SIEC combina un editor de espacios en 2D, un visor 3D en tiempo real, validación de áreas, configuración de materiales, dashboards de proyectos y SIEC Place en un único flujo de trabajo para estimación en construcción.
 
 El sistema se enfoca en transformar decisiones espaciales en etapas tempranas en datos medibles del proyecto. Los usuarios pueden crear espacios, aplicar layouts base, revisar áreas disponibles, visualizar el proyecto en 3D y preparar la base para estimaciones de costos y reportes técnicos.
 
@@ -49,7 +49,7 @@ El sistema se enfoca en transformar decisiones espaciales en etapas tempranas en
 - Flujo de estimación de costos de construcción.
 - Desglose de proyectos orientado a presupuestos.
 - Dashboard de proyectos y simulaciones guardadas.
-- Analítica de portafolio para costos, materialidad, riesgos y actividad.
+- **SIEC Place**: marketplace de obras para publicar presupuestos y conectar con contratistas (plan Pro+).
 
 ### Experiencia del Producto
 
@@ -61,29 +61,29 @@ El sistema se enfoca en transformar decisiones espaciales en etapas tempranas en
 
 ## Módulos del Producto
 
-| Módulo | Propósito |
-| --- | --- |
-| Workspace | Entorno principal de simulación 2D/3D para construcción. |
-| Dashboard | Acceso, gestión rápida y visión general de proyectos. |
-| Analytics | Insights a nivel de portafolio, distribución de costos, riesgos y actividad. |
-| Settings | Cuenta, seguridad, preferencias, integraciones y plan contratado. |
-| Backend API | Lógica de negocio, acceso a datos y capa de integración de servicios. |
-| Database | Persistencia relacional de datos estructurados del sistema y proyectos. |
-| Scraper | Módulo de recopilación y normalización de precios, cuando está habilitado. |
+| Módulo      | Propósito                                                                    |
+| ----------- | ---------------------------------------------------------------------------- |
+| Workspace   | Entorno principal de simulación 2D/3D para construcción.                     |
+| Dashboard   | Acceso, gestión rápida y visión general de proyectos.                        |
+| Analytics   | Insights a nivel de portafolio, distribución de costos, riesgos y actividad. |
+| Settings    | Cuenta, seguridad, preferencias, integraciones y plan contratado.            |
+| Backend API | Lógica de negocio, acceso a datos y capa de integración de servicios.        |
+| Database    | Persistencia relacional de datos estructurados del sistema y proyectos.      |
+| Scraper     | Módulo de recopilación y normalización de precios, cuando está habilitado.   |
 
 ## Stack Tecnológico
 
-| Área | Tecnología |
-| --- | --- |
-| Frontend | Vue 3, Vite, TailwindCSS |
-| Gestión de Estado | Pinia |
-| Routing | Vue Router |
-| Renderizado 3D | Three.js |
-| Backend | FastAPI |
-| Base de Datos | PostgreSQL |
-| Autenticación | Supabase |
-| Infraestructura | Docker, Vercel, Railway |
-| Iconos UI | Lucide Icons |
+| Área              | Tecnología               |
+| ----------------- | ------------------------ |
+| Frontend          | Vue 3, Vite, TailwindCSS |
+| Gestión de Estado | Pinia                    |
+| Routing           | Vue Router               |
+| Renderizado 3D    | Three.js                 |
+| Backend           | FastAPI                  |
+| Base de Datos     | PostgreSQL               |
+| Autenticación     | Supabase                 |
+| Infraestructura   | Docker, Vercel, Railway  |
+| Iconos UI         | Lucide Icons             |
 
 ## Arquitectura
 

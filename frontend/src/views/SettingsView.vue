@@ -1,10 +1,21 @@
 <script setup>
-import { ref, computed, onMounted, watch, defineAsyncComponent } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
+import { ref, computed, onMounted, watch, defineAsyncComponent, provide } from 'vue';
+import { useRouter, useRoute, onBeforeRouteLeave } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import { useProMotion } from '../composables/useProMotion';
 import { useLayoutManager } from '../composables/useLayoutManager';
+import { useBilling } from '../composables/useBilling';
 import { isSupabaseConfigured } from '../lib/supabaseClient';
+import {
+  usePreferencesDraft,
+  PREFERENCES_DRAFT_KEY,
+} from '../composables/usePreferencesDraft';
+import ConfirmDialog from '../components/settings/ConfirmDialog.vue';
+import SettingsAppearancePanel from '../components/settings/SettingsAppearancePanel.vue';
+import SettingsPreferencesPanel from '../components/settings/SettingsPreferencesPanel.vue';
+import SettingsExportSection from '../components/settings/SettingsExportSection.vue';
+import SettingsPreferencesSaveBar from '../components/settings/SettingsPreferencesSaveBar.vue';
+import SettingsIntegrationsCards from '../components/settings/SettingsIntegrationsCards.vue';
 import {
   ArrowLeft,
   User2,
@@ -24,24 +35,31 @@ const SettingsProfileCard = defineAsyncComponent(() =>
 const SettingsSecuritySection = defineAsyncComponent(() =>
   import('../components/settings/SettingsSecuritySection.vue'),
 );
-const SettingsPreferencesPanel = defineAsyncComponent(() =>
-  import('../components/settings/SettingsPreferencesPanel.vue'),
-);
-const SettingsExportSection = defineAsyncComponent(() =>
-  import('../components/settings/SettingsExportSection.vue'),
-);
-const SettingsIntegrationsCards = defineAsyncComponent(() =>
-  import('../components/settings/SettingsIntegrationsCards.vue'),
-);
+
+const preferencesDraft = usePreferencesDraft();
+provide(PREFERENCES_DRAFT_KEY, preferencesDraft);
 
 const router = useRouter();
 const route = useRoute();
 const { t, currentLanguage } = useI18n();
 const auth = useAuthStore();
 const { savedLayouts } = useLayoutManager();
+const {
+  fetchBilling,
+  plan,
+  limits,
+  usage,
+  isFree,
+  isPro,
+  isProPlus,
+  hasMarketplaceAccess,
+} = useBilling();
 
 const tab = ref('profile');
 const motionRoot = ref(null);
+const pendingTab = ref(null);
+const pendingNavigation = ref(null);
+const showUnsavedDialog = ref(false);
 
 const tabs = computed(() => {
   void currentLanguage.value;
@@ -94,7 +112,15 @@ const tabHeroDescription = computed(() => {
 
 const planModeBadges = computed(() => {
   void currentLanguage.value;
-  const badges = [{ id: 'free', label: t('settingsPlanBadgeFree') }];
+  const badges = [];
+
+  if (isProPlus.value) {
+    badges.push({ id: 'pro_plus', label: t('settingsPlanBadgeProPlus') });
+  } else if (isPro.value) {
+    badges.push({ id: 'pro', label: t('settingsPlanBadgePro') });
+  } else {
+    badges.push({ id: 'free', label: t('settingsPlanBadgeFree') });
+  }
 
   if (!isSupabaseConfigured || !auth.session) {
     badges.push({ id: 'local', label: t('settingsLocalMode') });
@@ -105,12 +131,189 @@ const planModeBadges = computed(() => {
   return badges;
 });
 
+const activePlanTitle = computed(() => {
+  void currentLanguage.value;
+  if (isProPlus.value) return t('settingsPlanProPlus');
+  if (isPro.value) return t('settingsPlanPro');
+  return t('settingsPlanFree');
+});
+
+const activePlanDescription = computed(() => {
+  void currentLanguage.value;
+  if (isProPlus.value) return t('settingsPlanProPlusDesc');
+  if (isPro.value) return t('settingsPlanProDesc');
+  return t('settingsPlanLocal');
+});
+
+const formatUsageLimit = (used, max) => {
+  if (max == null) return `${used ?? 0} · ${t('settingsPlanUnlimited')}`;
+  return `${used ?? 0} / ${max}`;
+};
+
+const usageCardRows = computed(() => {
+  void currentLanguage.value;
+  void plan.value;
+
+  const showLocalFreeCard =
+    isFree.value && (!isSupabaseConfigured || !auth.session);
+
+  if (showLocalFreeCard) {
+    return [
+      {
+        label: t('settingsLocalProjects'),
+        value: t('settingsPlanLocalSession'),
+      },
+      {
+        label: t('settingsSavedLayouts'),
+        value: t('settingsPlanLayouts', { count: savedLayoutsCount.value }),
+      },
+      {
+        label: t('settingsExports'),
+        value: t('settingsPlanExports'),
+      },
+      {
+        label: t('settingsCollaborators'),
+        value: t('settingsNotAvailableFree'),
+      },
+      {
+        label: t('settingsLastSync'),
+        value: auth.session
+          ? t('settingsSessionSupabase')
+          : t('settingsSessionLocal'),
+        span: 2,
+      },
+    ];
+  }
+
+  const rows = [
+    {
+      label: t('settingsPlanActiveProjects'),
+      value: formatUsageLimit(
+        usage.value.active_projects,
+        limits.value.max_active_projects,
+      ),
+    },
+    {
+      label: t('settingsPlanSavedProjects'),
+      value: formatUsageLimit(
+        usage.value.saved_projects,
+        limits.value.max_saved_projects,
+      ),
+    },
+    {
+      label: t('settingsPlanExportsMonth'),
+      value: formatUsageLimit(
+        usage.value.exports_this_month,
+        limits.value.max_exports_per_month,
+      ),
+    },
+  ];
+
+  if (hasMarketplaceAccess.value) {
+    rows.push({
+      label: t('settingsPlanMarketplace'),
+      value: t('settingsPlanMarketplaceActive'),
+    });
+  } else {
+    rows.push({
+      label: t('settingsCollaborators'),
+      value: t('settingsCollabNotAvailable', {
+        plan: isPro.value ? 'Pro' : 'Free',
+      }),
+    });
+  }
+
+  rows.push({
+    label: t('settingsLastSync'),
+    value: auth.session
+      ? t('settingsSessionSupabase')
+      : t('settingsSessionLocal'),
+    span: 2,
+  });
+
+  return rows;
+});
+
 const savedLayoutsCount = computed(() => savedLayouts.value?.length ?? 0);
+
+const proPlusRoadmapItems = computed(() => {
+  void currentLanguage.value;
+  return [
+    t('settingsProPlusMarketplace'),
+    t('settingsProPlusIntegrations'),
+    t('settingsProPlusBim'),
+    t('settingsProPlusCollab'),
+    t('settingsProPlusPricing'),
+  ];
+});
 
 useProMotion(motionRoot, { skipIntro: true });
 
+const requestTab = (nextTab) => {
+  if (
+    tab.value === 'preferences' &&
+    nextTab !== 'preferences' &&
+    preferencesDraft.isDirty.value
+  ) {
+    pendingTab.value = nextTab;
+    showUnsavedDialog.value = true;
+    return;
+  }
+  tab.value = nextTab;
+};
+
+const finishUnsavedNavigation = () => {
+  if (pendingNavigation.value) {
+    const nav = pendingNavigation.value;
+    pendingNavigation.value = null;
+    nav();
+    return;
+  }
+  if (pendingTab.value) {
+    tab.value = pendingTab.value;
+    pendingTab.value = null;
+  }
+};
+
+const confirmUnsavedSave = () => {
+  try {
+    preferencesDraft.commit();
+    showUnsavedDialog.value = false;
+    finishUnsavedNavigation();
+  } catch (error) {
+    preferencesDraft.markErrorMessage(
+      t('settingsSaveFailed', { message: error.message }),
+    );
+    showUnsavedDialog.value = false;
+  }
+};
+
+const confirmUnsavedDiscard = () => {
+  preferencesDraft.revert();
+  showUnsavedDialog.value = false;
+  finishUnsavedNavigation();
+};
+
+const cancelUnsavedDialog = () => {
+  pendingTab.value = null;
+  pendingNavigation.value = null;
+  showUnsavedDialog.value = false;
+};
+
 onMounted(async () => {
-  await auth.refreshFactors();
+  preferencesDraft.syncFromSaved();
+  auth.refreshFactors();
+  fetchBilling();
+});
+
+onBeforeRouteLeave((_to, _from, next) => {
+  if (tab.value !== 'preferences' || !preferencesDraft.isDirty.value) {
+    next();
+    return;
+  }
+  pendingNavigation.value = () => next();
+  showUnsavedDialog.value = true;
+  next(false);
 });
 
 watch(
@@ -119,6 +322,14 @@ watch(
     if (typeof incoming === 'string' && tabs.value.some((item) => item.id === incoming)) {
       tab.value = incoming;
     }
+  },
+  { immediate: true },
+);
+
+watch(
+  tab,
+  (value) => {
+    if (value === 'billing') fetchBilling(true);
   },
   { immediate: true },
 );
@@ -186,7 +397,7 @@ watch(
                       ? 'border-orange-300 bg-orange-50 text-orange-700 shadow-sm shadow-orange-500/10 dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300'
                       : 'border-transparent text-slate-600 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-950 dark:text-slate-400 dark:hover:border-slate-800 dark:hover:bg-slate-900/70 dark:hover:text-slate-100'
                   "
-                  @click="tab = item.id"
+                  @click="requestTab(item.id)"
                 >
                   <span
                     class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border shadow-sm transition-colors duration-200"
@@ -261,8 +472,10 @@ watch(
             <SettingsProfileCard v-if="tab === 'profile'" />
             <SettingsSecuritySection v-if="tab === 'security'" />
             <div v-if="tab === 'preferences'" class="space-y-4">
+              <SettingsAppearancePanel />
               <SettingsPreferencesPanel />
               <SettingsExportSection />
+              <SettingsPreferencesSaveBar />
             </div>
             <SettingsIntegrationsCards v-if="tab === 'integrations'" />
 
@@ -290,65 +503,24 @@ watch(
                     </span>
                   </div>
                   <h2 class="mt-2 text-3xl font-black tracking-tight text-orange-950 dark:text-orange-50">
-                    {{ t('settingsPlanFree') }}
+                    {{ activePlanTitle }}
                   </h2>
                   <p class="mt-2 max-w-2xl text-sm font-medium leading-relaxed text-orange-900/85 dark:text-orange-100/85">
-                    {{ t('settingsPlanLocal') }}
+                    {{ activePlanDescription }}
                   </p>
 
                   <dl class="mt-6 grid gap-3 sm:grid-cols-2">
                     <div
+                      v-for="row in usageCardRows"
+                      :key="row.label"
                       class="rounded-2xl border border-orange-200/80 bg-white/90 p-4 dark:border-orange-900/60 dark:bg-slate-950/40"
+                      :class="row.span === 2 ? 'sm:col-span-2' : ''"
                     >
                       <dt class="text-[10px] font-black uppercase tracking-[0.14em] text-orange-800/80 dark:text-orange-200/80">
-                        {{ t('settingsLocalProjects') }}
+                        {{ row.label }}
                       </dt>
                       <dd class="mt-1 text-sm font-black text-orange-950 dark:text-orange-50">
-                        {{ t('settingsPlanLocalSession') }}
-                      </dd>
-                    </div>
-                    <div
-                      class="rounded-2xl border border-orange-200/80 bg-white/90 p-4 dark:border-orange-900/60 dark:bg-slate-950/40"
-                    >
-                      <dt class="text-[10px] font-black uppercase tracking-[0.14em] text-orange-800/80 dark:text-orange-200/80">
-                        {{ t('settingsSavedLayouts') }}
-                      </dt>
-                      <dd class="mt-1 text-sm font-black text-orange-950 dark:text-orange-50">
-                        {{ t('settingsPlanLayouts', { count: savedLayoutsCount }) }}
-                      </dd>
-                    </div>
-                    <div
-                      class="rounded-2xl border border-orange-200/80 bg-white/90 p-4 dark:border-orange-900/60 dark:bg-slate-950/40"
-                    >
-                      <dt class="text-[10px] font-black uppercase tracking-[0.14em] text-orange-800/80 dark:text-orange-200/80">
-                        {{ t('settingsExports') }}
-                      </dt>
-                      <dd class="mt-1 text-sm font-bold leading-snug text-orange-950 dark:text-orange-50">
-                        {{ t('settingsPlanExports') }}
-                      </dd>
-                    </div>
-                    <div
-                      class="rounded-2xl border border-orange-200/80 bg-white/90 p-4 dark:border-orange-900/60 dark:bg-slate-950/40"
-                    >
-                      <dt class="text-[10px] font-black uppercase tracking-[0.14em] text-orange-800/80 dark:text-orange-200/80">
-                        {{ t('settingsCollaborators') }}
-                      </dt>
-                      <dd class="mt-1 text-sm font-black text-orange-950 dark:text-orange-50">
-                        {{ t('settingsNotAvailableFree') }}
-                      </dd>
-                    </div>
-                    <div
-                      class="rounded-2xl border border-orange-200/80 bg-white/90 p-4 sm:col-span-2 dark:border-orange-900/60 dark:bg-slate-950/40"
-                    >
-                      <dt class="text-[10px] font-black uppercase tracking-[0.14em] text-orange-800/80 dark:text-orange-200/80">
-                        {{ t('settingsLastSync') }}
-                      </dt>
-                      <dd class="mt-1 text-sm font-black text-orange-950 dark:text-orange-50">
-                        {{
-                          auth.session
-                            ? t('settingsSessionSupabase')
-                            : t('settingsSessionLocal')
-                        }}
+                        {{ row.value }}
                       </dd>
                     </div>
                   </dl>
@@ -364,21 +536,15 @@ watch(
                   class="border-b border-slate-200/80 bg-slate-50/80 px-5 py-4 dark:border-slate-800/80 dark:bg-slate-900/60"
                 >
                   <h3 class="text-lg font-black tracking-tight text-slate-950 dark:text-slate-100">
-                    {{ t('settingsProLimits') }}
+                    {{ t('settingsProPlusLimits') }}
                   </h3>
                   <p class="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-                    {{ t('settingsProRoadmap') }}
+                    {{ t('settingsProPlusRoadmap') }}
                   </p>
                 </header>
                 <ul class="divide-y divide-slate-200/80 dark:divide-slate-800/80">
                   <li
-                    v-for="item in [
-                      t('settingsProUnlimited'),
-                      t('settingsProHistory'),
-                      t('settingsProBim'),
-                      t('settingsProCollab'),
-                      t('settingsProSupport'),
-                    ]"
+                    v-for="item in proPlusRoadmapItems"
                     :key="item"
                     class="flex items-start gap-3 px-5 py-3.5"
                   >
@@ -398,4 +564,16 @@ watch(
       </main>
     </div>
   </div>
+
+  <ConfirmDialog
+    :open="showUnsavedDialog"
+    :title="t('settingsUnsavedTitle')"
+    :message="t('settingsPendingChanges')"
+    :confirm-label="t('settingsSavePreferences')"
+    :cancel-label="t('settingsDiscardChanges')"
+    variant="primary"
+    @confirm="confirmUnsavedSave"
+    @cancel="confirmUnsavedDiscard"
+    @dismiss="cancelUnsavedDialog"
+  />
 </template>

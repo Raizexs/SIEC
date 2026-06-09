@@ -208,6 +208,12 @@ try:
 except Exception as exc:  # pragma: no cover
     log.error("router_mount_failed", router="billing", error=str(exc))
 
+try:
+    from routers.siecplace import router as siecplace_router
+    app.include_router(siecplace_router)
+except Exception as exc:  # pragma: no cover
+    log.error("router_mount_failed", router="siecplace", error=str(exc))
+
 # PDF vectorial (Playwright / Chromium print)
 try:
     from routers.export import router as export_router

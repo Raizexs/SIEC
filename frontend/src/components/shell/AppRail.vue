@@ -13,15 +13,16 @@
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from '../../stores/auth';
 import { useI18n } from '../../composables/useI18n';
-import { computed } from 'vue';
+import { useBilling } from '../../composables/useBilling';
+import { computed, onMounted } from 'vue';
 import {
   LayoutDashboard,
   Building2,
-  ChartLine,
-  Users2,
+  Store,
   Settings,
   LogOut,
   HelpCircle,
+  Lock,
 } from 'lucide-vue-next';
 
 defineProps({
@@ -31,7 +32,14 @@ defineProps({
 const router = useRouter();
 const route = useRoute();
 const auth = useAuthStore();
-const { currentLanguage } = useI18n();
+const { currentLanguage, t } = useI18n();
+const { hasMarketplaceAccess, fetchBilling } = useBilling();
+
+onMounted(() => {
+  fetchBilling(true);
+});
+
+const isSiecPlaceLocked = computed(() => !hasMarketplaceAccess.value);
 
 const workspaceTarget = computed(() => {
   if (route.name === 'workspace') return route.fullPath;
@@ -58,18 +66,11 @@ const links = [
     to: workspaceTarget,
   },
   {
-    id: 'analytics',
-    labelEs: 'Analítica',
-    labelEn: 'Analytics',
-    icon: ChartLine,
-    to: '/dashboard?view=analytics',
-  },
-  {
-    id: 'team',
-    labelEs: 'Equipo',
-    labelEn: 'Team',
-    icon: Users2,
-    to: '/settings?tab=integrations',
+    id: 'siecplace',
+    labelEs: 'SIEC Place',
+    labelEn: 'SIEC Place',
+    icon: Store,
+    to: '/siecplace',
   },
 ];
 
@@ -98,17 +99,28 @@ const showShortcuts = () => {
   window.dispatchEvent(new CustomEvent('siec:show-shortcuts'));
 };
 
+const isLinkLocked = (link) => link.id === 'siecplace' && isSiecPlaceLocked.value;
+
+const handleNavClick = (link, event) => {
+  if (!isLinkLocked(link)) return;
+  event.preventDefault();
+  router.push('/settings?tab=billing');
+};
+
+const lockedLinkTitle = (link) =>
+  isLinkLocked(link) ? t('siecplaceRailLocked') : linkLabel(link);
+
 const isActive = (link) => {
   const target = typeof link.to === 'string' ? link.to : link.to.value;
 
   if (!target) return false;
 
-  if (target.startsWith('/dashboard?view=analytics')) {
-    return route.path === '/dashboard' && route.query.view === 'analytics';
+  if (target.startsWith('/siecplace')) {
+    return route.path.startsWith('/siecplace');
   }
 
   if (target.startsWith('/dashboard')) {
-    return route.path === '/dashboard' && route.query.view !== 'analytics';
+    return route.path === '/dashboard';
   }
 
   if (target.startsWith('/workspace')) {
@@ -145,14 +157,29 @@ const isActive = (link) => {
         v-for="link in links"
         :key="link.id"
         :to="typeof link.to === 'string' ? link.to : link.to.value"
-        :title="linkLabel(link)"
+        :title="lockedLinkTitle(link)"
         class="rail-link group"
-        :class="{ 'rail-link-active': isActive(link) }"
+        :class="{
+          'rail-link-active': isActive(link) && !isLinkLocked(link),
+          'rail-link-locked': isLinkLocked(link),
+        }"
+        :aria-disabled="isLinkLocked(link) ? 'true' : undefined"
+        @click="handleNavClick(link, $event)"
       >
-        <component :is="link.icon" class="h-5 w-5" :stroke-width="2" />
+        <component
+          :is="link.icon"
+          class="h-5 w-5"
+          :class="{ 'opacity-50': isLinkLocked(link) }"
+          :stroke-width="2"
+        />
+        <Lock
+          v-if="isLinkLocked(link)"
+          class="pointer-events-none absolute bottom-1 right-1 h-3 w-3 text-slate-400 dark:text-slate-500"
+          :stroke-width="2.5"
+        />
 
         <span class="rail-tooltip">
-          {{ linkLabel(link) }}
+          {{ lockedLinkTitle(link) }}
         </span>
       </router-link>
     </nav>
@@ -233,6 +260,10 @@ const isActive = (link) => {
 
 .rail-link-active {
   @apply border-slate-900 bg-slate-950 text-white shadow-md hover:border-slate-900 hover:bg-slate-950 hover:text-white dark:border-slate-200 dark:bg-white dark:text-slate-950 dark:hover:border-slate-200 dark:hover:bg-white dark:hover:text-slate-950;
+}
+
+.rail-link-locked {
+  @apply cursor-not-allowed opacity-45 hover:translate-y-0 hover:border-transparent hover:bg-transparent hover:text-slate-500 hover:shadow-none dark:hover:text-slate-500;
 }
 
 .rail-tooltip {

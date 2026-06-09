@@ -8,64 +8,12 @@
  *   /onboarding            — first-run wizard (auth required)
  *   /dashboard             — projects grid (auth required)
  *   /workspace/:projectId? — 3D editor (auth required)
+ *   /siecplace             — marketplace de obras (auth required)
  *   /settings              — user profile, MFA, sessions (auth required)
  */
 import { createRouter, createWebHistory } from "vue-router";
 import { useAuthStore } from "../stores/auth";
-
-const routes = [
-  {
-    path: "/",
-    redirect: "/dashboard",
-  },
-  {
-    path: "/login",
-    name: "login",
-    component: () => import("../views/LoginView.vue"),
-    meta: { requiresAuth: false, hideShell: true },
-  },
-  {
-    path: "/auth/callback",
-    name: "auth-callback",
-    component: () => import("../views/AuthCallbackView.vue"),
-    meta: { requiresAuth: false, hideShell: true },
-  },
-  {
-    path: "/auth/reset-password",
-    name: "reset-password",
-    component: () => import("../views/ResetPasswordView.vue"),
-    meta: { requiresAuth: false, hideShell: true },
-  },
-  {
-    path: "/onboarding",
-    name: "onboarding",
-    component: () => import("../views/OnboardingView.vue"),
-    meta: { requiresAuth: true, hideShell: true },
-  },
-  {
-    path: "/dashboard",
-    name: "dashboard",
-    component: () => import("../views/DashboardView.vue"),
-    meta: { requiresAuth: true },
-  },
-  {
-    path: "/workspace/:projectId?",
-    name: "workspace",
-    component: () => import("../views/WorkspaceView.vue"),
-    meta: { requiresAuth: true },
-    props: true,
-  },
-  {
-    path: "/settings",
-    name: "settings",
-    component: () => import("../views/SettingsView.vue"),
-    meta: { requiresAuth: true },
-  },
-  {
-    path: "/:pathMatch(.*)*",
-    redirect: "/dashboard",
-  },
-];
+import { routes } from "./routes.js";
 
 const router = createRouter({
   history: createWebHistory(),
@@ -108,5 +56,7 @@ router.afterEach((to) => {
     window.localStorage.setItem("siec.lastWorkspacePath", to.fullPath);
   }
 });
+
+export { routes };
 
 export default router;

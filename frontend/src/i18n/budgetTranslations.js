@@ -32,6 +32,16 @@ export const budgetTranslationsEs = {
   budgetUpdated: "Actualizado:",
   budgetExportTitle: "Exportar presupuesto",
   budgetExport: "Exportar presupuesto",
+  exportPanelTitle: "Entregables del proyecto",
+  exportPanelSubtitle:
+    "Descarga el presupuesto en PDF, Excel o CSV con las preferencias de exportación.",
+  budgetReadyExportTitle: "Presupuesto listo para exportar",
+  budgetReadyExportHint:
+    "Revisa el desglose arriba. Cuando estés conforme, continúa al paso Exportar para descargar PDF, Excel o CSV.",
+  budgetGoExport: "Ir a Exportar",
+  budgetPrintPrefHint:
+    "¿Vas a imprimir el PDF? Activa el registro opcional para impresión en ",
+  budgetPrintPrefLink: "Ajustes → Entregables",
   budgetBreakdownTitle: "Desglose por categorías",
   budgetBreakdownHint:
     "Detalle de insumos, cantidades, precio unitario y subtotal.",
@@ -87,6 +97,16 @@ export const budgetTranslationsEn = {
   budgetUpdated: "Updated:",
   budgetExportTitle: "Export budget",
   budgetExport: "Export budget",
+  exportPanelTitle: "Project deliverables",
+  exportPanelSubtitle:
+    "Download the budget as PDF, Excel, or CSV using your export preferences.",
+  budgetReadyExportTitle: "Budget ready to export",
+  budgetReadyExportHint:
+    "Review the breakdown above. When you're ready, continue to the Export step to download PDF, Excel, or CSV.",
+  budgetGoExport: "Go to Export",
+  budgetPrintPrefHint:
+    "Printing the PDF? Enable the optional print review block in ",
+  budgetPrintPrefLink: "Settings → Deliverables",
   budgetBreakdownTitle: "Breakdown by category",
   budgetBreakdownHint:
     "Supply detail, quantities, unit price and subtotal.",

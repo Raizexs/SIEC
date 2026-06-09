@@ -44,6 +44,6 @@ export const PROPOSAL_SECTIONS = [
   { id: 'economico', label: 'Resumen económico' },
   { id: 'desglose', label: 'Desglose de insumos' },
   { id: 'condiciones', label: 'Condiciones comerciales' },
-  { id: 'firmas', label: 'Aceptación y firmas' },
+  { id: 'cierre', label: 'Validación y cierre' },
   { id: 'anexos', label: 'Anexos' },
 ];

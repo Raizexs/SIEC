@@ -116,15 +116,16 @@ const translations = {
     budgetStepGoDesign: "Ir a diseñar",
     exportStepEmptyTitle: "Presupuesto requerido para exportar",
     exportStepEmptyHint:
-      "Primero marca recintos con el icono de precio en Diseñar, genera el presupuesto en este paso y luego podrás exportar PDF o Excel.",
+      "Primero marca recintos con el icono de precio en Diseñar, genera el presupuesto en el paso Presupuesto y luego podrás exportar aquí.",
+    exportStepGoBudget: "Ir a presupuesto",
     flowGuideTitle: "¿Qué hacer ahora?",
     flowGuideDismiss: "Ocultar guía",
     flowHintConfigure: "Define el terreno y el material. Luego avanza a diseñar recintos.",
     flowHintDesign:
       "Diseña en 2D y revisa el 3D al lado. Usa el icono de precio en cada recinto que quieras cotizar; luego ve a Presupuesto.",
     flowHintBudget:
-      "Aquí se calcula el presupuesto de los recintos que marcaste con el icono de precio en Diseñar. Sin selección, verás las instrucciones.",
-    flowHintExport: "Exporta PDF o Excel para compartir con tu maestro de obra.",
+      "Calcula el presupuesto aquí: verás el total, el desglose y al final podrás ir al paso Exportar.",
+    flowHintExport: "Descarga PDF, Excel o CSV del presupuesto ya calculado.",
     tourWelcomeTitle: "Bienvenido a SIEC",
     tourWelcomeDesc:
       "Este recorrido sigue el flujo actual del workspace: Configurar → Diseñar → Presupuesto → Exportar. Puedes saltarlo cuando quieras.",
@@ -473,15 +474,16 @@ const translations = {
     budgetStepGoDesign: "Go to design",
     exportStepEmptyTitle: "Budget required to export",
     exportStepEmptyHint:
-      "First mark rooms with the price icon in Design, generate the budget here, then you can export PDF or Excel.",
+      "First mark rooms with the price icon in Design, generate the budget in the Budget step, then export here.",
+    exportStepGoBudget: "Go to budget",
     flowGuideTitle: "What to do now",
     flowGuideDismiss: "Hide guide",
     flowHintConfigure: "Set terrain and material, then move on to design rooms.",
     flowHintDesign:
       "Design in 2D and review 3D side by side. Use the price icon on each room to quote; then go to Budget.",
     flowHintBudget:
-      "The budget is calculated for rooms you marked with the price icon in Design. Without a selection, you will see instructions.",
-    flowHintExport: "Export PDF or Excel to share with your contractor.",
+      "Calculate the budget here: you'll see the total, breakdown, and can continue to the Export step at the end.",
+    flowHintExport: "Download PDF, Excel, or CSV for the calculated budget.",
     tourWelcomeTitle: "Welcome to SIEC",
     tourWelcomeDesc:
       "This tour follows the current workspace flow: Configure → Design → Budget → Export. You can close it anytime.",

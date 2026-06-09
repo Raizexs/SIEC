@@ -1,9 +1,14 @@
 <script setup>
-import { ref, watch, computed, nextTick, onMounted, onUnmounted } from "vue";
+import { ref, watch, computed, nextTick, onMounted, onUnmounted, inject } from "vue";
 import { useI18n } from "../composables/useI18n";
 import { useRecintosStore } from "../stores/recintos";
 import { useWorkspaceStore } from "../stores/workspace";
 import { useProductPreferences } from "../composables/useProductPreferences";
+import {
+  WORKSPACE_BUDGET_SESSION_KEY,
+  persistWorkspaceBudgetSession,
+  restoreWorkspaceBudgetSession,
+} from "../composables/useWorkspaceBudgetSession";
 import {
   withContingency,
   ivaOnAmount,
@@ -14,6 +19,8 @@ import { toast } from "vue-sonner";
 import { exportBudget, getMaterialLabel, flattenDesgloseRows } from "../utils/budgetExporter";
 import { useBilling } from "../composables/useBilling";
 import { useApi, HttpError } from "../composables/useApi";
+import { useSiecPlace } from "../composables/useSiecPlace";
+import { useRoute } from "vue-router";
 import { captureSceneImage } from "../proposal/proposalSceneCapture";
 import { resolveBrandLogoUrl } from "../proposal/proposalBrand";
 import { reorganizeDesglose } from "../utils/budgetCategorizer";
@@ -27,9 +34,11 @@ const recintosStore = useRecintosStore();
 const workspaceStore = useWorkspaceStore();
 const { productPreferences } = useProductPreferences();
 const api = useApi();
-const { recordExport, handlePlanLimitError, clampMaterialId, canUseMaterial } = useBilling();
+const route = useRoute();
+const { recordExport, handlePlanLimitError, clampMaterialId, canUseMaterial, limits, hasMarketplaceAccess } = useBilling();
+const { createListing, checkoutPublish } = useSiecPlace();
 
-const emit = defineEmits(["budget-calculated"]);
+const emit = defineEmits(["budget-calculated", "go-export"]);
 
 const props = defineProps({
   m2Totales: { type: Number, required: true },
@@ -39,18 +48,49 @@ const props = defineProps({
   alturaMuroM: { type: Number, default: 2.44 },
   perimetroMl: { type: Number, default: null },
   pdfWatermark: { type: Boolean, default: true },
+  /** full | budget | export — recorta UI según paso del workspace */
+  panelMode: {
+    type: String,
+    default: "full",
+    validator: (value) => ["full", "budget", "export"].includes(value),
+  },
+  projectId: { type: String, default: null },
 });
 
-const isLoading = ref(false);
-const error = ref(null);
-const desglose = ref([]);
-const costoTotal = ref(null);
-const fechaPrecios = ref(null);
-const hasGenerated = ref(false);
+const sharedSession = inject(WORKSPACE_BUDGET_SESSION_KEY, null);
+
+const localHasGenerated = ref(false);
+const localDesglose = ref([]);
+const localCostoTotal = ref(null);
+const localFechaPrecios = ref(null);
+const localError = ref(null);
+const localIsLoading = ref(false);
+const localDisabledCategories = ref(new Set());
+
+const hasGenerated = sharedSession?.hasGenerated ?? localHasGenerated;
+const desglose = sharedSession?.desglose ?? localDesglose;
+const costoTotal = sharedSession?.costoTotal ?? localCostoTotal;
+const fechaPrecios = sharedSession?.fechaPrecios ?? localFechaPrecios;
+const error = sharedSession?.error ?? localError;
+const isLoading = sharedSession?.isLoading ?? localIsLoading;
+const disabledCategories = sharedSession?.disabledCategories ?? localDisabledCategories;
+
+const showExportControls = computed(
+  () => props.panelMode === "full" || props.panelMode === "export",
+);
+const showExportInHeader = computed(
+  () => showExportControls.value && props.panelMode !== "budget",
+);
+const showBreakdown = computed(
+  () => props.panelMode === "full" || props.panelMode === "budget",
+);
+const showCalculateState = computed(
+  () => props.panelMode !== "export" && !hasGenerated.value,
+);
+const isExportPanel = computed(() => props.panelMode === "export");
 const exportMenuOpen = ref(false);
 const exportFormat = ref(null);
 const exportMenuRef = ref(null);
-const disabledCategories = ref(new Set());
 
 const enabledDesglose = computed(() =>
   desglose.value.filter(cat => !disabledCategories.value.has(cat.categoria)),
@@ -118,6 +158,68 @@ const canExport = computed(
     !isLoading.value &&
     !error.value &&
     (costoTotal.value != null || desglose.value.length > 0),
+);
+
+const showBudgetExportFooter = computed(
+  () => props.panelMode === "budget" && canExport.value,
+);
+
+const resolvedProjectId = computed(
+  () => props.projectId || route.params.projectId || null,
+);
+
+const isPublishableProject = computed(() => {
+  const id = resolvedProjectId.value;
+  if (!id) return false;
+  if (String(id).startsWith("local-")) return false;
+  return !/^\d+$/.test(String(id));
+});
+
+const showSiecPlacePublish = computed(
+  () =>
+    canExport.value &&
+    hasMarketplaceAccess.value &&
+    isPublishableProject.value &&
+    (props.panelMode === "budget" || props.panelMode === "export"),
+);
+
+const publishDialogOpen = ref(false);
+const publishTitle = ref("");
+const publishRegion = ref("");
+const publishLoading = ref(false);
+
+const openPublishDialog = () => {
+  publishTitle.value = workspaceStore.activePresetName || t("siecplacePublishTitle");
+  publishRegion.value = "";
+  publishDialogOpen.value = true;
+};
+
+const submitPublish = async () => {
+  if (!resolvedProjectId.value) return;
+  publishLoading.value = true;
+  try {
+    const listing = await createListing({
+      project_id: String(resolvedProjectId.value),
+      title: publishTitle.value.trim() || t("siecplacePublishTitle"),
+      region: publishRegion.value.trim() || null,
+      m2: Math.round(props.m2Totales),
+      material_id: props.materialEstructuralId,
+      estimated_total_clp: totalPreferido.value ?? motorTotal.value,
+    });
+    publishDialogOpen.value = false;
+    await checkoutPublish(listing.id);
+  } catch (err) {
+    console.error("[siecplace] publish failed", err);
+  } finally {
+    publishLoading.value = false;
+  }
+};
+
+const showPrintExportHint = computed(
+  () =>
+    (isExportPanel.value || props.panelMode === "budget") &&
+    canExport.value &&
+    productPreferences.value.export?.includePrintReviewBlock !== true,
 );
 
 const exportOptions = [
@@ -285,6 +387,15 @@ const fetchBudget = async () => {
         materialEstructuralId: props.materialEstructuralId,
       });
     }
+
+    if (sharedSession) {
+      persistWorkspaceBudgetSession(
+        props.projectId,
+        props.m2Totales,
+        props.materialEstructuralId,
+        sharedSession,
+      );
+    }
   } catch (err) {
     if (err instanceof HttpError && err.status === 403) {
       const detail = err.payload?.detail;
@@ -306,7 +417,6 @@ watch(
     hasGenerated.value = false;
     exportMenuOpen.value = false;
   },
-  { immediate: true },
 );
 
 watch(
@@ -320,11 +430,16 @@ const buildExportPayload = () => {
   const desgloseSnapshot = JSON.parse(JSON.stringify(
     effectiveDesglose.value.filter(cat => !disabledCategories.value.has(cat.categoria)) || []
   ));
+  const canBrand = limits.value.custom_export_branding === true;
 
   return {
     projectName: workspaceStore.activePresetName,
-    businessName: productPreferences.value.export?.businessName?.trim() || "",
-    reportFooter: productPreferences.value.export?.reportFooter?.trim() || "",
+    businessName: canBrand
+      ? productPreferences.value.export?.businessName?.trim() || ""
+      : "",
+    reportFooter: canBrand
+      ? productPreferences.value.export?.reportFooter?.trim() || ""
+      : "",
     m2Totales: props.m2Totales,
     materialEstructuralId: props.materialEstructuralId,
     materialNombre: getMaterialLabel(props.materialEstructuralId),
@@ -342,9 +457,25 @@ const buildExportPayload = () => {
         : formatCurrency(costoTotal.value),
     contingencyPct: productPreferences.value.contingency,
     includeTax: productPreferences.value.includeTax,
-    includeLogo: productPreferences.value.export?.includeLogo !== false,
+    includeLogo: canBrand
+      ? productPreferences.value.export?.includeLogo !== false
+      : true,
+    includeMaterialsBreakdown:
+      productPreferences.value.export?.includeMaterialsBreakdown !== false,
+    includeUnitPrices: productPreferences.value.export?.includeUnitPrices !== false,
+    includeSnapshots: productPreferences.value.export?.includeSnapshots !== false,
+    includePrintReviewBlock:
+      productPreferences.value.export?.includePrintReviewBlock === true,
+    export: { ...productPreferences.value.export },
     logoUrl: resolveBrandLogoUrl(),
     pdfWatermark: props.pdfWatermark,
+    counts: {
+      recintos:
+        recintosStore.recintosByType.habitaciones +
+        recintosStore.recintosByType.banios +
+        recintosStore.recintosByType.areasComunes,
+      pasillos: recintosStore.recintosByType.pasillos,
+    },
   };
 };
 
@@ -379,7 +510,9 @@ const handleExport = async (format) => {
     await recordExport();
     const payload = buildExportPayload();
     if (format === "pdf") {
-      payload.sceneImageDataUrl = await captureSceneImage();
+      if (payload.includeSnapshots !== false) {
+        payload.sceneImageDataUrl = await captureSceneImage();
+      }
       toast.loading(t("budgetPdfGenerating"), { id: toastId });
     }
     await exportBudget(format, payload);
@@ -413,6 +546,21 @@ const onDocumentClick = (event) => {
 
 onMounted(() => {
   document.addEventListener("click", onDocumentClick);
+
+  if (!sharedSession) return;
+  const restored = restoreWorkspaceBudgetSession(
+    props.projectId,
+    props.m2Totales,
+    props.materialEstructuralId,
+    sharedSession,
+  );
+  if (restored && costoTotal.value != null) {
+    emit("budget-calculated", {
+      costoTotal: costoTotal.value,
+      m2Totales: props.m2Totales,
+      materialEstructuralId: props.materialEstructuralId,
+    });
+  }
 });
 
 onUnmounted(() => {
@@ -431,6 +579,7 @@ onUnmounted(() => {
 
     <!-- Header -->
     <header
+      v-if="!isExportPanel"
       class="relative z-10 mb-7 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"
     >
       <div class="flex items-start gap-3">
@@ -473,9 +622,71 @@ onUnmounted(() => {
       </div>
     </header>
 
+    <header
+      v-else
+      class="relative z-10 mb-7 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"
+    >
+      <div class="flex items-start gap-3">
+        <div
+          class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-violet-200 bg-violet-50 text-violet-600 shadow-sm dark:border-violet-900/60 dark:bg-violet-950/30 dark:text-violet-300"
+        >
+          <span class="material-symbols-outlined text-[23px]">
+            upload_file
+          </span>
+        </div>
+
+        <div>
+          <p
+            class="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
+          >
+            {{ t("budgetExportTitle") }}
+          </p>
+
+          <h2
+            class="mt-1 text-2xl font-black tracking-tight text-slate-950 dark:text-slate-100"
+          >
+            {{ t("exportPanelTitle") }}
+          </h2>
+
+          <p
+            class="mt-1 max-w-2xl text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400"
+          >
+            {{ t("exportPanelSubtitle") }}
+          </p>
+        </div>
+      </div>
+
+      <div
+        class="inline-flex w-fit items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
+      >
+        <span class="material-symbols-outlined text-[15px] text-slate-400">
+          square_foot
+        </span>
+        {{ t("budgetM2Calculated", { m2: Math.round(m2Totales) }) }}
+      </div>
+    </header>
+
+    <div
+      v-if="showPrintExportHint && isExportPanel && hasGenerated && !isLoading"
+      class="relative z-10 mb-5 flex items-start gap-3 rounded-2xl border border-sky-200/90 bg-sky-50/90 px-4 py-3 dark:border-sky-900/60 dark:bg-sky-950/30"
+    >
+      <span class="material-symbols-outlined mt-0.5 text-[18px] text-sky-600 dark:text-sky-300">
+        info
+      </span>
+      <p class="text-xs font-medium leading-relaxed text-sky-900 dark:text-sky-100">
+        {{ t("budgetPrintPrefHint") }}
+        <a
+          href="/settings?tab=preferences"
+          class="font-bold underline decoration-sky-400/70 underline-offset-2 hover:text-sky-700 dark:hover:text-sky-200"
+        >
+          {{ t("budgetPrintPrefLink") }}
+        </a>
+      </p>
+    </div>
+
     <!-- Initial state -->
     <div
-      v-if="!hasGenerated"
+      v-if="showCalculateState"
       class="relative z-10 flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-slate-50/70 px-5 py-14 text-center dark:border-slate-700 dark:bg-slate-900/50"
     >
       <div
@@ -676,7 +887,18 @@ onUnmounted(() => {
                 {{ t("budgetUpdated") }} {{ formatDate(fechaPrecios) }}
               </div>
 
-              <div v-if="canExport" class="relative budget-export-menu">
+              <div v-if="(showExportInHeader && canExport) || showSiecPlacePublish" class="flex flex-wrap items-center gap-2">
+                <button
+                  v-if="showSiecPlacePublish"
+                  type="button"
+                  class="inline-flex items-center justify-center gap-2 rounded-2xl border border-violet-300/70 bg-violet-600 px-4 py-2.5 text-xs font-bold uppercase tracking-tight text-white shadow-lg shadow-violet-600/20 transition-all duration-200 hover:-translate-y-0.5 hover:bg-violet-500"
+                  @click="openPublishDialog"
+                >
+                  <span class="material-symbols-outlined text-[16px]">storefront</span>
+                  {{ t("siecplacePublishCta") }}
+                </button>
+
+              <div v-if="showExportInHeader && canExport" class="relative budget-export-menu">
                 <button
                   type="button"
                   :title="t('budgetExportTitle')"
@@ -735,12 +957,13 @@ onUnmounted(() => {
                   </div>
                 </Transition>
               </div>
+              </div>
             </div>
           </div>
         </section>
 
         <!-- Breakdown -->
-        <section class="space-y-3">
+        <section v-if="showBreakdown" class="space-y-3">
           <div class="flex items-center justify-between gap-3">
             <div>
               <h3
@@ -1033,6 +1256,123 @@ onUnmounted(() => {
             </p>
           </div>
         </section>
+
+        <section
+          v-if="showBudgetExportFooter"
+          class="relative overflow-hidden rounded-3xl border border-emerald-200/90 bg-gradient-to-br from-emerald-50/95 to-white p-6 shadow-lg shadow-emerald-500/10 dark:border-emerald-900/60 dark:from-emerald-950/30 dark:to-slate-950/80 sm:p-7"
+        >
+          <div
+            class="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-emerald-400/15 blur-3xl"
+          ></div>
+
+          <div class="relative z-10 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <div class="min-w-0">
+              <p class="text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-300">
+                {{ t("budgetReadyExportTitle") }}
+              </p>
+              <p class="mt-2 text-sm font-medium leading-relaxed text-slate-600 dark:text-slate-300">
+                {{ t("budgetReadyExportHint") }}
+              </p>
+              <p
+                v-if="showPrintExportHint"
+                class="mt-3 flex items-start gap-2 text-[11px] font-medium leading-relaxed text-sky-800 dark:text-sky-200"
+              >
+                <span class="material-symbols-outlined mt-0.5 text-[16px] text-sky-600 dark:text-sky-300">
+                  info
+                </span>
+                <span>
+                  {{ t("budgetPrintPrefHint") }}
+                  <a
+                    href="/settings?tab=preferences"
+                    class="font-bold underline decoration-sky-400/70 underline-offset-2"
+                  >
+                    {{ t("budgetPrintPrefLink") }}
+                  </a>
+                </span>
+              </p>
+            </div>
+
+            <div class="relative shrink-0 flex flex-col gap-2 sm:flex-row sm:items-center">
+              <button
+                v-if="showSiecPlacePublish"
+                type="button"
+                class="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-violet-300/70 bg-violet-600 px-5 py-3 text-sm font-bold uppercase tracking-tight text-white shadow-lg shadow-violet-600/20 transition-all duration-200 hover:-translate-y-0.5 hover:bg-violet-500 sm:w-auto"
+                @click="openPublishDialog"
+              >
+                <span class="material-symbols-outlined text-[18px]">storefront</span>
+                {{ t("siecplacePublishCta") }}
+              </button>
+
+              <button
+                type="button"
+                class="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald-500/40 bg-emerald-600 px-5 py-3 text-sm font-bold uppercase tracking-tight text-white shadow-lg shadow-emerald-600/25 transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-500 hover:shadow-emerald-500/30 active:scale-[0.98] sm:w-auto"
+                @click="emit('go-export')"
+              >
+                <span class="material-symbols-outlined text-[18px]">
+                  upload_file
+                </span>
+                {{ t("budgetGoExport") }}
+                <span class="material-symbols-outlined text-[16px] opacity-80">
+                  arrow_forward
+                </span>
+              </button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div
+      v-if="publishDialogOpen"
+      class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      :aria-label="t('siecplacePublishTitle')"
+    >
+      <div class="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-950">
+        <h3 class="text-lg font-black text-slate-950 dark:text-slate-50">
+          {{ t("siecplacePublishTitle") }}
+        </h3>
+        <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">
+          {{ t("siecplacePublishHint") }}
+        </p>
+
+        <label class="mt-5 block text-xs font-bold uppercase tracking-wide text-slate-500">
+          {{ t("budgetExportTitle") }}
+          <input
+            v-model="publishTitle"
+            type="text"
+            class="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-900"
+          />
+        </label>
+
+        <label class="mt-4 block text-xs font-bold uppercase tracking-wide text-slate-500">
+          {{ t("siecplacePublishRegion") }}
+          <input
+            v-model="publishRegion"
+            type="text"
+            class="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-900"
+          />
+        </label>
+
+        <div class="mt-6 flex gap-2">
+          <button
+            type="button"
+            class="flex-1 rounded-2xl border border-slate-200 py-2.5 text-sm font-bold dark:border-slate-700"
+            :disabled="publishLoading"
+            @click="publishDialogOpen = false"
+          >
+            {{ t("settingsBack") }}
+          </button>
+          <button
+            type="button"
+            class="flex-1 rounded-2xl bg-violet-600 py-2.5 text-sm font-bold text-white hover:bg-violet-500 disabled:opacity-60"
+            :disabled="publishLoading"
+            @click="submitPublish"
+          >
+            {{ publishLoading ? "…" : t("siecplacePublishSubmit") }}
+          </button>
+        </div>
       </div>
     </div>
   </section>

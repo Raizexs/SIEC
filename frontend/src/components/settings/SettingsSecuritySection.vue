@@ -291,6 +291,7 @@ const runConfirmAction = async () => {
       :variant="confirmState.variant"
       @confirm="runConfirmAction"
       @cancel="closeConfirm"
+      @dismiss="closeConfirm"
     />
   </div>
 </template>

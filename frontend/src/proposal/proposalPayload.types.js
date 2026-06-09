@@ -1,7 +1,7 @@
 /**
  * @typedef {Object} ProposalRoomCounts
- * @property {number} habitaciones
- * @property {number} banios
+ * @property {number} recintos
+ * @property {number} pasillos
  */
 
 /**
