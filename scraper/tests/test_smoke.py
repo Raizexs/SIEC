@@ -8,7 +8,11 @@ import pytest
 def test_fallback_prices_non_empty():
     from fallback_prices import get_fallback_results
 
-    results = get_fallback_results()
+    insumos = [
+        {"id": insumo_id, "categoria": "Obra Gruesa"}
+        for insumo_id in (1, 2, 3, 4, 5)
+    ]
+    results = get_fallback_results(insumos)
     assert len(results) >= 5
     for row in results[:3]:
         assert row.get("precio") is not None

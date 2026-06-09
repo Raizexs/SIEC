@@ -19,6 +19,14 @@ jobs:
           node-version: '20'
       - name: Install Vercel CLI
         run: npm install -g vercel@latest
+      - name: Link Vercel project (CI)
+        run: |
+          rm -rf .vercel
+          mkdir -p .vercel
+          printf '%s\n' \
+            "{\"orgId\":\"${{ secrets.VERCEL_ORG_ID }}\",\"projectId\":\"${{ secrets.VERCEL_PROJECT_ID }}\"}" \
+            > .vercel/project.json
+        working-directory: ./frontend
       - name: Pull Vercel env
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
         working-directory: ./frontend
