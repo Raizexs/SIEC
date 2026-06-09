@@ -18,7 +18,6 @@ import {
   LayoutDashboard,
   Building2,
   ChartLine,
-  Users2,
   Settings,
   LogOut,
   HelpCircle,
@@ -63,13 +62,6 @@ const links = [
     labelEn: 'Analytics',
     icon: ChartLine,
     to: '/dashboard?view=analytics',
-  },
-  {
-    id: 'team',
-    labelEs: 'Equipo',
-    labelEn: 'Team',
-    icon: Users2,
-    to: '/settings?tab=integrations',
   },
 ];
 
