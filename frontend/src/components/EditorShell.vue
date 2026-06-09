@@ -1013,6 +1013,7 @@ const startTutorial = () => {
               :alturaMuroM="2.44"
               :pdf-watermark="limits.pdf_watermark"
               @budget-calculated="onBudgetCalculated"
+              @go-export="goToStep('export')"
             />
             <div
               v-else

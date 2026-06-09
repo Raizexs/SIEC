@@ -36,7 +36,7 @@ const route = useRoute();
 const { recordExport, handlePlanLimitError, clampMaterialId, canUseMaterial, limits, hasMarketplaceAccess } = useBilling();
 const { createListing, checkoutPublish } = useSiecPlace();
 
-const emit = defineEmits(["budget-calculated"]);
+const emit = defineEmits(["budget-calculated", "go-export"]);
 
 const props = defineProps({
   m2Totales: { type: Number, required: true },
@@ -1169,61 +1169,19 @@ onUnmounted(() => {
                 {{ t("siecplacePublishCta") }}
               </button>
 
-              <div class="relative budget-export-menu">
               <button
                 type="button"
-                :title="t('budgetExportTitle')"
-                aria-haspopup="menu"
-                :aria-expanded="exportMenuOpen"
                 class="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald-500/40 bg-emerald-600 px-5 py-3 text-sm font-bold uppercase tracking-tight text-white shadow-lg shadow-emerald-600/25 transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-500 hover:shadow-emerald-500/30 active:scale-[0.98] sm:w-auto"
-                @click.stop="handleToggleExportMenu"
+                @click="emit('go-export')"
               >
                 <span class="material-symbols-outlined text-[18px]">
-                  download
+                  upload_file
                 </span>
-                {{ t("budgetExport") }}
+                {{ t("budgetGoExport") }}
                 <span class="material-symbols-outlined text-[16px] opacity-80">
-                  expand_more
+                  arrow_forward
                 </span>
               </button>
-
-              <Transition name="export-menu">
-                <div
-                  v-if="exportMenuOpen"
-                  ref="exportMenuRef"
-                  role="menu"
-                  class="absolute bottom-full right-0 z-[70] mb-2 max-h-[min(320px,60vh)] w-56 overflow-y-auto rounded-3xl border border-slate-200/90 bg-white/95 p-2 shadow-2xl shadow-slate-950/15 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/40 sm:bottom-auto sm:top-full sm:mt-2 sm:mb-0"
-                >
-                  <button
-                    v-for="option in exportOptions"
-                    :key="option.id"
-                    type="button"
-                    role="menuitem"
-                    class="group flex min-h-12 w-full cursor-pointer items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-xs font-bold text-slate-700 transition-all duration-200 hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70 active:scale-[0.99] dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-slate-100"
-                    @click.stop.prevent="handleExport(option.id)"
-                  >
-                    <span
-                      class="pointer-events-none flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-600 transition-colors duration-200 group-hover:border-emerald-300 group-hover:bg-emerald-100 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300 dark:group-hover:border-emerald-700 dark:group-hover:bg-emerald-950/60"
-                    >
-                      <span class="material-symbols-outlined text-[16px]">
-                        {{ option.icon }}
-                      </span>
-                    </span>
-
-                    <span class="pointer-events-none min-w-0 flex-1 select-none">
-                      {{ option.label }}
-                    </span>
-
-                    <span
-                      v-if="exportFormat === option.id"
-                      class="pointer-events-none material-symbols-outlined animate-spin text-[15px] text-emerald-500 dark:text-emerald-300"
-                    >
-                      progress_activity
-                    </span>
-                  </button>
-                </div>
-              </Transition>
-              </div>
             </div>
           </div>
         </section>

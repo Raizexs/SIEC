@@ -37,7 +37,8 @@ export const budgetTranslationsEs = {
     "Descarga el presupuesto en PDF, Excel o CSV con las preferencias de exportación.",
   budgetReadyExportTitle: "Presupuesto listo para exportar",
   budgetReadyExportHint:
-    "Revisa el desglose arriba. Cuando estés conforme, descarga el archivo o continúa al paso Exportar en la barra superior.",
+    "Revisa el desglose arriba. Cuando estés conforme, continúa al paso Exportar para descargar PDF, Excel o CSV.",
+  budgetGoExport: "Ir a Exportar",
   budgetPrintPrefHint:
     "¿Vas a imprimir el PDF? Activa el registro opcional para impresión en ",
   budgetPrintPrefLink: "Ajustes → Entregables",
@@ -100,7 +101,8 @@ export const budgetTranslationsEn = {
     "Download the budget as PDF, Excel, or CSV using your export preferences.",
   budgetReadyExportTitle: "Budget ready to export",
   budgetReadyExportHint:
-    "Review the breakdown above. When you're ready, download the file or continue to the Export step in the top bar.",
+    "Review the breakdown above. When you're ready, continue to the Export step to download PDF, Excel, or CSV.",
+  budgetGoExport: "Go to Export",
   budgetPrintPrefHint:
     "Printing the PDF? Enable the optional print review block in ",
   budgetPrintPrefLink: "Settings → Deliverables",
