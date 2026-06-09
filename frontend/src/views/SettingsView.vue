@@ -11,6 +11,11 @@ import {
   PREFERENCES_DRAFT_KEY,
 } from '../composables/usePreferencesDraft';
 import ConfirmDialog from '../components/settings/ConfirmDialog.vue';
+import SettingsAppearancePanel from '../components/settings/SettingsAppearancePanel.vue';
+import SettingsPreferencesPanel from '../components/settings/SettingsPreferencesPanel.vue';
+import SettingsExportSection from '../components/settings/SettingsExportSection.vue';
+import SettingsPreferencesSaveBar from '../components/settings/SettingsPreferencesSaveBar.vue';
+import SettingsIntegrationsCards from '../components/settings/SettingsIntegrationsCards.vue';
 import {
   ArrowLeft,
   User2,
@@ -29,21 +34,6 @@ const SettingsProfileCard = defineAsyncComponent(() =>
 );
 const SettingsSecuritySection = defineAsyncComponent(() =>
   import('../components/settings/SettingsSecuritySection.vue'),
-);
-const SettingsAppearancePanel = defineAsyncComponent(() =>
-  import('../components/settings/SettingsAppearancePanel.vue'),
-);
-const SettingsPreferencesPanel = defineAsyncComponent(() =>
-  import('../components/settings/SettingsPreferencesPanel.vue'),
-);
-const SettingsExportSection = defineAsyncComponent(() =>
-  import('../components/settings/SettingsExportSection.vue'),
-);
-const SettingsPreferencesSaveBar = defineAsyncComponent(() =>
-  import('../components/settings/SettingsPreferencesSaveBar.vue'),
-);
-const SettingsIntegrationsCards = defineAsyncComponent(() =>
-  import('../components/settings/SettingsIntegrationsCards.vue'),
 );
 
 const preferencesDraft = usePreferencesDraft();
@@ -126,6 +116,17 @@ const planModeBadges = computed(() => {
 
 const savedLayoutsCount = computed(() => savedLayouts.value?.length ?? 0);
 
+const proPlusRoadmapItems = computed(() => {
+  void currentLanguage.value;
+  return [
+    t('settingsProPlusMarketplace'),
+    t('settingsProPlusIntegrations'),
+    t('settingsProPlusBim'),
+    t('settingsProPlusCollab'),
+    t('settingsProPlusPricing'),
+  ];
+});
+
 useProMotion(motionRoot, { skipIntro: true });
 
 const requestTab = (nextTab) => {
@@ -181,7 +182,8 @@ const cancelUnsavedDialog = () => {
 
 onMounted(async () => {
   preferencesDraft.syncFromSaved();
-  await auth.refreshFactors();
+  auth.refreshFactors();
+  fetchBilling();
 });
 
 onBeforeRouteLeave((_to, _from, next) => {
@@ -204,15 +206,11 @@ watch(
   { immediate: true },
 );
 
-watch(
-  tab,
-  (value) => {
-    if (value === 'billing') {
-      fetchBilling();
-    }
-  },
-  { immediate: true },
-);
+watch(tab, (value, previous) => {
+  if (value === 'billing' && previous !== undefined) {
+    fetchBilling(true);
+  }
+});
 </script>
 
 <template>
@@ -457,21 +455,15 @@ watch(
                   class="border-b border-slate-200/80 bg-slate-50/80 px-5 py-4 dark:border-slate-800/80 dark:bg-slate-900/60"
                 >
                   <h3 class="text-lg font-black tracking-tight text-slate-950 dark:text-slate-100">
-                    {{ t('settingsProLimits') }}
+                    {{ t('settingsProPlusLimits') }}
                   </h3>
                   <p class="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-                    {{ t('settingsProRoadmap') }}
+                    {{ t('settingsProPlusRoadmap') }}
                   </p>
                 </header>
                 <ul class="divide-y divide-slate-200/80 dark:divide-slate-800/80">
                   <li
-                    v-for="item in [
-                      t('settingsProUnlimited'),
-                      t('settingsProHistory'),
-                      t('settingsProBim'),
-                      t('settingsProCollab'),
-                      t('settingsProSupport'),
-                    ]"
+                    v-for="item in proPlusRoadmapItems"
                     :key="item"
                     class="flex items-start gap-3 px-5 py-3.5"
                   >

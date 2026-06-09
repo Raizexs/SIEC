@@ -1,6 +1,6 @@
 <script setup>
 
-import { ref, computed, inject, onMounted } from 'vue';
+import { ref, computed, inject } from 'vue';
 
 import { useI18n } from '../../composables/useI18n';
 
@@ -26,7 +26,7 @@ const { t, currentLanguage } = useI18n();
 
 const draftCtx = inject(PREFERENCES_DRAFT_KEY);
 
-const { limits, fetchBilling } = useBilling();
+const { limits } = useBilling();
 
 
 
@@ -39,14 +39,6 @@ if (!draftCtx) {
 
 
 const { draft: productPreferences } = draftCtx;
-
-
-
-onMounted(() => {
-
-  fetchBilling();
-
-});
 
 
 

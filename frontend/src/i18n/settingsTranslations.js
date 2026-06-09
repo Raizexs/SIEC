@@ -75,7 +75,7 @@ export const settingsTranslationsEs = {
   settingsIntegrationsStatus:
     "Estado técnico de cada capa externa. Los botones reflejan disponibilidad real: nada de acciones simuladas.",
   settingsPlanLocal:
-    "Operación local del simulador con límites de almacenamiento en sesión. La facturación Pro llegará cuando el backend de planes esté activo.",
+    "Límites según tu plan activo. Los datos se sincronizan con tu cuenta cuando hay sesión Supabase.",
   settingsPlanLocalSession: "Modo local · sesión del navegador",
   settingsPlanLayouts: "{count} / 5 en esta sesión",
   settingsPlanExports:
@@ -83,11 +83,19 @@ export const settingsTranslationsEs = {
   settingsLastSync: "Última sincronización",
   settingsSessionSupabase: "Sesión Supabase activa en este dispositivo",
   settingsSessionLocal: "Sesión local (sin identidad en nube)",
-  settingsProLimits: "Próximos límites Pro",
-  settingsProRoadmap:
-    "Hoja de ruta realista; sujeto a priorización de producto e infraestructura.",
-  settingsProBim: "Exportación BIM / IFC con validaciones",
-  settingsProCollab: "Colaboración multiusuario en tiempo casi real",
+  settingsProPlusLimits: "Próximos límites Pro+",
+  settingsProPlusRoadmap:
+    "Capacidades en evaluación para cuentas Pro+; priorizadas según el ecosistema SIEC y feedback de obra.",
+  settingsProPlusMarketplace:
+    "SIEC Place ampliado: matching obra–contratista, reputación y seguimiento de leads",
+  settingsProPlusIntegrations:
+    "Respaldo en Google Drive y conectores Revit, IFC y AutoCAD desde Integraciones",
+  settingsProPlusBim:
+    "Coordinación BIM bidireccional con modelos externos y validación de capas constructivas",
+  settingsProPlusCollab:
+    "Equipo en obra: colaboración multiusuario, permisos e historial compartido del proyecto",
+  settingsProPlusPricing:
+    "Fuentes estructuradas de precios unitarios y alertas tempranas de desviación presupuestaria",
   settingsIntGdriveDesc: "Respaldos y exportaciones en la nube.",
   settingsIntGdriveHint: "En evaluación de alcance y permisos OAuth.",
   settingsIntRevitDesc: "Coordinación BIM e intercambio IFC.",
@@ -115,9 +123,6 @@ export const settingsTranslationsEs = {
   settingsBusinessPlaceholder: "Ej. Estudio Arquitectura Norte",
   settingsNo: "No",
   settingsVatIncluded: "IVA incluido en totales",
-  settingsProUnlimited: "Proyectos ilimitados y versionado remoto",
-  settingsProHistory: "Historial avanzado de cambios y comparativas",
-  settingsProSupport: "Soporte prioritario y SLA de incidentes",
   settingsProfileUpdated: "Perfil actualizado.",
   settingsImageTooLarge: "La imagen debe pesar menos de 4MB.",
   settingsPhotoUpdated: "Foto de perfil actualizada.",
@@ -232,7 +237,7 @@ export const settingsTranslationsEn = {
   settingsIntegrationsStatus:
     "Technical status of each external layer. Buttons reflect real availability—no simulated actions.",
   settingsPlanLocal:
-    "Local simulator operation with session storage limits. Pro billing will arrive when the plans backend is active.",
+    "Limits follow your active plan. Data syncs with your account when a Supabase session is active.",
   settingsPlanLocalSession: "Local mode · browser session",
   settingsPlanLayouts: "{count} / 5 this session",
   settingsPlanExports:
@@ -240,11 +245,19 @@ export const settingsTranslationsEn = {
   settingsLastSync: "Last sync",
   settingsSessionSupabase: "Active Supabase session on this device",
   settingsSessionLocal: "Local session (no cloud identity)",
-  settingsProLimits: "Upcoming Pro limits",
-  settingsProRoadmap:
-    "Realistic roadmap; subject to product and infrastructure prioritization.",
-  settingsProBim: "BIM / IFC export with validations",
-  settingsProCollab: "Near real-time multi-user collaboration",
+  settingsProPlusLimits: "Upcoming Pro+ limits",
+  settingsProPlusRoadmap:
+    "Capabilities under evaluation for Pro+ accounts; prioritized by the SIEC ecosystem and field feedback.",
+  settingsProPlusMarketplace:
+    "Expanded SIEC Place: project–contractor matching, reputation, and lead follow-up",
+  settingsProPlusIntegrations:
+    "Google Drive backup and Revit, IFC, and AutoCAD connectors from Integrations",
+  settingsProPlusBim:
+    "Bidirectional BIM coordination with external models and construction layer validation",
+  settingsProPlusCollab:
+    "On-site team: multi-user collaboration, permissions, and shared project history",
+  settingsProPlusPricing:
+    "Structured unit-price sources and early budget deviation alerts",
   settingsIntGdriveDesc: "Backups and cloud exports.",
   settingsIntGdriveHint: "Evaluating scope and OAuth permissions.",
   settingsIntRevitDesc: "BIM coordination and IFC exchange.",
@@ -272,9 +285,6 @@ export const settingsTranslationsEn = {
   settingsBusinessPlaceholder: "e.g. North Architecture Studio",
   settingsNo: "No",
   settingsVatIncluded: "VAT included in totals",
-  settingsProUnlimited: "Unlimited projects and remote versioning",
-  settingsProHistory: "Advanced change history and comparisons",
-  settingsProSupport: "Priority support and incident SLA",
   settingsProfileUpdated: "Profile updated.",
   settingsImageTooLarge: "Image must be under 4MB.",
   settingsPhotoUpdated: "Profile photo updated.",

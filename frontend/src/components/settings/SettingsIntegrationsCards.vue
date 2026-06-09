@@ -2,7 +2,6 @@
 import { computed } from 'vue';
 import { useI18n } from '../../composables/useI18n';
 import {
-  Plug2,
   FolderSync,
   Landmark,
   PenLine,
@@ -71,33 +70,9 @@ const integrationVariantClass = (variant) => {
 
 <template>
   <div class="space-y-6">
-    <header
-      class="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 p-6 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30"
-    >
-      <div
-        class="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-orange-500/10 blur-3xl dark:bg-orange-400/10"
-      ></div>
-      <div class="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-start">
-        <div
-          class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-orange-200 bg-orange-50 text-orange-600 shadow-sm dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
-        >
-          <Plug2 class="h-5 w-5" :stroke-width="2.3" />
-        </div>
-        <div class="min-w-0 flex-1">
-          <p
-            class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
-          >
-            {{ t('settingsEcosystem') }}
-          </p>
-          <h2 class="mt-1 text-2xl font-black tracking-tight text-slate-950 dark:text-slate-100">
-            {{ t('settingsIntegrationsTitle') }}
-          </h2>
-          <p class="mt-2 max-w-2xl text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400">
-            {{ t('settingsIntegrationsStatus') }}
-          </p>
-        </div>
-      </div>
-    </header>
+    <p class="text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400">
+      {{ t('settingsIntegrationsStatus') }}
+    </p>
 
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
       <article

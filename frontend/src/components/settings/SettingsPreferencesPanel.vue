@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, inject, onMounted } from 'vue';
+import { ref, computed, inject } from 'vue';
 import { useI18n } from '../../composables/useI18n';
 import { PREFERENCES_DRAFT_KEY } from '../../composables/usePreferencesDraft';
 import { useBilling } from '../../composables/useBilling';
@@ -18,17 +18,13 @@ import {
 
 const { t, currentLanguage } = useI18n();
 const draftCtx = inject(PREFERENCES_DRAFT_KEY);
-const { canUseMaterial, fetchBilling } = useBilling();
+const { canUseMaterial } = useBilling();
 
 if (!draftCtx) {
   throw new Error('SettingsPreferencesPanel requires preferences draft context');
 }
 
 const { draft: productPreferences, motionDraft: motionPref } = draftCtx;
-
-onMounted(() => {
-  fetchBilling();
-});
 
 const openSections = ref({
   experience: true,
