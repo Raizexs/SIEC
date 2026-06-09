@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 import math
 import unicodedata
 import os
+from urllib.parse import quote_plus
 from dotenv import load_dotenv
 load_dotenv()
 from collections import defaultdict
@@ -579,10 +580,12 @@ def calcular_insumos(
                 url_val = None
             if not any(s.get("tienda", "").lower() == tienda_key for s in all_stores_map[pm.insumo_id]):
                 if len(all_stores_map[pm.insumo_id]) < 5:
+                    nombre_prod = getattr(pm, 'nombre_producto', '') or ''
                     all_stores_map[pm.insumo_id].append({
                         "tienda": pm.tienda or "",
                         "precio": precio_float,
                         "url": url_val or "",
+                        "nombre_producto": nombre_prod,
                     })
 
             if pm.insumo_id not in latest_precio_record:
@@ -596,6 +599,12 @@ def calcular_insumos(
 
     for stores in all_stores_map.values():
         stores.sort(key=lambda s: s["precio"])
+        for s in stores:
+            url = s.get("url", "")
+            if not url or "google.com/search" in url:
+                term = s.get("nombre_producto", "")
+                if term:
+                    s["url"] = f"https://www.google.com/search?tbm=shop&q={quote_plus(term)}"
 
     precio_promedio_map = {}
     for i_id, lista_precios in precios_x_insumo.items():
