@@ -720,9 +720,8 @@ export class WallBuilder {
   /**
    * Capa de revestimiento exterior.
    * • Mampostería / hormigón → paneles continuos con textura de la biblioteca.
-   * • Entramado madera / metalcon → planchas OSB 1.22 × 2.44 m a color
-   *   madera cruda (#D2B48C, roughness 0.9) con junta visible de 5 mm.
-   *   El offset faceZ ya viene correctamente calculado para evitar Z-Fighting.
+   * • Entramado madera / acero galvanizado → planchas modulares 1.22 × 2.44 m
+   *   con textura de fachada según materialidad (siding / vinilo).
    */
   _buildFacadeLayer(length, faceZ, matType, openings = []) {
     const group = new THREE.Group();
@@ -791,72 +790,18 @@ export class WallBuilder {
           }
         }
       }
-    } else {
-      // Entramado madera / metalcon: OSB 1.22 × 2.44 m con junta visible
-      const osbMat = new THREE.MeshStandardMaterial({
-        color: "#D2B48C",
-        roughness: 0.9,
-        metalness: 0.0,
-      });
-
-      const addOSB = (x1, x2, y1, y2) => {
-        const w = x2 - x1;
-        const h = y2 - y1;
-        if (w < 0.01 || h < 0.01) return;
-        const panel = new THREE.Mesh(
-          new THREE.BoxGeometry(w, h, FACADE_PANEL_THICKNESS),
-          osbMat.clone(),
-        );
-        panel.position.set((x1 + x2) / 2, (y1 + y2) / 2, faceZ);
-        panel.castShadow = true; panel.receiveShadow = true;
-        group.add(panel);
-      };
-
-      // Columnas de OSB (eje X)
-      const columns = [];
-      let cx = fullXMin;
-      while (cx < fullXMax - 0.001) {
-        const cEnd = Math.min(cx + OSB_WIDTH, fullXMax);
-        if (cEnd - cx > 0.01) columns.push({ x1: cx, x2: cEnd });
-        cx = cEnd + PANEL_GAP;
-      }
-
-      // Filas de OSB (eje Y)
-      const rows = [];
-      let ry = -hy;
-      while (ry < hy - 0.001) {
-        const rEnd = Math.min(ry + OSB_HEIGHT, hy);
-        if (rEnd - ry > 0.01) rows.push({ y1: ry, y2: rEnd });
-        ry = rEnd + PANEL_GAP;
-      }
-
-      for (const col of columns) {
-        for (const row of rows) {
-          const op = opZones.find(
-            (z) => z.xMin < col.x2 && z.xMax > col.x1
-                && z.yMin < row.y2 && z.yMax > row.y1,
-          );
-
-          if (!op) {
-            addOSB(col.x1, col.x2, row.y1, row.y2);
-            continue;
-          }
-
-          // Cuatro trozos alrededor de la apertura
-          const ox1 = Math.max(col.x1, op.xMin);
-          const ox2 = Math.min(col.x2, op.xMax);
-          const oy1 = Math.max(row.y1, op.yMin);
-          const oy2 = Math.min(row.y2, op.yMax);
-
-          addOSB(col.x1, col.x2, row.y1, oy1);
-          addOSB(col.x1, col.x2, oy2,    row.y2);
-          addOSB(col.x1, ox1,    oy1,    oy2);
-          addOSB(ox2,    col.x2, oy1,    oy2);
-        }
-      }
+      return group;
     }
 
-    return group;
+    // Entramado madera / acero: planchas modulares con textura de la materialidad
+    return this._buildPlanchaLayer(
+      length,
+      faceZ,
+      matType,
+      "facade",
+      FACADE_PANEL_THICKNESS,
+      openings,
+    );
   }
 
   _buildWaterPipes(length) {

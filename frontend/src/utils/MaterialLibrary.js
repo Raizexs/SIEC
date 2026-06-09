@@ -47,9 +47,9 @@ class MaterialLibrary {
 
       case 'steel_framed':
         if (part === 'exterior_wall') {
-          colorMap = this._generateVinylSiding();
-          roughness = 0.5;
-          metalness = 0.05;
+          colorMap = this._generateGalvanizedSteel();
+          roughness = 0.42;
+          metalness = 0.55;
         } else if (part === 'structure') {
           colorMap = this._generateGalvanizedSteel();
           roughness = 0.42;
@@ -642,7 +642,7 @@ class MaterialLibrary {
       if (type === 'wood_frame') {
         map = this._generateSidingWood();
       } else if (type === 'steel_framed') {
-        map = this._generateVinylSiding();
+        map = this._generateGalvanizedSteel();
       } else if (type === 'masonry') {
         map = this._generateBrickPattern();
       } else {
@@ -650,10 +650,11 @@ class MaterialLibrary {
       }
       const texture = this._textureFromCanvas(map);
       texture.repeat.set(1, 1);
+      const isGalvanizedFacade = type === 'steel_framed';
       material = new THREE.MeshStandardMaterial({
         map: texture,
-        roughness: 0.6,
-        metalness: 0.0,
+        roughness: isGalvanizedFacade ? 0.42 : 0.6,
+        metalness: isGalvanizedFacade ? 0.55 : 0.0,
       });
     } else if (layer === 'installations') {
       material = new THREE.MeshStandardMaterial({
