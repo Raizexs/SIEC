@@ -356,9 +356,6 @@ const fetchBudget = async () => {
 
   try {
     const materialId = clampMaterialId(props.materialEstructuralId);
-    if (!canUseMaterial(props.materialEstructuralId)) {
-      throw new Error(t("planMaterialLocked"));
-    }
 
     const simData = await api.post("/api/simulacion/parametros", {
       m2Totales: Math.max(1, Math.round(props.m2Totales)),

@@ -154,19 +154,6 @@ watch(tab, () => {
                   {{ t('siecplaceHero') }}
                 </p>
               </div>
-              <div
-                v-if="!hasMarketplaceAccess"
-                class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100"
-              >
-                {{ t('siecplaceUpgradeHint') }}
-                <button
-                  type="button"
-                  class="ml-2 font-bold underline underline-offset-2"
-                  @click="goUpgrade"
-                >
-                  {{ t('siecplaceUpgradeCta') }}
-                </button>
-              </div>
             </div>
           </section>
 

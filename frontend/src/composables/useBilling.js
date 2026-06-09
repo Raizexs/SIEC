@@ -9,16 +9,16 @@ const loading = ref(false);
 let fetchPromise = null;
 
 const DEFAULT_LIMITS = {
-  max_active_projects: 1,
-  max_saved_projects: 1,
-  max_exports_per_month: 2,
-  allowed_material_ids: [1],
-  pdf_watermark: true,
-  commercial_proposal: false,
-  custom_export_branding: false,
-  construction_layers_3d: false,
-  walkthrough_3d: false,
-  marketplace_access: false,
+  max_active_projects: 999,
+  max_saved_projects: 999,
+  max_exports_per_month: 9999,
+  allowed_material_ids: [1, 2, 3, 4],
+  pdf_watermark: false,
+  commercial_proposal: true,
+  custom_export_branding: true,
+  construction_layers_3d: true,
+  walkthrough_3d: true,
+  marketplace_access: true,
 };
 
 export function useBilling() {
@@ -34,22 +34,15 @@ export function useBilling() {
   const isFree = computed(() => plan.value === 'free');
   const isPro = computed(() => plan.value === 'pro');
   const isProPlus = computed(() => plan.value === 'pro_plus');
-  const hasMarketplaceAccess = computed(() => limits.value.marketplace_access === true);
+  const hasMarketplaceAccess = computed(() => true);
 
   const allowedMaterialIds = computed(
     () => limits.value.allowed_material_ids || [1],
   );
 
-  const canUseMaterial = (materialId) => {
-    return allowedMaterialIds.value.includes(Number(materialId));
-  };
+  const canUseMaterial = (_materialId) => true;
 
-  /** Fuerza un ID de material permitido por el plan (p. ej. Free → solo Madera). */
-  const clampMaterialId = (materialId) => {
-    const n = Number(materialId);
-    if (canUseMaterial(n)) return n;
-    return allowedMaterialIds.value[0] ?? 1;
-  };
+  const clampMaterialId = (materialId) => Number(materialId);
 
   const fetchBilling = async (force = false) => {
     if (fetchPromise) return fetchPromise;
@@ -83,37 +76,8 @@ export function useBilling() {
 
   const recordExport = async () => {
     try {
-      const res = await api.post('/billing/record-export', {});
-      if (billingState.value?.usage) {
-        billingState.value = {
-          ...billingState.value,
-          usage: {
-            ...billingState.value.usage,
-            exports_this_month: res.exports_this_month,
-          },
-          limits: {
-            ...billingState.value.limits,
-            pdf_watermark: res.pdf_watermark,
-          },
-        };
-      }
-      return res;
-    } catch (err) {
-      if (err instanceof HttpError && err.status === 403) {
-        const detail = err.payload?.detail;
-        const msg =
-          typeof detail === 'object' ? detail.message : detail || t('limitExportsReached');
-        toast.error(msg, {
-          action: {
-            label: t('limitViewPlans'),
-            onClick: () => {
-              router.push('/settings?tab=billing');
-            },
-          },
-        });
-      }
-      throw err;
-    }
+      await api.post('/billing/record-export', {});
+    } catch { /* noop – sin limites de plan */ }
   };
 
   const startCheckout = async (targetPlan) => {
@@ -134,20 +98,7 @@ export function useBilling() {
     }
   };
 
-  const handlePlanLimitError = (err) => {
-    if (!(err instanceof HttpError) || err.status !== 403) return false;
-    const detail = err.payload?.detail;
-    if (!detail || typeof detail !== 'object') return false;
-    toast.error(detail.message || t('limitPlanReached'), {
-      action: {
-        label: t('limitUpgrade'),
-        onClick: () => {
-          router.push('/settings?tab=billing');
-        },
-      },
-    });
-    return true;
-  };
+  const handlePlanLimitError = (_err) => false;
 
   return {
     billingState,
