@@ -16,6 +16,7 @@ const DEFAULT_LIMITS = {
   custom_export_branding: false,
   construction_layers_3d: false,
   walkthrough_3d: false,
+  marketplace_access: false,
 };
 
 export function useBilling() {
@@ -29,6 +30,7 @@ export function useBilling() {
   const isFree = computed(() => plan.value === 'free');
   const isPro = computed(() => plan.value === 'pro');
   const isProPlus = computed(() => plan.value === 'pro_plus');
+  const hasMarketplaceAccess = computed(() => limits.value.marketplace_access === true);
 
   const allowedMaterialIds = computed(
     () => limits.value.allowed_material_ids || [1],
@@ -153,6 +155,7 @@ export function useBilling() {
     isFree,
     isPro,
     isProPlus,
+    hasMarketplaceAccess,
     allowedMaterialIds,
     canUseMaterial,
     clampMaterialId,
