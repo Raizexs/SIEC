@@ -1,6 +1,8 @@
 import { ref, computed } from 'vue';
+import { useRouter } from 'vue-router';
 import { useApi, HttpError } from './useApi';
 import { toast } from 'vue-sonner';
+import { useI18n } from './useI18n';
 
 const billingState = ref(null);
 const loading = ref(false);
@@ -20,6 +22,8 @@ const DEFAULT_LIMITS = {
 
 export function useBilling() {
   const api = useApi();
+  const { t } = useI18n();
+  const router = useRouter();
 
   const plan = computed(() => billingState.value?.plan ?? 'free');
   const limits = computed(() => billingState.value?.limits ?? DEFAULT_LIMITS);
@@ -96,12 +100,12 @@ export function useBilling() {
       if (err instanceof HttpError && err.status === 403) {
         const detail = err.payload?.detail;
         const msg =
-          typeof detail === 'object' ? detail.message : detail || 'Límite de exportaciones alcanzado';
+          typeof detail === 'object' ? detail.message : detail || t('limitExportsReached');
         toast.error(msg, {
           action: {
-            label: 'Ver planes',
+            label: t('limitViewPlans'),
             onClick: () => {
-              window.location.href = '/settings?tab=billing';
+              router.push('/settings?tab=billing');
             },
           },
         });
@@ -117,12 +121,12 @@ export function useBilling() {
         window.location.href = res.checkout_url;
         return res;
       }
-      toast.error('No se pudo iniciar el pago.');
+      toast.error(t('limitPaymentFailed'));
       return res;
     } catch (err) {
       const detail = err.payload?.detail;
       const msg =
-        typeof detail === 'object' ? detail.message : detail || 'Pagos no disponibles';
+        typeof detail === 'object' ? detail.message : detail || t('limitPaymentUnavailable');
       toast.error(msg);
       throw err;
     }
@@ -132,11 +136,11 @@ export function useBilling() {
     if (!(err instanceof HttpError) || err.status !== 403) return false;
     const detail = err.payload?.detail;
     if (!detail || typeof detail !== 'object') return false;
-    toast.error(detail.message || 'Límite de tu plan alcanzado', {
+    toast.error(detail.message || t('limitPlanReached'), {
       action: {
-        label: 'Mejorar plan',
+        label: t('limitUpgrade'),
         onClick: () => {
-          window.location.href = '/settings?tab=billing';
+          router.push('/settings?tab=billing');
         },
       },
     });
