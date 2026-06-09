@@ -224,3 +224,48 @@ class UserUsage(Base):
     exports_this_month = Column(Integer, nullable=False, default=0)
     usage_month = Column(Date, nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class SiecplaceListing(Base):
+    __tablename__ = "siecplace_listing"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    owner_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    project_id = Column(UUID(as_uuid=True))
+    title = Column(Text, nullable=False)
+    region = Column(Text)
+    m2 = Column(Integer)
+    material_id = Column(Integer)
+    estimated_total_clp = Column(Numeric(14, 2))
+    pdf_url = Column(Text)
+    status = Column(Text, nullable=False, default="draft")
+    commitment_fee_paid = Column(Boolean, nullable=False, default=False)
+    budget_metadata = Column(JSON, nullable=False, default=dict)
+    published_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class SiecplaceLeadUnlock(Base):
+    __tablename__ = "siecplace_lead_unlock"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    listing_id = Column(UUID(as_uuid=True), ForeignKey("siecplace_listing.id", ondelete="CASCADE"), nullable=False)
+    contractor_user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    fee_paid = Column(Boolean, nullable=False, default=False)
+    compensation_status = Column(Text, nullable=False, default="pending")
+    unlocked_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class SiecplacePayment(Base):
+    __tablename__ = "siecplace_payment"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    stripe_session_id = Column(Text, unique=True)
+    amount_clp = Column(Integer, nullable=False)
+    payment_type = Column(Text, nullable=False)
+    listing_id = Column(UUID(as_uuid=True), ForeignKey("siecplace_listing.id", ondelete="SET NULL"))
+    status = Column(Text, nullable=False, default="pending")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
