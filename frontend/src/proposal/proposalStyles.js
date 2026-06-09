@@ -1067,20 +1067,6 @@ export const PROPOSAL_CSS = `
     font-size: 9.8pt;
   }
 
-  .proposal .compact-financial {
-    margin-top: 6mm;
-    padding-top: 4mm;
-    border-top: 1px solid rgba(15, 23, 42, 0.08);
-  }
-
-  .proposal .section-head--compact {
-    margin-bottom: 3mm;
-  }
-
-  .proposal .section-head--compact .section-head__kicker {
-    opacity: 0.35;
-  }
-
   .proposal .report-footer-block {
     margin: 5mm 0 4mm;
     padding: 3.5mm 4mm;

@@ -6,6 +6,8 @@ import { useWorkspaceStore } from "../stores/workspace";
 import { useProductPreferences } from "../composables/useProductPreferences";
 import {
   WORKSPACE_BUDGET_SESSION_KEY,
+  persistWorkspaceBudgetSession,
+  restoreWorkspaceBudgetSession,
 } from "../composables/useWorkspaceBudgetSession";
 import {
   withContingency,
@@ -349,6 +351,15 @@ const fetchBudget = async () => {
         materialEstructuralId: props.materialEstructuralId,
       });
     }
+
+    if (sharedSession) {
+      persistWorkspaceBudgetSession(
+        props.projectId,
+        props.m2Totales,
+        props.materialEstructuralId,
+        sharedSession,
+      );
+    }
   } catch (err) {
     if (err instanceof HttpError && err.status === 403) {
       const detail = err.payload?.detail;
@@ -370,7 +381,6 @@ watch(
     hasGenerated.value = false;
     exportMenuOpen.value = false;
   },
-  { immediate: true },
 );
 
 const buildExportPayload = () => {
@@ -414,6 +424,13 @@ const buildExportPayload = () => {
     export: { ...productPreferences.value.export },
     logoUrl: resolveBrandLogoUrl(),
     pdfWatermark: props.pdfWatermark,
+    counts: {
+      recintos:
+        recintosStore.recintosByType.habitaciones +
+        recintosStore.recintosByType.banios +
+        recintosStore.recintosByType.areasComunes,
+      pasillos: recintosStore.recintosByType.pasillos,
+    },
   };
 };
 
@@ -477,6 +494,21 @@ const onDocumentClick = (event) => {
 
 onMounted(() => {
   document.addEventListener("click", onDocumentClick);
+
+  if (!sharedSession) return;
+  const restored = restoreWorkspaceBudgetSession(
+    props.projectId,
+    props.m2Totales,
+    props.materialEstructuralId,
+    sharedSession,
+  );
+  if (restored && costoTotal.value != null) {
+    emit("budget-calculated", {
+      costoTotal: costoTotal.value,
+      m2Totales: props.m2Totales,
+      materialEstructuralId: props.materialEstructuralId,
+    });
+  }
 });
 
 onUnmounted(() => {

@@ -31,9 +31,15 @@ const safeText = (value, fallback = "—") => {
 
 const isHttpUrl = (value) => /^https?:\/\//i.test(String(value || "").trim());
 
+const formatRecintosSummary = (counts) => {
+  const recintos = counts?.recintos ?? 0;
+  const pasillos = counts?.pasillos ?? 0;
+  return `${recintos} recintos · ${pasillos} pasillos`;
+};
+
 const renderInsumoCell = (item) => {
   const label = escapeHtml(safeText(item.insumo));
-  const url = String(item.url_producto || "").trim();
+  const url = String(item.url_producto || item.url || "").trim();
 
   if (isHttpUrl(url)) {
     return `<a class="insumo-link" href="${escapeHtml(url)}" title="${escapeHtml(url)}">${label}</a>`;
@@ -439,7 +445,7 @@ const renderAnnexes = (payload) => {
  * - Cada section.page mide exactamente A4.
  * - Saltos de página con .pdf-page-break / page-break CSS.
  */
-/** PDF compacto: portada, desglose + resumen financiero, captura opcional, cierre documental. */
+/** PDF compacto: portada, desglose, captura opcional, cierre documental. */
 export const buildProposalArticleHtmlCompact = (payload) => {
   const {
     projectName,
@@ -449,7 +455,6 @@ export const buildProposalArticleHtmlCompact = (payload) => {
   } = payload;
 
   const desgloseTable = renderDesgloseTable(payload.desglose, payload);
-  const financialTable = renderFinancialTable(payload);
   const coverHeader = renderCoverHeader(payload);
 
   const includeSnapshots = payload.includeSnapshots !== false;
@@ -505,8 +510,8 @@ export const buildProposalArticleHtmlCompact = (payload) => {
           </div>
 
           <div>
-            <dt>Recintos</dt>
-            <dd>Hab. ${payload.counts?.habitaciones ?? 0} · Baños ${payload.counts?.banios ?? 0}</dd>
+            <dt>Distribución</dt>
+            <dd>${escapeHtml(formatRecintosSummary(payload.counts))}</dd>
           </div>
         </dl>
 
@@ -532,17 +537,6 @@ export const buildProposalArticleHtmlCompact = (payload) => {
           <p class="section-head__note">Detalle referencial por categoría.</p>
         </header>
         ${desgloseTable}
-
-        <div class="compact-financial">
-          <header class="section-head section-head--compact">
-            <div>
-              <p class="section-head__kicker">—</p>
-              <h2 class="section-head__title">Resumen financiero</h2>
-            </div>
-            <p class="section-head__note">Contingencia e IVA según preferencias.</p>
-          </header>
-          ${financialTable}
-        </div>
       </div>
       ${pageFooter(payload, "Desglose")}
     </section>
@@ -620,7 +614,7 @@ export const buildProposalArticleHtml = (payload) => {
 
           <div>
             <dt>Recintos</dt>
-            <dd>Hab. ${payload.counts?.habitaciones ?? 0} · Baños ${payload.counts?.banios ?? 0}</dd>
+            <dd>${escapeHtml(formatRecintosSummary(payload.counts))}</dd>
           </div>
         </dl>
 
@@ -708,7 +702,7 @@ export const buildProposalArticleHtml = (payload) => {
 
           <article class="card">
             <p class="card__label">Recintos</p>
-            <p class="card__value">Hab. ${payload.counts?.habitaciones ?? 0} · Baños ${payload.counts?.banios ?? 0}</p>
+            <p class="card__value">${escapeHtml(formatRecintosSummary(payload.counts))}</p>
           </article>
         </div>
       </div>

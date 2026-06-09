@@ -35,7 +35,7 @@ describe('normalizeProposalPayload', () => {
     expect(result.contingencyPct).toBe(10);
     expect(result.montoIva).toBe(228000);
     expect(result.totalFormatted).toMatch(/\$/);
-    expect(result.counts).toEqual({ habitaciones: 0, banios: 0 });
+    expect(result.counts).toEqual({ recintos: 0, pasillos: 0 });
     expect(Array.isArray(result.desglose)).toBe(true);
   });
 

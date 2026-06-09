@@ -4,6 +4,28 @@ import { jsPDF } from 'jspdf';
 const A4_W_MM = 210;
 const A4_H_MM = 297;
 
+/** Superpone enlaces clicables sobre el PDF rasterizado (html2canvas no los conserva). */
+const addPdfLinkAnnotations = (pdf, pageEl) => {
+  const pageRect = pageEl.getBoundingClientRect();
+  if (!pageRect.width || !pageRect.height) return;
+
+  const links = pageEl.querySelectorAll('a.insumo-link[href]');
+  links.forEach((anchor) => {
+    const href = anchor.getAttribute('href');
+    if (!href || !/^https?:\/\//i.test(href)) return;
+
+    const rect = anchor.getBoundingClientRect();
+    const x = ((rect.left - pageRect.left) / pageRect.width) * A4_W_MM;
+    const y = ((rect.top - pageRect.top) / pageRect.height) * A4_H_MM;
+    const w = (rect.width / pageRect.width) * A4_W_MM;
+    const h = (rect.height / pageRect.height) * A4_H_MM;
+
+    if (w > 0.5 && h > 0.5) {
+      pdf.link(x, y, w, h, { url: href });
+    }
+  });
+};
+
 const FOOTER_H_PX = '53px';
 
 /** Refuerza el pie de página al rasterizar (tabla + vertical-align para alineación fiable). */
@@ -259,6 +281,7 @@ export const downloadProposalPdfInBrowser = async (html, filename) => {
       const imgData = canvas.toDataURL('image/jpeg', 0.94);
       if (i > 0) pdf.addPage();
       pdf.addImage(imgData, 'JPEG', 0, 0, A4_W_MM, A4_H_MM, undefined, 'FAST');
+      addPdfLinkAnnotations(pdf, pageEl);
     }
 
     const safeName = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;

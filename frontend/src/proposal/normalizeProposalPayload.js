@@ -63,10 +63,24 @@ const toIsoDateString = (value, fallback = new Date().toISOString()) => {
 /**
  * @param {unknown} counts
  */
-const normalizeCounts = (counts) => ({
-  habitaciones: Math.max(0, Math.round(toFiniteNumber(counts?.habitaciones, 0))),
-  banios: Math.max(0, Math.round(toFiniteNumber(counts?.banios, 0))),
-});
+const normalizeCounts = (counts) => {
+  const pasillos = Math.max(0, Math.round(toFiniteNumber(counts?.pasillos, 0)));
+  const explicitRecintos = counts?.recintos;
+
+  const recintos =
+    explicitRecintos != null
+      ? Math.max(0, Math.round(toFiniteNumber(explicitRecintos, 0)))
+      : Math.max(
+          0,
+          Math.round(
+            toFiniteNumber(counts?.habitaciones, 0) +
+              toFiniteNumber(counts?.banios, 0) +
+              toFiniteNumber(counts?.areasComunes, 0),
+          ),
+        );
+
+  return { recintos, pasillos };
+};
 
 /**
  * Normaliza el payload de exportación antes de renderizar la propuesta PDF.
