@@ -46,8 +46,8 @@ export function useBilling() {
   };
 
   const fetchBilling = async (force = false) => {
+    if (fetchPromise) return fetchPromise;
     if (billingState.value && !force) return billingState.value;
-    if (fetchPromise && !force) return fetchPromise;
 
     loading.value = true;
     fetchPromise = api
