@@ -33,6 +33,7 @@ export const defaultProductPreferences = () => ({
     includeMaterialsBreakdown: true,
     includeUnitPrices: true,
     includeSnapshots: true,
+    includePrintReviewBlock: false,
     businessName: '',
     reportFooter: '',
   },

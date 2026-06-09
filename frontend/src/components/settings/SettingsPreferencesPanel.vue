@@ -1,11 +1,10 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, inject, onMounted } from 'vue';
 import { useI18n } from '../../composables/useI18n';
-import { useProductPreferences } from '../../composables/useProductPreferences';
-import { getMotionPreference, setMotionPreference } from '../../design/motionTokens';
+import { PREFERENCES_DRAFT_KEY } from '../../composables/usePreferencesDraft';
+import { useBilling } from '../../composables/useBilling';
 import {
   Sparkles,
-  CheckCircle2,
   ChevronDown,
   LayoutGrid,
   Tags,
@@ -13,18 +12,23 @@ import {
   Box,
   Columns2,
   Coins,
-  Info,
-  ShieldAlert,
+  CheckCircle2,
+  Lock,
 } from 'lucide-vue-next';
 
 const { t, currentLanguage } = useI18n();
-const { productPreferences, saveProductPreferences: persistProductPreferences } =
-  useProductPreferences();
+const draftCtx = inject(PREFERENCES_DRAFT_KEY);
+const { canUseMaterial, fetchBilling } = useBilling();
 
-const motionPref = ref(getMotionPreference());
+if (!draftCtx) {
+  throw new Error('SettingsPreferencesPanel requires preferences draft context');
+}
 
-const preferenceMessage = ref('');
-const preferenceMessageType = ref('success');
+const { draft: productPreferences, motionDraft: motionPref } = draftCtx;
+
+onMounted(() => {
+  fetchBilling();
+});
 
 const openSections = ref({
   experience: true,
@@ -36,12 +40,20 @@ const toggleSection = (section) => {
   openSections.value[section] = !openSections.value[section];
 };
 
-const materialOptions = [
-  { id: 1, label: t('settingsMaterialWood') },
-  { id: 2, label: t('settingsMaterialSteel') },
-  { id: 3, label: t('settingsMaterialMasonry') },
-  { id: 4, label: t('settingsMaterialConcrete') },
-];
+const materialOptions = computed(() => {
+  void currentLanguage.value;
+  return [
+    { id: 1, label: t('settingsMaterialWood') },
+    { id: 2, label: t('settingsMaterialSteel') },
+    { id: 3, label: t('settingsMaterialMasonry') },
+    { id: 4, label: t('settingsMaterialConcrete') },
+  ];
+});
+
+const selectMaterial = (id) => {
+  if (!canUseMaterial(id)) return;
+  productPreferences.value.defaultMaterial = id;
+};
 
 const motionOptions = computed(() => {
   void currentLanguage.value;
@@ -85,33 +97,18 @@ const preferenceSummary = computed(() => {
       view: productPreferences.value.editor.initialView,
     })}`,
 
-    estimation: `${productPreferences.value.currency} · ${
-      productPreferences.value.unit === 'metric' ? 'm²' : 'ft²'
-    } · ${t('settingsPrefContingency', {
+    estimation: `${t('settingsPrefContingency', {
       pct: productPreferences.value.contingency,
     })} · ${
       productPreferences.value.includeTax
         ? t('settingsPrefWithTax')
         : t('settingsPrefNoTax')
     } · ${
-      materialOptions.find((m) => m.id === productPreferences.value.defaultMaterial)
+      materialOptions.value.find((m) => m.id === productPreferences.value.defaultMaterial)
         ?.label ?? 'Material'
-    }`,
+    } · ${productPreferences.value.defaultRoomHeight}m`,
   };
 });
-
-const savePreferences = () => {
-  preferenceMessage.value = '';
-
-  try {
-    persistProductPreferences();
-    preferenceMessageType.value = 'success';
-    preferenceMessage.value = t('settingsSavedPreferences');
-  } catch (error) {
-    preferenceMessageType.value = 'error';
-    preferenceMessage.value = t('settingsSaveFailed', { message: error.message });
-  }
-};
 
 const applyPresetRoomHeight = (m) => {
   productPreferences.value.useCustomRoomHeight = false;
@@ -423,56 +420,6 @@ const applyPresetRoomHeight = (m) => {
         <div v-show="openSections.estimation">
           <div class="space-y-5 p-5">
             <div>
-              <p class="premium-label">{{ t('settingsCurrencyDefault') }}</p>
-              <div class="flex flex-wrap gap-2" :aria-label="t('settingsCurrencyDefault')">
-                <button
-                  v-for="c in ['CLP', 'UF', 'USD']"
-                  :key="c"
-                  type="button"
-                  class="rounded-2xl border px-3 py-2 text-xs font-black uppercase tracking-[0.12em] transition-all duration-200 active:scale-[0.98]"
-                  :class="
-                    productPreferences.currency === c
-                      ? 'border-orange-400 bg-orange-500 text-white shadow-md shadow-orange-500/20 dark:border-orange-400/70'
-                      : 'border-slate-200 bg-white text-slate-600 hover:border-orange-200 hover:text-orange-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:border-orange-900/50'
-                  "
-                  @click="productPreferences.currency = c"
-                >
-                  {{ c }}
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <p class="premium-label">{{ t('settingsUnitArea') }}</p>
-              <div class="flex flex-wrap gap-2" :aria-label="t('settingsUnitArea')">
-                <button
-                  type="button"
-                  class="rounded-2xl border px-3 py-2 text-xs font-black uppercase tracking-[0.12em] transition-all duration-200 active:scale-[0.98]"
-                  :class="
-                    productPreferences.unit === 'metric'
-                      ? 'border-orange-400 bg-orange-500 text-white shadow-md shadow-orange-500/20 dark:border-orange-400/70'
-                      : 'border-slate-200 bg-white text-slate-600 hover:border-orange-200 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300'
-                  "
-                  @click="productPreferences.unit = 'metric'"
-                >
-                  m²
-                </button>
-                <button
-                  type="button"
-                  class="rounded-2xl border px-3 py-2 text-xs font-black uppercase tracking-[0.12em] transition-all duration-200 active:scale-[0.98]"
-                  :class="
-                    productPreferences.unit === 'imperial'
-                      ? 'border-orange-400 bg-orange-500 text-white shadow-md shadow-orange-500/20 dark:border-orange-400/70'
-                      : 'border-slate-200 bg-white text-slate-600 hover:border-orange-200 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300'
-                  "
-                  @click="productPreferences.unit = 'imperial'"
-                >
-                  ft²
-                </button>
-              </div>
-            </div>
-
-            <div>
               <p class="premium-label">{{ t('settingsContingencyMargin') }}</p>
               <div class="flex flex-wrap gap-2" :aria-label="t('settingsContingencyMargin')">
                 <button
@@ -531,20 +478,37 @@ const applyPresetRoomHeight = (m) => {
                   type="button"
                   class="flex items-center justify-between gap-2 rounded-2xl border px-3 py-2.5 text-left text-xs font-black uppercase tracking-[0.08em] transition-all duration-200 active:scale-[0.99]"
                   :class="
-                    productPreferences.defaultMaterial === m.id
-                      ? 'border-orange-400 bg-orange-50 text-orange-800 shadow-sm dark:border-orange-400/60 dark:bg-orange-950/30 dark:text-orange-200'
-                      : 'border-slate-200 bg-white text-slate-600 hover:border-orange-200 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300'
+                    !canUseMaterial(m.id)
+                      ? 'cursor-not-allowed border-slate-200/80 bg-slate-50/80 text-slate-400 opacity-80 dark:border-slate-800/80 dark:bg-slate-900/40 dark:text-slate-500'
+                      : productPreferences.defaultMaterial === m.id
+                        ? 'border-orange-400 bg-orange-50 text-orange-800 shadow-sm dark:border-orange-400/60 dark:bg-orange-950/30 dark:text-orange-200'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-orange-200 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300'
                   "
-                  @click="productPreferences.defaultMaterial = m.id"
+                  :disabled="!canUseMaterial(m.id)"
+                  :aria-disabled="!canUseMaterial(m.id)"
+                  @click="selectMaterial(m.id)"
                 >
-                  <span>{{ m.label }}</span>
+                  <span class="flex items-center gap-2">
+                    <Lock
+                      v-if="!canUseMaterial(m.id)"
+                      class="h-3.5 w-3.5 shrink-0"
+                      :stroke-width="2.2"
+                    />
+                    {{ m.label }}
+                  </span>
                   <CheckCircle2
-                    v-if="productPreferences.defaultMaterial === m.id"
+                    v-if="productPreferences.defaultMaterial === m.id && canUseMaterial(m.id)"
                     class="h-4 w-4 shrink-0 text-orange-500 dark:text-orange-300"
                     :stroke-width="2.2"
                   />
                 </button>
               </div>
+              <p
+                v-if="materialOptions.some((m) => !canUseMaterial(m.id))"
+                class="mt-2 text-[11px] font-medium leading-relaxed text-slate-400 dark:text-slate-500"
+              >
+                {{ t('planMaterialLocked') }}
+              </p>
             </div>
 
             <div>
@@ -593,40 +557,6 @@ const applyPresetRoomHeight = (m) => {
         </div>
       </Transition>
     </section>
-
-    <!-- Save button + message -->
-    <div
-      class="flex flex-col gap-3 rounded-3xl border border-slate-200/90 bg-white/85 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30 sm:flex-row sm:items-center"
-    >
-      <button
-        type="button"
-        class="inline-flex items-center justify-center gap-2 rounded-2xl border border-orange-400/70 bg-orange-500 px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-white shadow-lg shadow-orange-500/20 transition-all duration-200 hover:border-orange-300 hover:bg-orange-400 active:scale-[0.98] dark:border-orange-400/60 dark:bg-orange-500 dark:hover:border-orange-300 dark:hover:bg-orange-400"
-        @click="savePreferences"
-      >
-        <CheckCircle2 class="h-4 w-4" :stroke-width="2.2" />
-        {{ t('settingsSavePreferences') }}
-      </button>
-
-      <transition name="settings-alert">
-        <p
-          v-if="preferenceMessage"
-          class="flex flex-1 items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-bold"
-          :class="
-            preferenceMessageType === 'success'
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/25 dark:text-emerald-300'
-              : 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/70 dark:bg-red-950/25 dark:text-red-300'
-          "
-        >
-          <CheckCircle2
-            v-if="preferenceMessageType === 'success'"
-            class="h-3.5 w-3.5"
-            :stroke-width="2.2"
-          />
-          <ShieldAlert v-else class="h-3.5 w-3.5" :stroke-width="2.2" />
-          {{ preferenceMessage }}
-        </p>
-      </transition>
-    </div>
   </div>
 </template>
 
