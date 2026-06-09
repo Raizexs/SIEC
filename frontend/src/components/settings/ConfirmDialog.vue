@@ -8,10 +8,11 @@ const props = defineProps({
   title: { type: String, default: '' },
   message: { type: String, default: '' },
   confirmLabel: { type: String, default: '' },
+  cancelLabel: { type: String, default: '' },
   variant: { type: String, default: 'danger' },
 });
 
-const emit = defineEmits(['confirm', 'cancel']);
+const emit = defineEmits(['confirm', 'cancel', 'dismiss']);
 const { t } = useI18n();
 
 const confirmBtnClass = computed(() => {
@@ -20,7 +21,8 @@ const confirmBtnClass = computed(() => {
     : 'border-orange-400/70 bg-orange-500 shadow-orange-500/20 hover:bg-orange-400 dark:border-orange-400/60 dark:bg-orange-500';
 });
 
-const close = () => emit('cancel');
+const dismiss = () => emit('dismiss');
+const onCancel = () => emit('cancel');
 </script>
 
 <template>
@@ -34,7 +36,7 @@ const close = () => emit('cancel');
     >
       <div
         class="absolute inset-0 bg-slate-950/55 backdrop-blur-sm dark:bg-black/60"
-        @click.self="close"
+        @click.self="dismiss"
       ></div>
       <div
         class="relative z-10 w-full max-w-md overflow-hidden rounded-3xl border border-slate-200/90 bg-white/95 p-6 shadow-2xl shadow-slate-950/20 dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/40"
@@ -57,7 +59,7 @@ const close = () => emit('cancel');
             type="button"
             class="rounded-xl border border-slate-200 p-2 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-100"
             :title="t('settingsClose')"
-            @click="close"
+            @click="dismiss"
           >
             <X class="h-4 w-4" :stroke-width="2.2" />
           </button>
@@ -69,9 +71,9 @@ const close = () => emit('cancel');
           <button
             type="button"
             class="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black uppercase tracking-[0.12em] text-slate-700 shadow-sm transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-900"
-            @click="close"
+            @click="onCancel"
           >
-            {{ t('settingsCancel') }}
+            {{ cancelLabel || t('settingsCancel') }}
           </button>
           <button
             type="button"

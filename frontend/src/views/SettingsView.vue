@@ -1,10 +1,16 @@
 <script setup>
-import { ref, computed, onMounted, watch, defineAsyncComponent } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
+import { ref, computed, onMounted, watch, defineAsyncComponent, provide } from 'vue';
+import { useRouter, useRoute, onBeforeRouteLeave } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import { useProMotion } from '../composables/useProMotion';
 import { useLayoutManager } from '../composables/useLayoutManager';
+import { useBilling } from '../composables/useBilling';
 import { isSupabaseConfigured } from '../lib/supabaseClient';
+import {
+  usePreferencesDraft,
+  PREFERENCES_DRAFT_KEY,
+} from '../composables/usePreferencesDraft';
+import ConfirmDialog from '../components/settings/ConfirmDialog.vue';
 import {
   ArrowLeft,
   User2,
@@ -24,24 +30,37 @@ const SettingsProfileCard = defineAsyncComponent(() =>
 const SettingsSecuritySection = defineAsyncComponent(() =>
   import('../components/settings/SettingsSecuritySection.vue'),
 );
+const SettingsAppearancePanel = defineAsyncComponent(() =>
+  import('../components/settings/SettingsAppearancePanel.vue'),
+);
 const SettingsPreferencesPanel = defineAsyncComponent(() =>
   import('../components/settings/SettingsPreferencesPanel.vue'),
 );
 const SettingsExportSection = defineAsyncComponent(() =>
   import('../components/settings/SettingsExportSection.vue'),
 );
+const SettingsPreferencesSaveBar = defineAsyncComponent(() =>
+  import('../components/settings/SettingsPreferencesSaveBar.vue'),
+);
 const SettingsIntegrationsCards = defineAsyncComponent(() =>
   import('../components/settings/SettingsIntegrationsCards.vue'),
 );
+
+const preferencesDraft = usePreferencesDraft();
+provide(PREFERENCES_DRAFT_KEY, preferencesDraft);
 
 const router = useRouter();
 const route = useRoute();
 const { t, currentLanguage } = useI18n();
 const auth = useAuthStore();
 const { savedLayouts } = useLayoutManager();
+const { fetchBilling } = useBilling();
 
 const tab = ref('profile');
 const motionRoot = ref(null);
+const pendingTab = ref(null);
+const pendingNavigation = ref(null);
+const showUnsavedDialog = ref(false);
 
 const tabs = computed(() => {
   void currentLanguage.value;
@@ -109,8 +128,70 @@ const savedLayoutsCount = computed(() => savedLayouts.value?.length ?? 0);
 
 useProMotion(motionRoot, { skipIntro: true });
 
+const requestTab = (nextTab) => {
+  if (
+    tab.value === 'preferences' &&
+    nextTab !== 'preferences' &&
+    preferencesDraft.isDirty.value
+  ) {
+    pendingTab.value = nextTab;
+    showUnsavedDialog.value = true;
+    return;
+  }
+  tab.value = nextTab;
+};
+
+const finishUnsavedNavigation = () => {
+  if (pendingNavigation.value) {
+    const nav = pendingNavigation.value;
+    pendingNavigation.value = null;
+    nav();
+    return;
+  }
+  if (pendingTab.value) {
+    tab.value = pendingTab.value;
+    pendingTab.value = null;
+  }
+};
+
+const confirmUnsavedSave = () => {
+  try {
+    preferencesDraft.commit();
+    showUnsavedDialog.value = false;
+    finishUnsavedNavigation();
+  } catch (error) {
+    preferencesDraft.markErrorMessage(
+      t('settingsSaveFailed', { message: error.message }),
+    );
+    showUnsavedDialog.value = false;
+  }
+};
+
+const confirmUnsavedDiscard = () => {
+  preferencesDraft.revert();
+  showUnsavedDialog.value = false;
+  finishUnsavedNavigation();
+};
+
+const cancelUnsavedDialog = () => {
+  pendingTab.value = null;
+  pendingNavigation.value = null;
+  showUnsavedDialog.value = false;
+};
+
 onMounted(async () => {
+  preferencesDraft.syncFromSaved();
   await auth.refreshFactors();
+});
+
+onBeforeRouteLeave((_to, _from, next) => {
+  if (tab.value !== 'preferences' || !preferencesDraft.isDirty.value) {
+    next();
+    return;
+  }
+  pendingNavigation.value = () => next();
+  showUnsavedDialog.value = true;
+  next(false);
 });
 
 watch(
@@ -118,6 +199,16 @@ watch(
   (incoming) => {
     if (typeof incoming === 'string' && tabs.value.some((item) => item.id === incoming)) {
       tab.value = incoming;
+    }
+  },
+  { immediate: true },
+);
+
+watch(
+  tab,
+  (value) => {
+    if (value === 'billing') {
+      fetchBilling();
     }
   },
   { immediate: true },
@@ -186,7 +277,7 @@ watch(
                       ? 'border-orange-300 bg-orange-50 text-orange-700 shadow-sm shadow-orange-500/10 dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300'
                       : 'border-transparent text-slate-600 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-950 dark:text-slate-400 dark:hover:border-slate-800 dark:hover:bg-slate-900/70 dark:hover:text-slate-100'
                   "
-                  @click="tab = item.id"
+                  @click="requestTab(item.id)"
                 >
                   <span
                     class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border shadow-sm transition-colors duration-200"
@@ -261,8 +352,10 @@ watch(
             <SettingsProfileCard v-if="tab === 'profile'" />
             <SettingsSecuritySection v-if="tab === 'security'" />
             <div v-if="tab === 'preferences'" class="space-y-4">
+              <SettingsAppearancePanel />
               <SettingsPreferencesPanel />
               <SettingsExportSection />
+              <SettingsPreferencesSaveBar />
             </div>
             <SettingsIntegrationsCards v-if="tab === 'integrations'" />
 
@@ -398,4 +491,16 @@ watch(
       </main>
     </div>
   </div>
+
+  <ConfirmDialog
+    :open="showUnsavedDialog"
+    :title="t('settingsUnsavedTitle')"
+    :message="t('settingsPendingChanges')"
+    :confirm-label="t('settingsSavePreferences')"
+    :cancel-label="t('settingsDiscardChanges')"
+    variant="primary"
+    @confirm="confirmUnsavedSave"
+    @cancel="confirmUnsavedDiscard"
+    @dismiss="cancelUnsavedDialog"
+  />
 </template>

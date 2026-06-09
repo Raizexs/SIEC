@@ -138,6 +138,10 @@ export const pageTranslationsEs = {
   settingsSaving: "Guardando…",
   settingsSavePreferences: "Guardar preferencias",
   settingsSavedPreferences: "Preferencias del simulador guardadas en este navegador.",
+  settingsPendingChanges:
+    "Hay cambios pendientes. ¿Desea guardarlos? Si descarta, se restaurará la configuración anterior.",
+  settingsDiscardChanges: "Descartar cambios",
+  settingsUnsavedTitle: "Cambios sin guardar",
   settingsPublicProfile: "Perfil público",
   settingsActive: "Activo",
   settingsProfessionalData: "Datos profesionales",
@@ -276,6 +280,10 @@ export const pageTranslationsEn = {
   settingsSaving: "Saving…",
   settingsSavePreferences: "Save preferences",
   settingsSavedPreferences: "Simulator preferences saved in this browser.",
+  settingsPendingChanges:
+    "You have unsaved changes. Save them? If you discard, your previous settings will be restored.",
+  settingsDiscardChanges: "Discard changes",
+  settingsUnsavedTitle: "Unsaved changes",
   settingsPublicProfile: "Public profile",
   settingsActive: "Active",
   settingsProfessionalData: "Professional details",
