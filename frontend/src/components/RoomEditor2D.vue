@@ -59,7 +59,7 @@ const resizeLocked = ref(false);
 // ── Add Recinto Modal ─────────────────────────────────────────────────────────
 const showAddModal = ref(false);
 const addForm = reactive({
-  nombre: 'Recinto',
+  nombre: t('roomDefaultName'),
   w: 3.5,
   l: 3.0,
   h: 2.4,
@@ -73,7 +73,7 @@ const defaultAddLength = () =>
 
 const openAddModal = () => {
   editor.selectedRecintoId.value = null;
-  addForm.nombre = 'Recinto';
+  addForm.nombre = t('roomDefaultName');
   addForm.w = defaultAddWidth();
   addForm.l = defaultAddLength();
   addForm.h = Math.max(MIN_ROOM_HEIGHT, Number(props.defaultRoomHeight) || 2.4);
@@ -96,7 +96,7 @@ const confirmAdd = () => {
 
   const id = store.addRecinto(
     'habitacion',
-    addForm.nombre || 'Recinto',
+     addForm.nombre || t('roomDefaultName'),
     w,
     l,
     h,
@@ -114,7 +114,7 @@ const quickAdd = () => {
   const l = defaultAddLength();
   const id = store.addRecinto(
     'habitacion',
-    'Recinto',
+     t('roomDefaultName'),
     w,
     l,
     Math.max(MIN_ROOM_HEIGHT, Number(props.defaultRoomHeight) || 2.4),
@@ -229,7 +229,7 @@ const commitCorridorDraw = () => {
   const pasillosEnPiso = store.recintos.filter(
     (r) => r.tipo === 'pasillo' && (r.piso || 1) === floor,
   ).length;
-  const nombre = pasillosEnPiso > 0 ? `Pasillo ${pasillosEnPiso + 1}` : 'Pasillo';
+  const nombre = pasillosEnPiso > 0 ? `${t('roomHallwayName')} ${pasillosEnPiso + 1}` : t('roomHallwayName');
 
   const id = store.addRecinto(
     'pasillo',
@@ -1652,7 +1652,7 @@ defineExpose({ openAddModal });
               text-anchor="middle"
               dominant-baseline="middle"
             >
-              ✦ Arrastra para dibujar un pasillo
+              ✦ {{ t('corridorDragHint') }}
             </text>
           </g>
 

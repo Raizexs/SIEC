@@ -15,6 +15,7 @@ import { useRoute, useRouter } from 'vue-router';
 import EditorShell from '../components/EditorShell.vue';
 import { useAuthStore } from '../stores/auth';
 import { useProMotion } from '../composables/useProMotion';
+import { useI18n } from '../composables/useI18n';
 import {
   Loader2,
   ShieldAlert,
@@ -25,6 +26,7 @@ import {
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
+const { t } = useI18n();
 
 const motionRoot = ref(null);
 const isPreparing = ref(true);
@@ -49,8 +51,7 @@ const isNewProject = computed(() => {
 });
 
 const workspaceLabel = computed(() => {
-  if (isNewProject.value) return 'Nueva estimación';
-
+  if (isNewProject.value) return t('wsNewEstimate');
   return `Proyecto ${projectId.value}`;
 });
 
@@ -136,7 +137,7 @@ watch(
           <p
             class="mt-5 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
           >
-            Preparando workspace
+            {{ t('wsPreparing') }}
           </p>
 
           <h1 class="mt-2 text-2xl font-black tracking-tight text-slate-950 dark:text-slate-100">
@@ -144,7 +145,7 @@ watch(
           </h1>
 
           <p class="mx-auto mt-2 max-w-xs text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400">
-            Estamos cargando el editor, el contexto del proyecto y las herramientas de estimación.
+            {{ t('wsLoadingEditor') }}
           </p>
         </div>
       </div>
@@ -175,11 +176,11 @@ watch(
           <p
             class="mt-5 text-[10px] font-black uppercase tracking-[0.16em] text-red-500 dark:text-red-300"
           >
-            Workspace no disponible
+            {{ t('wsUnavailable') }}
           </p>
 
           <h1 class="mt-2 text-2xl font-black tracking-tight text-slate-950 dark:text-slate-100">
-            No se pudo abrir el editor
+            {{ t('wsCantOpen') }}
           </h1>
 
           <p class="mx-auto mt-2 max-w-xs text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400">
@@ -192,7 +193,7 @@ watch(
             @click="goDashboard"
           >
             <ArrowLeft class="h-4 w-4" :stroke-width="2.2" />
-            Volver al dashboard
+            {{ t('wsBackDashboard') }}
           </button>
         </div>
       </div>

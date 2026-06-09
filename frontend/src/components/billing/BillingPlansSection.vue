@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted } from 'vue';
+import { onMounted, computed } from 'vue';
 import { useBilling } from '../../composables/useBilling';
 import { useI18n } from '../../composables/useI18n';
 import { Check, Sparkles } from 'lucide-vue-next';
@@ -17,16 +17,16 @@ const {
 
 onMounted(() => fetchBilling(true));
 
-const plans = [
+const plans = computed(() => [
   {
     id: 'free',
-    name: 'Free',
+    name: t('billingPlanFree'),
     price: '$0',
     features: [
-      '1 proyecto activo · 1 guardado',
+      t('billingActiveProject'),
       '2 exportaciones / mes',
-      'Solo Madera',
-      'PDF con marca de agua',
+      t('billingFeatures'),
+      t('billingWatermark'),
     ],
   },
   {
@@ -56,7 +56,7 @@ const plans = [
     target: 'pro_plus',
     highlight: true,
   },
-];
+]);
 </script>
 
 <template>
@@ -135,7 +135,7 @@ const plans = [
           v-else-if="plan === p.id"
           class="mt-5 text-center text-xs font-bold uppercase tracking-wide text-orange-600 dark:text-orange-300"
         >
-          Plan actual
+          {{ t('billingPlanCurrent') }}
         </p>
       </article>
     </div>

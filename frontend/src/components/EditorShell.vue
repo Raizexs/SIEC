@@ -570,11 +570,7 @@ onUnmounted(() => {
 });
 
 const handleNewEstimate = () => {
-  if (
-    confirm(
-      '¿Estás seguro que deseas iniciar una nueva estimación? Se perderá el diseño actual no guardado.',
-    )
-  ) {
+  if (confirm(t('wsNewEstimateConfirm'))) {
     isProgrammaticUpdate.value = true;
 
     workspaceStore.resetWorkspace();
@@ -614,7 +610,7 @@ const executePdfExport = async (exportPrefs) => {
   const exp = resolveExportPrefs(exportPrefs);
   const toastId = 'commercial-pdf-export';
 
-  toast.loading('Generando PDF comercial…', { id: toastId });
+  toast.loading(t('wsPdfGenerating'), { id: toastId });
 
   try {
     // Misma captura que Propuesta premium: centra cámara vía siec:capture-scene (Scene3D).
@@ -632,9 +628,9 @@ const executePdfExport = async (exportPrefs) => {
     });
 
     authStore.addExportToHistory(workspaceStore.activePresetName);
-    toast.success('PDF exportado correctamente', { id: toastId });
+    toast.success(t('wsPdfExported'), { id: toastId });
   } catch (err) {
-    toast.error(err?.message || 'No se pudo exportar el PDF', { id: toastId });
+    toast.error(err?.message || t('wsPdfFailed'), { id: toastId });
     throw err;
   }
 };

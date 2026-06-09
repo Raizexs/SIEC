@@ -785,7 +785,7 @@ onUnmounted(() => {
                     :class="isCategoriaDisabled(cat.categoria)
                       ? 'border-slate-300 bg-slate-200 text-slate-400 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-500'
                       : 'border-emerald-300 bg-emerald-50 text-emerald-600 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'"
-                    :title="isCategoriaDisabled(cat.categoria) ? 'Habilitar categoría' : 'Deshabilitar categoría'"
+                    :title="isCategoriaDisabled(cat.categoria) ? t('budgetCategoryEnable') : t('budgetCategoryDisable')"
                     @click="toggleCategoria(cat.categoria)"
                   >
                     <span class="material-symbols-outlined text-[15px]">
