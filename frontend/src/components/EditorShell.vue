@@ -948,7 +948,7 @@ const startTutorial = () => {
             <button
               type="button"
               class="rounded-xl bg-orange-500 px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-orange-600 disabled:opacity-40"
-              :disabled="currentStep === 'export'"
+              :disabled="currentStep === 'budget'"
               @click="nextStep"
             >
               {{ t('wsNext') }}
