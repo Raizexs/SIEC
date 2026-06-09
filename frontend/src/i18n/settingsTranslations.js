@@ -75,14 +75,14 @@ export const settingsTranslationsEs = {
   settingsIntegrationsStatus:
     "Estado técnico de cada capa externa. Los botones reflejan disponibilidad real: nada de acciones simuladas.",
   settingsPlanLocal:
-    "Límites según tu plan activo. Los datos se sincronizan con tu cuenta cuando hay sesión Supabase.",
+    "Límites según tu plan activo. Al iniciar sesión, tus proyectos se sincronizan con tu cuenta.",
   settingsPlanLocalSession: "Modo local · sesión del navegador",
   settingsPlanLayouts: "{count} / 5 en esta sesión",
   settingsPlanExports:
     "PDF disponible · IFC en beta · GLB disponible / beta según escena",
   settingsLastSync: "Última sincronización",
-  settingsSessionSupabase: "Sesión Supabase activa en este dispositivo",
-  settingsSessionLocal: "Sesión local (sin identidad en nube)",
+  settingsSessionSupabase: "Conectado a tu cuenta",
+  settingsSessionLocal: "Solo en este dispositivo",
   settingsProPlusLimits: "Próximos límites Pro+",
   settingsProPlusRoadmap:
     "Capacidades en evaluación para cuentas Pro+; priorizadas según el ecosistema SIEC y feedback de obra.",
@@ -237,14 +237,14 @@ export const settingsTranslationsEn = {
   settingsIntegrationsStatus:
     "Technical status of each external layer. Buttons reflect real availability—no simulated actions.",
   settingsPlanLocal:
-    "Limits follow your active plan. Data syncs with your account when a Supabase session is active.",
+    "Limits follow your active plan. When you sign in, your projects sync with your account.",
   settingsPlanLocalSession: "Local mode · browser session",
   settingsPlanLayouts: "{count} / 5 this session",
   settingsPlanExports:
     "PDF available · IFC in beta · GLB available / beta per scene",
   settingsLastSync: "Last sync",
-  settingsSessionSupabase: "Active Supabase session on this device",
-  settingsSessionLocal: "Local session (no cloud identity)",
+  settingsSessionSupabase: "Connected to your account",
+  settingsSessionLocal: "This device only",
   settingsProPlusLimits: "Upcoming Pro+ limits",
   settingsProPlusRoadmap:
     "Capabilities under evaluation for Pro+ accounts; prioritized by the SIEC ecosystem and field feedback.",

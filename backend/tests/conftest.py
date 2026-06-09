@@ -111,3 +111,21 @@ def _seed_materiality_matrix() -> None:
 def seed_ci_materiality_data():
     """Asegura rendimientos para las 4 materialidades en la DB de CI."""
     _seed_materiality_matrix()
+
+
+@pytest.fixture(autouse=True)
+def bypass_material_plan_gate_for_unit_tests(monkeypatch):
+    """
+    Los tests de cálculo llaman calcular_insumos sin JWT; el gate de plan
+    se valida en tests de billing/API, no en fixtures de costing.
+    """
+    try:
+        import billing.service as billing_service
+    except ModuleNotFoundError:
+        import backend.billing.service as billing_service  # type: ignore
+
+    monkeypatch.setattr(
+        billing_service,
+        "enforce_simulation_material",
+        lambda *_args, **_kwargs: None,
+    )
