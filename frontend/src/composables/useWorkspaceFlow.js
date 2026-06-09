@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue';
 
-/** @typedef {'configure' | 'design' | 'budget' | 'export'} WorkspaceStepId */
+/** @typedef {'configure' | 'design' | 'budget'} WorkspaceStepId */
 
 export const WORKSPACE_STEPS = [
   {
@@ -24,13 +24,6 @@ export const WORKSPACE_STEPS = [
     tone: 'emerald',
     icon: 'budget',
   },
-  {
-    id: 'export',
-    labelKey: 'wsStepExport',
-    order: 4,
-    tone: 'violet',
-    icon: 'export',
-  },
 ];
 
 const FLOW_DISMISS_KEY = 'siec.flowguide.dismissed';
@@ -42,8 +35,7 @@ export function useWorkspaceFlow({ recintosCount, hasBudget, selectedM2 }) {
   const currentStep = ref(/** @type {WorkspaceStepId} */ ('configure'));
 
   const suggestedStep = computed(() => {
-    if (selectedM2.value > 0 && hasBudget.value) return 'export';
-    if (selectedM2.value > 0) return 'budget';
+    if (hasBudget.value) return 'budget';
     if (recintosCount.value > 0) return 'design';
     return 'configure';
   });
@@ -89,9 +81,7 @@ export function useWorkspaceFlow({ recintosCount, hasBudget, selectedM2 }) {
   const showConfigure = computed(() => currentStep.value === 'configure');
   const showDesignStep = computed(() => currentStep.value === 'design');
   const showBudgetStep = computed(() => currentStep.value === 'budget');
-  const showExportStep = computed(() => currentStep.value === 'export');
 
-  /** Ocupación del terreno: solo al diseñar en 2D (no en presupuesto/exportar). */
   const showMetricsBar = computed(() => currentStep.value === 'design');
 
   return {
@@ -104,7 +94,6 @@ export function useWorkspaceFlow({ recintosCount, hasBudget, selectedM2 }) {
     showConfigure,
     showDesignStep,
     showBudgetStep,
-    showExportStep,
     showMetricsBar,
     isFlowGuideDismissed,
     dismissFlowGuide,
