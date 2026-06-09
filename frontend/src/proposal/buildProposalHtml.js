@@ -11,7 +11,6 @@ import {
 import { PROPOSAL_CSS } from "./proposalStyles.js";
 import {
   resolveBrandLogoUrl,
-  resolveBrandSignatureUrl,
 } from "./proposalBrand.js";
 import { normalizeProposalPayload } from "./normalizeProposalPayload.js";
 
@@ -28,6 +27,19 @@ const escapeHtml = (value) => {
 const safeText = (value, fallback = "—") => {
   if (value == null || value === "") return fallback;
   return String(value);
+};
+
+const isHttpUrl = (value) => /^https?:\/\//i.test(String(value || "").trim());
+
+const renderInsumoCell = (item) => {
+  const label = escapeHtml(safeText(item.insumo));
+  const url = String(item.url_producto || "").trim();
+
+  if (isHttpUrl(url)) {
+    return `<a class="insumo-link" href="${escapeHtml(url)}" title="${escapeHtml(url)}">${label}</a>`;
+  }
+
+  return label;
 };
 
 const pageBreak = '<div class="html2pdf__page-break pdf-page-break"></div>';
@@ -91,6 +103,13 @@ const renderFinancialTable = (payload) => {
 };
 
 const renderDesgloseTable = (desglose, payload = null) => {
+  const includeBreakdown = payload?.includeMaterialsBreakdown !== false;
+  const includeUnitPrices = payload?.includeUnitPrices !== false;
+
+  if (!includeBreakdown) {
+    return '<p class="placeholder">Desglose omitido según preferencias de exportación.</p>';
+  }
+
   const normalized = normalizeDesglose(desglose);
 
   if (!normalized.length) {
@@ -98,23 +117,29 @@ const renderDesgloseTable = (desglose, payload = null) => {
   }
 
   const rows = [];
+  const priceCols = includeUnitPrices ? 2 : 0;
+  const totalCols = 3 + priceCols;
 
   for (const category of normalized) {
     rows.push(
       `<tr class="cat-band">
-        <td colspan="5">
+        <td colspan="${totalCols}">
           ${escapeHtml(category.categoria)} · Subtotal: ${escapeHtml(formatClp(category.subtotal_categoria))}
         </td>
       </tr>`,
     );
 
     for (const item of category.items || []) {
+      const priceCells = includeUnitPrices
+        ? `<td class="num">${escapeHtml(formatClp(item.precio_unitario))}</td>
+        <td class="num">${escapeHtml(formatClp(item.subtotal))}</td>`
+        : `<td class="num">${escapeHtml(formatClp(item.subtotal))}</td>`;
+
       rows.push(`<tr class="desglose-item">
-        <td>${escapeHtml(item.insumo || "—")}</td>
+        <td>${renderInsumoCell(item)}</td>
         <td class="num">${escapeHtml(formatNumber(item.cantidad))}</td>
         <td>${escapeHtml(item.unidad || "—")}</td>
-        <td class="num">${escapeHtml(formatClp(item.precio_unitario))}</td>
-        <td class="num">${escapeHtml(formatClp(item.subtotal))}</td>
+        ${priceCells}
       </tr>`);
     }
   }
@@ -127,16 +152,23 @@ const renderDesgloseTable = (desglose, payload = null) => {
     payload?.totalFormatted ||
     formatClp(payload?.totalPreferido ?? subtotalInsumos);
 
+  const totalLabelColspan = includeUnitPrices ? 4 : 3;
+
   rows.push(
-    `<tr class="desglose-total-gap" aria-hidden="true"><td colspan="5"></td></tr>`,
+    `<tr class="desglose-total-gap" aria-hidden="true"><td colspan="${totalCols}"></td></tr>`,
     `<tr class="desglose-grand-total total-row">
-      <td colspan="4">
+      <td colspan="${totalLabelColspan}">
         <span class="desglose-grand-total__title">Total</span>
         <span class="desglose-grand-total__subtitle">Monto total estimado</span>
       </td>
       <td class="num">${escapeHtml(totalDisplay)}</td>
     </tr>`,
   );
+
+  const headerPriceCols = includeUnitPrices
+    ? `<th class="col-precio num">Precio unit.</th>
+          <th class="col-subtotal num">Subtotal</th>`
+    : `<th class="col-subtotal num">Subtotal</th>`;
 
   return `<div class="table-wrap table-wrap--desglose">
     <table class="data data--desglose">
@@ -145,8 +177,7 @@ const renderDesgloseTable = (desglose, payload = null) => {
           <th class="col-insumo">Insumo</th>
           <th class="col-cantidad num">Cantidad</th>
           <th class="col-unidad">Unidad</th>
-          <th class="col-precio num">Precio unit.</th>
-          <th class="col-subtotal num">Subtotal</th>
+          ${headerPriceCols}
         </tr>
       </thead>
 
@@ -155,11 +186,6 @@ const renderDesgloseTable = (desglose, payload = null) => {
       </tbody>
     </table>
   </div>`;
-};
-
-const brandMarkImg = (className, alt, logoUrl) => {
-  if (!logoUrl) return "";
-  return `<img class="${className}" src="${escapeHtml(logoUrl)}" alt="${escapeHtml(alt)}" crossorigin="anonymous" />`;
 };
 
 const pageFooter = (payload, pageLabel) => {
@@ -188,6 +214,122 @@ const pageFooter = (payload, pageLabel) => {
       </table>
     </footer>
   `;
+};
+
+const buildDocumentReference = (payload) => {
+  const d = payload.fechaExportacion ? new Date(payload.fechaExportacion) : new Date();
+  if (Number.isNaN(d.getTime())) {
+    return "PRES-REF";
+  }
+
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const h = String(d.getHours()).padStart(2, "0");
+  const min = String(d.getMinutes()).padStart(2, "0");
+  const slug = String(payload.projectName || "PROY")
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .slice(0, 6)
+    .toUpperCase();
+
+  return `PRES-${y}${m}${day}-${slug || "PROY"}-${h}${min}`;
+};
+
+const renderPrintReviewBlock = () => `
+  <div class="print-review">
+    <h3 class="print-review__title">Registro de revisión (opcional — solo uso impreso)</h3>
+    <p class="print-review__note">
+      Complete a mano únicamente si necesita respaldo en terreno o archivo físico. No constituye firma electrónica ni contrato.
+    </p>
+    <div class="print-review__grid">
+      <div class="print-review__field">
+        <span class="print-review__label">Revisado por</span>
+        <span class="print-review__line" aria-hidden="true"></span>
+      </div>
+      <div class="print-review__field">
+        <span class="print-review__label">Fecha</span>
+        <span class="print-review__line print-review__line--short" aria-hidden="true"></span>
+      </div>
+      <div class="print-review__field print-review__field--wide">
+        <span class="print-review__label">Observaciones</span>
+        <span class="print-review__line print-review__line--tall" aria-hidden="true"></span>
+      </div>
+    </div>
+  </div>`;
+
+const renderDocumentMeta = (payload, totalDisplay) => `
+  <dl class="document-meta">
+    <div class="document-meta__item">
+      <dt>Emisor</dt>
+      <dd>${escapeHtml(payload.businessName)}</dd>
+    </div>
+    <div class="document-meta__item">
+      <dt>Proyecto</dt>
+      <dd>${escapeHtml(payload.projectName)}</dd>
+    </div>
+    <div class="document-meta__item">
+      <dt>Fecha de emisión</dt>
+      <dd>${escapeHtml(formatExportDate(payload.fechaExportacion))}</dd>
+    </div>
+    <div class="document-meta__item">
+      <dt>Referencia</dt>
+      <dd>${escapeHtml(buildDocumentReference(payload))}</dd>
+    </div>
+    <div class="document-meta__item">
+      <dt>Materialidad</dt>
+      <dd>${escapeHtml(safeText(payload.materialNombre, "Por definir"))}</dd>
+    </div>
+    <div class="document-meta__item">
+      <dt>Superficie</dt>
+      <dd>${escapeHtml(formatNumber(payload.m2Totales, 0))} m²</dd>
+    </div>
+    <div class="document-meta__item document-meta__item--accent">
+      <dt>Total referencial</dt>
+      <dd>${escapeHtml(totalDisplay)}</dd>
+    </div>
+  </dl>`;
+
+const renderDocumentClosingPage = (payload, totalDisplay, { kicker = "03" } = {}) => {
+  const reportFooterHtml = payload.reportFooter
+    ? `<div class="report-footer-block"><p class="report-footer">${escapeHtml(payload.reportFooter)}</p></div>`
+    : "";
+
+  const printBlock =
+    payload.includePrintReviewBlock === true ? renderPrintReviewBlock() : "";
+
+  return `
+    <section class="page page--closing" id="cierre">
+      <div class="page__inner">
+        <header class="section-head">
+          <div>
+            <p class="section-head__kicker">${escapeHtml(kicker)}</p>
+            <h2 class="section-head__title">Validación y cierre del documento</h2>
+          </div>
+          <p class="section-head__note">Presupuesto referencial · trazabilidad y alcance.</p>
+        </header>
+
+        <div class="prose prose--closing">
+          <p>
+            Este documento fue generado con SIEC como <strong>presupuesto referencial</strong>.
+            No constituye contrato de construcción, promesa de obra ni oferta vinculante.
+          </p>
+          <p>
+            Los montos dependen de disponibilidad de insumos, condiciones de terreno, logística,
+            mano de obra y validación técnica en terreno. Cualquier cambio de alcance debe
+            documentarse en una nueva versión del presupuesto.
+          </p>
+        </div>
+
+        ${renderDocumentMeta(payload, totalDisplay)}
+        ${reportFooterHtml}
+        ${printBlock}
+
+        <p class="closing-generated">
+          Documento generado con SIEC · Inteligencia constructiva
+        </p>
+      </div>
+      ${pageFooter(payload, "Cierre")}
+    </section>`;
 };
 
 const renderCoverHeader = (payload) => {
@@ -258,12 +400,16 @@ const renderExecutiveSummary = (payload, projectName, totalDisplay) => {
 };
 
 const renderAnnexes = (payload) => {
-  const annexSceneHtml = payload.sceneImageDataUrl
-    ? `<figure class="annex-figure">
+  const includeSnapshots = payload.includeSnapshots !== false;
+  const annexSceneHtml =
+    includeSnapshots && payload.sceneImageDataUrl
+      ? `<figure class="annex-figure">
         <img src="${escapeHtml(payload.sceneImageDataUrl)}" alt="Vista 3D del proyecto" />
         <figcaption>Anexo A — Vista 3D del modelo.</figcaption>
       </figure>`
-    : '<p class="placeholder">Anexo A · Vista 3D no capturada. Exporte desde el editor con la escena 3D visible.</p>';
+      : includeSnapshots
+        ? '<p class="placeholder">Anexo A · Vista 3D no capturada. Exporte desde el editor con la escena 3D visible.</p>'
+        : '<p class="placeholder">Anexo A · Capturas omitidas según preferencias de exportación.</p>';
 
   return `
     ${annexSceneHtml}
@@ -293,7 +439,7 @@ const renderAnnexes = (payload) => {
  * - Cada section.page mide exactamente A4.
  * - Saltos de página con .pdf-page-break / page-break CSS.
  */
-/** PDF compacto: portada + total, desglose de insumos, firmas (máx. 3 páginas). */
+/** PDF compacto: portada, desglose + resumen financiero, captura opcional, cierre documental. */
 export const buildProposalArticleHtmlCompact = (payload) => {
   const {
     projectName,
@@ -303,7 +449,36 @@ export const buildProposalArticleHtmlCompact = (payload) => {
   } = payload;
 
   const desgloseTable = renderDesgloseTable(payload.desglose, payload);
+  const financialTable = renderFinancialTable(payload);
   const coverHeader = renderCoverHeader(payload);
+
+  const includeSnapshots = payload.includeSnapshots !== false;
+  const snapshotSection =
+    includeSnapshots
+      ? `${pageBreak}
+    <section class="page page--compact-scene">
+      <div class="page__inner">
+        <header class="section-head">
+          <div>
+            <p class="section-head__kicker">03</p>
+            <h2 class="section-head__title">Vista del proyecto</h2>
+          </div>
+          <p class="section-head__note">Captura referencial del modelo 3D.</p>
+        </header>
+        ${
+          payload.sceneImageDataUrl
+            ? `<figure class="annex-figure annex-figure--compact">
+              <img src="${escapeHtml(payload.sceneImageDataUrl)}" alt="Vista 3D del proyecto" />
+              <figcaption>Vista 3D generada desde el editor.</figcaption>
+            </figure>`
+            : '<p class="placeholder">Vista 3D no capturada. Exporte con la escena 3D visible en el editor.</p>'
+        }
+      </div>
+      ${pageFooter(payload, "Vista 3D")}
+    </section>`
+      : "";
+
+  const closingKicker = includeSnapshots ? "04" : "03";
 
   return `<article class="proposal">
     <section class="page page--cover">
@@ -357,50 +532,26 @@ export const buildProposalArticleHtmlCompact = (payload) => {
           <p class="section-head__note">Detalle referencial por categoría.</p>
         </header>
         ${desgloseTable}
+
+        <div class="compact-financial">
+          <header class="section-head section-head--compact">
+            <div>
+              <p class="section-head__kicker">—</p>
+              <h2 class="section-head__title">Resumen financiero</h2>
+            </div>
+            <p class="section-head__note">Contingencia e IVA según preferencias.</p>
+          </header>
+          ${financialTable}
+        </div>
       </div>
       ${pageFooter(payload, "Desglose")}
     </section>
 
+    ${snapshotSection}
+
     ${pageBreak}
 
-    <section class="page" id="firmas">
-      <div class="page__inner">
-        <header class="section-head">
-          <div>
-            <p class="section-head__kicker">03</p>
-            <h2 class="section-head__title">Aceptación y firmas</h2>
-          </div>
-          <p class="section-head__note">Formalización de aceptación comercial.</p>
-        </header>
-
-        <div class="prose">
-          <p>
-            La aceptación se perfecciona con firma de ambas partes y anticipo acordado
-            cuando corresponda. Cualquier cambio de alcance deberá documentarse mediante anexo o nueva versión.
-          </p>
-        </div>
-
-        <div class="signatures">
-          <div class="signature signature--client">
-            <p class="signature__line">Por el cliente</p>
-            <p class="signature__hint">Nombre, RUT y fecha</p>
-          </div>
-
-          <div class="signature signature--issuer">
-            <div class="signature__mark-wrap">
-              ${brandMarkImg(
-                "signature__mark",
-                "Firma SIEC",
-                payload.signatureUrl || resolveBrandSignatureUrl(),
-              )}
-            </div>
-            <p class="signature__line">Por ${escapeHtml(payload.businessName)}</p>
-            <p class="signature__hint">Representante autorizado</p>
-          </div>
-        </div>
-      </div>
-      ${pageFooter(payload, "Firmas")}
-    </section>
+    ${renderDocumentClosingPage(payload, totalDisplay, { kicker: closingKicker })}
   </article>`;
 };
 
@@ -627,46 +778,7 @@ export const buildProposalArticleHtml = (payload) => {
 
     ${pageBreak}
 
-    <section class="page" id="firmas">
-      <div class="page__inner">
-        <header class="section-head">
-          <div>
-            <p class="section-head__kicker">06</p>
-            <h2 class="section-head__title">Aceptación y firmas</h2>
-          </div>
-
-          <p class="section-head__note">Formalización de aceptación comercial.</p>
-        </header>
-
-        <div class="prose">
-          <p>
-            La aceptación se perfecciona con firma de ambas partes y anticipo acordado
-            cuando corresponda. Cualquier cambio de alcance deberá documentarse mediante anexo o nueva versión.
-          </p>
-        </div>
-
-        <div class="signatures">
-          <div class="signature signature--client">
-            <p class="signature__line">Por el cliente</p>
-            <p class="signature__hint">Nombre, RUT y fecha</p>
-          </div>
-
-          <div class="signature signature--issuer">
-            <div class="signature__mark-wrap">
-              ${brandMarkImg(
-                "signature__mark",
-                "Firma SIEC",
-                payload.signatureUrl || resolveBrandSignatureUrl(),
-              )}
-            </div>
-            <p class="signature__line">Por ${escapeHtml(payload.businessName)}</p>
-            <p class="signature__hint">Representante autorizado</p>
-          </div>
-        </div>
-      </div>
-
-      ${pageFooter(payload, "Firmas")}
-    </section>
+    ${renderDocumentClosingPage(payload, totalDisplay, { kicker: "06" })}
 
     ${pageBreak}
 

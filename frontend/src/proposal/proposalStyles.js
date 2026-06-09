@@ -701,6 +701,19 @@ export const PROPOSAL_CSS = `
     width: 42%;
   }
 
+  .proposal table.data a.insumo-link {
+    color: #c2410c;
+    font-weight: 700;
+    text-decoration: underline;
+    text-decoration-color: rgba(194, 65, 12, 0.35);
+    text-underline-offset: 2px;
+  }
+
+  .proposal table.data a.insumo-link:hover {
+    color: #9a3412;
+    text-decoration-color: rgba(154, 52, 18, 0.55);
+  }
+
   .proposal table.data .col-cantidad {
     width: 14%;
   }
@@ -1052,6 +1065,160 @@ export const PROPOSAL_CSS = `
 
   .proposal .page--compact-desglose .desglose-grand-total td.num {
     font-size: 9.8pt;
+  }
+
+  .proposal .compact-financial {
+    margin-top: 6mm;
+    padding-top: 4mm;
+    border-top: 1px solid rgba(15, 23, 42, 0.08);
+  }
+
+  .proposal .section-head--compact {
+    margin-bottom: 3mm;
+  }
+
+  .proposal .section-head--compact .section-head__kicker {
+    opacity: 0.35;
+  }
+
+  .proposal .report-footer-block {
+    margin: 5mm 0 4mm;
+    padding: 3.5mm 4mm;
+    border-radius: 2mm;
+    background: rgba(248, 250, 252, 0.95);
+    border: 1px solid rgba(15, 23, 42, 0.06);
+  }
+
+  .proposal .page--compact-scene .annex-figure--compact {
+    margin-top: 4mm;
+  }
+
+  .proposal .page--compact-scene .annex-figure--compact img {
+    max-height: 155mm;
+    width: 100%;
+    object-fit: contain;
+    border-radius: 2mm;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+  }
+
+  .proposal .page--closing .prose--closing {
+    margin-bottom: 5mm;
+  }
+
+  .proposal .page--closing .prose--closing p {
+    margin-bottom: 2.5mm;
+    font-size: 9.2pt;
+    line-height: 1.45;
+    color: rgba(15, 23, 42, 0.82);
+  }
+
+  .proposal .document-meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2.5mm 4mm;
+    margin: 4mm 0 5mm;
+    padding: 4mm;
+    border-radius: 2mm;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    background: rgba(248, 250, 252, 0.95);
+  }
+
+  .proposal .document-meta__item {
+    min-width: 0;
+  }
+
+  .proposal .document-meta__item--accent {
+    grid-column: 1 / -1;
+    padding-top: 2mm;
+    border-top: 1px solid rgba(15, 23, 42, 0.08);
+  }
+
+  .proposal .document-meta dt {
+    font-size: 7.2pt;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(100, 116, 139, 0.95);
+  }
+
+  .proposal .document-meta dd {
+    margin: 0.8mm 0 0;
+    font-size: 9.5pt;
+    font-weight: 700;
+    color: rgb(15, 23, 42);
+  }
+
+  .proposal .document-meta__item--accent dd {
+    font-size: 11pt;
+    font-weight: 800;
+  }
+
+  .proposal .print-review {
+    margin-top: 4mm;
+    padding: 4mm;
+    border-radius: 2mm;
+    border: 1px dashed rgba(100, 116, 139, 0.45);
+    background: rgba(255, 255, 255, 0.92);
+  }
+
+  .proposal .print-review__title {
+    margin: 0;
+    font-size: 9pt;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: rgb(51, 65, 85);
+  }
+
+  .proposal .print-review__note {
+    margin: 1.5mm 0 3mm;
+    font-size: 8.2pt;
+    line-height: 1.4;
+    color: rgba(71, 85, 105, 0.95);
+  }
+
+  .proposal .print-review__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3mm;
+  }
+
+  .proposal .print-review__field--wide {
+    grid-column: 1 / -1;
+  }
+
+  .proposal .print-review__label {
+    display: block;
+    margin-bottom: 1.2mm;
+    font-size: 7.5pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: rgba(100, 116, 139, 0.95);
+  }
+
+  .proposal .print-review__line {
+    display: block;
+    height: 7mm;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.35);
+  }
+
+  .proposal .print-review__line--short {
+    width: 70%;
+  }
+
+  .proposal .print-review__line--tall {
+    height: 14mm;
+  }
+
+  .proposal .closing-generated {
+    margin-top: 4mm;
+    font-size: 7.8pt;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgba(100, 116, 139, 0.9);
+    text-align: center;
   }
 
   body.pdf-watermark .proposal .page {

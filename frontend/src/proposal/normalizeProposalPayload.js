@@ -105,6 +105,8 @@ export const normalizeProposalPayload = (raw = {}) => {
     trimText(raw.totalFormatted) || formatClp(totalPreferido ?? motorTotal);
 
   const sceneImage = trimText(raw.sceneImageDataUrl);
+  const exportPrefs =
+    raw.export && typeof raw.export === 'object' ? raw.export : {};
 
   return {
     projectName: normalizeCoverTitle(raw.projectName),
@@ -139,5 +141,15 @@ export const normalizeProposalPayload = (raw = {}) => {
     counts: normalizeCounts(raw.counts),
     sceneImageDataUrl: sceneImage || null,
     pdfWatermark: Boolean(raw.pdfWatermark),
+    includeMaterialsBreakdown:
+      raw.includeMaterialsBreakdown ??
+      exportPrefs.includeMaterialsBreakdown ??
+      true,
+    includeUnitPrices:
+      raw.includeUnitPrices ?? exportPrefs.includeUnitPrices ?? true,
+    includeSnapshots:
+      raw.includeSnapshots ?? exportPrefs.includeSnapshots ?? true,
+    includePrintReviewBlock:
+      raw.includePrintReviewBlock ?? exportPrefs.includePrintReviewBlock ?? false,
   };
 };
