@@ -21,7 +21,6 @@ const stepHints = {
   configure: 'flowHintConfigure',
   design: 'flowHintDesign',
   budget: 'flowHintBudget',
-  export: 'flowHintExport',
 };
 
 const hintText = computed(() => t(stepHints[props.currentStep] || 'flowHintConfigure'));
@@ -32,8 +31,6 @@ const toneBorder = computed(() => {
       return 'border-amber-200/90 bg-amber-50/90 dark:border-amber-900/50 dark:bg-amber-950/20';
     case 'budget':
       return 'border-emerald-200/90 bg-emerald-50/90 dark:border-emerald-900/50 dark:bg-emerald-950/20';
-    case 'export':
-      return 'border-violet-200/90 bg-violet-50/90 dark:border-violet-900/50 dark:bg-violet-950/20';
     default:
       return 'border-sky-200/90 bg-sky-50/90 dark:border-sky-900/50 dark:bg-sky-950/20';
   }

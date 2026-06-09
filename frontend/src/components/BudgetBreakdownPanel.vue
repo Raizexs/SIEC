@@ -88,7 +88,7 @@ const isStoreSelected = (item, store) => {
 
 const effectiveDesglose = computed(() => {
   const selections = storeSelections.value;
-  return enabledDesglose.value.map((cat) => {
+  return desglose.value.map((cat) => {
     const items = cat.items.map((item) => {
       const override = selections[item.insumo];
       if (!override) return item;
@@ -137,7 +137,9 @@ const formatCurrency = (value) => {
 
 /** Total devuelto por el motor (CLP) — solo categorías habilitadas, con tiendas seleccionadas. */
 const motorTotal = computed(() =>
-  effectiveDesglose.value.reduce((sum, cat) => sum + (cat.subtotal_categoria || 0), 0),
+  effectiveDesglose.value
+    .filter(cat => !disabledCategories.value.has(cat.categoria))
+    .reduce((sum, cat) => sum + (cat.subtotal_categoria || 0), 0),
 );
 
 const subtotalConContingencia = computed(() =>
@@ -161,7 +163,7 @@ const totalPreferido = computed(() => {
 const monedaPreferida = computed(() => productPreferences.value.currency);
 
 const quoteStats = computed(() => {
-  const rows = flattenDesgloseRows(effectiveDesglose.value);
+  const rows = flattenDesgloseRows(effectiveDesglose.value.filter(cat => !disabledCategories.value.has(cat.categoria)));
   const total = rows.length;
   const quoted = rows.filter((row) => {
     const price = Number(row.precio_unitario);
@@ -315,7 +317,9 @@ watch(
 );
 
 const buildExportPayload = () => {
-  const desgloseSnapshot = JSON.parse(JSON.stringify(effectiveDesglose.value || []));
+  const desgloseSnapshot = JSON.parse(JSON.stringify(
+    effectiveDesglose.value.filter(cat => !disabledCategories.value.has(cat.categoria)) || []
+  ));
 
   return {
     projectName: workspaceStore.activePresetName,
@@ -762,7 +766,7 @@ onUnmounted(() => {
             <article
               v-for="cat in effectiveDesglose"
               :key="cat.categoria"
-              class="overflow-hidden rounded-2xl border shadow-sm transition-all duration-200"
+              class="overflow-visible rounded-2xl border shadow-sm transition-all duration-200"
               :class="isCategoriaDisabled(cat.categoria)
                 ? 'border-slate-200/60 bg-slate-50/40 opacity-55 dark:border-slate-800/50 dark:bg-slate-900/30'
                 : 'border-slate-200 bg-white hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md hover:shadow-slate-950/5 dark:border-slate-800 dark:bg-slate-900/70 dark:hover:border-slate-700 dark:hover:shadow-black/20'"

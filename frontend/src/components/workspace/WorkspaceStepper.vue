@@ -77,7 +77,7 @@ const StepIcon = (step) => iconMap[step.icon] || Map;
     <div
       class="relative overflow-hidden rounded-2xl border border-slate-200/90 bg-white/90 p-1 shadow-md shadow-slate-950/[0.06] backdrop-blur-md dark:border-slate-700/80 dark:bg-slate-900/85 dark:shadow-black/25"
     >
-      <div class="grid grid-cols-2 gap-1 sm:grid-cols-4">
+      <div class="grid grid-cols-2 gap-1 sm:grid-cols-3">
         <button
           v-for="step in steps"
           :key="step.id"
