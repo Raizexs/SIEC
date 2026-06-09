@@ -29,7 +29,7 @@ The platform is designed to help construction, architecture, and engineering tea
 
 ## Overview
 
-SIEC combines a 2D room editor, a real-time 3D viewer, area validation, material configuration, project dashboards, and analytics into a single construction estimation workflow.
+SIEC combines a 2D room editor, a real-time 3D viewer, area validation, material configuration, project dashboards, and SIEC Place into a single construction estimation workflow.
 
 The system focuses on turning early-stage spatial decisions into measurable project data. Users can create rooms, apply base layouts, review available area, visualize the project in 3D, and prepare the foundation for cost estimation and technical reporting.
 
@@ -49,7 +49,7 @@ The system focuses on turning early-stage spatial decisions into measurable proj
 - Construction cost estimation workflow.
 - Budget-oriented project breakdowns.
 - Project dashboard for saved simulations.
-- Portfolio analytics for cost, materiality, risks, and activity.
+- **SIEC Place**: project marketplace to publish budgets and connect with contractors (Pro+ plan).
 
 ### Product Experience
 

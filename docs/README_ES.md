@@ -29,7 +29,7 @@ La plataforma está diseñada para ayudar a equipos de construcción, arquitectu
 
 ## Descripción General
 
-SIEC combina un editor de espacios en 2D, un visor 3D en tiempo real, validación de áreas, configuración de materiales, dashboards de proyectos y analítica en un único flujo de trabajo para estimación en construcción.
+SIEC combina un editor de espacios en 2D, un visor 3D en tiempo real, validación de áreas, configuración de materiales, dashboards de proyectos y SIEC Place en un único flujo de trabajo para estimación en construcción.
 
 El sistema se enfoca en transformar decisiones espaciales en etapas tempranas en datos medibles del proyecto. Los usuarios pueden crear espacios, aplicar layouts base, revisar áreas disponibles, visualizar el proyecto en 3D y preparar la base para estimaciones de costos y reportes técnicos.
 
@@ -49,7 +49,7 @@ El sistema se enfoca en transformar decisiones espaciales en etapas tempranas en
 - Flujo de estimación de costos de construcción.
 - Desglose de proyectos orientado a presupuestos.
 - Dashboard de proyectos y simulaciones guardadas.
-- Analítica de portafolio para costos, materialidad, riesgos y actividad.
+- **SIEC Place**: marketplace de obras para publicar presupuestos y conectar con contratistas (plan Pro+).
 
 ### Experiencia del Producto
 

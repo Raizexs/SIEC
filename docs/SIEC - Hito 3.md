@@ -14,7 +14,7 @@ Consolidación, Validación y Despliegue en Producción
 
 **Entrega:**	27 de mayo de 2026
 
-**Integrantes:** Andrés Tapia (PM)  | Gonzalo Jara (SM)  | Lukas Flores (Dev L.) | Felipe Figueroa (Dev) | Fernando Salazar (Dev)
+**Integrantes:** Andrés Tapia | Gonzalo Jara | Lukas Flores | Felipe Figueroa | Fernando Salazar
 
 Documento de entrega oficial
 
@@ -72,23 +72,23 @@ Documento de entrega oficial
 
 [7.2. Ejecución Scrum (Scrum Master)	19](#ejecución-scrum-\(scrum-master\))
 
-[7.3. Registro de Asistencia a Daily Meetings	20](#registro-de-asistencia-a-daily-meetings)
+[7.3. Registro de Asistencia a Daily Meetings	21](#registro-de-asistencia-a-daily-meetings)
 
-[**8\. Presentación Final Orientada a Stakeholders	20**](#presentación-final-orientada-a-stakeholders)
+[**8\. Presentación Final Orientada a Stakeholders	21**](#presentación-final-orientada-a-stakeholders)
 
-[8.1. Narrativa del Proyecto	20](#narrativa-del-proyecto)
+[8.1. Historia del Usuario – Storytelling	21](#historia-del-usuario-–-storytelling)
 
-[8.2. Avances Clave del Hito	21](#heading=)
+[8.2. Avances Clave del Hito	23](#heading=)
 
-[8.3. Demostración en Producción	21](#demostración-en-producción)
+[8.3. Demostración en Producción	23](#demostración-en-producción)
 
-[8.4. Próximos Pasos	21](#próximos-pasos)
+[8.4. Próximos Pasos	23](#próximos-pasos)
 
-[**Anexo A. Capturas de Pantalla del Sistema	22**](#anexo-a.-capturas-de-pantalla-del-sistema)
+[**Anexo A. Capturas de Pantalla del Sistema	24**](#anexo-a.-captu|ras-de-pantalla-del-sistema)
 
-[**Anexo B. Actas de Daily Meetings	24**](#anexo-b.-actas-de-daily-meetings)
+[**Anexo B. Actas de Daily Meetings	29**](#anexo-b.-actas-de-daily-meetings)
 
-[**Anexo C. Evidencia de Repositorio	25**](#anexo-c.-evidencia-de-repositorio)
+[**Anexo C. Evidencia de Repositorio	32**](#anexo-c.-evidencia-de-repositorio)
 
 1. # **Exposición del Problema y Propuesta de Valor** {#exposición-del-problema-y-propuesta-de-valor}
 
@@ -279,7 +279,7 @@ Se aplicó una combinación de pruebas unitarias (Vitest para frontend, Pytest p
 
 2. ## **Riesgos Materializados y Respuesta** {#riesgos-materializados-y-respuesta}
 
-* **R01 (Bloqueo IP scraping) – Parcialmente materializado:** Easy implementó protección anti-bot más agresiva. 
+* **R01 (Bloqueo IP scraping) – Parcialmente materializado:** Easy implementó protección anti-bot más agresiva.
 
   **Respuesta:** Se amplió a 3 tiendas (Sodimac, Easy, Construmart) para redundancia. Si una falla, las otras dos mantienen los precios actualizados.
 
@@ -287,7 +287,7 @@ Se aplicó una combinación de pruebas unitarias (Vitest para frontend, Pytest p
 
   **Respuesta:** Corregido con watcher desacoplado; 32 tests unitarios mantienen la validación.
 
-* **Riesgo nuevo – Inviabilidad de IA en nube (HU17):** Los costos transaccionales de modelos multi-modales y la ambigüedad de escala óptica hicieron inviable el análisis topográfico por fotos 2D. 
+* **Riesgo nuevo – Inviabilidad de IA en nube (HU17):** Los costos transaccionales de modelos multi-modales y la ambigüedad de escala óptica hicieron inviable el análisis topográfico por fotos 2D.
 
   **Respuesta:** Pivote a Edge Computing con ARCore/ARKit para escaneo topográfico local (PoC en curso).
 
@@ -322,8 +322,8 @@ Se aplicó una combinación de pruebas unitarias (Vitest para frontend, Pytest p
 | Parámetro | Detalle |
 | :---- | :---- |
 | **Plataforma** | Frontend: Vercel (CDN global, HTTPS automático). Backend: VPS dedicado con *reverse proxy* en vercel.json. |
-| **URL de acceso** | [http://10.51.0.26:5173/](http://10.51.0.26:5173/) (Servidor UNAB) |
-| **Credenciales de prueba** | No requiere autenticación para la demo actual. |
+| **URL de acceso** | [http://10.51.0.26:5173/](http://10.51.0.26:5173/) (Servidor UNAB), [https://proyectsiec.vercel.app/](https://proyectsiec.vercel.app/) (Vercel) |
+| **Credenciales de prueba** | No requiere autenticación para la demostración actual. |
 | **Estado al momento de entrega** | Estable y funcional. |
 | **Notas adicionales** | El *scraper* se ejecuta en un contenedor Docker con APScheduler a las 3:00 AM. |
 
@@ -360,9 +360,12 @@ El sistema permite al usuario diseñar recintos en un editor 2D, visualizarlos e
 | HU14 | Cálculo de Mano de Obra B2C | Sprint 3 | Completa |
 | HU15 | Matrices y Desperdicio | Sprint 3 | Completa |
 | HU16 | Scraper B2C y Normalización | Sprint 3 | Completa |
-| HU17 | Spike Visión Computacional | Sprint 3 | Parcial |
-| HU18 | Regulación MINVU | Sprint 3 | Parcial |
-| HU19 | Exportador BIM 5D a IFC | Sprint 3 | Postergado |
+| HU17 | Spike Visión Computacional | Sprint 3 | Postergado |
+| HU18 | Regulación MINVU | Sprint 3 | Postergado |
+| HU20 | Refactorización del Repositorio | Sprint 3 | Completa |
+| HU21 | Implementación de Sistema de Trazabilidad y Logging Estructurado | Sprint 3 | Parcial |
+| HU22 | Aseguramiento de Integridad de Datos y Precios | Pendiente | Postergado |
+| Observaciones PM | Observaciones de los PM´s externos. | Sprint 3 | Completa |
 
 ---
 
@@ -370,7 +373,7 @@ El sistema permite al usuario diseñar recintos en un editor 2D, visualizarlos e
 
 *Daily Meetings*
 
-Las reuniones diarias se realizaron de forma presencial y remota (lunes a miercoles), con una duración promedio de 15 minutos. Se llevó un registro estricto de asistencia y se documentaron los acuerdos en minutas accesibles al equipo. Se utilizó un tablero Jira para el seguimiento de tareas y el control de impedimentos.
+Las reuniones diarias se realizaron de forma presencial y remota (lunes a miércoles), con una duración promedio de 15 minutos. Se llevó un registro estricto de asistencia y se documentaron los acuerdos en minutas accesibles al equipo. Se utilizó un tablero Jira para el seguimiento de tareas y el control de impedimentos.
 
 *Sprint Retrospective — Principales Mejoras*  
 ---
@@ -386,7 +389,7 @@ Las reuniones diarias se realizaron de forma presencial y remota (lunes a mierco
 
 *Impedimentos y Adaptaciones del Equipo*
 
-El principal impedimento fue la detección temprana de que el análisis topográfico basado en modelos multi-modales en la nube resultaba inviable por costos transaccionales y ambigüedad de escala óptica. El equipo decidió unánimemente pivotar a Edge Computing con ARCore/ARKit, manteniendo el avance en el resto de las historias sin afectar el cronograma del sprint. Además, la subtarea T18.1 (interceptor normativo LOSCAT/LOSCAA) quedó pendiente, por lo que se intensificó el seguimiento para cerrar el ciclo normativo en el próximo sprint.
+El principal impedimento de este hito fue centrarnos en resolver la deuda técnica generada en nuestro proyecto. como también la mejora real del scrapper, para que pueda dar el desglose real de las estimaciones de costos que se solicitan. mediante Dailys se fueron planteando medidas para poder desglosar las tareas de una manera que sean más simples y que no abarque demasiado.
 
 3. ## **Registro de Asistencia a Daily Meetings** {#registro-de-asistencia-a-daily-meetings}
 
@@ -412,11 +415,59 @@ El principal impedimento fue la detección temprana de que el análisis topográ
 
 8. # **Presentación Final Orientada a Stakeholders** {#presentación-final-orientada-a-stakeholders}
 
-   1. ## **Narrativa del Proyecto** {#narrativa-del-proyecto}
+   1. ## **Historia del Usuario – Storytelling**   {#historia-del-usuario-–-storytelling}
 
-El Sistema Inteligente de Estimación de Costos (SIEC) nace para resolver la profunda desconexión entre la ideación espacial y el costo real de una ampliación residencial. Más de 1.2 millones de viviendas en Chile necesitan ser mejoradas, pero sus propietarios —sin formación técnica— carecen de herramientas para cotizar con precios de mercado y validar la factibilidad normativa de sus proyectos. SIEC les permite diseñar interactivamente los recintos en un editor 2D, visualizarlos en 3D con las materialidades exactas y obtener un presupuesto desglosado, actualizado diariamente desde el retail chileno. En este hito, hemos consolidado el MVP B2C integrando capas constructivas, texturas procedurales, validación de la Ley 21.725, mermas optimizadas, exportación PDF y soporte multi-piso, entregando una plataforma que elimina el miedo a cotizar y empodera al propietario para tomar acción.
+**Personajes:**
 
-2. ## **Avances Clave del Hito**
+* **Juan**, 45 años, propietario de una vivienda urbana, clase media-alta. Quiere ampliar su casa con control, seguridad y sin sorpresas.
+
+* **SIEC**, el asistente inteligente que guía a Juan en la estimación de costos y diseño de ampliaciones.
+
+* **El Equipo de SIEC**, los guardianes del sistema que aseguran precisión, normativa y usabilidad.
+
+**Contexto:**  
+Juan planea agregar dos habitaciones y un baño a su hogar familiar. Sin experiencia en construcción, cada decisión lo llena de ansiedad: ¿cuánto costará? ¿Qué materiales son más adecuados? ¿Cumplirá la normativa vigente? El tiempo apremia y los presupuestos que recibe suelen ser inconsistentes y dependientes de intermediarios.
+
+Más de 1.2 millones de viviendas en Chile enfrentan problemas similares, y las herramientas disponibles están diseñadas para constructoras grandes, dejando a propietarios como Juan en la incertidumbre.
+
+**Conflicto:**  
+Juan intenta estimar los costos usando planillas y cotizaciones dispersas, pero se enfrenta a tres grandes retos:
+
+1. **Costos impredecibles**: las estimaciones varían demasiado entre proveedores.
+
+2. **Falta de claridad técnica**: no sabe si las decisiones que toma son viables.
+
+3. **Dependencia de intermediarios**: los costos incluyen recargos de constructoras corporativas que no aplican a su contexto de autoconstrucción.
+
+**Desarrollo (Intervención de SIEC):**
+
+* Juan abre SIEC en su computadora y comienza a **diseñar el espacio** con medidas exactas en el editor 2D.
+
+* Visualiza en tiempo real la ampliación en 3D, alternando **capas constructivas** (fachada, aislación, estructura, interior e instalaciones).
+
+* SIEC activa **alertas preventivas** si un material pesado como ferrocemento genera problemas logísticos y sugiere alternativas ligeras como Metalcon.
+
+* Juan **compara materiales y costos** de manera instantánea, recibiendo un desglose preciso de insumos actualizado diariamente desde Sodimac, Easy y Construmart.
+
+* Cada acción está validada por el **validador normativo**, asegurando cumplimiento con la Ley 21.725 y evitando errores estructurales.
+
+* Finalmente, Juan **exporta un PDF profesional** con el presupuesto y las especificaciones, listo para iniciar la obra con confianza.
+
+**Clímax:**  
+En este hito, el equipo de SIEC consolida el MVP B2C: texturas procedurales, multi-piso, validación normativa, optimización de mermas y exportación PDF. Juan, antes inseguro y dependiente de intermediarios, ahora tiene **control total sobre su proyecto** y puede tomar decisiones informadas sin miedo a sobrecostos o errores.
+
+**Resolución:**  
+Juan se siente empoderado y seguro. SIEC no solo le proporcionó estimaciones precisas, sino que transformó la experiencia de autoconstrucción en un **proceso interactivo, transparente y seguro**, permitiéndole planificar y ejecutar su ampliación de manera independiente y confiable.
+
+**Personificación Final (Caracterización):**
+
+* **Juan**: propietario urbano/periurbano, clase media-alta, preocupado por costos y seguridad.
+
+* **SIEC**: mentor tecnológico, confiable, proactivo y preciso.
+
+* **El Equipo**: héroes detrás de escena, asegurando que cada línea de código, cada test y cada actualización entregue valor real al usuario.
+
+  2. ## **Avances Clave del Hito**
 
 * **Renderizado dinámico por capas:** El usuario puede alternar fachada, aislación, estructura, interior e instalaciones en el modelo 3D, comprendiendo la composición real de una vivienda.
 
@@ -424,31 +475,35 @@ El Sistema Inteligente de Estimación de Costos (SIEC) nace para resolver la pro
 
 * **Protección normativa integrada:** El validador de la Ley 21.725 y los límites estructurales para Metalcon operan en tiempo real, impidiendo que el usuario diseñe proyectos no regularizables.
 
-* **Tutorial interactivo:** Un recorrido guiado contextualiza cada función para el usuario no experto.
+* **Tutorial interactivo:** Un recorrido guiado contextualiza cada función para el usuario no experto. 
 
   3. ## **Demostración en Producción** {#demostración-en-producción}
 
 Durante la presentación se recorrerá el siguiente flujo:
 
-1. Configuración inicial: selección de m2, número de recintos y materialidad base.
+1. Configuración inicial: Selección los m², número de recintos y materialidad base de su ampliación. 
 
-   2. Editor 2D: creación manual de habitaciones, baños y pasillos con medidas exactas.
+   2. Editor 2D: Creación manual de habitaciones, baños y pasillos con medidas exactas, con la posibilidad de bloquear dimensiones para mayor precisión. 
 
-      3. Visualización 3D: alternancia de capas constructivas, cambio de materialidad y observación de texturas procedurales.
+      3. Visualización 3D: Alternancia de capas constructivas (fachada, aislación, estructura, interior e instalaciones), cambio de materialidad y observación de texturas procedurales generadas en tiempo real. 
 
-      4. Validación normativa: activación del validador de Ley 21.725 y alerta logística para ferrocemento.
+      4. Validación normativa: Activación automática del validador de la Ley 21.725 y alertas logísticas para materiales pesados como ferrocemento, sugiriendo alternativas ligeras.
 
-      5. Presupuesto: desglose de insumos, costo de mano de obra “a trato”.
+      5. Presupuesto: Generación de un desglose completo de insumos y cálculo de mano de obra “a trato”, con exportación directa a PDF profesional listo para presentación o gestión de compras.
 
    4. ## **Próximos Pasos** {#próximos-pasos}
 
-      1. Implementar la PoC de realidad aumentada (ARCore/ARKit) para escaneo topográfico y cálculo automático de movimiento de tierra.
+      1. Implementar la PoC de realidad aumentada (ARCore/ARKit) para escanear un terreno y obtener automáticamente el movimiento de tierra y cálculo de materiales en tiempo real. 
 
-      2. Cerrar el ciclo normativo completando el interceptor LOSCAT/LOSCAA (acústica/cortafuegos).
+      2. Cerrar el ciclo normativo completando el interceptor LOSCAT/LOSCAA (acústica/cortafuegos) para garantizar que todos los diseños cumplan la normativa vigente.
 
-      3. Ampliar el catálogo del scraper a nuevos proveedores y refinar el algoritmo de nesting para formas irregulares.
+      3. Ampliar el catálogo del scraper a nuevos proveedores y refinar el algoritmo de nesting para optimizar cortes en formas irregulares y reducir desperdicio.
 
-# **Anexo A. Capturas de Pantalla del Sistema** {#anexo-a.-capturas-de-pantalla-del-sistema}
+      4. Optimización del motor de mermas para ajustar los coeficientes de rendimiento y algoritmos Best-Fit / Guillotine para escenarios multi-piso y geometrías complejas.
+
+      5. Integración de feedback continuo para incorporar sugerencias de usuarios y PMs externos para mejoras de UX/UI, rendimiento y fiabilidad del sistema.
+
+# **Anexo A. Captu|ras de Pantalla del Sistema** {#anexo-a.-captu|ras-de-pantalla-del-sistema}
 
 *Captura del Dashboard Principal.*
 
@@ -499,13 +554,7 @@ Se incluyen las minutas de las reuniones diarias correspondientes al Sprint 3:
 | :---- | :---- |
 | Repositorio (GitHub) | [https://github.com/Raizexs/SIEC](https://github.com/Raizexs/SIEC) |
 | Tablero Scrum (Jira) | [https://ingsw2.atlassian.net/jira/software/projects/SCRUM/boards/1/backlog](https://ingsw2.atlassian.net/jira/software/projects/SCRUM/boards/1/backlog) |
-| Sistema desplegado | [http://10.51.0.26:5173/](http://10.51.0.26:5173/) |
-
-https://lkerizeqxnmdlsqfhnrv.supabase.co 
-
-postgresql://postgres.lkerizeqxnmdlsqfhnrv:gOGTXO1EHHmctlu5@aws-1-us-west-2.pooler.supabase.com:5432/postgres 
-
-V3Ey7D30YPlFWWr2m8iSa3tITJm+nehK7a7MU42ByJVISV7r6q1+apgtYS0y7DM0spYkN9+jhcyw0jnHoYT5IA== 
+| Sistema desplegado | [http://10.51.0.26:5173/](http://10.51.0.26:5173/), [https://proyectsiec.vercel.app/](https://proyectsiec.vercel.app/) |
 
 [image1]: <data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAAEUlEQVR4XmNgYGD4j4ZJFQAABloP8dnjmiQAAAAASUVORK5CYII=>
 
