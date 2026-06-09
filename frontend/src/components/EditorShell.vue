@@ -11,7 +11,7 @@
  * - Driver.js theme actualizado para mantener coherencia visual.
  */
 
-import { ref, computed, watchEffect, watch, nextTick, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watchEffect, watch, nextTick, onMounted, onUnmounted, provide } from 'vue';
 import { storeToRefs } from 'pinia';
 import { driver } from 'driver.js';
 import 'driver.js/dist/driver.css';
@@ -54,6 +54,11 @@ import {
 import { useProjectsApi } from '../composables/useProjectsApi';
 import { useWorkspaceFlow } from '../composables/useWorkspaceFlow';
 import { useBilling } from '../composables/useBilling';
+import {
+  createWorkspaceBudgetSession,
+  resetWorkspaceBudgetSession,
+  WORKSPACE_BUDGET_SESSION_KEY,
+} from '../composables/useWorkspaceBudgetSession';
 import logger from '../utils/logger.js';
 
 const props = defineProps({
@@ -82,6 +87,21 @@ const workspaceFeatures = computed(
   }),
 );
 
+const editorInitialView = computed(
+  () => productPreferences.value.editor.initialView || 'split',
+);
+const showEditor2dPanel = computed(
+  () => editorInitialView.value === '2d' || editorInitialView.value === 'split',
+);
+const showEditor3dPanel = computed(
+  () => editorInitialView.value === '3d' || editorInitialView.value === 'split',
+);
+const editorGridClass = computed(() =>
+  editorInitialView.value === 'split'
+    ? 'grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-stretch'
+    : 'grid grid-cols-1 gap-4',
+);
+
 const sidebarCollapsed = ref(false);
 const motionRoot = ref(null);
 
@@ -89,6 +109,8 @@ useProMotion(motionRoot, { skipIntro: true });
 
 const showManual = ref(false);
 const hasBudget = ref(false);
+const budgetSession = createWorkspaceBudgetSession();
+provide(WORKSPACE_BUDGET_SESSION_KEY, budgetSession);
 const metricsExpanded = ref(false);
 
 const { fetchBilling, limits, isFree, canUseMaterial, clampMaterialId } = useBilling();
@@ -547,7 +569,7 @@ const onBudgetCalculated = ({ costoTotal, m2Totales, materialEstructuralId }) =>
   if (isLocalProjectId(props.projectId)) return;
   if (!Number.isFinite(costoTotal) || costoTotal <= 0) return;
 
-  // Call update() directly (not autoSave) so the PATCH fires immediately.
+  // Call update() directly
   // autoSave uses setTimeout which can be lost if the user navigates away
   // before the debounce window elapses.
   projectsApi.update(props.projectId, {
@@ -561,6 +583,14 @@ const onBudgetCalculated = ({ costoTotal, m2Totales, materialEstructuralId }) =>
     logger.warn("[workspace] No se pudo guardar el costo estimado en el proyecto:", msg);
   });
 };
+
+watch(
+  () => [recintosStore.selectedM2, formData.value.materialEstructuralId],
+  () => {
+    hasBudget.value = false;
+    resetWorkspaceBudgetSession(budgetSession);
+  },
+);
 
 onMounted(() => {
   window.addEventListener('siec:save-version', onSaveVersionEvent);
@@ -946,10 +976,11 @@ const startTutorial = () => {
           </section>
 
           <section v-show="showDesignStep" class="space-y-4" data-motion="section">
-            <div class="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-stretch">
+            <div :class="editorGridClass">
               <RoomEditor2D
+                v-show="showEditor2dPanel"
                 class="tour-editor-2d min-h-[420px] xl:min-h-[520px]"
-                :editor-visible="showDesignStep"
+                :editor-visible="showDesignStep && showEditor2dPanel"
                 :m2-totales="terrainM2FromDimensions"
                 v-model:terrenoAncho="formData.terrenoAncho"
                 v-model:terrenoLargo="formData.terrenoLargo"
@@ -960,11 +991,13 @@ const startTutorial = () => {
               />
 
               <Scene3D
+                v-show="showEditor3dPanel"
                 class="tour-scene-3d min-h-[420px] xl:min-h-[520px]"
                 :materialEstructuralId="formData.materialEstructuralId"
                 :terreno-ancho="formData.terrenoAncho"
                 :terreno-largo="formData.terrenoLargo"
                 :show-minimap="productPreferences.editor.showMinimap"
+                :quality-3d="productPreferences.editor.quality3d"
               />
             </div>
           </section>
@@ -972,6 +1005,7 @@ const startTutorial = () => {
           <section v-show="showBudgetStep" class="tour-budget-step space-y-4" data-motion="section">
             <BudgetBreakdownPanel
               v-if="recintosStore.selectedM2 > 0"
+              panel-mode="budget"
               :m2Totales="recintosStore.selectedM2"
               :materialEstructuralId="formData.materialEstructuralId"
               :perimetroMl="Number(totalWallLength)"
@@ -1008,6 +1042,7 @@ const startTutorial = () => {
           <section v-show="showExportStep" class="tour-export-step space-y-4" data-motion="section">
             <BudgetBreakdownPanel
               v-if="recintosStore.selectedM2 > 0 && hasBudget"
+              panel-mode="export"
               :m2Totales="recintosStore.selectedM2"
               :materialEstructuralId="formData.materialEstructuralId"
               :perimetroMl="Number(totalWallLength)"
@@ -1033,9 +1068,10 @@ const startTutorial = () => {
               <button
                 type="button"
                 class="mt-6 inline-flex items-center gap-2 rounded-2xl border border-violet-300 bg-white px-5 py-2.5 text-sm font-bold text-violet-800 shadow-sm transition hover:bg-violet-50 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-200"
-                @click="goToStep('design')"
+                @click="goToStep('budget')"
               >
-                {{ t('budgetStepGoDesign') }}
+                <span class="material-symbols-outlined text-[18px]">request_quote</span>
+                {{ t('exportStepGoBudget') }}
               </button>
             </div>
           </section>

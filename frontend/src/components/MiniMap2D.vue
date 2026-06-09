@@ -23,7 +23,7 @@ const props = defineProps({
   },
   size: {
     type: Number,
-    default: 160,
+    default: 128,
   },
   /** Si es false, no se monta el minimapa (preferencia de producto). */
   visible: {
@@ -273,30 +273,30 @@ watch(
   <aside
     v-if="visible"
     data-siec-minimap
-    class="absolute bottom-4 right-4 z-20 overflow-hidden rounded-3xl border border-slate-200/80 bg-white/85 p-2 shadow-2xl shadow-slate-950/15 backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-950/85 dark:shadow-black/35"
-    :style="{ width: `${size + 16}px` }"
+    class="absolute bottom-3 right-3 z-20 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/85 p-1.5 shadow-2xl shadow-slate-950/15 backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-950/85 dark:shadow-black/35"
+    :style="{ width: `${size + 12}px` }"
     aria-label="Mini mapa 2D"
   >
     <!-- Header -->
-    <div class="mb-2 flex items-center justify-between gap-2 px-1">
-      <div class="flex items-center gap-2">
+    <div class="mb-1.5 flex items-center justify-between gap-2 px-0.5">
+      <div class="flex items-center gap-1.5">
         <span
-          class="flex h-6 w-6 items-center justify-center rounded-lg border border-orange-200 bg-orange-50 text-orange-600 shadow-sm dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
+          class="flex h-5 w-5 items-center justify-center rounded-md border border-orange-200 bg-orange-50 text-orange-600 shadow-sm dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
         >
-          <span class="material-symbols-outlined text-[15px]">
+          <span class="material-symbols-outlined text-[13px]">
             radar
           </span>
         </span>
 
         <span
-          class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400"
+          class="text-[9px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400"
         >
           Mini-map
         </span>
       </div>
 
       <span
-        class="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[9px] font-black text-slate-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-500"
+        class="rounded-full border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[8px] font-black text-slate-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-500"
       >
         {{ recintos.length }}
       </span>
@@ -304,7 +304,7 @@ watch(
 
     <!-- Canvas shell -->
     <div
-      class="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-inner dark:border-slate-800 dark:bg-slate-900"
+      class="overflow-hidden rounded-xl border border-slate-200 bg-slate-50 shadow-inner dark:border-slate-800 dark:bg-slate-900"
       :style="{ width: `${size}px`, height: `${size}px` }"
     >
       <canvas

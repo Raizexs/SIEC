@@ -62,6 +62,7 @@ const props = defineProps({
   terrenoLargo: { type: Number, default: 7 },
   /** Alineado con preferencias de producto: mostrar minimapa 2D en la escena. */
   showMinimap: { type: Boolean, default: true },
+  quality3d: { type: String, default: 'medium' },
 });
 
 const containerRef = ref(null);
@@ -79,6 +80,65 @@ const cameraInfo = ref({ x: 0, z: 0, yaw: 0 });
 const exportMenuOpen = ref(false);
 const showLayersMenu = ref(false);
 const exportFormat = ref(null);
+const layersMenuBtnRef = ref(null);
+const exportMenuBtnRef = ref(null);
+const layersMenuStyle = ref({});
+const exportMenuStyle = ref({});
+
+const positionFloatingMenu = (btnRef, menuWidth, styleRef) => {
+  const el = btnRef.value;
+  if (!el) return;
+
+  const rect = el.getBoundingClientRect();
+  styleRef.value = {
+    position: 'fixed',
+    top: `${rect.bottom + 8}px`,
+    left: `${Math.max(8, rect.right - menuWidth)}px`,
+    zIndex: 10000,
+  };
+};
+
+const toggleLayersMenu = () => {
+  showLayersMenu.value = !showLayersMenu.value;
+  exportMenuOpen.value = false;
+  if (showLayersMenu.value) {
+    nextTick(() => positionFloatingMenu(layersMenuBtnRef, 256, layersMenuStyle));
+  }
+};
+
+const toggleExportMenu = () => {
+  exportMenuOpen.value = !exportMenuOpen.value;
+  showLayersMenu.value = false;
+  if (exportMenuOpen.value) {
+    nextTick(() => positionFloatingMenu(exportMenuBtnRef, 224, exportMenuStyle));
+  }
+};
+
+const QUALITY_PRESETS = {
+  low: { pixelRatio: 1, enablePostFX: false, enableShadows: false },
+  medium: {
+    pixelRatio: Math.min(typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1, 1.5),
+    enablePostFX: true,
+    enableShadows: true,
+  },
+  high: {
+    pixelRatio: Math.min(typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1, 2),
+    enablePostFX: true,
+    enableShadows: true,
+  },
+};
+
+const applyQuality3d = (quality) => {
+  const preset = QUALITY_PRESETS[quality] || QUALITY_PRESETS.medium;
+  if (!sceneManager?.renderer) return;
+
+  sceneManager.renderer.setPixelRatio(preset.pixelRatio);
+  sceneManager.renderer.shadowMap.enabled = preset.enableShadows;
+  sceneManager.setPostFXEnabled(preset.enablePostFX);
+  sceneManager.options.pixelRatio = preset.pixelRatio;
+  sceneManager.options.enablePostFX = preset.enablePostFX;
+  sceneManager.options.enableShadows = preset.enableShadows;
+};
 
 const { t } = useI18n();
 
@@ -118,6 +178,7 @@ let savedScrollY = 0;
 
 let stopSceneWatcher = null;
 let stopLayoutSyncWatcher = null;
+let stopQualityWatcher = null;
 let stopLayerWatcher = null;
 let stopActiveRoomWatcher = null;
 
@@ -455,8 +516,7 @@ const initScene = () => {
   if (!containerRef.value) return;
 
   sceneManager = new SceneManager(containerRef.value, {
-    enablePostFX: true,
-    enableShadows: true,
+    ...(QUALITY_PRESETS[props.quality3d] || QUALITY_PRESETS.medium),
   });
 
   // Camera boundaries — evita que el usuario se aleje o se acerque demasiado.
@@ -1300,10 +1360,16 @@ onMounted(() => {
   if (!sceneManager || !containerRef.value) return;
 
   onDocumentClick = (event) => {
-    if (!event.target.closest?.('.scene3d-export-menu')) {
+    if (
+      !event.target.closest?.('.scene3d-export-menu') &&
+      !event.target.closest?.('.scene3d-export-menu-panel')
+    ) {
       exportMenuOpen.value = false;
     }
-    if (!event.target.closest?.('.scene3d-layers-menu')) {
+    if (
+      !event.target.closest?.('.scene3d-layers-menu') &&
+      !event.target.closest?.('.scene3d-layers-menu-panel')
+    ) {
       showLayersMenu.value = false;
     }
   };
@@ -1373,6 +1439,11 @@ onMounted(() => {
     },
   );
 
+  stopQualityWatcher = watch(
+    () => props.quality3d,
+    (quality) => applyQuality3d(quality),
+  );
+
   if (typeof ResizeObserver !== 'undefined') {
     resizeObserver = new ResizeObserver(onResize);
     resizeObserver.observe(containerRef.value);
@@ -1414,6 +1485,7 @@ onBeforeUnmount(() => {
   stopLayerWatcher?.();
   stopActiveRoomWatcher?.();
   stopLayoutSyncWatcher?.();
+  stopQualityWatcher?.();
 
   document.removeEventListener('fullscreenchange', handleFullscreenChange);
   window.removeEventListener('siec:capture-scene', handleSceneCaptureRequest);
@@ -1477,10 +1549,10 @@ onBeforeUnmount(() => {
     <!-- Header -->
     <header
       ref="headerRef"
-      class="scene3d-header relative z-20 mb-4 flex shrink-0 flex-col rounded-3xl border border-slate-200/90 bg-slate-50/80 shadow-sm backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-900/60"
+      class="scene3d-header relative z-20 mb-4 flex shrink-0 flex-col overflow-hidden rounded-3xl border border-slate-200/90 bg-slate-50/80 shadow-sm backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-900/60"
     >
       <div
-        class="h-1 w-full shrink-0 overflow-hidden rounded-t-3xl bg-gradient-to-r from-orange-400 via-orange-500 to-slate-900 dark:to-orange-300"
+        class="h-1 w-full shrink-0 bg-gradient-to-r from-orange-400 via-orange-500 to-slate-900 dark:to-orange-300"
         aria-hidden="true"
       />
 
@@ -1626,79 +1698,87 @@ onBeforeUnmount(() => {
             >
               <div class="relative scene3d-layers-menu">
                 <button
+                  ref="layersMenuBtnRef"
                   type="button"
                   class="toolbar-btn toolbar-btn-segment"
                   :class="showLayersMenu ? 'is-menu-open' : ''"
-                  @click.stop="showLayersMenu = !showLayersMenu; exportMenuOpen = false"
+                  @click.stop="toggleLayersMenu"
                 >
                   <span class="material-symbols-outlined text-[17px]">layers</span>
                   <span class="whitespace-nowrap">{{ t('layersBtn') }}</span>
                 </button>
-                <Transition name="export-menu">
-                  <div
-                    v-if="showLayersMenu"
-                    class="absolute right-0 top-full z-[120] mt-2 w-64 overflow-hidden rounded-3xl border border-slate-200/90 bg-white/95 p-3 shadow-2xl shadow-slate-950/15 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/40"
-                  >
-                    <div class="space-y-1">
-                      <label
-                        v-for="layer in layersStore.layers"
-                        :key="layer.id"
-                        class="flex cursor-pointer items-center justify-between rounded-xl px-3 py-2 transition-colors hover:bg-slate-50 dark:hover:bg-slate-900"
-                      >
-                        <span class="flex min-w-0 items-center gap-2.5">
-                          <span class="material-symbols-outlined shrink-0 text-[16px] text-slate-500 dark:text-slate-400">{{ layer.icon }}</span>
-                          <span class="truncate text-xs font-semibold" :class="layerVisibility[layer.id] ? 'text-slate-800 dark:text-slate-200' : 'text-slate-400 dark:text-slate-500'">{{ t(layer.labelKey) }}</span>
-                        </span>
-                        <span
-                          class="relative ml-2 inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-colors duration-300"
-                          :class="layerVisibility[layer.id] ? 'border-emerald-400 bg-emerald-500 shadow-sm shadow-emerald-500/20' : 'border-slate-300 bg-slate-200 dark:border-slate-700 dark:bg-slate-800'"
+                <Teleport to="body">
+                  <Transition name="export-menu">
+                    <div
+                      v-if="showLayersMenu"
+                      class="scene3d-layers-menu-panel w-64 overflow-hidden rounded-3xl border border-slate-200/90 bg-white/95 p-3 shadow-2xl shadow-slate-950/15 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/40"
+                      :style="layersMenuStyle"
+                    >
+                      <div class="space-y-1">
+                        <label
+                          v-for="layer in layersStore.layers"
+                          :key="layer.id"
+                          class="flex cursor-pointer items-center justify-between rounded-xl px-3 py-2 transition-colors hover:bg-slate-50 dark:hover:bg-slate-900"
                         >
-                          <span class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform duration-300" :class="layerVisibility[layer.id] ? 'translate-x-4' : 'translate-x-0.5'" />
-                        </span>
-                        <input :checked="layerVisibility[layer.id]" type="checkbox" class="sr-only" @change="layersStore.toggleLayer(layer.id)" />
-                      </label>
+                          <span class="flex min-w-0 items-center gap-2.5">
+                            <span class="material-symbols-outlined shrink-0 text-[16px] text-slate-500 dark:text-slate-400">{{ layer.icon }}</span>
+                            <span class="truncate text-xs font-semibold" :class="layerVisibility[layer.id] ? 'text-slate-800 dark:text-slate-200' : 'text-slate-400 dark:text-slate-500'">{{ t(layer.labelKey) }}</span>
+                          </span>
+                          <span
+                            class="relative ml-2 inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-colors duration-300"
+                            :class="layerVisibility[layer.id] ? 'border-emerald-400 bg-emerald-500 shadow-sm shadow-emerald-500/20' : 'border-slate-300 bg-slate-200 dark:border-slate-700 dark:bg-slate-800'"
+                          >
+                            <span class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform duration-300" :class="layerVisibility[layer.id] ? 'translate-x-4' : 'translate-x-0.5'" />
+                          </span>
+                          <input :checked="layerVisibility[layer.id]" type="checkbox" class="sr-only" @change="layersStore.toggleLayer(layer.id)" />
+                        </label>
+                      </div>
+                      <div class="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+                        {{ layersStore.activeLayerCount }} de 3 capas activas
+                      </div>
                     </div>
-                    <div class="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
-                      {{ layersStore.activeLayerCount }} de 3 capas activas
-                    </div>
-                  </div>
-                </Transition>
+                  </Transition>
+                </Teleport>
               </div>
 
               <div class="relative scene3d-export-menu border-l border-slate-200 dark:border-slate-800">
                 <button
+                  ref="exportMenuBtnRef"
                   type="button"
                   class="toolbar-btn toolbar-btn-segment toolbar-btn-export"
                   :class="exportMenuOpen ? 'is-menu-open' : ''"
-                  @click.stop="exportMenuOpen = !exportMenuOpen; showLayersMenu = false"
+                  @click.stop="toggleExportMenu"
                 >
                   <span class="material-symbols-outlined text-[17px]">download</span>
                   <span class="whitespace-nowrap">{{ t('export') }}</span>
                 </button>
-                <Transition name="export-menu">
-                  <div
-                    v-if="exportMenuOpen"
-                    class="export-menu-panel absolute right-0 top-full z-[120] mt-2 min-w-[14rem] w-56 rounded-3xl border border-orange-200/90 bg-white p-2 shadow-2xl shadow-orange-500/15 dark:border-orange-800/80 dark:bg-slate-950 dark:shadow-black/50"
-                    role="menu"
-                  >
-                    <button
-                      v-for="fmt in [
-                        { id: 'png', label: 'Imagen PNG', icon: 'image' },
-                        { id: 'html', label: 'Visor HTML', icon: 'language' },
-                      ]"
-                      :key="fmt.id"
-                      type="button"
-                      class="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-xs font-bold text-slate-700 transition-all duration-200 hover:bg-slate-50 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-slate-100"
-                      @click="handleExport(fmt.id)"
+                <Teleport to="body">
+                  <Transition name="export-menu">
+                    <div
+                      v-if="exportMenuOpen"
+                      class="scene3d-export-menu-panel export-menu-panel min-w-[14rem] w-56 rounded-3xl border border-orange-200/90 bg-white p-2 shadow-2xl shadow-orange-500/15 dark:border-orange-800/80 dark:bg-slate-950 dark:shadow-black/50"
+                      :style="exportMenuStyle"
+                      role="menu"
                     >
-                      <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-orange-200 bg-orange-50 text-orange-600 dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300">
-                        <span class="material-symbols-outlined text-[16px]">{{ fmt.icon }}</span>
-                      </span>
-                      <span class="min-w-0 flex-1">{{ fmt.label }}</span>
-                      <span v-if="exportFormat === fmt.id" class="material-symbols-outlined animate-spin text-[15px] text-orange-500">progress_activity</span>
-                    </button>
-                  </div>
-                </Transition>
+                      <button
+                        v-for="fmt in [
+                          { id: 'png', label: 'Imagen PNG', icon: 'image' },
+                          { id: 'html', label: 'Visor HTML', icon: 'language' },
+                        ]"
+                        :key="fmt.id"
+                        type="button"
+                        class="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-xs font-bold text-slate-700 transition-all duration-200 hover:bg-slate-50 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-slate-100"
+                        @click="handleExport(fmt.id)"
+                      >
+                        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-orange-200 bg-orange-50 text-orange-600 dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300">
+                          <span class="material-symbols-outlined text-[16px]">{{ fmt.icon }}</span>
+                        </span>
+                        <span class="min-w-0 flex-1">{{ fmt.label }}</span>
+                        <span v-if="exportFormat === fmt.id" class="material-symbols-outlined animate-spin text-[15px] text-orange-500">progress_activity</span>
+                      </button>
+                    </div>
+                  </Transition>
+                </Teleport>
               </div>
             </div>
           </div>
@@ -1715,6 +1795,7 @@ onBeforeUnmount(() => {
         :visible="showMinimap"
         :recintos="recintosStore.recintos"
         :camera-pos="cameraInfo"
+        :size="128"
       />
 
       <transition name="fade">
@@ -1760,7 +1841,6 @@ onBeforeUnmount(() => {
 }
 
 .scene3d-header {
-  overflow: visible;
   cursor: default;
   -webkit-user-select: none;
   user-select: none;
