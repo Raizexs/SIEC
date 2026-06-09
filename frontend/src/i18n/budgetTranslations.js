@@ -42,6 +42,7 @@ export const budgetTranslationsEs = {
   budgetQtyShort: "Cant.",
   budgetUnitPrice: "Precio unit.",
   budgetQuantity: "Cantidad",
+  budgetStore: "Tienda",
   budgetEmptyTitle: "No se encontraron insumos para este material.",
   budgetEmptyHint:
     "Revisa la selección de recintos o la materialidad estructural antes de volver a calcular.",
@@ -96,6 +97,7 @@ export const budgetTranslationsEn = {
   budgetQtyShort: "Qty.",
   budgetUnitPrice: "Unit price",
   budgetQuantity: "Quantity",
+  budgetStore: "Store",
   budgetEmptyTitle: "No supplies found for this material.",
   budgetEmptyHint:
     "Review room selection or structural material before recalculating.",

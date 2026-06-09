@@ -561,14 +561,30 @@ def calcular_insumos(
     ).all()
 
     precios_x_insumo = defaultdict(list)
+    all_stores_map = {}
     latest_precio_record = {}
     fechas_usadas = []
 
     for pm in precios_records:
         precio_val = pm.precio_descuento if pm.precio_descuento is not None else pm.precio
         if precio_val is not None:
-            precios_x_insumo[pm.insumo_id].append(float(precio_val))
-            # Guardar el registro más reciente como muestra representativa
+            precio_float = float(precio_val)
+            precios_x_insumo[pm.insumo_id].append(precio_float)
+
+            if pm.insumo_id not in all_stores_map:
+                all_stores_map[pm.insumo_id] = []
+            tienda_key = pm.tienda.strip().lower() if pm.tienda else ""
+            url_val = getattr(pm, 'url', None)
+            if url_val is not None and not isinstance(url_val, str):
+                url_val = None
+            if not any(s.get("tienda", "").lower() == tienda_key for s in all_stores_map[pm.insumo_id]):
+                if len(all_stores_map[pm.insumo_id]) < 5:
+                    all_stores_map[pm.insumo_id].append({
+                        "tienda": pm.tienda or "",
+                        "precio": precio_float,
+                        "url": url_val or "",
+                    })
+
             if pm.insumo_id not in latest_precio_record:
                 latest_precio_record[pm.insumo_id] = pm
             else:
@@ -577,6 +593,9 @@ def calcular_insumos(
                         latest_precio_record[pm.insumo_id] = pm
             if pm.fecha_scraping:
                 fechas_usadas.append(pm.fecha_scraping.isoformat() if hasattr(pm.fecha_scraping, 'isoformat') else str(pm.fecha_scraping))
+
+    for stores in all_stores_map.values():
+        stores.sort(key=lambda s: s["precio"])
 
     precio_promedio_map = {}
     for i_id, lista_precios in precios_x_insumo.items():
@@ -931,8 +950,18 @@ def calcular_insumos(
 
         precio_unit = precio_promedio_map.get(insumo.id)
         precio_record = latest_precio_record.get(insumo.id)
-        tienda_insumo = getattr(precio_record, 'tienda', None) if precio_record else None
-        url_insumo = getattr(precio_record, 'url', None) if precio_record else None
+        stores_for_insumo = all_stores_map.get(insumo.id, [])
+        best_store = stores_for_insumo[0] if stores_for_insumo else None
+
+        if best_store:
+            precio_unit = best_store["precio"]
+            tienda_insumo = best_store["tienda"]
+            url_insumo = best_store["url"] or None
+            tiendas_alternativas = stores_for_insumo if len(stores_for_insumo) > 1 else None
+        else:
+            tienda_insumo = getattr(precio_record, 'tienda', None) if precio_record else None
+            url_insumo = getattr(precio_record, 'url', None) if precio_record else None
+            tiendas_alternativas = None
         if url_insumo is not None and not isinstance(url_insumo, str):
             url_insumo = None
         precio_unit_normalized = None
@@ -989,6 +1018,7 @@ def calcular_insumos(
             subtotal=subt,
             tienda=tienda_insumo,
             url_producto=url_insumo,
+            tiendas_alternativas=tiendas_alternativas,
             cantidad_objetivo=(
                 cantidad_neta
                 if cantidad_override is not None
@@ -1017,12 +1047,34 @@ def calcular_insumos(
             subtotal_categoria=subcat
         ))
 
-    # ── Helper: get scraped price/tienda/url from latest_precio_record ────────
+    # ── Helper: get scraped price/tienda/url/alternativas ──────────
     def _lookup_scraped(insumo_id: int, fallback_price: float):
+        stores = all_stores_map.get(insumo_id, [])
+        if stores:
+            best = stores[0]
+            alts = stores if len(stores) > 1 else None
+            return (best["precio"], best["tienda"] or "", best["url"] or "", alts)
         pm = latest_precio_record.get(insumo_id)
         if pm and pm.precio:
-            return (float(pm.precio), pm.tienda or "", getattr(pm, 'url', '') or "")
-        return (fallback_price, "Referencia", "")
+            return (float(pm.precio), pm.tienda or "", getattr(pm, 'url', '') or "", None)
+        return (fallback_price, "Referencia", "", None)
+
+    # ── Helper: construir InsumoCalculado con alternativas ──────────
+    def _build_insumo(nombre, cantidad, unidad, precio, tienda, url, alternativas, **kwargs):
+        subt_val = kwargs.pop("subtotal", None)
+        if subt_val is None and precio is not None and cantidad is not None:
+            subt_val = float(cantidad) * float(precio)
+        return InsumoCalculado(
+            insumo=nombre,
+            cantidad=float(cantidad),
+            unidad=unidad,
+            precio_unitario=float(precio) if precio is not None else None,
+            subtotal=float(subt_val) if subt_val is not None else None,
+            tienda=tienda if tienda and tienda != "Referencia" else "Referencia",
+            url_producto=url if url else None,
+            tiendas_alternativas=alternativas,
+            **kwargs,
+        )
 
     # ── Complementos constructivos (según material) ───────────────────────────
     complementos_obra_gruesa = []
@@ -1032,49 +1084,30 @@ def calcular_insumos(
             clavos_3_cant = math.ceil(piezas_total * 4 / 100)
             clavos_4_cant = math.ceil(total_soleras * 2 / 100)
 
-            precio_c3, tienda_c3, url_c3 = _lookup_scraped(46, 4500.0)
-            precio_c4, tienda_c4, url_c4 = _lookup_scraped(47, 5200.0)
+            precio_c3, tienda_c3, url_c3, alt_c3 = _lookup_scraped(46, 4500.0)
+            precio_c4, tienda_c4, url_c4, alt_c4 = _lookup_scraped(47, 5200.0)
 
-            complementos_obra_gruesa.append(InsumoCalculado(
-                insumo="Clavos estriados 3 pulgadas (caja 100un)",
-                cantidad=float(clavos_3_cant),
-                unidad="caja",
-                precio_unitario=precio_c3,
-                subtotal=float(clavos_3_cant * precio_c3),
-                tienda=tienda_c3 if tienda_c3 != "Referencia" else "Referencia",
-                url_producto=url_c3 if url_c3 else None,
-                perdida_porcentual=10.0,
-                formato_comercial="caja 100 unidades",
+            complementos_obra_gruesa.append(_build_insumo(
+                "Clavos estriados 3 pulgadas (caja 100un)", clavos_3_cant, "caja",
+                precio_c3, tienda_c3, url_c3, alt_c3,
+                perdida_porcentual=10.0, formato_comercial="caja 100 unidades",
             ))
-            complementos_obra_gruesa.append(InsumoCalculado(
-                insumo="Clavos estriados 4 pulgadas (caja 100un)",
-                cantidad=float(clavos_4_cant),
-                unidad="caja",
-                precio_unitario=precio_c4,
-                subtotal=float(clavos_4_cant * precio_c4),
-                tienda=tienda_c4 if tienda_c4 != "Referencia" else "Referencia",
-                url_producto=url_c4 if url_c4 else None,
-                perdida_porcentual=10.0,
-                formato_comercial="caja 100 unidades",
+            complementos_obra_gruesa.append(_build_insumo(
+                "Clavos estriados 4 pulgadas (caja 100un)", clavos_4_cant, "caja",
+                precio_c4, tienda_c4, url_c4, alt_c4,
+                perdida_porcentual=10.0, formato_comercial="caja 100 unidades",
             ))
 
         if area_muro_neta > 0:
             rollos_lana_muro = math.ceil(area_muro_neta / 14.4)
-            precio_lana, tienda_lana, url_lana = _lookup_scraped(48, 18500.0)
+            precio_lana, tienda_lana, url_lana, alt_lana = _lookup_scraped(48, 18500.0)
 
-            complementos_obra_gruesa.append(InsumoCalculado(
-                insumo="Lana vidrio 50mm muro (rollo 14.4m2)",
-                cantidad=float(rollos_lana_muro),
-                unidad="rollo",
-                precio_unitario=precio_lana,
-                subtotal=float(rollos_lana_muro * precio_lana),
-                tienda=tienda_lana if tienda_lana != "Referencia" else "Referencia",
-                url_producto=url_lana if url_lana else None,
-                perdida_porcentual=10.0,
-                formato_comercial="rollo 14.4 m2",
+            complementos_obra_gruesa.append(_build_insumo(
+                "Lana vidrio 50mm muro (rollo 14.4m2)", rollos_lana_muro, "rollo",
+                precio_lana, tienda_lana, url_lana, alt_lana,
+                perdida_porcentual=10.0, formato_comercial="rollo 14.4 m2",
             ))
     elif material_id == 3:
-        # Albañilería: alambre de amarre para enfierradura
         kg_enfierradura_total = 0.0
         for r, insumo in datos_rendimiento:
             nl = (insumo.nombre or "").lower()
@@ -1082,18 +1115,13 @@ def calcular_insumos(
                 kg_enfierradura_total += float(r.factor_multiplicador) * perimetro_ml
         alambre_amarre = math.ceil(kg_enfierradura_total * 0.02)
         if alambre_amarre > 0:
-            precio_alambre = _lookup_scraped(46, 3500.0)[0]
-            complementos_obra_gruesa.append(InsumoCalculado(
-                insumo="Alambre de amarre (kg)",
-                cantidad=float(alambre_amarre),
-                unidad="kg",
-                precio_unitario=precio_alambre,
-                subtotal=float(alambre_amarre * precio_alambre),
-                tienda="Referencia",
+            precio_alambre, tienda_al, url_al, alt_al = _lookup_scraped(46, 3500.0)
+            complementos_obra_gruesa.append(_build_insumo(
+                "Alambre de amarre (kg)", alambre_amarre, "kg",
+                precio_alambre, tienda_al if tienda_al != "Referencia" else "Referencia", url_al, alt_al,
                 perdida_porcentual=5.0,
             ))
     elif material_id == 4:
-        # Hormigón Armado: alambre negro (ya incluido en Matriz como complemento genérico)
         pass
 
     if complementos_obra_gruesa:
@@ -1112,6 +1140,7 @@ def calcular_insumos(
         categorias_techumbre = calcular_partida_techumbre(
             area_m2_planta=m2_totales,
             latest_precio_record=latest_precio_record,
+            all_stores_map=all_stores_map,
             material_id=material_id,
         )
         desglose_list.extend(categorias_techumbre)

@@ -68,6 +68,40 @@ const toggleCategoria = (catLabel) => {
 
 const isCategoriaDisabled = (catLabel) => disabledCategories.value.has(catLabel);
 
+const storeSelections = ref({});
+
+const selectStore = (item, store) => {
+  const key = item.insumo;
+  const next = { ...storeSelections.value };
+  if (store) {
+    next[key] = { tienda: store.tienda, precio: store.precio, url: store.url };
+  } else {
+    delete next[key];
+  }
+  storeSelections.value = next;
+};
+
+const isStoreSelected = (item, store) => {
+  const sel = storeSelections.value[item.insumo];
+  return sel && sel.tienda === store.tienda;
+};
+
+const effectiveDesglose = computed(() => {
+  const selections = storeSelections.value;
+  return enabledDesglose.value.map((cat) => {
+    const items = cat.items.map((item) => {
+      const override = selections[item.insumo];
+      if (!override) return item;
+      const precio = override.precio;
+      const subt = precio != null ? precio * item.cantidad : item.subtotal;
+      return { ...item, precio_unitario: precio, subtotal: subt, tienda: override.tienda, url_producto: override.url };
+    });
+    const hasSubt = items.some((i) => i.subtotal != null);
+    const subcat = hasSubt ? items.reduce((s, i) => s + (i.subtotal || 0), 0) : null;
+    return { ...cat, items, subtotal_categoria: subcat };
+  });
+});
+
 const perimetroMl = computed(() => {
   if (props.perimetroMl != null && props.perimetroMl > 0) {
     return props.perimetroMl;
@@ -101,9 +135,9 @@ const formatCurrency = (value) => {
   }).format(value);
 };
 
-/** Total devuelto por el motor (CLP) — solo categorías habilitadas. */
+/** Total devuelto por el motor (CLP) — solo categorías habilitadas, con tiendas seleccionadas. */
 const motorTotal = computed(() =>
-  enabledDesglose.value.reduce((sum, cat) => sum + (cat.subtotal_categoria || 0), 0),
+  effectiveDesglose.value.reduce((sum, cat) => sum + (cat.subtotal_categoria || 0), 0),
 );
 
 const subtotalConContingencia = computed(() =>
@@ -127,7 +161,7 @@ const totalPreferido = computed(() => {
 const monedaPreferida = computed(() => productPreferences.value.currency);
 
 const quoteStats = computed(() => {
-  const rows = flattenDesgloseRows(enabledDesglose.value);
+  const rows = flattenDesgloseRows(effectiveDesglose.value);
   const total = rows.length;
   const quoted = rows.filter((row) => {
     const price = Number(row.precio_unitario);
@@ -273,8 +307,15 @@ watch(
   { immediate: true },
 );
 
+watch(
+  () => props.materialEstructuralId,
+  () => {
+    storeSelections.value = {};
+  },
+);
+
 const buildExportPayload = () => {
-  const desgloseSnapshot = JSON.parse(JSON.stringify(enabledDesglose.value || []));
+  const desgloseSnapshot = JSON.parse(JSON.stringify(effectiveDesglose.value || []));
 
   return {
     projectName: workspaceStore.activePresetName,
@@ -356,6 +397,13 @@ const handleExport = async (format) => {
 const onDocumentClick = (event) => {
   if (!event.target.closest?.(".budget-export-menu")) {
     exportMenuOpen.value = false;
+  }
+  if (!event.target.closest?.(".store-selector")) {
+    effectiveDesglose.value.forEach((cat) =>
+      cat.items.forEach((item) => {
+        if (item._showStores) item._showStores = false;
+      }),
+    );
   }
 };
 
@@ -706,13 +754,13 @@ onUnmounted(() => {
             <span
               class="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-tight text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400"
             >
-              {{ t("budgetCategoriesCount", { count: enabledDesglose.length }) }}
+              {{ t("budgetCategoriesCount", { count: effectiveDesglose.length }) }}
             </span>
           </div>
 
           <transition-group name="budget-list" tag="div" class="space-y-4">
             <article
-              v-for="cat in desglose"
+              v-for="cat in effectiveDesglose"
               :key="cat.categoria"
               class="overflow-hidden rounded-2xl border shadow-sm transition-all duration-200"
               :class="isCategoriaDisabled(cat.categoria)
@@ -820,32 +868,51 @@ onUnmounted(() => {
                       {{ formatCurrencyCell(item.precio_unitario) }}
                     </div>
 
-                    <div class="col-span-2 text-right">
-                      <a
-                        v-if="item.tienda && item.url_producto"
-                        :href="item.url_producto"
-                        target="_blank"
-                        rel="noopener"
-                        class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium underline decoration-dotted underline-offset-2 transition-colors"
-                        :class="
-                          item.tienda === 'Referencia'
-                            ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-                            : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50'
-                        "
+                    <div class="col-span-2 text-right relative store-selector">
+                      <div
+                        v-if="item.tienda"
+                        class="inline-flex items-center gap-1 store-selector"
                       >
-                        {{ formatStoreName(item.tienda) }}
-                      </a>
-                      <span
-                        v-else-if="item.tienda"
-                        class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium"
-                        :class="
-                          item.tienda === 'Referencia'
+                        <button
+                          type="button"
+                          class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors"
+                          :class="item.tienda === 'Referencia'
                             ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-                            : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
-                        "
+                            : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50'"
+                          :disabled="!item.tiendas_alternativas || item.tiendas_alternativas.length === 0"
+                          @click.stop="item.tiendas_alternativas?.length && (item._showStores = !item._showStores)"
+                        >
+                          {{ formatStoreName(item.tienda) }}
+                          <span
+                            v-if="item.tiendas_alternativas && item.tiendas_alternativas.length > 0"
+                            class="material-symbols-outlined text-[12px] leading-none"
+                          >expand_more</span>
+                        </button>
+                        <a
+                          v-if="item.tienda !== 'Referencia' && item.url_producto"
+                          :href="item.url_producto"
+                          target="_blank"
+                          rel="noopener"
+                          class="material-symbols-outlined text-[14px] text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+                          title="Ir a la tienda"
+                        >open_in_new</a>
+                      </div>
+                      <div
+                        v-if="item._showStores && item.tiendas_alternativas"
+                        class="absolute right-0 top-full z-50 mt-1 min-w-[180px] rounded-2xl border border-slate-200/90 bg-white/95 p-1.5 shadow-xl shadow-slate-950/10 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/30"
                       >
-                        {{ formatStoreName(item.tienda) }}
-                      </span>
+                        <button
+                          v-for="store in item.tiendas_alternativas"
+                          :key="store.tienda"
+                          type="button"
+                          class="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-xs transition-colors hover:bg-slate-50 dark:hover:bg-slate-900"
+                          :class="isStoreSelected(item, store) ? 'bg-emerald-50 dark:bg-emerald-950/30' : ''"
+                          @click.stop="selectStore(item, store); item._showStores = false"
+                        >
+                          <span class="font-semibold text-slate-700 dark:text-slate-300">{{ formatStoreName(store.tienda) }}</span>
+                          <span class="font-mono font-bold text-slate-500 dark:text-slate-400">{{ formatCurrencyCell(store.precio) }}</span>
+                        </button>
+                      </div>
                     </div>
 
                     <div
@@ -902,6 +969,37 @@ onUnmounted(() => {
                       </p>
                     </div>
                   </div>
+
+                  <div v-if="item.tienda" class="mt-2 flex items-center gap-2 text-xs border-t border-slate-200 dark:border-slate-800 pt-2 relative">
+                    <span class="text-[10px] font-bold uppercase text-slate-400">{{ t("budgetStore") }}</span>
+                    <button
+                      type="button"
+                      class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium"
+                      :class="item.tienda === 'Referencia' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'"
+                      :disabled="!item.tiendas_alternativas || item.tiendas_alternativas.length === 0"
+                      @click.stop="item.tiendas_alternativas?.length && (item._showStores = !item._showStores)"
+                    >
+                      {{ formatStoreName(item.tienda) }}
+                      <span v-if="item.tiendas_alternativas && item.tiendas_alternativas.length > 0" class="material-symbols-outlined text-[12px] leading-none">expand_more</span>
+                    </button>
+                    <span class="font-mono font-semibold text-slate-600 dark:text-slate-400">{{ formatCurrencyCell(item.precio_unitario) }}</span>
+                    <div
+                      v-if="item._showStores && item.tiendas_alternativas"
+                      class="absolute right-0 top-full z-50 mt-1 min-w-[180px] rounded-2xl border border-slate-200/90 bg-white/95 p-1.5 shadow-xl shadow-slate-950/10 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/30"
+                    >
+                      <button
+                        v-for="store in item.tiendas_alternativas"
+                        :key="store.tienda"
+                        type="button"
+                        class="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-xs transition-colors hover:bg-slate-50 dark:hover:bg-slate-900"
+                        :class="isStoreSelected(item, store) ? 'bg-emerald-50 dark:bg-emerald-950/30' : ''"
+                        @click.stop="selectStore(item, store); item._showStores = false"
+                      >
+                        <span class="font-semibold text-slate-700 dark:text-slate-300">{{ formatStoreName(store.tienda) }}</span>
+                        <span class="font-mono font-bold text-slate-500 dark:text-slate-400">{{ formatCurrencyCell(store.precio) }}</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </article>
@@ -909,7 +1007,7 @@ onUnmounted(() => {
 
           <!-- Empty -->
           <div
-            v-if="desglose.length === 0"
+            v-if="effectiveDesglose.length === 0"
             class="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-slate-300 bg-slate-50/70 px-5 py-12 text-center dark:border-slate-700 dark:bg-slate-900/50"
           >
             <div

@@ -18,6 +18,7 @@ class InsumoCalculado(BaseModel):
     subtotal: Optional[float] = None
     tienda: Optional[str] = None
     url_producto: Optional[str] = None
+    tiendas_alternativas: Optional[List[dict]] = None
     cantidad_objetivo: Optional[float] = None
     cantidad_compra: Optional[float] = None
     perdida_porcentual: Optional[float] = None

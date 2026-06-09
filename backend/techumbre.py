@@ -128,6 +128,7 @@ def calcular_partida_techumbre(
     area_m2_planta: float,
     largo_promedio_m: Optional[float] = None,
     latest_precio_record: Optional[Dict[int, Any]] = None,
+    all_stores_map: Optional[Dict[int, list]] = None,
     material_id: int = 1,
 ) -> List[CategoriaDesglose]:
     """
@@ -154,12 +155,33 @@ def calcular_partida_techumbre(
         return []
 
     def _lookup(insumo_id: int, fallback_price: float):
-        """Busca precio/tienda/url scrapeados; retorna (precio, tienda, url)."""
+        """Busca precio/tienda/url/alternativas scrapeados."""
+        stores = all_stores_map.get(insumo_id, []) if all_stores_map else []
+        if stores:
+            best = stores[0]
+            alts = stores if len(stores) > 1 else None
+            return (best["precio"], best["tienda"] or "", best["url"] or "", alts)
         if latest_precio_record:
             pm = latest_precio_record.get(insumo_id)
             if pm and pm.precio:
-                return (float(pm.precio), pm.tienda or "", getattr(pm, 'url', '') or "")
-        return (fallback_price, "Referencia", "")
+                return (float(pm.precio), pm.tienda or "", getattr(pm, 'url', '') or "", None)
+        return (fallback_price, "Referencia", "", None)
+
+    def _make_insumo(nombre, cantidad, unidad, precio, tienda, url, alternativas, **kwargs):
+        subt_val = kwargs.pop("subtotal", None)
+        if subt_val is None and precio is not None and cantidad is not None:
+            subt_val = float(cantidad) * float(precio)
+        return InsumoCalculado(
+            insumo=nombre,
+            cantidad=float(cantidad),
+            unidad=unidad,
+            precio_unitario=float(precio) if precio is not None else None,
+            subtotal=float(subt_val) if subt_val is not None else None,
+            tienda=tienda if tienda and tienda != "Referencia" else "Referencia",
+            url_producto=url if url else None,
+            tiendas_alternativas=alternativas,
+            **kwargs,
+        )
 
     largo = largo_promedio_m if (largo_promedio_m and largo_promedio_m > 0) else _derive_largo(area_m2_planta)
     ancho = area_m2_planta / largo if largo > 0 else largo
@@ -189,9 +211,9 @@ def calcular_partida_techumbre(
     rollos_aislacion = math.ceil(area_m2_planta / area_rollo)
 
     # ── Lookup scraped prices ─────────────────────────────────────────────
-    precio_zinc, tienda_zinc, url_zinc = _lookup(49, _PRECIOS["plancha zinc"])
-    precio_torn, tienda_torn, url_torn = _lookup(51, 8500.0)
-    precio_lana, tienda_lana, url_lana = _lookup(48, _PRECIOS["lana vidrio"])
+    precio_zinc, tienda_zinc, url_zinc, alt_zinc = _lookup(49, _PRECIOS["plancha zinc"])
+    precio_torn, tienda_torn, url_torn, alt_torn = _lookup(51, 8500.0)
+    precio_lana, tienda_lana, url_lana, alt_lana = _lookup(48, _PRECIOS["lana vidrio"])
 
     # ── Estructura según material ─────────────────────────────────────────
     if material_id in (1, 2):
@@ -203,36 +225,26 @@ def calcular_partida_techumbre(
             total_ml_pino = cant_cerchas * ml_pino_por_cercha
             largo_comercial = 3.2
             piezas_pino = math.ceil(total_ml_pino / largo_comercial * 1.15)
-            precio_pino, tienda_pino, url_pino = _lookup(11, _PRECIOS["pino 2x4"])
+            precio_pino, tienda_pino, url_pino, alt_pino = _lookup(11, _PRECIOS["pino 2x4"])
             subtotal_estructura = piezas_pino * precio_pino
 
             items_estructura = [
-                InsumoCalculado(
-                    insumo="Cercha pino 2x4 (10 ml c/u)",
-                    cantidad=float(cant_cerchas),
-                    unidad="un",
-                    precio_unitario=float(precio_pino * ml_pino_por_cercha / largo_comercial),
-                    subtotal=float(subtotal_estructura),
-                    tienda=tienda_pino if tienda_pino != "Referencia" else "Referencia",
-                    url_producto=url_pino if url_pino else None,
-                    perdida_porcentual=15.0,
-                    formato_comercial="3.2 m",
+                _make_insumo(
+                    "Cercha pino 2x4 (10 ml c/u)", cant_cerchas, "un",
+                    precio_pino * ml_pino_por_cercha / largo_comercial,
+                    tienda_pino, url_pino, alt_pino,
+                    subtotal=subtotal_estructura,
+                    perdida_porcentual=15.0, formato_comercial="3.2 m",
                 ),
             ]
-            # Costaneras de pino 2x2
-            precio_cost, tienda_cost, url_cost = _lookup(50, 2800.0)
+            precio_cost, tienda_cost, url_cost, alt_cost = _lookup(50, 2800.0)
             piezas_costanera = math.ceil(ml_costaneras / 3.2 * 1.10)
             subtotal_costaneras = piezas_costanera * precio_cost
-            items_costanera = InsumoCalculado(
-                insumo="Costanera pino 2x2 3.2m",
-                cantidad=float(piezas_costanera),
-                unidad="un",
-                precio_unitario=float(precio_cost),
-                subtotal=float(subtotal_costaneras),
-                tienda=tienda_cost if tienda_cost != "Referencia" else "Referencia",
-                url_producto=url_cost if url_cost else None,
-                perdida_porcentual=10.0,
-                formato_comercial="3.2 m",
+            items_costanera = _make_insumo(
+                "Costanera pino 2x2 3.2m", piezas_costanera, "un",
+                precio_cost, tienda_cost, url_cost, alt_cost,
+                subtotal=subtotal_costaneras,
+                perdida_porcentual=10.0, formato_comercial="3.2 m",
             )
         else:
             # Metalcom: cerchas de perfil C 60x38mm
@@ -240,36 +252,26 @@ def calcular_partida_techumbre(
             total_ml_perfil = cant_cerchas * ml_perfil_por_cercha
             largo_comercial = 6.0
             piezas_perfil = math.ceil(total_ml_perfil / largo_comercial * 1.10)
-            precio_perfil, tienda_perfil, url_perfil = _lookup(7, 8500.0)
+            precio_perfil, tienda_perfil, url_perfil, alt_perfil = _lookup(7, 8500.0)
             subtotal_estructura = piezas_perfil * precio_perfil
 
             items_estructura = [
-                InsumoCalculado(
-                    insumo="Cercha Perfil C 60x38mm (10 ml c/u)",
-                    cantidad=float(cant_cerchas),
-                    unidad="un",
-                    precio_unitario=float(precio_perfil * ml_perfil_por_cercha / largo_comercial),
-                    subtotal=float(subtotal_estructura),
-                    tienda=tienda_perfil if tienda_perfil != "Referencia" else "Referencia",
-                    url_producto=url_perfil if url_perfil else None,
-                    perdida_porcentual=10.0,
-                    formato_comercial="6.0 m",
+                _make_insumo(
+                    "Cercha Perfil C 60x38mm (10 ml c/u)", cant_cerchas, "un",
+                    precio_perfil * ml_perfil_por_cercha / largo_comercial,
+                    tienda_perfil, url_perfil, alt_perfil,
+                    subtotal=subtotal_estructura,
+                    perdida_porcentual=10.0, formato_comercial="6.0 m",
                 ),
             ]
-            # Costaneras de perfil C (mismas que estructura)
-            precio_cost, tienda_cost, url_cost = _lookup(7, 8500.0)
+            precio_cost, tienda_cost, url_cost, alt_cost = _lookup(7, 8500.0)
             piezas_costanera = math.ceil(ml_costaneras / 6.0 * 1.10)
             subtotal_costaneras = piezas_costanera * precio_cost
-            items_costanera = InsumoCalculado(
-                insumo="Costanera Perfil C 60x38mm 6m",
-                cantidad=float(piezas_costanera),
-                unidad="un",
-                precio_unitario=float(precio_cost),
-                subtotal=float(subtotal_costaneras),
-                tienda=tienda_cost if tienda_cost != "Referencia" else "Referencia",
-                url_producto=url_cost if url_cost else None,
-                perdida_porcentual=10.0,
-                formato_comercial="6.0 m",
+            items_costanera = _make_insumo(
+                "Costanera Perfil C 60x38mm 6m", piezas_costanera, "un",
+                precio_cost, tienda_cost, url_cost, alt_cost,
+                subtotal=subtotal_costaneras,
+                perdida_porcentual=10.0, formato_comercial="6.0 m",
             )
 
         subtotal_zinc = piezas_zinc * precio_zinc
@@ -277,39 +279,24 @@ def calcular_partida_techumbre(
         subtotal_aislacion = rollos_aislacion * precio_lana
 
         items_cubierta = [
-            InsumoCalculado(
-                insumo="Plancha zinc 0.85x2.5m",
-                cantidad=float(piezas_zinc),
-                unidad="un",
-                precio_unitario=float(precio_zinc),
-                subtotal=float(subtotal_zinc),
-                tienda=tienda_zinc if tienda_zinc != "Referencia" else "Referencia",
-                url_producto=url_zinc if url_zinc else None,
-                perdida_porcentual=10.0,
-                formato_comercial="0.85 x 2.5 m",
+            _make_insumo(
+                "Plancha zinc 0.85x2.5m", piezas_zinc, "un",
+                precio_zinc, tienda_zinc, url_zinc, alt_zinc,
+                subtotal=subtotal_zinc,
+                perdida_porcentual=10.0, formato_comercial="0.85 x 2.5 m",
             ),
             items_costanera,
-            InsumoCalculado(
-                insumo="Tornillo techo golilla neopreno (caja 100un)",
-                cantidad=float(tornillos_techo_cant),
-                unidad="caja",
-                precio_unitario=float(precio_torn),
-                subtotal=float(subtotal_tornillos_techo),
-                tienda=tienda_torn if tienda_torn != "Referencia" else "Referencia",
-                url_producto=url_torn if url_torn else None,
-                perdida_porcentual=5.0,
-                formato_comercial="caja 100 unidades",
+            _make_insumo(
+                "Tornillo techo golilla neopreno (caja 100un)", tornillos_techo_cant, "caja",
+                precio_torn, tienda_torn, url_torn, alt_torn,
+                subtotal=subtotal_tornillos_techo,
+                perdida_porcentual=5.0, formato_comercial="caja 100 unidades",
             ),
-            InsumoCalculado(
-                insumo="Lana vidrio 50mm rollo 14.4m2",
-                cantidad=float(rollos_aislacion),
-                unidad="un",
-                precio_unitario=float(precio_lana),
-                subtotal=float(subtotal_aislacion),
-                tienda=tienda_lana if tienda_lana != "Referencia" else "Referencia",
-                url_producto=url_lana if url_lana else None,
-                perdida_porcentual=5.0,
-                formato_comercial="14.4 m\u00b2",
+            _make_insumo(
+                "Lana vidrio 50mm rollo 14.4m2", rollos_aislacion, "un",
+                precio_lana, tienda_lana, url_lana, alt_lana,
+                subtotal=subtotal_aislacion,
+                perdida_porcentual=5.0, formato_comercial="14.4 m\u00b2",
             ),
         ]
 
@@ -332,32 +319,22 @@ def calcular_partida_techumbre(
         subtotal_acero = kg_acero * precio_acero
 
         items_estructura = [
-            InsumoCalculado(
-                insumo="Losa hormigón armado e=10cm (H25)",
-                cantidad=float(round(vol_hormigon, 2)),
-                unidad="m3",
-                precio_unitario=float(precio_hormigon),
-                subtotal=float(subtotal_hormigon),
-                tienda=tienda_horm if tienda_horm != "Referencia" else "Referencia",
-                url_producto=url_horm if url_horm else None,
-                perdida_porcentual=5.0,
-                formato_comercial="m3",
+            _make_insumo(
+                "Losa hormigón armado e=10cm (H25)", round(vol_hormigon, 2), "m3",
+                precio_hormigon, tienda_horm, url_horm, None,
+                subtotal=subtotal_hormigon,
+                perdida_porcentual=5.0, formato_comercial="m3",
             ),
-            InsumoCalculado(
-                insumo="Acero losa (100 kg/m³)",
-                cantidad=float(round(kg_acero, 1)),
-                unidad="kg",
-                precio_unitario=float(precio_acero),
-                subtotal=float(subtotal_acero),
-                tienda=tienda_acero if tienda_acero != "Referencia" else "Referencia",
-                url_producto=url_acero if url_acero else None,
-                perdida_porcentual=5.0,
-                formato_comercial="kg",
+            _make_insumo(
+                "Acero losa (100 kg/m³)", round(kg_acero, 1), "kg",
+                precio_acero, tienda_acero, url_acero, None,
+                subtotal=subtotal_acero,
+                perdida_porcentual=5.0, formato_comercial="kg",
             ),
         ]
 
         # Cubierta sobre losa: zinc sobre estructura metálica liviana
-        precio_cost, tienda_cost, url_cost = _lookup(7, 8500.0)
+        precio_cost, tienda_cost, url_cost, alt_cost = _lookup(7, 8500.0)
         piezas_costanera = math.ceil(ml_costaneras / 6.0 * 1.10)
         subtotal_costaneras = piezas_costanera * precio_cost
 
@@ -366,49 +343,29 @@ def calcular_partida_techumbre(
         subtotal_aislacion = rollos_aislacion * precio_lana
 
         items_cubierta = [
-            InsumoCalculado(
-                insumo="Plancha zinc 0.85x2.5m",
-                cantidad=float(piezas_zinc),
-                unidad="un",
-                precio_unitario=float(precio_zinc),
-                subtotal=float(subtotal_zinc),
-                tienda=tienda_zinc if tienda_zinc != "Referencia" else "Referencia",
-                url_producto=url_zinc if url_zinc else None,
-                perdida_porcentual=10.0,
-                formato_comercial="0.85 x 2.5 m",
+            _make_insumo(
+                "Plancha zinc 0.85x2.5m", piezas_zinc, "un",
+                precio_zinc, tienda_zinc, url_zinc, alt_zinc,
+                subtotal=subtotal_zinc,
+                perdida_porcentual=10.0, formato_comercial="0.85 x 2.5 m",
             ),
-            InsumoCalculado(
-                insumo="Costanera Perfil C 60x38mm 6m",
-                cantidad=float(piezas_costanera),
-                unidad="un",
-                precio_unitario=float(precio_cost),
-                subtotal=float(subtotal_costaneras),
-                tienda=tienda_cost if tienda_cost != "Referencia" else "Referencia",
-                url_producto=url_cost if url_cost else None,
-                perdida_porcentual=10.0,
-                formato_comercial="6.0 m",
+            _make_insumo(
+                "Costanera Perfil C 60x38mm 6m", piezas_costanera, "un",
+                precio_cost, tienda_cost, url_cost, alt_cost,
+                subtotal=subtotal_costaneras,
+                perdida_porcentual=10.0, formato_comercial="6.0 m",
             ),
-            InsumoCalculado(
-                insumo="Tornillo techo golilla neopreno (caja 100un)",
-                cantidad=float(tornillos_techo_cant),
-                unidad="caja",
-                precio_unitario=float(precio_torn),
-                subtotal=float(subtotal_tornillos_techo),
-                tienda=tienda_torn if tienda_torn != "Referencia" else "Referencia",
-                url_producto=url_torn if url_torn else None,
-                perdida_porcentual=5.0,
-                formato_comercial="caja 100 unidades",
+            _make_insumo(
+                "Tornillo techo golilla neopreno (caja 100un)", tornillos_techo_cant, "caja",
+                precio_torn, tienda_torn, url_torn, alt_torn,
+                subtotal=subtotal_tornillos_techo,
+                perdida_porcentual=5.0, formato_comercial="caja 100 unidades",
             ),
-            InsumoCalculado(
-                insumo="Lana vidrio 50mm rollo 14.4m2",
-                cantidad=float(rollos_aislacion),
-                unidad="un",
-                precio_unitario=float(precio_lana),
-                subtotal=float(subtotal_aislacion),
-                tienda=tienda_lana if tienda_lana != "Referencia" else "Referencia",
-                url_producto=url_lana if url_lana else None,
-                perdida_porcentual=5.0,
-                formato_comercial="14.4 m\u00b2",
+            _make_insumo(
+                "Lana vidrio 50mm rollo 14.4m2", rollos_aislacion, "un",
+                precio_lana, tienda_lana, url_lana, alt_lana,
+                subtotal=subtotal_aislacion,
+                perdida_porcentual=5.0, formato_comercial="14.4 m\u00b2",
             ),
         ]
 
@@ -418,13 +375,10 @@ def calcular_partida_techumbre(
     subtal_mo = hh_techumbre * tarifa_hh
 
     items_mo = [
-        InsumoCalculado(
-            insumo="Mano de obra techumbre (estructura + cubierta)",
-            cantidad=float(hh_techumbre),
-            unidad="HH",
-            precio_unitario=float(tarifa_hh),
-            subtotal=float(subtal_mo),
-            tienda="Referencia",
+        _make_insumo(
+            "Mano de obra techumbre (estructura + cubierta)", hh_techumbre, "HH",
+            tarifa_hh, "Referencia", "", None,
+            subtotal=subtal_mo,
             perdida_porcentual=0.0,
         ),
     ]
