@@ -16,6 +16,10 @@ import {
   Sparkles,
   ArrowLeft,
   Loader2,
+  Home,
+  HardHat,
+  ShieldCheck,
+  ArrowRight,
 } from 'lucide-vue-next';
 
 const route = useRoute();
@@ -75,6 +79,24 @@ const handleUnlock = async () => {
 const goUpgrade = () => {
   router.push('/settings?tab=billing');
 };
+
+const goProjects = () => {
+  router.push('/dashboard');
+};
+
+const clientGuideSteps = [
+  'siecplaceGuideClient1',
+  'siecplaceGuideClient2',
+  'siecplaceGuideClient3',
+  'siecplaceGuideClient4',
+];
+
+const contractorGuideSteps = [
+  'siecplaceGuideContractor1',
+  'siecplaceGuideContractor2',
+  'siecplaceGuideContractor3',
+  'siecplaceGuideContractor4',
+];
 
 onMounted(async () => {
   await fetchBilling(true);
@@ -145,6 +167,93 @@ watch(tab, () => {
                   {{ t('siecplaceUpgradeCta') }}
                 </button>
               </div>
+            </div>
+          </section>
+
+          <section
+            class="rounded-3xl border border-slate-200/90 bg-slate-50/80 p-6 dark:border-slate-800/90 dark:bg-slate-900/40"
+          >
+            <h2 class="text-lg font-black text-slate-950 dark:text-slate-50">
+              {{ t('siecplaceGuideTitle') }}
+            </h2>
+            <p class="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+              {{ t('siecplaceGuideIntro') }}
+            </p>
+
+            <div class="mt-5 grid gap-4 lg:grid-cols-2">
+              <article
+                class="rounded-2xl border border-slate-200/90 bg-white p-5 dark:border-slate-800 dark:bg-slate-950"
+              >
+                <div class="flex items-center gap-2">
+                  <Home class="h-4 w-4 text-orange-500" :stroke-width="2.5" />
+                  <h3 class="text-sm font-black text-slate-950 dark:text-slate-50">
+                    {{ t('siecplaceGuideClientTitle') }}
+                  </h3>
+                </div>
+                <ol class="mt-4 space-y-2.5 text-sm text-slate-600 dark:text-slate-300">
+                  <li
+                    v-for="(stepKey, index) in clientGuideSteps"
+                    :key="stepKey"
+                    class="flex gap-3"
+                  >
+                    <span
+                      class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-orange-100 text-[11px] font-black text-orange-700 dark:bg-orange-950/50 dark:text-orange-300"
+                    >
+                      {{ index + 1 }}
+                    </span>
+                    <span class="pt-0.5 leading-snug">{{ t(stepKey) }}</span>
+                  </li>
+                </ol>
+                <p class="mt-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  {{ t('siecplaceGuideClientFee') }}
+                </p>
+              </article>
+
+              <article
+                class="rounded-2xl border border-slate-200/90 bg-white p-5 dark:border-slate-800 dark:bg-slate-950"
+              >
+                <div class="flex items-center gap-2">
+                  <HardHat class="h-4 w-4 text-orange-500" :stroke-width="2.5" />
+                  <h3 class="text-sm font-black text-slate-950 dark:text-slate-50">
+                    {{ t('siecplaceGuideContractorTitle') }}
+                  </h3>
+                </div>
+                <ol class="mt-4 space-y-2.5 text-sm text-slate-600 dark:text-slate-300">
+                  <li
+                    v-for="(stepKey, index) in contractorGuideSteps"
+                    :key="stepKey"
+                    class="flex gap-3"
+                  >
+                    <span
+                      class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-orange-100 text-[11px] font-black text-orange-700 dark:bg-orange-950/50 dark:text-orange-300"
+                    >
+                      {{ index + 1 }}
+                    </span>
+                    <span class="pt-0.5 leading-snug">{{ t(stepKey) }}</span>
+                  </li>
+                </ol>
+                <p class="mt-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  {{ t('siecplaceGuideContractorFee') }}
+                </p>
+              </article>
+            </div>
+
+            <div
+              class="mt-4 flex flex-col gap-4 rounded-2xl border border-emerald-200/80 bg-emerald-50/80 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-emerald-900/50 dark:bg-emerald-950/20"
+            >
+              <p class="flex items-start gap-2 text-sm text-emerald-900 dark:text-emerald-100">
+                <ShieldCheck class="mt-0.5 h-4 w-4 shrink-0" :stroke-width="2.5" />
+                <span>{{ t('siecplaceGuideGuarantee') }}</span>
+              </p>
+              <button
+                v-if="hasMarketplaceAccess"
+                type="button"
+                class="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-orange-500 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-orange-600"
+                @click="goProjects"
+              >
+                {{ t('siecplaceGuideGoProjects') }}
+                <ArrowRight class="h-4 w-4" />
+              </button>
             </div>
           </section>
 
