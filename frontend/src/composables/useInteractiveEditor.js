@@ -6,6 +6,7 @@ import {
   resolveRoomResize,
   terrainFromEditor,
 } from './useSpatialConstraints.js'
+import { resolveRecintoMaterial } from '../utils/materialHelpers.js'
 
 const DEFAULT_FINE_STEP = 0.1
 
@@ -81,7 +82,13 @@ export function useInteractiveEditor(opts = {}) {
       edgeZ,
       terrain,
       store.recintos,
-      { snapStep: currentSnapStep() },
+      {
+        snapStep: currentSnapStep(),
+        materialId: resolveRecintoMaterial(
+          room,
+          store.configMetadata?.materialEstructuralId ?? 1,
+        ),
+      },
     )
 
     if (!resolved) return null
@@ -134,7 +141,13 @@ export function useInteractiveEditor(opts = {}) {
       nextL,
       terrain,
       store.recintos,
-      { snapStep: currentSnapStep() },
+      {
+        snapStep: currentSnapStep(),
+        materialId: resolveRecintoMaterial(
+          room,
+          store.configMetadata?.materialEstructuralId ?? 1,
+        ),
+      },
     )
 
     if (!resolved) return null

@@ -252,12 +252,18 @@ const draw = () => {
   ctx.stroke();
 };
 
+let minimapDirty = true;
+
 const tick = () => {
-  draw();
+  if (minimapDirty) {
+    draw();
+    minimapDirty = false;
+  }
   rafId = requestAnimationFrame(tick);
 };
 
 onMounted(() => {
+  minimapDirty = true;
   tick();
 });
 
@@ -265,10 +271,25 @@ onBeforeUnmount(() => {
   if (rafId) cancelAnimationFrame(rafId);
 });
 
+const recintosSignature = () =>
+  props.recintos
+    .map((r) =>
+      `${r.id}:${r.coords?.x},${r.coords?.z},${r.dimensions?.w},${r.dimensions?.l},${r.piso}`,
+    )
+    .join('|');
+
 watch(
-  () => [props.recintos, props.cameraPos, props.size, props.visible],
-  () => draw(),
-  { deep: true },
+  () => [
+    recintosSignature(),
+    props.cameraPos?.x,
+    props.cameraPos?.z,
+    props.cameraPos?.yaw,
+    props.size,
+    props.visible,
+  ],
+  () => {
+    minimapDirty = true;
+  },
 );
 </script>
 
