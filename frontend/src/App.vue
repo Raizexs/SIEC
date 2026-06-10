@@ -1,7 +1,7 @@
 <script setup>
-import { onMounted, onBeforeUnmount, ref, nextTick } from 'vue';
+import { onMounted, onBeforeUnmount, ref, nextTick, computed } from 'vue';
 import { Toaster } from 'vue-sonner';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { gsap } from 'gsap';
 import { useAuthStore } from './stores/auth';
 import { useTheme } from './composables/useTheme';
@@ -11,7 +11,14 @@ import CommandPalette from './components/CommandPalette.vue';
 import KeyboardShortcuts from './components/KeyboardShortcuts.vue';
 
 const router = useRouter();
+const route = useRoute();
 const auth = useAuthStore();
+
+/** Evita remontar el editor al pasar de /workspace → /workspace/:id tras guardar. */
+const routeViewKey = computed(() => {
+  if (route.name === 'workspace') return 'workspace';
+  return route.fullPath;
+});
 const theme = useTheme();
 const showShortcuts = ref(false);
 
@@ -172,7 +179,7 @@ const leave = (el, done) => {
 <template>
   <RouterView v-slot="{ Component }">
     <transition @enter="enter" @leave="leave">
-      <component :is="Component" :key="$route.fullPath" />
+      <component :is="Component" :key="routeViewKey" />
     </transition>
   </RouterView>
   <CommandPalette />

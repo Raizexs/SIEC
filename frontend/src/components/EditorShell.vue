@@ -7,7 +7,7 @@
  * - Main area con profundidad sutil y separación visual.
  * - Secciones con spacing consistente.
  * - Hint card más elegante.
- * - Toast premium.
+ * - Feedback de guardado vía toast global (vue-sonner).
  * - Driver.js theme actualizado para mantener coherencia visual.
  */
 
@@ -198,7 +198,8 @@ const showDesignStepForCapture = computed(
 
 const appKey = computed(() => `app-${currentLanguage.value}`);
 
-const showToast = ref(false);
+/** Evita resetear el canvas cuando solo se asigna id remoto tras guardar. */
+const skipNextProjectBootstrap = ref(false);
 
 const formData = ref({
   terrenoAncho: 15,
@@ -453,6 +454,10 @@ watch(
   () => props.projectId,
   async (id, prev) => {
     if (id === prev) return;
+    if (skipNextProjectBootstrap.value) {
+      skipNextProjectBootstrap.value = false;
+      return;
+    }
     await bootstrapWorkspace();
     applyMaterialPlanLimits();
   },
@@ -716,10 +721,14 @@ const persistProjectRemote = async (trimmed, payload, previewHero, savedLayout) 
   const created = await projectsApi.create(patch);
   projectId = created.id;
   savedLayout.id = projectId;
+  skipNextProjectBootstrap.value = true;
   if (typeof window !== 'undefined') {
     window.localStorage.setItem('siec.lastWorkspacePath', `/workspace/${projectId}`);
   }
-  await router.replace(`/workspace/${projectId}`);
+  await router.replace({
+    name: 'workspace',
+    params: { projectId: String(projectId) },
+  });
   return projectId;
 };
 
@@ -780,14 +789,11 @@ const handleSaveLayout = async (name) => {
     }
 
     showSaveDialog.value = false;
-    showToast.value = true;
-    toast.success(
-      syncedRemote ? t('layoutSaved') : t('layoutSavedLocalOnly'),
-      { id: toastId },
-    );
-    setTimeout(() => {
-      showToast.value = false;
-    }, 3000);
+    toast.success(t('layoutSaved'), {
+      id: toastId,
+      description: syncedRemote ? t('layoutSavedDetail') : t('layoutSavedLocalOnly'),
+      duration: 4000,
+    });
   } catch (err) {
     const msg = err?.message || t('saveLayoutError');
     toast.error(msg, { id: toastId });
@@ -1260,39 +1266,6 @@ const startTutorial = () => {
       @close="showLey21725Modal = false"
     />
 
-    <!-- Premium toast -->
-    <transition
-      enter-active-class="transition ease-out duration-300"
-      enter-from-class="translate-y-3 opacity-0 scale-[0.98]"
-      enter-to-class="translate-y-0 opacity-100 scale-100"
-      leave-active-class="transition ease-in duration-200"
-      leave-from-class="translate-y-0 opacity-100 scale-100"
-      leave-to-class="translate-y-3 opacity-0 scale-[0.98]"
-    >
-      <div
-        v-if="showToast"
-        class="fixed bottom-6 right-6 z-50 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-white/95 px-4 py-3 text-sm font-semibold text-slate-800 shadow-2xl shadow-slate-950/15 backdrop-blur-xl dark:border-emerald-900/70 dark:bg-slate-950/95 dark:text-slate-100 dark:shadow-black/30"
-        role="status"
-        aria-live="polite"
-      >
-        <div
-          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-600 shadow-sm dark:border-emerald-900/70 dark:bg-emerald-950/30 dark:text-emerald-300"
-        >
-          <span class="material-symbols-outlined text-[20px]">
-            check_circle
-          </span>
-        </div>
-
-        <div>
-          <p class="font-bold leading-snug">
-            {{ t('layoutSaved') }}
-          </p>
-          <p class="mt-0.5 text-xs font-medium text-slate-500 dark:text-slate-400">
-            {{ t('layoutSavedDetail') }}
-          </p>
-        </div>
-      </div>
-    </transition>
   </div>
 </template>
 
