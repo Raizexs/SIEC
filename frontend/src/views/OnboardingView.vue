@@ -14,14 +14,17 @@ import {
   User2,
   Landmark,
   Ruler,
-  Bell,
   Sparkles,
+  Coins,
   Loader2,
 } from 'lucide-vue-next';
 import { useProMotion } from '../composables/useProMotion';
+import { useProductPreferences } from '../composables/useProductPreferences';
+import '../styles/auth-fields.css';
 
 const router = useRouter();
 const auth = useAuthStore();
+const { updateProductPreferences, saveProductPreferences } = useProductPreferences();
 
 const step = ref(1);
 const isSaving = ref(false);
@@ -35,9 +38,7 @@ const formData = ref({
   fullName: auth.user?.user_metadata?.full_name || '',
   company: auth.user?.user_metadata?.company || '',
   role: auth.user?.user_metadata?.role || 'user',
-  units: 'metric',
   currency: 'CLP',
-  enableNotifications: true,
 });
 
 const progressPct = computed(() => `${(step.value / 3) * 100}%`);
@@ -63,8 +64,8 @@ const stepMeta = computed(() => {
   if (step.value === 2) {
     return {
       eyebrow: 'Preferencias operativas',
-      title: 'Preferencias',
-      description: 'Adapta unidades, moneda y alertas a tu flujo de trabajo.',
+      title: 'Estándares SIEC',
+      description: 'Medición en m y m². Elige la moneda de referencia para presupuestos.',
       icon: Settings2,
     };
   }
@@ -95,9 +96,8 @@ const next = async () => {
           full_name: formData.value.fullName,
           company: formData.value.company,
           role: formData.value.role,
-          units: formData.value.units,
+          units: 'metric',
           currency: formData.value.currency,
-          notifications: formData.value.enableNotifications,
           onboarded: true,
         },
       });
@@ -105,6 +105,12 @@ const next = async () => {
       logger.warn('No se pudo guardar onboarding:', error);
     }
   }
+
+  updateProductPreferences({
+    currency: formData.value.currency,
+    unit: 'metric',
+  });
+  saveProductPreferences();
 
   isSaving.value = false;
   router.push('/workspace?tour=1');
@@ -210,16 +216,14 @@ const back = () => {
                 Nombre completo
               </label>
 
-              <div class="relative">
-                <User2
-                  class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500"
-                  :stroke-width="2"
-                />
-
+              <div class="auth-field">
+                <span class="auth-field-icon" aria-hidden="true">
+                  <User2 class="h-4 w-4" :stroke-width="2" />
+                </span>
                 <input
                   v-model="formData.fullName"
                   type="text"
-                  class="premium-input pl-11"
+                  class="auth-field-input"
                   placeholder="Tu nombre completo"
                   autocomplete="name"
                 />
@@ -231,16 +235,14 @@ const back = () => {
                 Empresa
               </label>
 
-              <div class="relative">
-                <Landmark
-                  class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500"
-                  :stroke-width="2"
-                />
-
+              <div class="auth-field">
+                <span class="auth-field-icon" aria-hidden="true">
+                  <Landmark class="h-4 w-4" :stroke-width="2" />
+                </span>
                 <input
                   v-model="formData.company"
                   type="text"
-                  class="premium-input pl-11"
+                  class="auth-field-input"
                   placeholder="Estudio / Empresa"
                   autocomplete="organization"
                 />
@@ -250,111 +252,50 @@ const back = () => {
           </div>
         </section>
 
-        <!-- Step 2: Preferences -->
+        <!-- Step 2: SIEC standards -->
         <section v-if="step === 2" class="space-y-5">
-          <div>
-            <label class="premium-label">
-              Unidades
-            </label>
-
-            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <button
-                v-for="unit in [
-                  { id: 'metric', label: 'Métrico', detail: 'm², metros lineales' },
-                  { id: 'imperial', label: 'Imperial', detail: 'ft², pies lineales' },
-                ]"
-                :key="unit.id"
-                type="button"
-                class="group rounded-3xl border p-4 text-left transition-all duration-200 active:scale-[0.99]"
-                :class="
-                  formData.units === unit.id
-                    ? 'border-orange-300 bg-orange-50/80 shadow-md shadow-orange-500/10 dark:border-orange-800/80 dark:bg-orange-950/20'
-                    : 'border-slate-200 bg-white shadow-sm hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-950/70 dark:hover:border-slate-700'
-                "
-                @click="formData.units = unit.id"
-              >
-                <div class="flex items-start justify-between gap-3">
-                  <div
-                    class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border shadow-sm"
-                    :class="
-                      formData.units === unit.id
-                        ? 'border-orange-200 bg-white text-orange-600 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-300'
-                        : 'border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-500'
-                    "
-                  >
-                    <Ruler class="h-4.5 w-4.5" :stroke-width="2.2" />
-                  </div>
-
-                  <span
-                    v-if="formData.units === unit.id"
-                    class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-orange-500 text-white shadow-sm shadow-orange-500/30 dark:bg-orange-400 dark:text-orange-950"
-                  >
-                    <CheckCircle2 class="h-3.5 w-3.5" :stroke-width="2.5" />
-                  </span>
-                </div>
-
-                <p class="mt-4 text-sm font-black tracking-tight text-slate-950 dark:text-slate-100">
-                  {{ unit.label }}
-                </p>
-
-                <p class="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-                  {{ unit.detail }}
-                </p>
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <label class="premium-label">
-              Moneda
-            </label>
-
-            <select
-              v-model="formData.currency"
-              class="premium-input"
-            >
-              <option value="CLP">Peso chileno (CLP)</option>
-              <option value="UF">UF (Unidad de Fomento)</option>
-              <option value="USD">Dólar estadounidense (USD)</option>
-            </select>
-          </div>
-
-          <label
-            class="flex cursor-pointer items-start gap-3 rounded-3xl border p-4 transition-all duration-200 active:scale-[0.99]"
-            :class="
-              formData.enableNotifications
-                ? 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/70 dark:bg-emerald-950/25'
-                : 'border-slate-200 bg-white hover:border-slate-300 dark:border-slate-800 dark:bg-slate-950/70 dark:hover:border-slate-700'
-            "
+          <div
+            class="rounded-3xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-900/60"
           >
-            <input
-              v-model="formData.enableNotifications"
-              type="checkbox"
-              class="mt-1 h-4 w-4 rounded border-slate-300 accent-orange-500"
-            />
-
-            <div class="flex-1">
-              <div class="flex items-center gap-2">
-                <Bell
-                  class="h-4 w-4"
-                  :class="
-                    formData.enableNotifications
-                      ? 'text-emerald-600 dark:text-emerald-300'
-                      : 'text-slate-400 dark:text-slate-500'
-                  "
-                  :stroke-width="2.2"
-                />
-
+            <div class="flex items-start gap-3">
+              <div
+                class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
+              >
+                <Ruler class="h-4.5 w-4.5" :stroke-width="2.2" />
+              </div>
+              <div>
                 <p class="text-sm font-black text-slate-950 dark:text-slate-100">
-                  Notificaciones inteligentes
+                  Medición SIEC
+                </p>
+                <p class="mt-1 text-xs font-medium leading-relaxed text-slate-500 dark:text-slate-400">
+                  Metros (m), metros cuadrados (m²) y alturas en m. El editor 2D/3D y los presupuestos usan el sistema métrico chileno.
                 </p>
               </div>
-
-              <p class="mt-1 text-xs font-medium leading-relaxed text-slate-500 dark:text-slate-400">
-                Te avisamos cuando los precios de materiales clave cambian más de 10%.
-              </p>
             </div>
-          </label>
+          </div>
+
+          <div>
+            <label class="premium-label">
+              Moneda de presupuesto
+            </label>
+
+            <div class="auth-field">
+              <span class="auth-field-icon" aria-hidden="true">
+                <Coins class="h-4 w-4" :stroke-width="2" />
+              </span>
+              <select
+                v-model="formData.currency"
+                class="auth-field-input appearance-none bg-transparent"
+              >
+                <option value="CLP">Peso chileno (CLP)</option>
+                <option value="UF">UF (referencia)</option>
+              </select>
+            </div>
+
+            <p class="mt-2 text-xs font-medium leading-relaxed text-slate-500 dark:text-slate-400">
+              Define cómo se muestran totales en presupuesto y exportación PDF.
+            </p>
+          </div>
         </section>
 
         <!-- Step 3: Done -->
