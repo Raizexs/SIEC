@@ -352,12 +352,6 @@ const buildLayoutFromProject = (project) => {
   };
 };
 
-const ensureDefaultRecinto = () => {
-  if (recintosStore.recintos.length === 0) {
-    recintosStore.addRecinto("habitacion", "Habitación", 3.5, 3.0, 2.4);
-  }
-};
-
 /**
  * Returns true when the projectId is a local/offline identifier that doesn't
  * exist in the remote backend (numeric timestamps or the "local-…" prefix
@@ -390,7 +384,6 @@ const hydrateProjectWorkspace = async (projectId) => {
     }
     workspaceStore.loadWorkspace();
     await nextTick();
-    ensureDefaultRecinto();
     setTimeout(() => { isProgrammaticUpdate.value = false; }, 500);
     return;
   }
@@ -410,12 +403,10 @@ const hydrateProjectWorkspace = async (projectId) => {
 
     workspaceStore.loadWorkspace();
     await nextTick();
-    ensureDefaultRecinto();
   } catch (error) {
     logger.warn("[workspace] No se pudo cargar el proyecto", projectId, error);
     workspaceStore.loadWorkspace();
     await nextTick();
-    ensureDefaultRecinto();
   } finally {
     setTimeout(() => {
       isProgrammaticUpdate.value = false;
@@ -433,7 +424,6 @@ const bootstrapWorkspace = async () => {
 
   workspaceStore.loadWorkspace();
   await nextTick();
-  ensureDefaultRecinto();
 };
 
 onMounted(async () => {
