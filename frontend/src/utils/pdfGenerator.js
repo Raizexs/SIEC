@@ -9,6 +9,7 @@ import {
   mergePreferences,
   defaultProductPreferences,
 } from "../composables/useProductPreferences";
+import { withContingency } from "./budgetPreferenceMath.js";
 
 const BRAND = {
   ink: [15, 23, 42], // slate-950
@@ -523,12 +524,21 @@ const addFinancialPage = (doc, payload) => {
     costoTerreno,
     costoRecintos,
     costoTotal,
+    contingencyPct = 0,
+    subtotalConContingencia,
+    totalFormatted,
     tokensUsados,
     tokensTotales,
     tokensDisponibles,
   } = payload;
 
-  const totalFormatted = formatClp(costoTotal);
+  const displayTotal = subtotalConContingencia ?? costoTotal;
+  const totalFormattedResolved =
+    totalFormatted ?? formatClp(displayTotal);
+  const contingencyAmount =
+    contingencyPct > 0 && subtotalConContingencia != null
+      ? subtotalConContingencia - costoTotal
+      : 0;
 
   doc.addPage();
 
@@ -549,31 +559,49 @@ const addFinancialPage = (doc, payload) => {
     "Valor m²",
     formatClp(rate),
   );
-  metricCard(doc, PAGE.marginX + 126, 46, 56, "Total", totalFormatted, {
+  metricCard(doc, PAGE.marginX + 126, 46, 56, "Total", totalFormattedResolved, {
     accent: true,
   });
+
+  const tableBody = [
+    [
+      "Terreno",
+      `${formatNumber(m2Terreno, 1)} m² × ${formatClp(rate)}`,
+      formatClp(costoTerreno),
+    ],
+    [
+      "Recintos modelados",
+      `${formatNumber(areaRecintos, 1)} m² × ${formatClp(rate)}`,
+      formatClp(costoRecintos),
+    ],
+    ["Subtotal", "Terreno + recintos", formatClp(costoTotal)],
+  ];
+
+  if (contingencyPct > 0) {
+    tableBody.push([
+      `Contingencia (${contingencyPct}%)`,
+      "Margen de estimación",
+      formatClp(contingencyAmount),
+    ]);
+    tableBody.push([
+      "Total referencial",
+      "Subtotal + contingencia",
+      totalFormattedResolved,
+    ]);
+  } else {
+    tableBody.push(["Total referencial", "Terreno + recintos", totalFormattedResolved]);
+  }
+
+  tableBody.push([
+    "Tokens de diseño",
+    `${tokensUsados} / ${tokensTotales}`,
+    `${tokensDisponibles} disp.`,
+  ]);
 
   autoTable(doc, {
     startY: 84,
     head: [["Concepto", "Base", "Monto"]],
-    body: [
-      [
-        "Terreno",
-        `${formatNumber(m2Terreno, 1)} m² × ${formatClp(rate)}`,
-        formatClp(costoTerreno),
-      ],
-      [
-        "Recintos modelados",
-        `${formatNumber(areaRecintos, 1)} m² × ${formatClp(rate)}`,
-        formatClp(costoRecintos),
-      ],
-      ["Total referencial", "Terreno + recintos", totalFormatted],
-      [
-        "Tokens de diseño",
-        `${tokensUsados} / ${tokensTotales}`,
-        `${tokensDisponibles} disp.`,
-      ],
-    ],
+    body: tableBody,
     ...TABLE_THEME,
     columnStyles: {
       2: { halign: "right", fontStyle: "bold" },
@@ -668,9 +696,12 @@ export const generateCommercialPDF = async (
   projectName,
   options = {},
 ) => {
-  const exportPrefs = mergePreferences(defaultProductPreferences(), {
+  const prefs = mergePreferences(defaultProductPreferences(), {
     export: options.export || {},
-  }).export;
+    contingency: options.contingency ?? options.contingencyPct,
+  });
+  const exportPrefs = prefs.export;
+  const contingencyPct = Number(prefs.contingency ?? 10);
 
   const doc = new jsPDF({
     orientation: "portrait",
@@ -697,6 +728,7 @@ export const generateCommercialPDF = async (
   const costoTerreno = m2Terreno * rate;
   const costoRecintos = areaRecintos * rate;
   const costoTotal = costoTerreno + costoRecintos;
+  const subtotalConContingencia = withContingency(costoTotal, contingencyPct);
 
   const businessName =
     exportPrefs.businessName && String(exportPrefs.businessName).trim()
@@ -725,7 +757,9 @@ export const generateCommercialPDF = async (
     costoTerreno,
     costoRecintos,
     costoTotal,
-    totalFormatted: formatClp(costoTotal),
+    contingencyPct,
+    subtotalConContingencia,
+    totalFormatted: formatClp(subtotalConContingencia),
     snapshotDataUrl,
     exportPrefs,
     tokensUsados: Number(options.tokensUsados ?? 0),
@@ -736,6 +770,9 @@ export const generateCommercialPDF = async (
 
   addCover(doc, payload);
   addRoomsBreakdownPage(doc, payload);
+  if (exportPrefs.includeSnapshots !== false && snapshotDataUrl) {
+    addSnapshotPage(doc, payload);
+  }
 
   const safeName = sanitizeFilename(safeProjectName);
 

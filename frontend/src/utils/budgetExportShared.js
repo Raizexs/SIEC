@@ -3,6 +3,7 @@ export const MATERIAL_NAMES = {
   2: 'Acero galvanizado',
   3: 'Mampostería',
   4: 'Hormigón armado',
+  5: 'Híbrido madera + metalcon',
 };
 
 export const formatClp = (value) => {

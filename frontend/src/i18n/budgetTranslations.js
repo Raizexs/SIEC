@@ -24,6 +24,9 @@ export const budgetTranslationsEs = {
     "La moneda mostrada arriba es vista; el cálculo sigue en CLP hasta integrar tipo de cambio.",
   budgetRefValueNote:
     "Valor referencial sujeto a disponibilidad y actualización de precios.",
+  budgetDisclaimerBannerTitle: "Presupuesto referencial",
+  budgetDisclaimerBannerBody:
+    "Los montos son estimaciones orientativas según insumos, rendimientos y precios de mercado disponibles. No constituyen cotización contractual ni garantía de costo final. Valide el diseño en 2D y consulte a un profesional antes de construir.",
   budgetQuoteStats: "{quoted} de {total} insumos cotizados",
   budgetPartialTotal: "(total parcial)",
   budgetNoPriceBadge: "Sin cotización",
@@ -62,6 +65,12 @@ export const budgetTranslationsEs = {
   budgetPdfGenerating: "Generando PDF profesional…",
   budgetExportSuccess: "Archivo {format} descargado correctamente",
   budgetExportFailed: "No se pudo exportar el presupuesto",
+  budgetNormativaTitle: "Normativa Chile 2026",
+  budgetNormativaLoading: "Validando cumplimiento…",
+  budgetNormativaOk: "Referencia normativa sin bloqueos",
+  budgetNormativaReview: "Revisar alertas normativas",
+  budgetNormativaAlerts: "Alertas",
+  budgetNormativaEmpty: "Sin observaciones normativas para el diseño actual.",
 };
 
 export const budgetTranslationsEn = {
@@ -88,6 +97,9 @@ export const budgetTranslationsEn = {
     "Currency shown above is display-only; calculation remains in CLP until FX is integrated.",
   budgetRefValueNote:
     "Reference value subject to price availability and updates.",
+  budgetDisclaimerBannerTitle: "Reference budget",
+  budgetDisclaimerBannerBody:
+    "Amounts are indicative estimates based on supplies, yield factors and available market prices. They are not a contractual quote or a guarantee of final cost. Validate the design in 2D and consult a professional before building.",
   budgetQuoteStats: "{quoted} of {total} supplies quoted",
   budgetPartialTotal: "(partial total)",
   budgetNoPriceBadge: "No quote",
@@ -126,4 +138,10 @@ export const budgetTranslationsEn = {
   budgetPdfGenerating: "Generating professional PDF…",
   budgetExportSuccess: "{format} file downloaded successfully",
   budgetExportFailed: "Could not export budget",
+  budgetNormativaTitle: "Chile regulations 2026",
+  budgetNormativaLoading: "Checking compliance…",
+  budgetNormativaOk: "Regulatory reference — no blockers",
+  budgetNormativaReview: "Review regulatory alerts",
+  budgetNormativaAlerts: "Alerts",
+  budgetNormativaEmpty: "No regulatory observations for the current design.",
 };

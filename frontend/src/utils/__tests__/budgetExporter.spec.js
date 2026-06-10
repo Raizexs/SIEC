@@ -31,6 +31,7 @@ describe('budgetExporter', () => {
 
   it('getMaterialLabel returns known materials', () => {
     expect(getMaterialLabel(4)).toBe('Hormigón armado');
+    expect(getMaterialLabel(5)).toBe('Híbrido madera + metalcon');
     expect(getMaterialLabel(99)).toContain('99');
   });
 
