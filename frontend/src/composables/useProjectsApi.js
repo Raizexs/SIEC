@@ -25,6 +25,11 @@ import {
   flushOutbox,
   projectsDb,
 } from "../lib/OfflineCache";
+import {
+  slimProjectForList,
+  slimProjectForCache,
+  slimProjectList,
+} from "../utils/projectPreview.js";
 
 const isOnline = ref(
   typeof navigator !== "undefined" ? navigator.onLine : true,
@@ -40,19 +45,21 @@ export function useProjectsApi() {
   const list = async ({ archived = false, search = "" } = {}) => {
     try {
       const data = await api.get("/projects", { query: { archived, search } });
-      await cacheProjects(data);
+      const slim = slimProjectList(data);
+      await cacheProjects(slim);
       await flushOutbox(api).catch(() => {});
-      return data;
+      return slim;
     } catch (err) {
       logger.warn("[projects] list fallback to cache:", err.message);
-      return listCachedProjects();
+      const cached = await listCachedProjects();
+      return slimProjectList(cached);
     }
   };
 
   const get = async (id) => {
     try {
       const data = await api.get(`/projects/${id}`);
-      await cacheProject(data);
+      await cacheProject(slimProjectForCache(data));
       return data;
     } catch (err) {
       const cached = await projectsDb.projects.get(id);
@@ -79,7 +86,7 @@ export function useProjectsApi() {
     }
     try {
       const created = await api.post("/projects", data);
-      await cacheProject(created);
+      await cacheProject(slimProjectForCache(created));
       return created;
     } catch (err) {
       if (handlePlanLimitError(err)) throw err;
@@ -105,7 +112,7 @@ export function useProjectsApi() {
       );
     }
     const updated = await api.patch(`/projects/${id}`, patch);
-    await cacheProject(updated);
+    await cacheProject(slimProjectForCache(updated));
     return updated;
   };
 

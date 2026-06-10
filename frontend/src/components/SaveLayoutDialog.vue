@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, watch, nextTick } from 'vue';
 import { useI18n } from '../composables/useI18n';
 
 const { t } = useI18n();
@@ -13,16 +13,30 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  saving: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const emit = defineEmits(['close', 'save']);
 
 const localName = ref(props.layoutName);
+const nameInputRef = ref(null);
+
+const focusNameInput = () => {
+  nextTick(() => {
+    const el = nameInputRef.value;
+    if (!(el instanceof HTMLInputElement)) return;
+    el.focus();
+    el.select();
+  });
+};
 
 watch(
   () => props.layoutName,
   (newVal) => {
-    localName.value = newVal;
+    if (!props.show) localName.value = newVal;
   },
 );
 
@@ -30,18 +44,21 @@ watch(
   () => props.show,
   (isOpen) => {
     if (isOpen) {
-      localName.value = props.layoutName;
+      localName.value = props.layoutName || '';
+      focusNameInput();
     }
   },
 );
 
+const resolveName = () => {
+  const trimmed = localName.value.trim();
+  if (trimmed) return trimmed;
+  return props.layoutName?.trim() || t('defaultProjectName');
+};
+
 const handleSave = () => {
-  const normalizedName = localName.value.trim();
-
-  if (!normalizedName) return;
-
-  emit('save', normalizedName);
-  localName.value = '';
+  if (props.saving) return;
+  emit('save', resolveName());
 };
 </script>
 
@@ -50,11 +67,11 @@ const handleSave = () => {
     <Transition name="save-overlay">
       <div
         v-if="show"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-md dark:bg-black/60"
+        class="fixed inset-0 z-[20050] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-md dark:bg-black/60"
         role="dialog"
         aria-modal="true"
         aria-labelledby="save-layout-title"
-        @click.self="emit('close')"
+        @click.self="!saving && emit('close')"
       >
         <Transition name="save-card" appear>
           <section
@@ -100,7 +117,8 @@ const handleSave = () => {
                 type="button"
                 class="group flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-transparent text-slate-400 transition-all duration-200 hover:border-slate-300 hover:bg-white hover:text-slate-950 active:scale-95 dark:text-slate-500 dark:hover:border-slate-700 dark:hover:bg-slate-900 dark:hover:text-slate-100"
                 :aria-label="t('saveLayoutCloseAria')"
-                @click="emit('close')"
+                :disabled="saving"
+                @click="!saving && emit('close')"
               >
                 <span
                   class="material-symbols-outlined text-[21px] transition-transform duration-200 group-hover:rotate-90"
@@ -131,10 +149,12 @@ const handleSave = () => {
 
                   <input
                     id="layout-name"
+                    ref="nameInputRef"
                     v-model="localName"
                     type="text"
                     :placeholder="t('layoutNamePlaceholder')"
-                    class="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50/80 pl-11 pr-4 text-sm font-semibold text-slate-950 outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-orange-400 focus:bg-white focus:ring-4 focus:ring-orange-500/10 dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-orange-500 dark:focus:bg-slate-900 dark:focus:ring-orange-500/15"
+                    :disabled="saving"
+                    class="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50/80 pl-11 pr-4 text-sm font-semibold text-slate-950 outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-orange-400 focus:bg-white focus:ring-4 focus:ring-orange-500/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-orange-500 dark:focus:bg-slate-900 dark:focus:ring-orange-500/15"
                     autofocus
                     @keyup.enter="handleSave"
                   />
@@ -152,8 +172,9 @@ const handleSave = () => {
             >
               <button
                 type="button"
-                class="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-slate-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 hover:shadow-md active:scale-[0.98] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200 dark:hover:border-slate-700 dark:hover:bg-slate-900"
-                @click="emit('close')"
+                class="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-slate-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200 dark:hover:border-slate-700 dark:hover:bg-slate-900"
+                :disabled="saving"
+                @click="!saving && emit('close')"
               >
                 {{ t('cancel') }}
               </button>
@@ -161,14 +182,20 @@ const handleSave = () => {
               <button
                 type="button"
                 class="save-layout-primary-btn"
-                :class="{ 'is-disabled': !localName.trim() }"
-                :disabled="!localName.trim()"
+                :class="{ 'is-disabled': saving }"
+                :disabled="saving"
                 @click="handleSave"
               >
-                <span class="material-symbols-outlined text-[17px]">
+                <span
+                  v-if="saving"
+                  class="material-symbols-outlined animate-spin text-[17px]"
+                >
+                  progress_activity
+                </span>
+                <span v-else class="material-symbols-outlined text-[17px]">
                   save
                 </span>
-                {{ t('save') }}
+                {{ saving ? t('savingProject') : t('save') }}
               </button>
             </footer>
           </section>

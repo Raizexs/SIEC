@@ -69,18 +69,28 @@ export function generateLayoutThumbnail(recintos, options = {}) {
     ctx.stroke();
   }
 
-  for (const r of recintos.filter((r) => (r.piso || 1) === 1)) {
+  const floors = [...new Set(recintos.map((r) => r.piso || 1))].sort((a, b) => a - b);
+
+  for (const r of recintos) {
+    const floor = r.piso || 1;
     const x = offsetX + r.coords.x * scale;
     const y = offsetY + r.coords.z * scale;
     const w = r.dimensions.w * scale;
     const h = r.dimensions.l * scale;
     ctx.fillStyle = COLORS[r.tipo] || "#334155";
-    ctx.globalAlpha = 0.45;
+    ctx.globalAlpha = floor === 1 ? 0.45 : 0.32;
     ctx.fillRect(x, y, w, h);
     ctx.globalAlpha = 1;
     ctx.strokeStyle = COLORS[r.tipo] || "#334155";
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = floor === 1 ? 1.5 : 1;
     ctx.strokeRect(x, y, w, h);
+
+    if (floors.length > 1) {
+      ctx.fillStyle = floor === 1 ? "#f8fafc" : "#cbd5e1";
+      ctx.font = "bold 9px sans-serif";
+      ctx.textAlign = "left";
+      ctx.fillText(`P${floor}`, x + 3, y + 11);
+    }
   }
 
   return canvas.toDataURL("image/png");
