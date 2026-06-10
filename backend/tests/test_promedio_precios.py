@@ -104,11 +104,12 @@ def test_promedio_precios_logic():
     items = response.desglose[0].items
     assert len(items) == 3
     
-    # Insumo 1: Cemento (3 tiendas) — factor bruto 0.5/m2; main aplica corrección obra gruesa (*0.1 volumen losa)
-    # y conversión kg→sacos de 25kg (/25): 0.5 * 0.1 / 25 * 100 m2 = 0.2 sacos * 5000
+    # Insumo 1: Cemento (3 tiendas) — con multi-tienda, usa el mejor precio (Construmart 4800)
+    # factor bruto 0.5/m2; main aplica corrección obra gruesa (*0.1 volumen losa)
+    # y conversión kg→sacos de 25kg (/25): 0.5 * 0.1 / 25 * 100 m2 = 0.2 sacos * 4800
     assert items[0].insumo == "Cemento Especial"
-    assert items[0].precio_unitario == 5000.0
-    assert items[0].subtotal == 1000.0
+    assert items[0].precio_unitario == 4800.0
+    assert items[0].subtotal == 960.0
     
     # Insumo 2: Ladrillo (1 tienda)
     # 1000 unidades * factor pérdida 1.05 * 1200

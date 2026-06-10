@@ -20,7 +20,7 @@ def test_plan_prices_one_time():
 
 
 def test_marketplace_access_flags():
-    assert PLAN_LIMITS["free"].marketplace_access is False
+    assert PLAN_LIMITS["free"].marketplace_access is True
     assert PLAN_LIMITS["pro"].marketplace_access is False
     assert PLAN_LIMITS["pro_plus"].marketplace_access is True
 
@@ -30,13 +30,10 @@ def test_siecplace_microtransaction_amounts():
     assert SIECPLACE_LEAD_FEE_CLP == 2990
 
 
-def test_require_marketplace_access_blocks_free():
+def test_require_marketplace_access_allows_free():
     db = MagicMock()
     with patch.object(billing_service, "get_user_plan_id", return_value="free"):
-        with pytest.raises(HTTPException) as exc:
-            billing_service.require_marketplace_access(db, "00000000-0000-0000-0000-000000000001")
-    assert exc.value.status_code == 403
-    assert exc.value.detail["code"] == "SIECPLACE_PLAN_REQUIRED"
+        billing_service.require_marketplace_access(db, "00000000-0000-0000-0000-000000000001")
 
 
 def test_require_marketplace_access_allows_pro_plus():
