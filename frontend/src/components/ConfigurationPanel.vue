@@ -6,6 +6,7 @@ import {
   Grid2x2,
   Building,
   Hammer,
+  Layers,
   AlertTriangle,
   Check,
   Lock,
@@ -23,20 +24,39 @@ const props = defineProps({
 
 const emit = defineEmits(["update:formData"]);
 
+const TERRAIN_MIN = 2;
+const TERRAIN_MAX = 50;
+const TERRAIN_STEP = 0.5;
+
 const updateFormData = (field, value) => {
   let next = value;
 
   if (field === "terrenoAncho" || field === "terrenoLargo") {
     const n = Number(value);
-    next = Number.isFinite(n) ? Math.max(2, n) : 2;
+    const clamped = Number.isFinite(n) ? n : TERRAIN_MIN;
+    next = Math.min(
+      TERRAIN_MAX,
+      Math.max(TERRAIN_MIN, Math.round(clamped / TERRAIN_STEP) * TERRAIN_STEP),
+    );
   }
 
   emit("update:formData", { [field]: next });
 };
 
-const terrainWidth = computed(() => Math.max(2, Number(props.formData.terrenoAncho) || 2));
-const terrainLength = computed(() => Math.max(2, Number(props.formData.terrenoLargo) || 2));
+const terrainWidth = computed(() =>
+  Math.min(TERRAIN_MAX, Math.max(TERRAIN_MIN, Number(props.formData.terrenoAncho) || TERRAIN_MIN)),
+);
+const terrainLength = computed(() =>
+  Math.min(TERRAIN_MAX, Math.max(TERRAIN_MIN, Number(props.formData.terrenoLargo) || TERRAIN_MIN)),
+);
 const terrainArea = computed(() => terrainWidth.value * terrainLength.value);
+
+const widthSliderProgress = computed(() =>
+  ((terrainWidth.value - TERRAIN_MIN) / (TERRAIN_MAX - TERRAIN_MIN)) * 100,
+);
+const lengthSliderProgress = computed(() =>
+  ((terrainLength.value - TERRAIN_MIN) / (TERRAIN_MAX - TERRAIN_MIN)) * 100,
+);
 
 const previewAspect = computed(() => {
   const max = Math.max(terrainWidth.value, terrainLength.value, 1);
@@ -61,6 +81,12 @@ const materials = computed(() => [
     icon: Building,
     hint: t("materialConcreteHint"),
   },
+  {
+    id: 5,
+    label: t("hybridFrame"),
+    icon: Layers,
+    hint: t("materialHybridHint"),
+  },
 ]);
 
 const isMaterialAllowed = (id) => props.allowedMaterialIds.includes(Number(id));
@@ -81,6 +107,7 @@ const selectMaterial = (id) => {
 const goUpgrade = () => {
   window.location.href = "/settings?tab=billing";
 };
+
 </script>
 
 <template>
@@ -100,33 +127,50 @@ const goUpgrade = () => {
         </div>
       </header>
 
-      <div class="configure-card__body space-y-4">
-        <div class="grid grid-cols-2 gap-3">
-          <div class="space-y-1.5">
-            <label class="configure-label">
+      <div class="configure-card__body space-y-5">
+        <div class="space-y-2">
+          <div class="flex items-center justify-between gap-2">
+            <label class="configure-label mb-0">
               {{ t("widthM") }}
             </label>
-            <input
-              :value="formData.terrenoAncho"
-              type="number"
-              min="2"
-              step="0.5"
-              class="configure-input"
-              @input="updateFormData('terrenoAncho', Number($event.target.value))"
-            />
+            <span class="configure-slider-value">{{ terrainWidth.toFixed(1) }} m</span>
           </div>
-          <div class="space-y-1.5">
-            <label class="configure-label">
+          <input
+            type="range"
+            class="configure-range w-full"
+            :min="TERRAIN_MIN"
+            :max="TERRAIN_MAX"
+            :step="TERRAIN_STEP"
+            :value="terrainWidth"
+            :style="{ '--range-progress': `${widthSliderProgress}%` }"
+            @input="updateFormData('terrenoAncho', $event.target.value)"
+          />
+          <div class="configure-range-ticks">
+            <span>{{ TERRAIN_MIN }} m</span>
+            <span>{{ TERRAIN_MAX }} m</span>
+          </div>
+        </div>
+
+        <div class="space-y-2">
+          <div class="flex items-center justify-between gap-2">
+            <label class="configure-label mb-0">
               {{ t("lengthM") }}
             </label>
-            <input
-              :value="formData.terrenoLargo"
-              type="number"
-              min="2"
-              step="0.5"
-              class="configure-input"
-              @input="updateFormData('terrenoLargo', Number($event.target.value))"
-            />
+            <span class="configure-slider-value">{{ terrainLength.toFixed(1) }} m</span>
+          </div>
+          <input
+            type="range"
+            class="configure-range w-full"
+            :min="TERRAIN_MIN"
+            :max="TERRAIN_MAX"
+            :step="TERRAIN_STEP"
+            :value="terrainLength"
+            :style="{ '--range-progress': `${lengthSliderProgress}%` }"
+            @input="updateFormData('terrenoLargo', $event.target.value)"
+          />
+          <div class="configure-range-ticks">
+            <span>{{ TERRAIN_MIN }} m</span>
+            <span>{{ TERRAIN_MAX }} m</span>
           </div>
         </div>
 
@@ -393,6 +437,79 @@ const goUpgrade = () => {
   transition:
     border-color 0.18s ease,
     box-shadow 0.18s ease;
+}
+
+.configure-slider-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.95rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: rgb(234 88 12);
+}
+
+.dark .configure-slider-value {
+  color: rgb(251 146 60);
+}
+
+.configure-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 0.45rem;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    rgb(249 115 22) 0%,
+    rgb(249 115 22) var(--range-progress, 0%),
+    rgb(226 232 240) var(--range-progress, 0%),
+    rgb(226 232 240) 100%
+  );
+  outline: none;
+  cursor: pointer;
+}
+
+.dark .configure-range {
+  background: linear-gradient(
+    to right,
+    rgb(249 115 22) 0%,
+    rgb(249 115 22) var(--range-progress, 0%),
+    rgb(30 41 59) var(--range-progress, 0%),
+    rgb(30 41 59) 100%
+  );
+}
+
+.configure-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 1.15rem;
+  width: 1.15rem;
+  border-radius: 9999px;
+  border: 2px solid rgb(255 255 255);
+  background: rgb(249 115 22);
+  box-shadow: 0 2px 8px rgb(249 115 22 / 0.35);
+  cursor: grab;
+}
+
+.configure-range::-moz-range-thumb {
+  height: 1.15rem;
+  width: 1.15rem;
+  border-radius: 9999px;
+  border: 2px solid rgb(255 255 255);
+  background: rgb(249 115 22);
+  box-shadow: 0 2px 8px rgb(249 115 22 / 0.35);
+  cursor: grab;
+}
+
+.configure-range-ticks {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: rgb(148 163 184);
+}
+
+.dark .configure-range-ticks {
+  color: rgb(100 116 139);
 }
 
 .configure-input:focus {
