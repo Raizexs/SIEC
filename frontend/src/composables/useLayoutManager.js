@@ -1,5 +1,10 @@
 import { ref, computed } from "vue";
-import { useRecintosStore } from "../stores/recintos";
+import {
+  useRecintosStore,
+  RECINTO_BASE_DIMS,
+  normalizeRecintoTipo,
+  RECINTO_NOMBRES_POR_TIPO,
+} from "../stores/recintos.js";
 
 // Material costs in Chilean Pesos (CLP) per m² - Updated November 2024
 export const MATERIAL_COSTS = {
@@ -7,6 +12,7 @@ export const MATERIAL_COSTS = {
   2: 1100, // Steel Frame
   3: 950, // Masonry
   4: 1200, // Concrete
+  5: 1025, // Hybrid wood + metalcon
 };
 
 const STORAGE_KEY = "siec_saved_layouts";
@@ -31,12 +37,7 @@ const DEFAULT_TERRAIN = {
 
 const TERRAIN_PADDING = 0.75;
 
-const BASE_DIMS = {
-  habitacion: { w: 3.5, l: 3.0, h: 2.4 },
-  banio: { w: 2.0, l: 2.0, h: 2.4 },
-  areaComun: { w: 4.5, l: 3.5, h: 2.4 },
-  pasillo: { w: 1.5, l: 3.0, h: 2.4 },
-};
+const BASE_DIMS = RECINTO_BASE_DIMS;
 
 const toNumber = (value, fallback = 0) => {
   const parsed = Number(value);
@@ -47,14 +48,7 @@ const round2 = (value) => Number(toNumber(value).toFixed(2));
 
 const deepClone = (value) => JSON.parse(JSON.stringify(value));
 
-const normalizeTipo = (tipo) => {
-  if (tipo === "comun") return "areaComun";
-  if (tipo === "area_comun") return "areaComun";
-  if (tipo === "baño") return "banio";
-  if (tipo === "bano") return "banio";
-
-  return tipo || "habitacion";
-};
+const normalizeTipo = normalizeRecintoTipo;
 
 const normalizeRecinto = (recinto, index = 0) => {
   const tipo = normalizeTipo(recinto.tipo);
@@ -91,12 +85,12 @@ const normalizeRecinto = (recinto, index = 0) => {
       recinto.nombre ||
       recinto.name ||
       (tipo === "banio"
-        ? "Baño"
+        ? RECINTO_NOMBRES_POR_TIPO.banio
         : tipo === "areaComun"
-          ? "Área común"
+          ? RECINTO_NOMBRES_POR_TIPO.areaComun
           : tipo === "pasillo"
-            ? "Pasillo"
-            : `Habitación ${index + 1}`),
+            ? RECINTO_NOMBRES_POR_TIPO.pasillo
+            : `${RECINTO_NOMBRES_POR_TIPO.habitacion} ${index + 1}`),
     piso: toNumber(recinto.piso ?? recinto.floor, 1),
     coords: {
       x: round2(x),
@@ -273,90 +267,80 @@ const normalizeLayoutGeometry = (layout = {}) => {
 const presets = ref([
   {
     id: 1,
-    name: "Casa Pequeña",
-    nameEn: "Small House",
-    m2Totales: 80,
-    materialEstructuralId: 1,
+    name: "Departamento",
+    nameEn: "Apartment",
+    m2Totales: 65,
+    materialEstructuralId: 4,
     habitacionesSimples: 2,
     habitacionesDobles: 0,
     habitacionesTriples: 0,
     banios: 1,
     areasComunes: 1,
+    floors: 2,
   },
   {
     id: 2,
-    name: "Casa Familiar",
-    nameEn: "Family House",
-    m2Totales: 120,
-    materialEstructuralId: 4,
+    name: "Casa",
+    nameEn: "House",
+    m2Totales: 140,
+    materialEstructuralId: 1,
     habitacionesSimples: 2,
     habitacionesDobles: 1,
     habitacionesTriples: 0,
     banios: 2,
     areasComunes: 1,
+    floors: 2,
   },
   {
     id: 3,
-    name: "Casa Grande",
-    nameEn: "Large House",
-    m2Totales: 200,
-    materialEstructuralId: 2,
-    habitacionesSimples: 1,
-    habitacionesDobles: 2,
-    habitacionesTriples: 1,
-    banios: 3,
-    areasComunes: 2,
-  },
-  {
-    id: 4,
-    name: "Casa de Lujo",
-    nameEn: "Luxury House",
-    m2Totales: 350,
+    name: "Edificio Planta",
+    nameEn: "Building Plate",
+    m2Totales: 220,
     materialEstructuralId: 4,
     habitacionesSimples: 0,
-    habitacionesDobles: 3,
-    habitacionesTriples: 2,
-    banios: 4,
-    areasComunes: 3,
+    habitacionesDobles: 4,
+    habitacionesTriples: 0,
+    banios: 2,
+    areasComunes: 2,
+    floors: 4,
   },
 ]);
 
-const buildPresetRooms = (preset) => {
-  const roomTypes = [
-    ...Array(toNumber(preset.habitacionesSimples, 0)).fill({
-      tipo: "habitacion",
-      nombre: "Habitación simple",
-      dimensions: { w: 3.0, l: 3.0, h: 2.4 },
-    }),
-    ...Array(toNumber(preset.habitacionesDobles, 0)).fill({
-      tipo: "habitacion",
-      nombre: "Habitación doble",
-      dimensions: { w: 3.5, l: 3.2, h: 2.4 },
-    }),
-    ...Array(toNumber(preset.habitacionesTriples, 0)).fill({
-      tipo: "habitacion",
-      nombre: "Habitación triple",
-      dimensions: { w: 4.2, l: 3.6, h: 2.4 },
-    }),
-    ...Array(toNumber(preset.banios, 0)).fill({
-      tipo: "banio",
-      nombre: "Baño",
-      dimensions: { ...BASE_DIMS.banio },
-    }),
-    ...Array(toNumber(preset.areasComunes, 0)).fill({
-      tipo: "areaComun",
-      nombre: "Área común",
-      dimensions: { ...BASE_DIMS.areaComun },
-    }),
-  ];
+const buildRoomTypesFromCounts = (counts) => [
+  ...Array(toNumber(counts.habitacionesSimples, 0)).fill({
+    tipo: "habitacion",
+    nombre: "Habitación simple",
+    dimensions: { w: 3.0, l: 3.0, h: RECINTO_BASE_DIMS.habitacion.h },
+  }),
+  ...Array(toNumber(counts.habitacionesDobles, 0)).fill({
+    tipo: "habitacion",
+    nombre: "Habitación doble",
+    dimensions: { w: 3.5, l: 3.2, h: RECINTO_BASE_DIMS.habitacion.h },
+  }),
+  ...Array(toNumber(counts.habitacionesTriples, 0)).fill({
+    tipo: "habitacion",
+    nombre: "Habitación triple",
+    dimensions: { w: 4.2, l: 3.6, h: RECINTO_BASE_DIMS.habitacion.h },
+  }),
+  ...Array(toNumber(counts.banios, 0)).fill({
+    tipo: "banio",
+    nombre: RECINTO_NOMBRES_POR_TIPO.banio,
+    dimensions: { ...RECINTO_BASE_DIMS.banio },
+  }),
+  ...Array(toNumber(counts.areasComunes, 0)).fill({
+    tipo: "areaComun",
+    nombre: RECINTO_NOMBRES_POR_TIPO.areaComun,
+    dimensions: { ...RECINTO_BASE_DIMS.areaComun },
+  }),
+];
 
+const packRoomsOnFloor = (roomTypes, presetId, floor) => {
   const rooms = roomTypes.map((room, index) => ({
     ...deepClone(room),
-    id: `preset-${preset.id}-${index + 1}-${Math.random().toString(36).slice(2, 8)}`,
-    piso: 1,
+    id: `preset-${presetId}-p${floor}-${index + 1}-${Math.random().toString(36).slice(2, 8)}`,
+    piso: floor,
   }));
 
-  // Strip packing simple y estable.
   const totalArea = rooms.reduce(
     (sum, room) => sum + room.dimensions.w * room.dimensions.l,
     0,
@@ -367,7 +351,7 @@ const buildPresetRooms = (preset) => {
   let x = 0;
   let z = 0;
   let rowHeight = 0;
-  const gap = 0.25;
+  const gap = 0;
 
   return rooms.map((room) => {
     if (x > 0 && x + room.dimensions.w > targetWidth) {
@@ -391,9 +375,154 @@ const buildPresetRooms = (preset) => {
   });
 };
 
+/** Reparto por piso para presets multi-nivel. */
+const resolveFloorPlans = (preset) => {
+  const floors = Math.max(1, toNumber(preset.floors, 1));
+  if (floors <= 1) {
+    return [{ floor: 1, counts: preset }];
+  }
+
+  if (preset.id === 1) {
+    return [
+      {
+        floor: 1,
+        counts: {
+          habitacionesSimples: 1,
+          habitacionesDobles: 0,
+          habitacionesTriples: 0,
+          banios: 1,
+          areasComunes: 1,
+        },
+      },
+      {
+        floor: 2,
+        counts: {
+          habitacionesSimples: 1,
+          habitacionesDobles: 0,
+          habitacionesTriples: 0,
+          banios: 0,
+          areasComunes: 0,
+        },
+      },
+    ];
+  }
+
+  if (preset.id === 2) {
+    return [
+      {
+        floor: 1,
+        counts: {
+          habitacionesSimples: 1,
+          habitacionesDobles: 0,
+          habitacionesTriples: 0,
+          banios: 1,
+          areasComunes: 1,
+        },
+      },
+      {
+        floor: 2,
+        counts: {
+          habitacionesSimples: 1,
+          habitacionesDobles: 1,
+          habitacionesTriples: 0,
+          banios: 1,
+          areasComunes: 0,
+        },
+      },
+    ];
+  }
+
+  if (preset.id === 3) {
+    return [
+      {
+        floor: 1,
+        counts: {
+          habitacionesSimples: 0,
+          habitacionesDobles: 0,
+          habitacionesTriples: 0,
+          banios: 1,
+          areasComunes: 2,
+        },
+      },
+      {
+        floor: 2,
+        counts: {
+          habitacionesSimples: 0,
+          habitacionesDobles: 2,
+          habitacionesTriples: 0,
+          banios: 0,
+          areasComunes: 0,
+        },
+      },
+      {
+        floor: 3,
+        counts: {
+          habitacionesSimples: 0,
+          habitacionesDobles: 1,
+          habitacionesTriples: 0,
+          banios: 1,
+          areasComunes: 0,
+        },
+      },
+      {
+        floor: 4,
+        counts: {
+          habitacionesSimples: 0,
+          habitacionesDobles: 1,
+          habitacionesTriples: 0,
+          banios: 0,
+          areasComunes: 0,
+        },
+      },
+    ];
+  }
+
+  return Array.from({ length: floors }, (_, index) => ({
+    floor: index + 1,
+    counts: index === 0 ? preset : {
+      habitacionesSimples: 0,
+      habitacionesDobles: 0,
+      habitacionesTriples: 0,
+      banios: 0,
+      areasComunes: 0,
+    },
+  }));
+};
+
+const buildPresetRooms = (preset) => {
+  const floorPlans = resolveFloorPlans(preset);
+
+  return floorPlans.flatMap(({ floor, counts }) =>
+    packRoomsOnFloor(buildRoomTypesFromCounts(counts), preset.id, floor),
+  );
+};
+
 export function useLayoutManager() {
+  const stripHeavyLayoutMedia = (layout) => {
+    if (!layout || typeof layout !== "object") return layout;
+    const { preview_collage: _pc, ...rest } = layout;
+    return rest;
+  };
+
   const persistLayouts = () => {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(savedLayouts.value));
+    try {
+      const lean = savedLayouts.value.map(stripHeavyLayoutMedia);
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(lean));
+    } catch (error) {
+      try {
+        const minimal = savedLayouts.value.map((layout) => {
+          const lean = stripHeavyLayoutMedia(layout);
+          if (lean.thumbnail && lean.thumbnail.length > 120_000) {
+            const { thumbnail: _thumb, ...withoutThumb } = lean;
+            return withoutThumb;
+          }
+          return lean;
+        });
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(minimal));
+      } catch {
+        console.warn("[layouts] No se pudo persistir en sessionStorage:", error);
+      }
+    }
   };
 
   const createPresetLayout = (preset) => {
@@ -450,6 +579,7 @@ export function useLayoutManager() {
       createdAt: new Date().toISOString(),
       recintos: deepClone(recintosStore.recintos),
       currentFloor: recintosStore.currentFloor,
+      selectedForBudget: [...recintosStore.selectedForBudget],
       ...layoutData,
     });
 
@@ -497,6 +627,7 @@ export function useLayoutManager() {
       2: "Galvanized Steel",
       3: "Masonry",
       4: "Ferrocement",
+      5: "Hybrid wood + metalcon",
     };
 
     return materials[materialId] || "Unknown";

@@ -939,6 +939,69 @@ export const PROPOSAL_CSS = `
     background: var(--siec-tonal);
   }
 
+  .proposal .normativa-status {
+    margin: 0 0 4mm;
+    padding: 3mm 4mm;
+    border-radius: 3mm;
+    font-size: 9pt;
+    font-weight: 600;
+  }
+
+  .proposal .normativa-status--ok {
+    background: #ecfdf5;
+    color: #065f46;
+    border: 1px solid #a7f3d0;
+  }
+
+  .proposal .normativa-status--warn {
+    background: #fffbeb;
+    color: #92400e;
+    border: 1px solid #fde68a;
+  }
+
+  .proposal .normativa-list {
+    margin: 0 0 4mm;
+    padding: 0;
+    list-style: none;
+  }
+
+  .proposal .normativa-item {
+    margin: 0 0 2.5mm;
+    padding: 3mm 4mm;
+    border-radius: 3mm;
+    font-size: 8.8pt;
+    line-height: 1.45;
+  }
+
+  .proposal .normativa-item--error {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+  }
+
+  .proposal .normativa-item--warning {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    color: #92400e;
+  }
+
+  .proposal .normativa-item--info {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    color: #1e3a8a;
+  }
+
+  .proposal .normativa-footnote {
+    margin: 4mm 0 0;
+    font-size: 8pt;
+    color: var(--siec-muted);
+    line-height: 1.45;
+  }
+
+  .proposal .annex-card--wide {
+    grid-column: 1 / -1;
+  }
+
   .proposal .annex-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);

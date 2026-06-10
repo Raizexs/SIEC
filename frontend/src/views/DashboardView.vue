@@ -4,10 +4,11 @@
  * Layout: AppRail at the left + premium content shell at right.
  */
 
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, onActivated, onBeforeUnmount } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
-import { useApi, HttpError } from "../composables/useApi";
+import { HttpError } from "../composables/useApi";
+import { useProjectsApi } from "../composables/useProjectsApi";
 import { useLayoutManager } from "../composables/useLayoutManager";
 import {
   Plus,
@@ -32,12 +33,33 @@ import AppTopBar from "../components/shell/AppTopBar.vue";
 import { useProMotion } from "../composables/useProMotion";
 import { materialName } from "../composables/usePortfolioAnalytics";
 import { useI18n } from "../composables/useI18n";
+import {
+  getProjectPreviewHero,
+  hasProjectPreviewImage,
+  resolveProjectMaterialId,
+  slimProjectList,
+} from "../utils/projectPreview.js";
+import { listCachedProjects } from "../lib/OfflineCache";
 
 const router = useRouter();
 const { t, currentLanguage } = useI18n();
 const auth = useAuthStore();
-const api = useApi();
+const projectsApi = useProjectsApi();
 const { savedLayouts } = useLayoutManager();
+
+const brokenPreviewIds = ref(new Set());
+
+const markPreviewBroken = (project) => {
+  const id = String(project?.id || project?.name || project?.nombre || "");
+  if (!id) return;
+  brokenPreviewIds.value = new Set([...brokenPreviewIds.value, id]);
+};
+
+const previewWorks = (project) => {
+  const id = String(project?.id || project?.name || project?.nombre || "");
+  if (id && brokenPreviewIds.value.has(id)) return false;
+  return hasProjectPreviewImage(project);
+};
 
 const projects = ref([]);
 const isLoadingProjects = ref(false);
@@ -113,18 +135,40 @@ const heroSummary = computed(() => {
 
 const hasRemoteProjects = computed(() => projects.value.length > 0);
 
-const fetchProjects = async () => {
-  isLoadingProjects.value = true;
+let lastProjectsFetch = 0;
+const PROJECTS_STALE_MS = 30_000;
+
+const hydrateProjectsFromCache = async () => {
+  try {
+    const cached = await listCachedProjects();
+    if (cached?.length) {
+      projects.value = slimProjectList(cached);
+      return true;
+    }
+  } catch {
+    /* sin caché */
+  }
+  return false;
+};
+
+const fetchProjects = async ({ background = false } = {}) => {
+  if (!background && projects.value.length === 0) {
+    isLoadingProjects.value = true;
+  }
   fetchError.value = null;
 
   try {
-    const data = await api.get("/projects");
+    if (projects.value.length === 0) {
+      await hydrateProjectsFromCache();
+    }
 
+    const data = await projectsApi.list();
     projects.value = data || [];
+    lastProjectsFetch = Date.now();
   } catch (error) {
     if (error instanceof HttpError && error.status === 404) {
       projects.value = [];
-    } else {
+    } else if (!projects.value.length) {
       fetchError.value = error.message;
     }
   } finally {
@@ -141,11 +185,24 @@ const openProject = (project) => {
   router.push(`/workspace/${project.id || ""}`);
 };
 
+const quoteProject = (project) => {
+  if (!project) return;
+  router.push(`/workspace/${project.id || ""}?step=budget`);
+};
+
 const projectMaterialName = (id) =>
   materialName(id, currentLanguage.value === "en" ? "en" : "es");
 
 const projectDate = (project) => {
-  const rawDate = project.createdAt || project.updated_at || Date.now();
+  const payload =
+    project?.payload && typeof project.payload === "object" ? project.payload : null;
+  const rawDate =
+    project?.updated_at ||
+    project?.updatedAt ||
+    payload?.saved_at ||
+    project?.createdAt ||
+    project?.created_at ||
+    Date.now();
 
   return new Date(rawDate).toLocaleDateString(dateLocale.value, {
     day: "2-digit",
@@ -155,6 +212,8 @@ const projectDate = (project) => {
 };
 
 const projectM2 = (project) => project.m2Totales || project.m2_totales || 0;
+
+const projectPreviewHero = (project) => getProjectPreviewHero(project);
 
 const formatCurrencyCompact = (value) => {
   if (!value) return "$0";
@@ -183,12 +242,30 @@ const filters = computed(() => {
   ];
 });
 
-onMounted(fetchProjects);
+const onProjectsChanged = () => {
+  fetchProjects();
+};
+
+onMounted(() => {
+  fetchProjects();
+  window.addEventListener("siec:projects-changed", onProjectsChanged);
+});
+
+onActivated(() => {
+  if (Date.now() - lastProjectsFetch > PROJECTS_STALE_MS) {
+    void fetchProjects({ background: true });
+  }
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("siec:projects-changed", onProjectsChanged);
+});
 </script>
 
 <template>
   <div
     ref="motionRoot"
+    data-siec-app-shell
     class="siec-app-canvas flex min-h-screen text-slate-950 transition-colors duration-300 dark:text-slate-100"
   >
     <AppRail active="dashboard" />
@@ -540,10 +617,13 @@ onMounted(fetchProjects);
                 class="relative aspect-video overflow-hidden bg-slate-100 dark:bg-slate-900"
               >
                 <img
-                  v-if="project.thumbnail_url"
-                  :src="project.thumbnail_url"
+                  v-if="previewWorks(project)"
+                  :src="projectPreviewHero(project)"
                   :alt="project.name || project.nombre || t('dashProjectAlt')"
                   class="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                  loading="lazy"
+                  decoding="async"
+                  @error="markPreviewBroken(project)"
                 />
 
                 <div
@@ -560,11 +640,7 @@ onMounted(fetchProjects);
                 <span
                   class="absolute right-3 top-3 inline-flex items-center rounded-full border border-white/20 bg-white/90 px-2.5 py-1 text-[10px] font-black uppercase tracking-tight text-slate-700 shadow-sm backdrop-blur-md dark:bg-slate-950/80 dark:text-slate-200"
                 >
-                  {{
-                    projectMaterialName(
-                      project.materialEstructuralId || project.material_id,
-                    )
-                  }}
+                  {{ projectMaterialName(resolveProjectMaterialId(project)) }}
                 </span>
 
                 <span
@@ -632,6 +708,14 @@ onMounted(fetchProjects);
                     </p>
                   </div>
                 </div>
+
+                <button
+                  type="button"
+                  class="w-full rounded-2xl border border-orange-200 bg-orange-50 py-2 text-xs font-black uppercase tracking-wide text-orange-800 transition hover:bg-orange-100 dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-200"
+                  @click.stop="quoteProject(project)"
+                >
+                  Cotizar
+                </button>
               </div>
             </article>
           </section>

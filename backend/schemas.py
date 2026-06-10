@@ -71,6 +71,14 @@ class Corte1DInput(BaseModel):
     cantidad: int = Field(1, ge=1)
 
 
+class RecintoInsumoInput(BaseModel):
+    """Recinto con material propio para costeo multi-materialidad."""
+    id: str
+    m2: float = Field(..., gt=0)
+    material_id: int = Field(..., ge=1)
+    perimetro_ml: Optional[float] = Field(None, ge=0)
+
+
 class DeduccionMermasPayload(BaseModel):
     area_bruta_m2: Optional[float] = Field(None, gt=0)
     vanos: List[VanoInput] = Field(default_factory=list)
@@ -79,3 +87,4 @@ class DeduccionMermasPayload(BaseModel):
     piezas_2d: List[Pieza2DInput] = Field(default_factory=list)
     cortes_1d: List[Corte1DInput] = Field(default_factory=list)
     recintos: List[LayoutRecintoInput] = Field(default_factory=list)
+    recintos_insumos: List[RecintoInsumoInput] = Field(default_factory=list)

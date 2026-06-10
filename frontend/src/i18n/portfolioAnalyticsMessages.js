@@ -3,12 +3,14 @@ const MATERIAL_ES = {
   2: "Metalcon",
   3: "Albañilería",
   4: "Hormigón",
+  5: "Híbrido",
 };
 const MATERIAL_EN = {
   1: "Wood frame",
   2: "Steel frame",
   3: "Masonry",
   4: "Concrete",
+  5: "Hybrid",
 };
 
 export function portfolioMaterialName(id, lang = "es") {

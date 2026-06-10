@@ -36,6 +36,10 @@ const translations = {
     settings: "Configuración",
     recentPresets: "Presets Recientes",
     savedLayouts: "Layouts Guardados",
+    presetLayouts: "Layouts prearmados",
+    presetRecintoSummary: "{m2} m² · {count} recintos · {floors}",
+    presetOneFloor: "1 piso",
+    presetManyFloors: "{count} pisos",
     noSavedLayouts: "Sin diseños guardados",
     saveLayoutEmptyHint: "Guarda una estimación para verla aquí.",
     layoutUntitled: "Layout sin nombre",
@@ -118,6 +122,10 @@ const translations = {
     exportStepEmptyHint:
       "Primero marca recintos con el icono de precio en Diseñar, genera el presupuesto en el paso Presupuesto y luego podrás exportar aquí.",
     exportStepGoBudget: "Ir a presupuesto",
+    designBudgetCtaTitle: "Recintos listos para cotizar",
+    designBudgetCtaHint:
+      "{count} recinto(s) marcados con $ · {m2} m² seleccionados. Continúa al presupuesto detallado.",
+    designBudgetCtaBtn: "Ir a presupuesto",
     flowGuideTitle: "¿Qué hacer ahora?",
     flowGuideDismiss: "Ocultar guía",
     flowHintConfigure: "Define el terreno y el material. Luego avanza a diseñar recintos.",
@@ -132,6 +140,9 @@ const translations = {
     tourStepperTitle: "Flujo en 4 pasos",
     tourStepperDesc:
       "Usa la barra superior para moverte entre configuración, diseño 2D/3D, presupuesto y exportación. Los pasos completados quedan marcados.",
+    tourSidebarPresetsTitle: "Layouts prearmados",
+    tourSidebarPresetsDesc:
+      "Parte rápido con Departamento (2 pisos), Casa (2 pisos) o Edificio Planta (4 pisos). Puedes editarlos después en el plano 2D.",
     tourConfigureTitle: "Configurar terreno",
     tourConfigureDesc:
       "Define ancho, largo, material estructural y parámetros del proyecto. Todo lo que diseñes y presupuestes parte de aquí.",
@@ -149,7 +160,7 @@ const translations = {
       "Arrastra recintos para ubicarlos, redimensiona desde la esquina y pulsa el icono $ en cada recinto que quieras incluir en el presupuesto.",
     tourSceneToolsTitle: "Herramientas 3D",
     tourSceneToolsDesc:
-      "Mover, escalar y medir en la vista 3D. El modelo se actualiza en vivo mientras editas el plano.",
+      "Mover, medir y —en Pro+— el modo desarrollador para ajustes rápidos en 3D. Valida siempre las medidas en el inspector 2D.",
     tourSceneActionsTitle: "Capas y exportación 3D",
     tourSceneActionsDesc:
       "Capas constructivas, muebles, exportar imagen/HTML, recorrido a pie y centrar cámara. Complementa la validación del diseño.",
@@ -161,7 +172,9 @@ const translations = {
       "Genera PDF o Excel con el desglose constructivo. Necesitas recintos presupuestados y el cálculo hecho en el paso anterior.",
     tourDoneTitle: "Listo para diseñar",
     tourDoneDesc:
-      "Empieza en Configurar, pasa a Diseñar y marca con $ los espacios a cotizar. El 3D te ayuda a validar proporciones en tiempo real.",
+      "Empieza en Configurar o elige un layout prearmado, diseña en 2D, marca con $ los espacios a cotizar y valida en 3D antes de exportar.",
+    tourProgressText: "{{current}} de {{total}}",
+    tourKeyboardHint: "Usa ← → para navegar · Esc para cerrar",
     tourBtnNext: "Siguiente",
     tourBtnPrev: "Atrás",
     tourBtnDone: "Entendido",
@@ -197,14 +210,36 @@ const translations = {
     corridors: "Pasillos",
     corridorsOn: "Desactivar modo pasillos",
     corridorsOff: "Detectar pasillos automáticamente",
+    blueprintExportBtn: "Plano 2D",
+    blueprintExportEmpty: "Agregue recintos antes de exportar el plano.",
+    blueprintExportSuccess: "Plano PDF descargado.",
+    blueprintExportFailed: "No se pudo generar el plano.",
     floor: "Piso",
     inspectorEyebrow: "Inspector",
     inspectorTitle: "Propiedades",
+    inspectorRecintoTitle: "Recinto seleccionado",
+    recintoColor2dLabel: "Color en plano 2D",
+    recintoColor2dDefault: "Por tipo",
+    recintoColor2dHint: "Solo afecta la vista 2D. El modelo 3D mantiene el material estructural.",
+    recintoMaterialLabel: "Material estructural",
     nameLabel: "Nombre",
     heightM: "Alto (m)",
+    projectWallHeightLabel: "Altura (m)",
+    projectWallHeightHint:
+      "Afecta la vista 3D, el presupuesto y todos los recintos. Rango {min}–{max} m.",
+    upperFloorSupportHint:
+      "Piso superior: apóyese en el piso inferior. Voladizos hasta el límite del material se refuerzan con vigas (capa Estructura).",
+    upperFloorSupportHintEmpty:
+      "Este piso no tiene recintos debajo. Clone el piso anterior o baje de nivel antes de agregar espacios.",
+    upperFloorSupportRequired:
+      "No puede agregar recintos aquí: el piso inferior está vacío.",
+    upperFloorPlacementFailed:
+      "No hay espacio con apoyo estructural para este recinto en el piso actual.",
     roomNamePlaceholder: "Ej. Baño 1",
     resizeLockedHint:
-      "Redimensionado bloqueado. Desbloquéalo desde la barra superior para editar ancho y largo.",
+      "Layout bloqueado en 2D y 3D. Use el candado en la barra superior para mover o redimensionar recintos.",
+    resizeUnlockedHint:
+      "Recintos editables. Active el candado para evitar movimientos accidentales en 2D y 3D.",
     closeInspectorAria: "Cerrar inspector",
     addRoomModalEyebrow: "Nuevo espacio",
     addRoomModalDesc: "Define nombre y dimensiones iniciales.",
@@ -226,6 +261,11 @@ const translations = {
     liveRender: "Live render",
     toolMove: "Mover",
     toolScale: "Escalar",
+    toolDeveloperMode: "Modo desarrollador",
+    developerModeDisclaimer:
+      "Modo desarrollador (Pro+): el escalado 3D no representa medidas constructivas reales ni reemplaza el inspector 2D. Confirme dimensiones en planta antes de presupuestar o exportar.",
+    inspector2dPrecisionHint:
+      "Use el inspector 2D para medidas precisas. En 3D (Pro+) el modo desarrollador permite ajustes visuales rápidos, no dimensiones oficiales.",
     toolMeasure: "Medir",
     measureHint: "Medir: clic en 2 puntos",
     cloneFloor: "Clonar",
@@ -272,6 +312,7 @@ const translations = {
     materialSteelHint: "Industrial · Rápido montaje",
     materialMasonryHint: "Tradicional · Buena térmica",
     materialConcreteHint: "Robustez máxima · Logística pesada",
+    materialHybridHint: "Mixto madera + metalcon · Montaje flexible",
     totalBuiltArea: "Área Total Construida (m²)",
     simpleRooms: "Habitaciones Simples",
     doubleRooms: "Habitaciones Dobles",
@@ -286,6 +327,10 @@ const translations = {
     generateBudget: "Generar Presupuesto Detallado",
     layoutSaved: "Layout guardado exitosamente",
     layoutSavedDetail: "El diseño quedó guardado correctamente.",
+    savingProject: "Guardando proyecto…",
+    saveLayoutError: "No se pudo guardar el proyecto. Intenta de nuevo.",
+    defaultProjectName: "Proyecto SIEC",
+    layoutSavedLocalOnly: "Guardado localmente. Inicia sesión para sincronizar en la nube.",
     noDate: "Sin fecha",
     themeDark: "Oscuro",
     themeLight: "Claro",
@@ -298,6 +343,7 @@ const translations = {
     steelFramed: "Acero Galvanizado",
     masonry: "Mampostería Portante",
     concrete: "Hormigón armado",
+    hybridFrame: "Híbrido madera + metalcon",
     heavyLogisticsTitle: "Requisitos logísticos pesados",
     heavyLogisticsMessage:
       "El hormigón armado requiere maquinaria pesada para carga, descarga y montaje. En obras menores esto puede aumentar costos logísticos y tiempos de ejecución.",
@@ -369,6 +415,25 @@ const translations = {
     layersVisible: "{count} capas activas",
     allLayersVisible: "Todas las capas activas",
 
+    manualStep1Title: "Configurar terreno y material",
+    manualStep1Desc:
+      "Defina dimensiones del terreno, material por defecto y opcionalmente un layout prearmado.",
+    manualStep2Title: "Layouts y recintos",
+    manualStep2Desc:
+      "Use layouts prearmados o añada recintos manualmente. Marque con $ los que entren al presupuesto.",
+    manualStep3Title: "Editor 2D",
+    manualStep3Desc:
+      "Arrastre, redimensione y asigne material por recinto en el inspector. Consulte la leyenda de colores.",
+    manualStep4Title: "Vista 3D",
+    manualStep4Desc:
+      "Visualice capas, exporte vistas planta/fachada y use el inspector en pantalla completa (Pro+ escala).",
+    manualStep5Title: "Presupuesto",
+    manualStep5Desc:
+      "Genere el desglose con contingencia e IVA según preferencias. Soporta materiales distintos por recinto.",
+    manualStep6Title: "Exportar propuesta",
+    manualStep6Desc:
+      "Descargue PDF premium con vista 3D compuesta, normativa y condiciones comerciales.",
+
     // Materials Panel
     selectedMaterial: "Material Seleccionado",
     estimatedTotal: "Total Estimado",
@@ -394,6 +459,10 @@ const translations = {
     settings: "Settings",
     recentPresets: "Recent Presets",
     savedLayouts: "Saved Layouts",
+    presetLayouts: "Preset layouts",
+    presetRecintoSummary: "{m2} m² · {count} rooms · {floors}",
+    presetOneFloor: "1 floor",
+    presetManyFloors: "{count} floors",
     noSavedLayouts: "No saved designs",
     saveLayoutEmptyHint: "Save an estimate to see it here.",
     layoutUntitled: "Untitled layout",
@@ -476,6 +545,10 @@ const translations = {
     exportStepEmptyHint:
       "First mark rooms with the price icon in Design, generate the budget in the Budget step, then export here.",
     exportStepGoBudget: "Go to budget",
+    designBudgetCtaTitle: "Rooms ready to quote",
+    designBudgetCtaHint:
+      "{count} room(s) marked with $ · {m2} m² selected. Continue to the detailed budget.",
+    designBudgetCtaBtn: "Go to budget",
     flowGuideTitle: "What to do now",
     flowGuideDismiss: "Hide guide",
     flowHintConfigure: "Set terrain and material, then move on to design rooms.",
@@ -490,6 +563,9 @@ const translations = {
     tourStepperTitle: "4-step flow",
     tourStepperDesc:
       "Use the top bar to move between setup, 2D/3D design, budget, and export. Completed steps stay marked.",
+    tourSidebarPresetsTitle: "Preset layouts",
+    tourSidebarPresetsDesc:
+      "Start quickly with Apartment (2 floors), House (2 floors), or Building Plate (4 floors). You can edit them later on the 2D plan.",
     tourConfigureTitle: "Configure terrain",
     tourConfigureDesc:
       "Set width, length, structural material, and project parameters. Everything you design and budget starts here.",
@@ -507,7 +583,7 @@ const translations = {
       "Drag rooms into place, resize from the corner, and tap the $ icon on each room you want in the budget.",
     tourSceneToolsTitle: "3D tools",
     tourSceneToolsDesc:
-      "Move, scale, and measure in 3D. The model updates live as you edit the floor plan.",
+      "Move, measure, and —on Pro+— developer mode for quick 3D tweaks. Always validate dimensions in the 2D inspector.",
     tourSceneActionsTitle: "3D layers & export",
     tourSceneActionsDesc:
       "Construction layers, furniture, image/HTML export, walkthrough, and camera center—validate your design in 3D.",
@@ -519,7 +595,9 @@ const translations = {
       "Generate PDF or Excel with the construction breakdown. You need budgeted rooms and a completed calculation.",
     tourDoneTitle: "Ready to design",
     tourDoneDesc:
-      "Start in Configure, move to Design, and mark rooms with $ to budget. Use 3D to check proportions in real time.",
+      "Start in Configure or pick a preset layout, design in 2D, mark rooms with $ to budget, and validate in 3D before exporting.",
+    tourProgressText: "{{current}} of {{total}}",
+    tourKeyboardHint: "Use ← → to navigate · Esc to close",
     tourBtnNext: "Next",
     tourBtnPrev: "Back",
     tourBtnDone: "Got it",
@@ -555,14 +633,36 @@ const translations = {
     corridors: "Corridors",
     corridorsOn: "Disable corridor mode",
     corridorsOff: "Detect corridors automatically",
+    blueprintExportBtn: "2D blueprint",
+    blueprintExportEmpty: "Add rooms before exporting the blueprint.",
+    blueprintExportSuccess: "Blueprint PDF downloaded.",
+    blueprintExportFailed: "Could not generate the blueprint.",
     floor: "Floor",
     inspectorEyebrow: "Inspector",
     inspectorTitle: "Properties",
+    inspectorRecintoTitle: "Selected room",
+    recintoColor2dLabel: "2D plan color",
+    recintoColor2dDefault: "By type",
+    recintoColor2dHint: "Affects the 2D view only. The 3D model keeps the structural material.",
+    recintoMaterialLabel: "Structural material",
     nameLabel: "Name",
     heightM: "Height (m)",
+    projectWallHeightLabel: "Height (m)",
+    projectWallHeightHint:
+      "Affects the 3D view, budget, and all rooms. Range {min}–{max} m.",
+    upperFloorSupportHint:
+      "Upper floor: rest on the floor below. Cantilevers within material limits are reinforced with beams (Structure layer).",
+    upperFloorSupportHintEmpty:
+      "This floor has no rooms below. Clone the previous floor or go down a level before adding spaces.",
+    upperFloorSupportRequired:
+      "Cannot add rooms here: the floor below is empty.",
+    upperFloorPlacementFailed:
+      "No structurally supported space for this room on the current floor.",
     roomNamePlaceholder: "e.g. Bathroom 1",
     resizeLockedHint:
-      "Resizing locked. Unlock it from the top toolbar to edit width and length.",
+      "Layout locked in 2D and 3D. Use the lock in the top toolbar to move or resize rooms.",
+    resizeUnlockedHint:
+      "Rooms are editable. Lock from the toolbar to prevent accidental moves in 2D and 3D.",
     closeInspectorAria: "Close inspector",
     addRoomModalEyebrow: "New space",
     addRoomModalDesc: "Set the name and initial dimensions.",
@@ -584,6 +684,11 @@ const translations = {
     liveRender: "Live render",
     toolMove: "Move",
     toolScale: "Scale",
+    toolDeveloperMode: "Developer mode",
+    developerModeDisclaimer:
+      "Developer mode (Pro+): 3D scaling does not represent real construction dimensions and does not replace the 2D inspector. Confirm dimensions on the floor plan before budgeting or exporting.",
+    inspector2dPrecisionHint:
+      "Use the 2D inspector for precise dimensions. In 3D (Pro+), developer mode allows quick visual tweaks, not official measurements.",
     toolMeasure: "Measure",
     measureHint: "Measure: click 2 points",
     cloneFloor: "Clone",
@@ -630,6 +735,7 @@ const translations = {
     materialSteelHint: "Industrial · Fast assembly",
     materialMasonryHint: "Traditional · Good thermal mass",
     materialConcreteHint: "Maximum strength · Heavy logistics",
+    materialHybridHint: "Wood + steel mix · Flexible assembly",
     totalBuiltArea: "Total Built Area (m²)",
     simpleRooms: "Simple Rooms",
     doubleRooms: "Double Rooms",
@@ -644,6 +750,10 @@ const translations = {
     generateBudget: "Generate Detailed Budget",
     layoutSaved: "Layout successfully saved",
     layoutSavedDetail: "Your design was saved successfully.",
+    savingProject: "Saving project…",
+    saveLayoutError: "Could not save the project. Please try again.",
+    defaultProjectName: "SIEC Project",
+    layoutSavedLocalOnly: "Saved locally. Sign in to sync to the cloud.",
     noDate: "No date",
     themeDark: "Dark",
     themeLight: "Light",
@@ -656,6 +766,7 @@ const translations = {
     steelFramed: "Galvanized Steel",
     masonry: "Load-Bearing Masonry",
     concrete: "Reinforced concrete",
+    hybridFrame: "Hybrid wood + steel frame",
     heavyLogisticsTitle: "Heavy Logistics Requirements.",
     heavyLogisticsMessage:
       "Ferrocement requires heavy machinery for loading, unloading, and assembly. In small projects this can increase logistics costs and execution time.",
@@ -727,8 +838,26 @@ const translations = {
     layersVisible: "{count} layers active",
     allLayersVisible: "All layers active",
 
+    manualStep1Title: "Configure site and material",
+    manualStep1Desc:
+      "Set terrain dimensions, default material, and optionally a preset layout.",
+    manualStep2Title: "Layouts and rooms",
+    manualStep2Desc:
+      "Use preset layouts or add rooms manually. Toggle $ for budget inclusion.",
+    manualStep3Title: "2D editor",
+    manualStep3Desc:
+      "Drag, resize, and set per-room material in the inspector. See the color legend.",
+    manualStep4Title: "3D view",
+    manualStep4Desc:
+      "Toggle layers, export plan/elevation views, inspector in fullscreen (Pro+ scale).",
+    manualStep5Title: "Budget",
+    manualStep5Desc:
+      "Generate breakdown with contingency and VAT. Supports mixed materials per room.",
+    manualStep6Title: "Export proposal",
+    manualStep6Desc:
+      "Download premium PDF with composite 3D view, compliance notes, and terms.",
+
     // Materials Panel
-    selectedMaterial: "Selected Material",
     estimatedTotal: "Estimated Total",
     updatePrices: "Update Prices",
     exportSpecs: "Export Specs",

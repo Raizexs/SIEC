@@ -1,4 +1,4 @@
-const CAPTURE_TIMEOUT_MS = 1400;
+const CAPTURE_TIMEOUT_MS = 2200;
 
 /**
  * Canvas WebGL principal (excluye el minimapa 2D, que también vive en .scene3d-canvas).
@@ -65,6 +65,58 @@ export const captureSceneImage = () => {
           complete: (url) => {
             window.clearTimeout(timeoutId);
             finish(url ?? captureFromCanvas());
+          },
+        },
+      }),
+    );
+  });
+};
+
+const PRESET_VIEW_LABELS = [
+  { key: 'top', label: 'Planta (vista superior)' },
+  { key: 'front', label: 'Fachada (vista frontal)' },
+  { key: 'side', label: 'Corte (vista lateral)' },
+];
+
+/**
+ * Portada del dashboard: render 3D con todas las capas.
+ * @returns {Promise<{ hero: string } | null>}
+ */
+export const captureProjectPreviewCollage = async () => {
+  const hero = await captureSceneImage();
+  return hero ? { hero } : null;
+};
+
+export const captureScenePresetViews = (options = {}) => {
+  if (typeof window === 'undefined') return Promise.resolve([]);
+
+  const presets =
+    Array.isArray(options.presets) && options.presets.length
+      ? options.presets
+      : PRESET_VIEW_LABELS;
+  const presetCount = presets.length;
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (views) => {
+      if (settled) return;
+      settled = true;
+      resolve(Array.isArray(views) ? views : []);
+    };
+
+    const timeoutId = window.setTimeout(
+      () => finish([]),
+      CAPTURE_TIMEOUT_MS * Math.max(presetCount, 1),
+    );
+
+    window.dispatchEvent(
+      new CustomEvent('siec:capture-scene-views', {
+        detail: {
+          presets,
+          tight: options.tight === true,
+          complete: (views) => {
+            window.clearTimeout(timeoutId);
+            finish(views);
           },
         },
       }),

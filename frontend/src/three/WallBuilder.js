@@ -13,7 +13,7 @@ import { Brush, Evaluator, SUBTRACTION } from "three-bvh-csg";
 const csgEvaluator = new Evaluator();
 csgEvaluator.useGroups = false;
 
-const WALL_HEIGHT = 2.4;
+import { DEFAULT_WALL_HEIGHT } from '../constants/spatial.js';
 const STUD_SPACING = 0.6;
 const STUD_WIDTH = 0.041;       // 2x3 real = ~41x65mm
 const STUD_DEPTH = 0.065;
@@ -40,12 +40,22 @@ const PIPE_HEIGHT_AGUA_CALIENTE = 0.55;
 const PIPE_HEIGHT_DESAGUE = 0.15;
 
 const ROOM_TYPES_WITH_WATER = new Set(["banio"]);
+const ROOM_TYPES_WITH_ELECTRICAL = new Set(["habitacion", "banio", "areaComun", "pasillo"]);
 
 export class WallBuilder {
-  constructor(materialLibrary) {
+  constructor(materialLibrary, options = {}) {
     this.materialLibrary = materialLibrary;
+    this.wallHeight = options.wallHeight ?? DEFAULT_WALL_HEIGHT;
     this.cache = new Map();
     this.useCSG = true;
+  }
+
+  setWallHeight(heightM) {
+    const next = Number(heightM);
+    if (!Number.isFinite(next) || next < 2.1) return;
+    if (Math.abs(this.wallHeight - next) < 0.001) return;
+    this.wallHeight = next;
+    this.cache.clear();
   }
 
   setCSGEnabled(enabled) {
@@ -59,7 +69,7 @@ export class WallBuilder {
     let cached = this.cache.get(cacheKey);
     if (cached) return cached.clone();
 
-    const baseGeom = new THREE.BoxGeometry(length, WALL_HEIGHT, wall.thickness);
+    const baseGeom = new THREE.BoxGeometry(length, this.wallHeight, wall.thickness);
     let geometry = baseGeom;
 
     if (this.useCSG && openings.length > 0) {
@@ -81,7 +91,7 @@ export class WallBuilder {
     const material = this.materialLibrary.getMaterial(matCfg.matTypeKey, matCfg.wallPart);
     if (material.map) {
       const rx = Math.max(1, length / 2.5);
-      const ry = Math.max(1, WALL_HEIGHT / 2.5);
+      const ry = Math.max(1, this.wallHeight / 2.5);
       material.map.repeat.set(rx, ry);
     }
     const mesh = new THREE.Mesh(geometry, material);
@@ -139,8 +149,15 @@ export class WallBuilder {
     windowFills.visible = false;
     group.add(windowFills);
 
-    // 2. Insulation — omitida del render MVP visual (capa invisible por defecto)
-    void studXs; // studXs se preserva por compatibilidad futura
+    // 2. Insulation — lana entre montantes (muros exteriores y divisorios térmicos)
+    const needsInsulation =
+      isExterior || this._wallNeedsInsulation(wall, recintoById);
+    if (needsInsulation && studXs.length >= 2) {
+      const insulation = this._buildInsulationBatts(length, studXs, openings);
+      insulation.userData.layerTags = ["insulation"];
+      insulation.name = "ml-layer-insulation";
+      group.add(insulation);
+    }
 
     // 3. Interior drywall — planchas modulares pegadas a la cara interior
     const interiorPanel = this._buildPlanchaLayer(length, interiorFaceZ, matType, "interior", INTERIOR_PANEL_THICKNESS, openings);
@@ -156,13 +173,23 @@ export class WallBuilder {
       group.add(facadePanel);
     }
 
-    // 5. Installations — water pipes for bathroom walls
+    // 5. Installations — tuberías (baño) y canal eléctrico (recintos habitables)
     const needsWater = this._wallNeedsWaterPipes(wall, recintoById);
-    if (needsWater) {
-      const pipes = this._buildWaterPipes(length);
-      pipes.userData.layerTags = ["installations"];
-      pipes.name = "ml-layer-installations";
-      group.add(pipes);
+    const needsElectrical = this._wallNeedsElectrical(wall, recintoById);
+
+    if (needsWater || needsElectrical) {
+      const installGroup = new THREE.Group();
+      installGroup.userData.layerTags = ["installations"];
+      installGroup.name = "ml-layer-installations";
+
+      if (needsWater) {
+        installGroup.add(this._buildWaterPipes(length));
+      }
+      if (needsElectrical) {
+        installGroup.add(this._buildElectricalConduit(length, needsWater));
+      }
+
+      group.add(installGroup);
     }
 
     // 6. Door/window frames and glass panes in each opening
@@ -178,7 +205,7 @@ export class WallBuilder {
 
   _buildOpeningFrames(openings, wallLength, isExterior) {
     const group = new THREE.Group();
-    const hy = WALL_HEIGHT / 2;
+    const hy = this.wallHeight / 2;
     const totalDepth = STUD_DEPTH + FACADE_PANEL_THICKNESS + INTERIOR_PANEL_THICKNESS;
 
     const frameMat = new THREE.MeshStandardMaterial({ color: "#D4C4A8", roughness: 0.6, metalness: 0.0 });
@@ -257,7 +284,7 @@ export class WallBuilder {
    */
   _buildStudFrame(length, matType, openings = []) {
     const group = new THREE.Group();
-    const hy = WALL_HEIGHT / 2;
+    const hy = this.wallHeight / 2;
 
     const isMetal = matType === "steel_framed";
     const woodBase = isMetal ? "#9CA3AF" : "#C4956A";
@@ -513,7 +540,7 @@ export class WallBuilder {
     const group = new THREE.Group();
     if (!openings || openings.length === 0) return group;
 
-    const hy = WALL_HEIGHT / 2;
+    const hy = this.wallHeight / 2;
     const isMetal = matType === "steel_framed";
     const woodDark = isMetal ? "#6B7280" : "#A07850";
 
@@ -549,7 +576,7 @@ export class WallBuilder {
    */
   _buildInsulationBatts(length, studXs, openings = []) {
     const group = new THREE.Group();
-    const hy = WALL_HEIGHT / 2;
+    const hy = this.wallHeight / 2;
     // Center the batt in the cavity between facade inner face and interior panel inner face
     // so it doesn't poke through either panel when viewed from the wall sides.
     const cavityOuter = -STUD_DEPTH / 2 + FACADE_PANEL_THICKNESS / 2; // facade inner face
@@ -589,7 +616,7 @@ export class WallBuilder {
 
       // Full bay batt
       const batt = new THREE.Mesh(
-        new THREE.BoxGeometry(bayW, WALL_HEIGHT, battDepth),
+        new THREE.BoxGeometry(bayW, this.wallHeight, battDepth),
         insulMat.clone(),
       );
       batt.position.set(bayX + bayW / 2, 0, battZ);
@@ -611,7 +638,7 @@ export class WallBuilder {
           b.position.set(bayX + bayW / 2, -hy + PLATE_HEIGHT + belowH / 2, battZ);
           b.castShadow = true; group.add(b);
         }
-        const aboveH = WALL_HEIGHT - winZone.yMax;
+        const aboveH = this.wallHeight - winZone.yMax;
         if (aboveH > 0.02) {
           const b = new THREE.Mesh(
             new THREE.BoxGeometry(bayW, aboveH, battDepth),
@@ -636,7 +663,7 @@ export class WallBuilder {
    */
   _buildPlanchaLayer(length, faceZ, matType, layer, panelThickness, openings = []) {
     const group = new THREE.Group();
-    const hy = WALL_HEIGHT / 2;
+    const hy = this.wallHeight / 2;
     const mat = this.materialLibrary.getLayerMaterial(matType, layer);
 
     const isInterior = layer === "interior";
@@ -726,7 +753,7 @@ export class WallBuilder {
   _buildFacadeLayer(length, faceZ, matType, openings = []) {
     const group = new THREE.Group();
     const mat = this.materialLibrary.getLayerMaterial(matType, "facade");
-    const hy = WALL_HEIGHT / 2;
+    const hy = this.wallHeight / 2;
 
     const opZones = openings.map((op) => {
       const center = (op.center ?? 0.5) * length - length / 2;
@@ -761,7 +788,7 @@ export class WallBuilder {
 
         if (!op) {
           const panel = new THREE.Mesh(
-            new THREE.BoxGeometry(w, WALL_HEIGHT, FACADE_PANEL_THICKNESS),
+            new THREE.BoxGeometry(w, this.wallHeight, FACADE_PANEL_THICKNESS),
             mat.clone(),
           );
           panel.position.set(midX, 0, faceZ);
@@ -806,7 +833,7 @@ export class WallBuilder {
 
   _buildWaterPipes(length) {
     const group = new THREE.Group();
-    const hy = WALL_HEIGHT / 2;
+    const hy = this.wallHeight / 2;
 
     const matAguaFria = new THREE.MeshStandardMaterial({
       color: 0x4488cc, roughness: 0.3, metalness: 0.6,
@@ -851,6 +878,53 @@ export class WallBuilder {
       const r = recintoById.get(id);
       return r && ROOM_TYPES_WITH_WATER.has(r.tipo);
     });
+  }
+
+  _wallNeedsInsulation(wall, recintoById) {
+    if (!recintoById || recintoById.size === 0) return false;
+    const adj = wall.recintosAdyacentes || [];
+    if (adj.length === 0) return false;
+
+    const tipos = adj
+      .map((id) => recintoById.get(id)?.tipo)
+      .filter(Boolean);
+
+    // Muros interiores que lindan con baño
+    return tipos.some((t) => ROOM_TYPES_WITH_WATER.has(t));
+  }
+
+  _wallNeedsElectrical(wall, recintoById) {
+    if (!recintoById || recintoById.size === 0) return false;
+    const adj = wall.recintosAdyacentes || [];
+    if (adj.length === 0) return false;
+
+    const tipos = adj
+      .map((id) => recintoById.get(id)?.tipo)
+      .filter(Boolean);
+
+    return tipos.some((t) => ROOM_TYPES_WITH_ELECTRICAL.has(t));
+  }
+
+  _buildElectricalConduit(length, offsetForPlumbing = false) {
+    const group = new THREE.Group();
+    const hy = this.wallHeight / 2;
+    const conduitMat = new THREE.MeshStandardMaterial({
+      color: 0xfbbf24,
+      roughness: 0.45,
+      metalness: 0.15,
+      emissive: 0x78350f,
+      emissiveIntensity: 0.08,
+    });
+    const radius = PIPE_RADIUS * 0.85;
+    const geom = new THREE.CylinderGeometry(radius, radius, length, 8);
+    const conduit = new THREE.Mesh(geom, conduitMat);
+    conduit.rotation.z = Math.PI / 2;
+    const height = this.wallHeight * 0.82;
+    const z = STUD_DEPTH / 2 + INTERIOR_PANEL_THICKNESS + radius + (offsetForPlumbing ? PIPE_RADIUS * 3 : 0);
+    conduit.position.set(0, height - hy, z);
+    conduit.castShadow = true;
+    group.add(conduit);
+    return group;
   }
 
   // ── Layer-sign resolver ───────────────────────────────────────────────
@@ -903,7 +977,7 @@ export class WallBuilder {
     const cz = (start.z + end.z) / 2;
     const angle = Math.atan2(end.z - start.z, end.x - start.x);
     const piso = wall.piso || 1;
-    mesh.position.set(cx, WALL_HEIGHT / 2 + (piso - 1) * WALL_HEIGHT, cz);
+    mesh.position.set(cx, this.wallHeight / 2 + (piso - 1) * this.wallHeight, cz);
     mesh.rotation.set(0, -angle, 0);
     mesh.scale.set(1, 1, 1);
     if (mesh.userData) {
@@ -918,7 +992,7 @@ export class WallBuilder {
     const cutHeight = op.height || (op.type === "door" ? 2.05 : 1.2);
     const cutWidth = op.width || (op.type === "door" ? 0.9 : 1.2);
     const localX = (op.center ?? 0.5) * wallLength - wallLength / 2;
-    const localY = sill + cutHeight / 2 - WALL_HEIGHT / 2;
+    const localY = sill + cutHeight / 2 - this.wallHeight / 2;
     const cutGeom = new THREE.BoxGeometry(cutWidth, cutHeight, thickness * 1.4);
     const brush = new Brush(cutGeom);
     brush.position.set(localX, localY, 0);
@@ -931,8 +1005,8 @@ export class WallBuilder {
     frame.name = "metalcon-stud-frame";
     const structureMaterial = this.materialLibrary.getMaterial("steel_framed", "structure");
 
-    frame.add(this._buildUChannel(length, thickness, structureMaterial, -WALL_HEIGHT / 2 + STRUCTURE_INSET));
-    frame.add(this._buildUChannel(length, thickness, structureMaterial, WALL_HEIGHT / 2 - STRUCTURE_INSET, true));
+    frame.add(this._buildUChannel(length, thickness, structureMaterial, -this.wallHeight / 2 + STRUCTURE_INSET));
+    frame.add(this._buildUChannel(length, thickness, structureMaterial, this.wallHeight / 2 - STRUCTURE_INSET, true));
 
     const studCount = Math.max(2, Math.ceil(length / STUD_SPACING));
     const availableLength = Math.max(length - 2 * STRUCTURE_INSET, 0.4);
@@ -982,7 +1056,7 @@ export class WallBuilder {
     const group = new THREE.Group();
     const profileDepth = Math.max(0.04, Math.min(thickness * 0.75, 0.11));
     const flangeDepth = Math.max(0.018, profileDepth * 0.32);
-    const studHeight = WALL_HEIGHT - 0.16;
+    const studHeight = this.wallHeight - 0.16;
     const flangeOffset = profileDepth / 2 - flangeDepth / 2;
 
     const web = new THREE.Mesh(

@@ -31,7 +31,7 @@ def _count_insumos(data: dict) -> int:
     return total
 
 
-@pytest.mark.parametrize("material_id", [1, 2, 3, 4])
+@pytest.mark.parametrize("material_id", [1, 2, 3, 4, 5])
 def test_calcular_insumos_per_material(material_id):
     with patch.object(billing_service, "enforce_simulation_material", lambda *_a, **_k: None):
         sim_res = client.post(

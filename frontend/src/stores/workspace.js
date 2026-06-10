@@ -2,6 +2,7 @@ import logger from '../utils/logger.js';
 import { defineStore } from "pinia";
 import { ref, watch } from "vue";
 import { useRecintosStore } from "./recintos";
+import { debounce } from "../utils/schedule.js";
 
 export const useWorkspaceStore = defineStore("workspace", () => {
   const recintosStore = useRecintosStore();
@@ -24,8 +25,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     }
   };
 
-  // Guardar en LocalStorage
-  const saveWorkspace = () => {
+  const persistWorkspace = () => {
     isSaving.value = true;
     const data = {
       recintos: recintosStore.recintos,
@@ -39,6 +39,16 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     }, 500);
   };
 
+  const debouncedPersistWorkspace = debounce(persistWorkspace, 400);
+
+  const saveWorkspace = () => {
+    debouncedPersistWorkspace.flush();
+  };
+
+  const queueWorkspaceSave = () => {
+    debouncedPersistWorkspace();
+  };
+
   // Limpiar workspace para nueva estimación
   const resetWorkspace = () => {
     recintosStore.recintos = [];
@@ -49,12 +59,25 @@ export const useWorkspaceStore = defineStore("workspace", () => {
 
   // Auto-guardado: Vigilar cambios en recintos y piso
   watch(
-    () => [recintosStore.recintos, recintosStore.currentFloor],
+    () => [
+      recintosStore.recintos.length,
+      recintosStore.currentFloor,
+      recintosStore.recintos
+        .map((r) =>
+          `${r.id}:${r.coords?.x},${r.coords?.z},${r.dimensions?.w},${r.dimensions?.l},${r.piso}`,
+        )
+        .join("|"),
+    ],
     () => {
-      saveWorkspace();
+      queueWorkspaceSave();
     },
-    { deep: true }
   );
+
+  if (typeof window !== "undefined") {
+    window.addEventListener("beforeunload", () => {
+      debouncedPersistWorkspace.flush();
+    });
+  }
 
   return {
     activePresetName,

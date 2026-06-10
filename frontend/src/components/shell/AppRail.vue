@@ -36,7 +36,7 @@ const { currentLanguage, t } = useI18n();
 const { hasMarketplaceAccess, fetchBilling } = useBilling();
 
 onMounted(() => {
-  fetchBilling(true);
+  fetchBilling();
 });
 
 const isSiecPlaceLocked = computed(() => !hasMarketplaceAccess.value);

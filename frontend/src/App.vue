@@ -1,7 +1,7 @@
 <script setup>
-import { onMounted, onBeforeUnmount, ref, nextTick } from 'vue';
+import { onMounted, onBeforeUnmount, ref, nextTick, computed } from 'vue';
 import { Toaster } from 'vue-sonner';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { gsap } from 'gsap';
 import { useAuthStore } from './stores/auth';
 import { useTheme } from './composables/useTheme';
@@ -11,7 +11,14 @@ import CommandPalette from './components/CommandPalette.vue';
 import KeyboardShortcuts from './components/KeyboardShortcuts.vue';
 
 const router = useRouter();
+const route = useRoute();
 const auth = useAuthStore();
+
+/** Evita remontar el editor al pasar de /workspace → /workspace/:id tras guardar. */
+const routeViewKey = computed(() => {
+  if (route.name === 'workspace') return 'workspace';
+  return route.fullPath;
+});
 const theme = useTheme();
 const showShortcuts = ref(false);
 
@@ -66,7 +73,10 @@ const isBareAuthShell = (el) => el?.getAttribute?.('data-siec-bare-route') === '
 /** Editor 3D: micro-entrada rápida (antes sin animación + sensación de “lag” al montar Three). */
 const isWorkspaceShell = (el) => el?.getAttribute?.('data-siec-workspace-shell') != null;
 
+const isAppShell = (el) => el?.getAttribute?.('data-siec-app-shell') != null;
+
 const WORKSPACE_ENTER_S = 0.2;
+const APP_SHELL_ENTER_S = 0.16;
 
 /**
  * Entrada de ruta en un solo `fromTo` (sin `beforeEnter` previo).
@@ -91,6 +101,23 @@ const enter = (el, done) => {
           y: 0,
           opacity: 1,
           duration: WORKSPACE_ENTER_S,
+          ease: motionTokens.ease.standardOut,
+          clearProps: "transform",
+          onComplete: finish,
+        },
+      );
+      return;
+    }
+    if (isAppShell(el)) {
+      gsap.killTweensOf(el);
+      gsap.set(el, { autoAlpha: 1 });
+      gsap.fromTo(
+        el,
+        { y: 6, opacity: 0.98 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: APP_SHELL_ENTER_S,
           ease: motionTokens.ease.standardOut,
           clearProps: "transform",
           onComplete: finish,
@@ -129,6 +156,10 @@ const leave = (el, done) => {
     finish();
     return;
   }
+  if (isAppShell(el)) {
+    finish();
+    return;
+  }
   if (isBareAuthShell(el)) {
     finish();
     return;
@@ -148,7 +179,7 @@ const leave = (el, done) => {
 <template>
   <RouterView v-slot="{ Component }">
     <transition @enter="enter" @leave="leave">
-      <component :is="Component" :key="$route.fullPath" />
+      <component :is="Component" :key="routeViewKey" />
     </transition>
   </RouterView>
   <CommandPalette />

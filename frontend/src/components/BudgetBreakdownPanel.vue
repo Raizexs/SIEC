@@ -21,9 +21,16 @@ import { useBilling } from "../composables/useBilling";
 import { useApi, HttpError } from "../composables/useApi";
 import { useSiecPlace } from "../composables/useSiecPlace";
 import { useRoute } from "vue-router";
-import { captureSceneImage } from "../proposal/proposalSceneCapture";
+import { captureSceneImage, captureScenePresetViews } from "../proposal/proposalSceneCapture";
 import { resolveBrandLogoUrl } from "../proposal/proposalBrand";
 import { reorganizeDesglose } from "../utils/budgetCategorizer";
+import {
+  buildNormativaPayload,
+  normAlertCode,
+  normAlertMessage,
+  normInjectionLabel,
+  normInjectionText,
+} from "../utils/normativaPayload";
 
 const { t, currentLanguage } = useI18n();
 
@@ -91,6 +98,8 @@ const isExportPanel = computed(() => props.panelMode === "export");
 const exportMenuOpen = ref(false);
 const exportFormat = ref(null);
 const exportMenuRef = ref(null);
+const normativaResult = ref(null);
+const normativaLoading = ref(false);
 
 const enabledDesglose = computed(() =>
   desglose.value.filter(cat => !disabledCategories.value.has(cat.categoria)),
@@ -312,6 +321,30 @@ const formatDate = (dateString) => {
   return `${day}/${month}/${year}`;
 };
 
+const fetchNormativaForBudget = async () => {
+  normativaLoading.value = true;
+  try {
+    const payload = buildNormativaPayload({
+      recintos: recintosStore.recintos || [],
+      m2Totales: props.m2Totales,
+      materialEstructuralId: props.materialEstructuralId,
+      alturaMuroM: props.alturaMuroM,
+    });
+    normativaResult.value = await api.post("/api/validar-normativa", payload);
+  } catch (err) {
+    console.warn("Normativa no disponible:", err);
+    normativaResult.value = null;
+  } finally {
+    normativaLoading.value = false;
+  }
+};
+
+const normativaAlerts = computed(() => normativaResult.value?.alerts ?? []);
+const normativaInjections = computed(() => normativaResult.value?.injections ?? []);
+const normativaCompliant = computed(
+  () => normativaResult.value?.compliant !== false,
+);
+
 const handleGenerateBudget = () => {
   hasGenerated.value = true;
   fetchBudget();
@@ -324,6 +357,24 @@ const selectedBudgetRooms = computed(() => {
 
   return selected.length > 0 ? selected : rooms;
 });
+
+const buildRecintosInsumosPayload = () =>
+  selectedBudgetRooms.value
+    .map((room) => {
+      const width = Number(room.dimensions?.w) || 0;
+      const length = Number(room.dimensions?.l) || 0;
+      if (width <= 0 || length <= 0) return null;
+      const m2 = width * length;
+      const materialId = Number(
+        room.materialEstructuralId ?? props.materialEstructuralId,
+      );
+      return {
+        id: room.id,
+        m2: Math.round(m2 * 100) / 100,
+        material_id: clampMaterialId(materialId),
+      };
+    })
+    .filter(Boolean);
 
 const buildLayoutRecintosPayload = () =>
   selectedBudgetRooms.value
@@ -365,12 +416,18 @@ const fetchBudget = async () => {
       incluir_techumbre: true,
     });
 
+    const recintosInsumos = buildRecintosInsumosPayload();
+    const calcBody = {
+      area_bruta_m2: Math.max(1, Math.round(props.m2Totales)),
+      recintos: buildLayoutRecintosPayload(),
+    };
+    if (recintosInsumos.length > 0) {
+      calcBody.recintos_insumos = recintosInsumos;
+    }
+
     const data = await api.post(
       `/api/simulacion/${simData.idSimulacion}/calcular-insumos`,
-      {
-        area_bruta_m2: Math.max(1, Math.round(props.m2Totales)),
-        recintos: buildLayoutRecintosPayload(),
-      },
+      calcBody,
     );
 
     desglose.value = reorganizeDesglose(data.desglose || []);
@@ -393,6 +450,8 @@ const fetchBudget = async () => {
         sharedSession,
       );
     }
+
+    await fetchNormativaForBudget();
   } catch (err) {
     if (err instanceof HttpError && err.status === 403) {
       const detail = err.payload?.detail;
@@ -413,6 +472,7 @@ watch(
   () => {
     hasGenerated.value = false;
     exportMenuOpen.value = false;
+    normativaResult.value = null;
   },
 );
 
@@ -473,6 +533,13 @@ const buildExportPayload = () => {
         recintosStore.recintosByType.areasComunes,
       pasillos: recintosStore.recintosByType.pasillos,
     },
+    normativa: normativaResult.value
+      ? {
+          compliant: normativaResult.value.compliant,
+          alerts: normativaResult.value.alerts || [],
+          injections: normativaResult.value.injections || [],
+        }
+      : null,
   };
 };
 
@@ -508,9 +575,10 @@ const handleExport = async (format) => {
     const payload = buildExportPayload();
     if (format === "pdf") {
       if (payload.includeSnapshots !== false) {
+        toast.loading(t("budgetPdfGenerating"), { id: toastId });
         payload.sceneImageDataUrl = await captureSceneImage();
+        payload.sceneViews = await captureScenePresetViews();
       }
-      toast.loading(t("budgetPdfGenerating"), { id: toastId });
     }
     await exportBudget(format, payload);
     if (toastId) toast.dismiss(toastId);
@@ -573,6 +641,27 @@ onUnmounted(() => {
     <div
       class="pointer-events-none absolute -right-32 -top-32 h-72 w-72 rounded-full bg-orange-500/10 blur-3xl dark:bg-orange-400/10"
     ></div>
+
+    <div
+      v-if="panelMode === 'budget'"
+      class="relative z-20 mb-5 flex items-start gap-3 rounded-2xl border border-amber-200/90 bg-amber-50/95 px-4 py-3.5 shadow-sm backdrop-blur-sm dark:border-amber-900/60 dark:bg-amber-950/40"
+      role="note"
+    >
+      <span
+        class="material-symbols-outlined mt-0.5 shrink-0 text-[22px] text-amber-600 dark:text-amber-400"
+        aria-hidden="true"
+      >
+        info
+      </span>
+      <div class="min-w-0">
+        <p class="text-sm font-bold text-amber-950 dark:text-amber-100">
+          {{ t('budgetDisclaimerBannerTitle') }}
+        </p>
+        <p class="mt-1 text-sm font-medium leading-relaxed text-amber-900/90 dark:text-amber-200/85">
+          {{ t('budgetDisclaimerBannerBody') }}
+        </p>
+      </div>
+    </div>
 
     <!-- Header -->
     <header
@@ -957,6 +1046,79 @@ onUnmounted(() => {
               </div>
             </div>
           </div>
+        </section>
+
+        <section
+          v-if="hasGenerated && (normativaLoading || normativaResult)"
+          class="rounded-3xl border border-slate-200/90 bg-white/80 shadow-sm dark:border-slate-800/90 dark:bg-slate-950/60"
+        >
+          <div class="flex items-center justify-between gap-3 px-4 py-3">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[20px] text-orange-500">gavel</span>
+              <div>
+                <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+                  {{ t("budgetNormativaTitle") }}
+                </p>
+                <p class="text-sm font-bold text-slate-900 dark:text-slate-100">
+                  {{
+                    normativaLoading
+                      ? t("budgetNormativaLoading")
+                      : normativaCompliant
+                        ? t("budgetNormativaOk")
+                        : t("budgetNormativaReview")
+                  }}
+                </p>
+              </div>
+            </div>
+            <span
+              v-if="!normativaLoading"
+              class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase"
+              :class="
+                normativaCompliant
+                  ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                  : 'bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
+              "
+            >
+              {{ normativaCompliant ? "OK" : t("budgetNormativaAlerts") }}
+            </span>
+          </div>
+
+          <div
+            v-if="!normativaLoading && (normativaAlerts.length || normativaInjections.length)"
+            class="space-y-2 border-t border-slate-200/80 px-4 py-3 dark:border-slate-800/80"
+          >
+            <ul v-if="normativaAlerts.length" class="space-y-2">
+              <li
+                v-for="(alert, idx) in normativaAlerts"
+                :key="'alert-' + idx"
+                class="rounded-xl border px-3 py-2 text-xs"
+                :class="
+                  alert.severity === 'error'
+                    ? 'border-red-200 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200'
+                    : 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100'
+                "
+              >
+                <strong>{{ normAlertCode(alert) }}:</strong> {{ normAlertMessage(alert) }}
+              </li>
+            </ul>
+
+            <ul v-if="normativaInjections.length" class="space-y-2">
+              <li
+                v-for="(item, idx) in normativaInjections"
+                :key="'inj-' + idx"
+                class="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-100"
+              >
+                <strong>{{ normInjectionLabel(item) }}:</strong> {{ normInjectionText(item) }}
+              </li>
+            </ul>
+          </div>
+
+          <p
+            v-else-if="!normativaLoading && normativaResult"
+            class="border-t border-slate-200/80 px-4 py-3 text-xs text-slate-500 dark:border-slate-800/80"
+          >
+            {{ t("budgetNormativaEmpty") }}
+          </p>
         </section>
 
         <!-- Breakdown -->

@@ -31,6 +31,7 @@ const { t } = useI18n();
 const motionRoot = ref(null);
 const isPreparing = ref(true);
 const workspaceError = ref('');
+const hasShownEditor = ref(false);
 
 useProMotion(motionRoot, {
   skipIntro: true,
@@ -77,6 +78,7 @@ const prepareWorkspace = async () => {
       error?.message || 'No se pudo preparar el workspace.';
   } finally {
     isPreparing.value = false;
+    hasShownEditor.value = true;
   }
 };
 
@@ -88,7 +90,10 @@ onMounted(prepareWorkspace);
 
 watch(
   () => route.params.projectId,
-  () => {
+  (nextId, prevId) => {
+    if (nextId === prevId) return;
+    // Tras el primer guardado la URL pasa a /workspace/:id; no mostrar loader de pantalla completa.
+    if (hasShownEditor.value) return;
     prepareWorkspace();
   },
 );

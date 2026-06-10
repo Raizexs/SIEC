@@ -65,6 +65,26 @@ class MaterialLibrary {
         }
         break;
 
+      case 'hybrid_frame':
+        if (part === 'exterior_wall') {
+          colorMap = this._generateSidingWood();
+          roughness = 0.62;
+          metalness = 0.14;
+        } else if (part === 'structure') {
+          colorMap = this._generateGalvanizedSteel();
+          roughness = 0.45;
+          metalness = 0.52;
+        } else if (part === 'interior_wall') {
+          colorMap = this._generatePlasterWall('#F5F0E8');
+          roughness = 0.85;
+          metalness = 0.0;
+        } else if (part === 'floor') {
+          colorMap = this._generateWoodPlanks('#C4A574', '#A88F62', 6);
+          roughness = 0.6;
+          metalness = 0.0;
+        }
+        break;
+
       case 'masonry':
         if (part === 'exterior_wall') {
           colorMap = this._generateBrickPattern();

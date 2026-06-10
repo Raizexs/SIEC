@@ -415,6 +415,40 @@ const applyPresetRoomHeight = (m) => {
       <Transition name="pref-accordion">
         <div v-show="openSections.estimation">
           <div class="space-y-5 p-5">
+            <div
+              class="rounded-2xl border border-slate-200/90 bg-slate-50/80 p-4 dark:border-slate-800/90 dark:bg-slate-900/50"
+            >
+              <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+                {{ t('settingsUnitArea') }}
+              </p>
+              <p class="mt-2 text-sm font-bold text-slate-800 dark:text-slate-200">
+                {{ t('settingsUnitsFixed') }}
+              </p>
+              <p class="mt-1 text-xs font-medium leading-relaxed text-slate-500 dark:text-slate-400">
+                {{ t('settingsUnitsFixedHint') }}
+              </p>
+            </div>
+
+            <div>
+              <p class="premium-label">{{ t('settingsCurrencyDefault') }}</p>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  v-for="code in ['CLP', 'UF']"
+                  :key="code"
+                  type="button"
+                  class="rounded-2xl border px-3 py-2 text-xs font-black uppercase tracking-[0.12em] transition-all duration-200 active:scale-[0.98]"
+                  :class="
+                    productPreferences.currency === code
+                      ? 'border-orange-400 bg-orange-500 text-white shadow-md shadow-orange-500/20 dark:border-orange-400/70'
+                      : 'border-slate-200 bg-white text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300'
+                  "
+                  @click="productPreferences.currency = code"
+                >
+                  {{ code }}
+                </button>
+              </div>
+            </div>
+
             <div>
               <p class="premium-label">{{ t('settingsContingencyMargin') }}</p>
               <div class="flex flex-wrap gap-2" :aria-label="t('settingsContingencyMargin')">

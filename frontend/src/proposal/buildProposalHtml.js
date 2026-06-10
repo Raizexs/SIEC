@@ -411,14 +411,42 @@ const renderAnnexes = (payload) => {
     includeSnapshots && payload.sceneImageDataUrl
       ? `<figure class="annex-figure">
         <img src="${escapeHtml(payload.sceneImageDataUrl)}" alt="Vista 3D del proyecto" />
-        <figcaption>Anexo A — Vista 3D del modelo.</figcaption>
+        <figcaption>Anexo A — Vista 3D compuesta del modelo.</figcaption>
       </figure>`
       : includeSnapshots
         ? '<p class="placeholder">Anexo A · Vista 3D no capturada. Exporte desde el editor con la escena 3D visible.</p>'
         : '<p class="placeholder">Anexo A · Capturas omitidas según preferencias de exportación.</p>';
 
+  const presetViewsHtml =
+    includeSnapshots &&
+    Array.isArray(payload.sceneViews) &&
+    payload.sceneViews.length
+      ? payload.sceneViews
+          .map(
+            (view, index) =>
+              `<figure class="annex-figure" style="margin-top:12px">
+                <img src="${escapeHtml(view.dataUrl)}" alt="${escapeHtml(view.label)}" />
+                <figcaption>Anexo A.${index + 2} — ${escapeHtml(view.label)}</figcaption>
+              </figure>`,
+          )
+          .join("")
+      : "";
+
+  const normativa = payload.normativa;
+  const normativaAnnexHtml =
+    normativa &&
+    ((normativa.alerts || []).length || (normativa.injections || []).length)
+      ? `<div class="annex-grid" style="margin-top:16px">
+          <article class="annex-card annex-card--wide">
+            <p class="annex-card__label">Anexo D — Cumplimiento normativo</p>
+            ${renderNormativaBody(normativa)}
+          </article>
+        </div>`
+      : "";
+
   return `
     ${annexSceneHtml}
+    ${presetViewsHtml}
 
     <div class="annex-grid">
       <article class="annex-card">
@@ -435,7 +463,65 @@ const renderAnnexes = (payload) => {
         </p>
       </article>
     </div>
+    ${normativaAnnexHtml}
   `;
+};
+
+const renderNormativaAlertRow = (alert) => {
+  const code = escapeHtml(alert.code || alert.codigo || "ALERTA");
+  const message = escapeHtml(alert.message || alert.mensaje || "");
+  const severity = alert.severity === "error" ? "error" : "warning";
+  return `<li class="normativa-item normativa-item--${severity}"><strong>${code}:</strong> ${message}</li>`;
+};
+
+const renderNormativaInjectionRow = (item) => {
+  const norma = escapeHtml(item.normativa || item.norma || item.codigo || "Normativa");
+  const text = escapeHtml(
+    item.mensaje || item.descripcion || item.sugerencia || "",
+  );
+  return `<li class="normativa-item normativa-item--info"><strong>${norma}:</strong> ${text}</li>`;
+};
+
+const renderNormativaBody = (normativa) => {
+  const alerts = normativa?.alerts || [];
+  const injections = normativa?.injections || [];
+  const compliant = normativa?.compliant !== false;
+
+  if (!alerts.length && !injections.length) {
+    return `<p class="placeholder">Sin observaciones normativas para el diseño actual.</p>`;
+  }
+
+  const status = compliant
+    ? '<p class="normativa-status normativa-status--ok">Referencia normativa Chile 2026 — sin bloqueos críticos.</p>'
+    : '<p class="normativa-status normativa-status--warn">Revise las alertas antes de comprometer el presupuesto.</p>';
+
+  const alertsHtml = alerts.length
+    ? `<ul class="normativa-list">${alerts.map(renderNormativaAlertRow).join("")}</ul>`
+    : "";
+  const injectionsHtml = injections.length
+    ? `<ul class="normativa-list normativa-list--injections">${injections.map(renderNormativaInjectionRow).join("")}</ul>`
+    : "";
+
+  return `${status}${alertsHtml}${injectionsHtml}
+    <p class="normativa-footnote">Referencias: LOSCAT, LOSCAA, Ley 21.725, OGUC. Validación referencial — no reemplaza revisión profesional.</p>`;
+};
+
+const renderNormativaSection = (normativa, kicker = "04") => {
+  if (!normativa) return "";
+
+  return `${pageBreak}
+    <section class="page page--compact-normativa" id="normativa">
+      <div class="page__inner">
+        <header class="section-head">
+          <div>
+            <p class="section-head__kicker">${escapeHtml(kicker)}</p>
+            <h2 class="section-head__title">Cumplimiento normativo</h2>
+          </div>
+          <p class="section-head__note">Validaciones referenciales Chile 2026 (LOSCAT, LOSCAA, Ley 21.725, OGUC).</p>
+        </header>
+        ${renderNormativaBody(normativa)}
+      </div>
+    </section>`;
 };
 
 /**
@@ -474,16 +560,40 @@ export const buildProposalArticleHtmlCompact = (payload) => {
           payload.sceneImageDataUrl
             ? `<figure class="annex-figure annex-figure--compact">
               <img src="${escapeHtml(payload.sceneImageDataUrl)}" alt="Vista 3D del proyecto" />
-              <figcaption>Vista 3D generada desde el editor.</figcaption>
+              <figcaption>Vista 3D compuesta (todas las capas visibles).</figcaption>
             </figure>`
             : '<p class="placeholder">Vista 3D no capturada. Exporte con la escena 3D visible en el editor.</p>'
+        }
+        ${
+          Array.isArray(payload.sceneViews) && payload.sceneViews.length
+            ? payload.sceneViews
+                .map(
+                  (view) =>
+                    `<figure class="annex-figure annex-figure--compact" style="margin-top:12px">
+                      <img src="${escapeHtml(view.dataUrl)}" alt="${escapeHtml(view.label)}" />
+                      <figcaption>${escapeHtml(view.label)}</figcaption>
+                    </figure>`,
+                )
+                .join("")
+            : ""
         }
       </div>
       ${pageFooter(payload, "Vista 3D")}
     </section>`
       : "";
 
-  const closingKicker = includeSnapshots ? "04" : "03";
+  const closingKicker = includeSnapshots
+    ? payload.normativa
+      ? "05"
+      : "04"
+    : payload.normativa
+      ? "04"
+      : "03";
+
+  const normativaSection = renderNormativaSection(
+    payload.normativa,
+    includeSnapshots ? "04" : "03",
+  );
 
   return `<article class="proposal">
     <section class="page page--cover">
@@ -542,6 +652,8 @@ export const buildProposalArticleHtmlCompact = (payload) => {
     </section>
 
     ${snapshotSection}
+
+    ${normativaSection}
 
     ${pageBreak}
 

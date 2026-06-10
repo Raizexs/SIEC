@@ -25,6 +25,7 @@ import PasswordStrength from '../components/auth/PasswordStrength.vue';
 import { gsap } from 'gsap';
 import { useProMotion } from '../composables/useProMotion';
 import { prefersReducedMotion, motionTokens } from '../design/motionTokens';
+import '../styles/auth-fields.css';
 
 const router = useRouter();
 const route = useRoute();
@@ -526,18 +527,16 @@ onMounted(() => {
                     Nombre completo
                   </label>
 
-                  <div class="relative">
-                    <User2
-                      class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500"
-                      :stroke-width="2"
-                    />
-
+                  <div class="auth-field">
+                    <span class="auth-field-icon" aria-hidden="true">
+                      <User2 class="h-4 w-4" :stroke-width="2" />
+                    </span>
                     <input
                       v-model="fullName"
                       type="text"
                       required
                       maxlength="60"
-                      class="premium-input premium-input-with-icon"
+                      class="auth-field-input"
                       placeholder="Lukas Siecinski"
                       autocomplete="name"
                     />
@@ -549,17 +548,15 @@ onMounted(() => {
                     Empresa
                   </label>
 
-                  <div class="relative">
-                    <Landmark
-                      class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500"
-                      :stroke-width="2"
-                    />
-
+                  <div class="auth-field">
+                    <span class="auth-field-icon" aria-hidden="true">
+                      <Landmark class="h-4 w-4" :stroke-width="2" />
+                    </span>
                     <input
                       v-model="company"
                       type="text"
                       maxlength="80"
-                      class="premium-input premium-input-with-icon"
+                      class="auth-field-input"
                       placeholder="Estudio de Arquitectura"
                       autocomplete="organization"
                     />
@@ -574,19 +571,17 @@ onMounted(() => {
                   Correo electrónico
                 </label>
 
-                <div class="relative">
-                  <Mail
-                    class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500"
-                    :stroke-width="2"
-                  />
-
+                <div class="auth-field">
+                  <span class="auth-field-icon" aria-hidden="true">
+                    <Mail class="h-4 w-4" :stroke-width="2" />
+                  </span>
                   <input
                     v-model="email"
                     type="email"
                     required
                     maxlength="60"
                     autocomplete="email"
-                    class="premium-input premium-input-with-icon font-mono"
+                    class="auth-field-input font-mono"
                     placeholder="arquitecto@estudio.com"
                   />
                 </div>
@@ -617,19 +612,17 @@ onMounted(() => {
                   </button>
                 </div>
 
-                <div class="relative">
-                  <Lock
-                    class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500"
-                    :stroke-width="2"
-                  />
-
+                <div class="auth-field">
+                  <span class="auth-field-icon" aria-hidden="true">
+                    <Lock class="h-4 w-4" :stroke-width="2" />
+                  </span>
                   <input
                     v-model="password"
                     type="password"
                     required
                     maxlength="72"
                     :autocomplete="mode === 'login' ? 'current-password' : 'new-password'"
-                    class="premium-input premium-input-with-icon font-mono tracking-widest"
+                    class="auth-field-input font-mono tracking-widest"
                     placeholder="••••••••"
                   />
                 </div>

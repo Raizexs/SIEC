@@ -43,7 +43,11 @@ import {
   normalizeTerrain,
   normalizeRoomRect,
   roomOverlapsAny as spatialRoomOverlapsAny,
+  getSupportRoomsBelow,
+  clampRectToVerticalSupport,
 } from '../composables/useSpatialConstraints.js';
+import { validateStructuralSupport } from '../utils/cantileverSupport.js';
+import { CantileverBeamBuilder } from '../three/CantileverBeamBuilder.js';
 
 import { SceneManager } from '../three/SceneManager.js';
 import { WallBuilder } from '../three/WallBuilder.js';
@@ -54,6 +58,13 @@ import { Walkthrough } from '../three/Walkthrough.js';
 import { MeasureTool } from '../three/MeasureTool.js';
 import { SectionTool } from '../three/SectionTool.js';
 import { SceneExporter } from '../three/SceneExporter.js';
+import { DEFAULT_WALL_HEIGHT, MAX_FLOORS } from '../constants/spatial.js';
+import { useBilling } from '../composables/useBilling';
+import {
+  resolveMatTypeKey,
+  resolveRecintoMaterial,
+  resolveWallMaterialId,
+} from '../utils/materialHelpers.js';
 
 const props = defineProps({
   materialEstructuralId: { type: Number, default: 4 },
@@ -63,6 +74,7 @@ const props = defineProps({
   /** Alineado con preferencias de producto: mostrar minimapa 2D en la escena. */
   showMinimap: { type: Boolean, default: true },
   quality3d: { type: String, default: 'medium' },
+  wallHeight: { type: Number, default: DEFAULT_WALL_HEIGHT },
 });
 
 const containerRef = ref(null);
@@ -91,6 +103,10 @@ const exportMenuBtnRef = ref(null);
 const layersMenuStyle = ref({});
 const exportMenuStyle = ref({});
 
+const floatingMenuTeleport = computed(() =>
+  isFullScreen.value ? '#scene3d-floating-menus' : 'body',
+);
+
 const positionFloatingMenu = (btnRef, menuWidth, styleRef) => {
   const el = btnRef.value;
   if (!el) return;
@@ -102,6 +118,27 @@ const positionFloatingMenu = (btnRef, menuWidth, styleRef) => {
     left: `${Math.max(8, rect.right - menuWidth)}px`,
     zIndex: 10000,
   };
+};
+
+const selectSceneTool = (toolId) => {
+  if (toolId === 'scale' && isProPlus.value && !scaleDisclaimerAccepted.value) {
+    const ok = window.confirm(t('developerModeDisclaimer'));
+    if (!ok) return;
+    scaleDisclaimerAccepted.value = true;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('siec.scale.disclaimer', '1');
+    }
+  }
+  currentTool.value = toolId;
+};
+
+const repositionFloatingMenus = () => {
+  if (showLayersMenu.value) {
+    positionFloatingMenu(layersMenuBtnRef, 256, layersMenuStyle);
+  }
+  if (exportMenuOpen.value) {
+    positionFloatingMenu(exportMenuBtnRef, 256, exportMenuStyle);
+  }
 };
 
 const toggleLayersMenu = () => {
@@ -147,6 +184,40 @@ const applyQuality3d = (quality) => {
 };
 
 const { t } = useI18n();
+const { isProPlus } = useBilling();
+
+const wallHeightM = computed(() => {
+  const h = Number(props.wallHeight);
+  return Number.isFinite(h) && h >= 2.1 ? h : DEFAULT_WALL_HEIGHT;
+});
+
+const scaleDisclaimerAccepted = ref(
+  typeof localStorage !== 'undefined' &&
+    localStorage.getItem('siec.scale.disclaimer') === '1',
+);
+
+const sceneTools = computed(() => {
+  const tools = [
+    { id: 'move', icon: 'pan_tool', label: t('toolMove') },
+    { id: 'measure', icon: 'straighten', label: t('toolMeasure') },
+  ];
+  if (isProPlus.value) {
+    tools.splice(1, 0, {
+      id: 'scale',
+      icon: 'developer_mode',
+      label: t('toolDeveloperMode'),
+    });
+  }
+  return tools;
+});
+
+const exportMenuItems = computed(() => [
+  { id: 'png', label: 'Imagen PNG (vista actual)', icon: 'image' },
+  { id: 'png-top', label: 'PNG — Planta', icon: 'grid_view' },
+  { id: 'png-front', label: 'PNG — Fachada', icon: 'apartment' },
+  { id: 'png-side', label: 'PNG — Corte lateral', icon: 'view_column' },
+  { id: 'html', label: 'Visor HTML', icon: 'language' },
+]);
 
 const exportFormats = computed(() => [
   { id: 'gltf', label: t('exportGltf'), icon: 'view_in_ar' },
@@ -159,11 +230,13 @@ const recintosStore = useRecintosStore();
 const layersStore = useConstructionLayersStore();
 
 const { constructionModeEnabled, layerVisibility } = storeToRefs(layersStore);
+const { layoutLocked } = storeToRefs(recintosStore);
 
 const metalconValidator = recintosStore.metalconValidator;
 
 let sceneManager = null;
 let wallBuilder = null;
+let cantileverBeamBuilder = null;
 let furnisher = null;
 /** Aperturas (puertas/ventanas) del último sync de muros. */
 let lastWallOpenings = new Map();
@@ -190,9 +263,9 @@ let stopActiveRoomWatcher = null;
 
 const wallMeshes = new Map();
 const roomMeshes = new Map();
+const cantileverBeamMeshes = new Map();
 const matLib = new MaterialLibrary();
 
-const WALL_HEIGHT = 2.4;
 const ROOM_MIN_SIZE = SPATIAL_MIN_ROOM_DIM;
 const COLLISION_EPSILON = Math.max(0.03, SPATIAL_OVERLAP_EPS);
 
@@ -210,14 +283,6 @@ const LAYER_PRIORITY = [
   'installations',
   'interior',
 ];
-
-const FLOOR_MAT_MAP = {
-  habitacion: 'wood_frame',
-  banio: 'masonry',
-  comun: 'wood_frame',
-  areaComun: 'wood_frame',
-  pasillo: 'steel_framed',
-};
 
 const getCurrentLayerState = () =>
   createLayerVisibilityState(constructionModeEnabled.value, layerVisibility.value);
@@ -327,10 +392,11 @@ const applyLayerVisibility = (animate = true) => {
         continue;
       }
 
-      // Paneles de relleno de ventana: siempre ocultos (se ven los vanos reales)
+      // Paneles de relleno de ventana: visibles solo en vista "estructura aislada"
       if (child.name === "ml-layer-structure-solid") {
-        if (child.visible !== false) {
-          setChildLayerVisible(child, false, animate);
+        const targetVisible = onlyStructure && floorVisible;
+        if (child.visible !== targetVisible) {
+          setChildLayerVisible(child, targetVisible, animate);
         }
         continue;
       }
@@ -354,6 +420,17 @@ const applyLayerVisibility = (animate = true) => {
     }
   }
 
+  for (const [id, group] of cantileverBeamMeshes.entries()) {
+    if (!group) continue;
+    const piso = group.userData?.piso || 1;
+    const floorVisible = piso <= recintosStore.currentFloor;
+    const layerVisible = isLayerMeshVisible(['structure'], layerState);
+    const targetVisible = layerVisible && floorVisible;
+
+    if (group.visible !== targetVisible) {
+      setChildLayerVisible(group, targetVisible, animate);
+    }
+  }
 };
 
 
@@ -387,7 +464,7 @@ const roomRectToMesh = (mesh, rect) => {
 
   mesh.position.x = rect.x + mesh.scale.x / 2;
   mesh.position.z = rect.z + mesh.scale.z / 2;
-  mesh.position.y = 0.04 + ((mesh.userData.piso || 1) - 1) * WALL_HEIGHT;
+  mesh.position.y = 0.04 + ((mesh.userData.piso || 1) - 1) * wallHeightM.value;
   mesh.updateMatrixWorld(true);
 };
 
@@ -512,10 +589,9 @@ const validateMetalcon = () => {
 watch(
   () => [
     props.materialEstructuralId,
-    recintosStore.recintos.map((recinto) => recinto.piso),
+    recintosStore.recintos.map((recinto) => recinto.piso).join(","),
   ],
   validateMetalcon,
-  { deep: true },
 );
 
 const initScene = () => {
@@ -573,7 +649,8 @@ if (sceneManager.orbit) {
 
   sceneManager.scene.add(grid);
 
-  wallBuilder = new WallBuilder(matLib);
+  wallBuilder = new WallBuilder(matLib, { wallHeight: wallHeightM.value });
+  cantileverBeamBuilder = new CantileverBeamBuilder();
   furnisher = new RoomFurnisher(sceneManager.furnitureGroup);
   walkthrough = new Walkthrough(sceneManager, sceneManager.wallsGroup);
 
@@ -617,33 +694,79 @@ const commitMeshRectToStore = (mesh, { positionOnly = false, persist = true } = 
   let rect = meshToRoomRect(mesh);
   if (!rect) return null;
 
+  const room = recintosStore.recintos.find((r) => r.id === mesh.userData.roomId);
   rect = snapRectOrigin(rect);
   rect = clampRectToTerrain(rect, terrainRect(), MOVE_OVERFLOW_MARGIN);
-  roomRectToMesh(mesh, rect);
 
-  if (persist) {
-    if (positionOnly) {
-      recintosStore.updateRecinto(mesh.userData.roomId, {
-        coords: {
-          x: parseFloat(rect.x.toFixed(3)),
-          z: parseFloat(rect.z.toFixed(3)),
-        },
-      });
-    } else {
-      recintosStore.updateRecinto(mesh.userData.roomId, {
-        dimensions: {
-          w: parseFloat(rect.w.toFixed(3)),
-          l: parseFloat(rect.l.toFixed(3)),
-        },
-        coords: {
-          x: parseFloat(rect.x.toFixed(3)),
-          z: parseFloat(rect.z.toFixed(3)),
-        },
-      });
+  if (room && (room.piso || 1) > 1) {
+    const lowerRooms = getSupportRoomsBelow(recintosStore.recintos, room.piso || 1);
+    const materialId = resolveRecintoMaterial(room, props.materialEstructuralId);
+    const supported = clampRectToVerticalSupport(
+      { ...rect, id: room.id, piso: room.piso || 1 },
+      lowerRooms,
+      recintosStore.recintos,
+      materialId,
+    );
+    if (supported) {
+      rect = supported;
+    } else if (mesh.userData.lastValidRect) {
+      rect = { ...mesh.userData.lastValidRect };
     }
   }
 
+  roomRectToMesh(mesh, rect);
+
+  if (persist) {
+    const payload = positionOnly
+      ? {
+          coords: {
+            x: parseFloat(rect.x.toFixed(3)),
+            z: parseFloat(rect.z.toFixed(3)),
+          },
+        }
+      : {
+          dimensions: {
+            w: parseFloat(rect.w.toFixed(3)),
+            l: parseFloat(rect.l.toFixed(3)),
+          },
+          coords: {
+            x: parseFloat(rect.x.toFixed(3)),
+            z: parseFloat(rect.z.toFixed(3)),
+          },
+        };
+
+    const ok = recintosStore.updateRecinto(mesh.userData.roomId, payload);
+    if (!ok && mesh.userData.lastValidRect) {
+      roomRectToMesh(mesh, mesh.userData.lastValidRect);
+      return mesh.userData.lastValidRect;
+    }
+    if (ok) rememberValidTransform(mesh);
+  }
+
   return rect;
+};
+
+const syncManipulatorAvailability = () => {
+  const locked = layoutLocked.value;
+  const tool = currentTool.value;
+
+  if (dragControls) {
+    dragControls.enabled = !locked && tool === 'move';
+  }
+
+  if (transformControl) {
+    const canScale = !locked && tool === 'scale';
+    transformControl.enabled = canScale;
+    transformControl.visible = canScale;
+
+    if (!canScale) {
+      transformControl.detach();
+    } else if (recintosStore.activeRecintoId && roomMeshes.has(recintosStore.activeRecintoId)) {
+      const mesh = roomMeshes.get(recintosStore.activeRecintoId);
+      rememberValidTransform(mesh);
+      transformControl.attach(mesh);
+    }
+  }
 };
 
 const updateRoomPositionStoreFromMesh = (mesh) => {
@@ -669,7 +792,7 @@ const setupDragAndTransformControls = () => {
         return;
       }
 
-      dragControls.enabled = currentTool.value === 'move';
+      dragControls.enabled = !layoutLocked.value && currentTool.value === 'move';
     },
     { capture: true },
   );
@@ -681,6 +804,7 @@ const setupDragAndTransformControls = () => {
   });
 
   dragControls.addEventListener('dragstart', (event) => {
+    if (layoutLocked.value) return;
     if (!sceneManager) return;
 
     const mesh = normalizeRoomMesh(event.object);
@@ -689,6 +813,7 @@ const setupDragAndTransformControls = () => {
 
     sceneManager.orbit.enabled = false;
     isManipulating = true;
+    recintosStore.layoutInteractionActive = true;
 
     rememberValidTransform(mesh);
     recintosStore.setActiveRecinto(mesh.userData.roomId);
@@ -710,12 +835,6 @@ const setupDragAndTransformControls = () => {
     }
 
     rememberValidTransform(mesh);
-    recintosStore.updateRecinto(mesh.userData.roomId, {
-      coords: {
-        x: parseFloat(rect.x.toFixed(3)),
-        z: parseFloat(rect.z.toFixed(3)),
-      },
-    });
   });
 
   dragControls.addEventListener('dragend', (event) => {
@@ -738,6 +857,8 @@ const setupDragAndTransformControls = () => {
       rememberValidTransform(mesh);
       recintosStore.saveHistoryState?.();
     }
+
+    recintosStore.layoutInteractionActive = false;
   });
 
   transformControl = new TransformControls(
@@ -751,11 +872,20 @@ const setupDragAndTransformControls = () => {
   transformControl.visible = false;
 
   transformControl.addEventListener('dragging-changed', (event) => {
+    if (layoutLocked.value) {
+      if (sceneManager?.orbit) sceneManager.orbit.enabled = true;
+      isManipulating = false;
+      recintosStore.layoutInteractionActive = false;
+      transformControl.detach();
+      return;
+    }
+
     if (sceneManager?.orbit) {
       sceneManager.orbit.enabled = !event.value;
     }
 
     isManipulating = event.value;
+    recintosStore.layoutInteractionActive = event.value;
 
     const mesh = transformControl.object;
 
@@ -796,7 +926,7 @@ const setupDragAndTransformControls = () => {
     }
 
     rememberValidTransform(mesh);
-    updateRoomStoreFromMesh(mesh);
+    commitMeshRectToStore(mesh, { positionOnly: false, persist: false });
   });
 
   transformHelper =
@@ -805,6 +935,7 @@ const setupDragAndTransformControls = () => {
       : transformControl;
 
   sceneManager.scene.add(transformHelper);
+  syncManipulatorAvailability();
 };
 
 const syncWalls = () => {
@@ -828,8 +959,6 @@ const syncWalls = () => {
     recintosStore.recintos.map((r) => [r.id, r]),
   );
 
-  const matTypeKey = MAT_TYPE_MAP[props.materialEstructuralId] || 'concrete';
-
   for (const wall of walls) {
     const ops = openings.get(wall.id) || [];
     const wallPart = wall.tipo === 'interior' ? 'interior_wall' : 'exterior_wall';
@@ -841,8 +970,15 @@ const syncWalls = () => {
       disposeGroupRecursive(group);
     }
 
+    const wallMaterialId = resolveWallMaterialId(
+      wall,
+      recintoById,
+      props.materialEstructuralId,
+    );
+    const wallMatTypeKey = resolveMatTypeKey(wallMaterialId);
+
     group = wallBuilder.buildMultiLayerWall(wall, ops, {
-      matTypeKey,
+      matTypeKey: wallMatTypeKey,
       wallPart,
     }, recintoById);
 
@@ -851,6 +987,67 @@ const syncWalls = () => {
 
     sceneManager.wallsGroup.add(group);
     wallMeshes.set(wall.id, group);
+  }
+
+  applyLayerVisibility(false);
+};
+
+const syncCantileverBeams = () => {
+  if (!sceneManager || !cantileverBeamBuilder) return;
+
+  const recintos = recintosStore.recintos;
+  const incomingIds = new Set(recintos.map((r) => r.id));
+
+  for (const [id, group] of cantileverBeamMeshes.entries()) {
+    if (!incomingIds.has(id)) {
+      sceneManager.cantileverBeamsGroup.remove(group);
+      disposeGroupRecursive(group);
+      cantileverBeamMeshes.delete(id);
+    }
+  }
+
+  for (const recinto of recintos) {
+    const piso = recinto.piso || 1;
+    if (piso <= 1) {
+      const existing = cantileverBeamMeshes.get(recinto.id);
+      if (existing) {
+        sceneManager.cantileverBeamsGroup.remove(existing);
+        disposeGroupRecursive(existing);
+        cantileverBeamMeshes.delete(recinto.id);
+      }
+      continue;
+    }
+
+    const lowerRooms = getSupportRoomsBelow(recintos, piso);
+    const materialId = resolveRecintoMaterial(recinto, props.materialEstructuralId);
+    const analysis = validateStructuralSupport(
+      {
+        id: recinto.id,
+        piso,
+        coords: recinto.coords,
+        dimensions: recinto.dimensions,
+      },
+      lowerRooms,
+      materialId,
+    );
+
+    const existing = cantileverBeamMeshes.get(recinto.id);
+    if (existing) {
+      sceneManager.cantileverBeamsGroup.remove(existing);
+      disposeGroupRecursive(existing);
+      cantileverBeamMeshes.delete(recinto.id);
+    }
+
+    if (!analysis.beams.length) continue;
+
+    const matTypeKey = resolveMatTypeKey(materialId);
+    const group = cantileverBeamBuilder.build(recinto, analysis, {
+      wallHeight: wallHeightM.value,
+      matTypeKey,
+    });
+
+    sceneManager.cantileverBeamsGroup.add(group);
+    cantileverBeamMeshes.set(recinto.id, group);
   }
 
   applyLayerVisibility(false);
@@ -897,8 +1094,12 @@ const syncRooms = () => {
       roomMeshes.set(recinto.id, mesh);
     }
 
-    const floorMatType = FLOOR_MAT_MAP[recinto.tipo] || 'wood_frame';
-    const cacheKey = `${floorMatType}_floor_${recinto.tipo}`;
+    const roomMaterialId = resolveRecintoMaterial(
+      recinto,
+      props.materialEstructuralId,
+    );
+    const floorMatType = resolveMatTypeKey(roomMaterialId);
+    const cacheKey = `${floorMatType}_floor_${recinto.tipo}_${roomMaterialId}`;
 
     if (mesh.material.userData.floorCacheKey !== cacheKey) {
       mesh.material.dispose();
@@ -933,7 +1134,7 @@ const syncRooms = () => {
 
       mesh.position.set(
         recinto.coords.x + recinto.dimensions.w / 2,
-        0.04 + (piso - 1) * WALL_HEIGHT,
+        0.04 + (piso - 1) * wallHeightM.value,
         recinto.coords.z + recinto.dimensions.l / 2,
       );
 
@@ -952,7 +1153,7 @@ const syncRooms = () => {
     mesh.material.emissiveIntensity =
       recinto.id === recintosStore.activeRecintoId ? 0.4 : 0;
 
-    if (showFurniture.value && piso <= recintosStore.currentFloor) {
+    if (showFurniture.value && piso === 1 && piso <= recintosStore.currentFloor) {
       furnisher.furnish(recinto, {
         walls: topology.walls.value,
         openings: lastWallOpenings,
@@ -964,6 +1165,7 @@ const syncRooms = () => {
   }
 
   furnisher.setVisible(showFurniture.value);
+  syncCantileverBeams();
 
   if (sceneManager.outline) {
     const active =
@@ -994,6 +1196,59 @@ const computeSceneBounds = () => {
   }
 
   return box;
+};
+
+const applyPresetCamera = (preset, options = {}) => {
+  if (!sceneManager) return;
+
+  const box = computeSceneBounds();
+  if (box.isEmpty()) return;
+
+  const center = new THREE.Vector3();
+  const size = new THREE.Vector3();
+  box.getCenter(center);
+  box.getSize(size);
+
+  const maxDim = Math.max(size.x, size.y, size.z, 1);
+  const tight = options.tight === true;
+  const dist = maxDim * (tight ? 0.78 : 1.35);
+  const eyeHeight = size.y * (tight ? 0.42 : 0.35);
+
+  if (preset === 'top') {
+    sceneManager.camera.position.set(center.x, center.y + dist, center.z);
+  } else if (preset === 'front') {
+    sceneManager.camera.position.set(center.x, center.y + eyeHeight, center.z + dist);
+  } else if (preset === 'side') {
+    sceneManager.camera.position.set(center.x + dist, center.y + eyeHeight, center.z);
+  } else {
+    sceneManager.fitTo(box);
+    return;
+  }
+
+  sceneManager.orbit.target.copy(center);
+  sceneManager.orbit.update();
+};
+
+const captureWithAllLayers = () => {
+  const savedMode = constructionModeEnabled.value;
+  const savedVisibility = { ...layerVisibility.value };
+
+  layersStore.setConstructionMode(false);
+  layersStore.setAllLayersVisible(true);
+  applyLayerVisibility(false);
+  centerCamera();
+  renderSceneFrame();
+
+  const dataUrl = captureSceneDataUrl();
+
+  layersStore.setConstructionMode(savedMode);
+  Object.entries(savedVisibility).forEach(([id, val]) => {
+    layersStore.setLayerVisibility(id, val);
+  });
+  applyLayerVisibility(false);
+  renderSceneFrame();
+
+  return dataUrl;
 };
 
 const centerCamera = () => {
@@ -1073,13 +1328,16 @@ const toggleWalkthrough = () => {
 
   const firstRoom = recintosStore.recintos[0];
 
+  const floor = recintosStore.currentFloor || 1;
+  const spawnY = (floor - 1) * wallHeightM.value + 1.65;
+
   const spawn = firstRoom
     ? new THREE.Vector3(
         firstRoom.coords.x + firstRoom.dimensions.w / 2,
-        1.65,
+        spawnY,
         firstRoom.coords.z + firstRoom.dimensions.l / 2,
       )
-    : new THREE.Vector3(0, 1.65, 0);
+    : new THREE.Vector3(0, spawnY, 0);
 
   walkthrough.enable(spawn);
   isWalkthrough.value = true;
@@ -1121,46 +1379,25 @@ watch(currentTool, (tool, previousTool) => {
 
     transformControl?.detach();
     measureTool?.enable();
+    syncManipulatorAvailability();
     return;
   }
 
   if (tool === 'move') {
     measureTool?.disable();
-
-    if (dragControls) {
-      dragControls.enabled = true;
-    }
-
-    if (transformControl) {
-      transformControl.enabled = false;
-      transformControl.visible = false;
-      transformControl.detach();
-    }
-
+    syncManipulatorAvailability();
     return;
   }
 
   if (tool === 'scale') {
     measureTool?.disable();
-
-    if (dragControls) {
-      dragControls.enabled = false;
-    }
-
-    if (transformControl) {
-      transformControl.enabled = true;
-      transformControl.visible = true;
-
-      const id = recintosStore.activeRecintoId;
-
-      if (id && roomMeshes.has(id)) {
-        const mesh = roomMeshes.get(id);
-
-        rememberValidTransform(mesh);
-        transformControl.attach(mesh);
-      }
-    }
+    syncManipulatorAvailability();
+    return;
   }
+});
+
+watch(layoutLocked, () => {
+  syncManipulatorAvailability();
 });
 
 watch(timeOfDay, (hour) => {
@@ -1193,18 +1430,41 @@ const handleExport = async (format) => {
 
   exportFormat.value = format;
 
+  const savedCam = {
+    position: sceneManager.camera.position.clone(),
+    target: sceneManager.orbit.target.clone(),
+  };
+
   try {
     if (format === 'html') {
       const blob = await exporter.exportHTML();
       SceneExporter.download(blob, 'siec-modelo-3d.html');
-    } else if (format === 'png') {
+    } else if (format.startsWith('png')) {
+      if (format === 'png-top') applyPresetCamera('top');
+      else if (format === 'png-front') applyPresetCamera('front');
+      else if (format === 'png-side') applyPresetCamera('side');
+      else centerCamera();
+
+      renderSceneFrame();
       const blob = await exporter.exportImage({
         width: 3840,
         height: 2160,
       });
-      SceneExporter.download(blob, 'siec-render-4k.png');
+      const suffix =
+        format === 'png-top'
+          ? 'planta'
+          : format === 'png-front'
+            ? 'fachada'
+            : format === 'png-side'
+              ? 'corte'
+              : '4k';
+      SceneExporter.download(blob, `siec-render-${suffix}.png`);
     }
   } finally {
+    sceneManager.camera.position.copy(savedCam.position);
+    sceneManager.orbit.target.copy(savedCam.target);
+    sceneManager.orbit.update();
+    renderSceneFrame();
     exportFormat.value = null;
     exportMenuOpen.value = false;
   }
@@ -1261,10 +1521,13 @@ const handleFullscreenChange = () => {
   const entering = !!document.fullscreenElement;
 
   isFullScreen.value = entering;
+  showLayersMenu.value = false;
+  exportMenuOpen.value = false;
 
   setTimeout(() => {
     if (entering) {
       applyFullscreenLayout();
+      nextTick(() => repositionFloatingMenus());
       return;
     }
 
@@ -1317,7 +1580,7 @@ const handleCanvasPointerDown = (event) => {
 
     const inferredLayer = inferLayerFromObject(layerTarget);
 
-    if (inferredLayer) {
+    if (inferredLayer && layerVisibility.value[inferredLayer]) {
       layersStore.setSelectedLayer(inferredLayer);
     }
 
@@ -1343,12 +1606,9 @@ const handleSceneCaptureRequest = (event) => {
     target: sceneManager.orbit.target.clone(),
   };
 
-  centerCamera();
-
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      renderSceneFrame();
-      const dataUrl = captureSceneDataUrl();
+      const dataUrl = captureWithAllLayers();
 
       sceneManager.camera.position.copy(saved.position);
       sceneManager.orbit.target.copy(saved.target);
@@ -1358,6 +1618,79 @@ const handleSceneCaptureRequest = (event) => {
       complete(dataUrl);
     });
   });
+};
+
+const capturePresetViewsForExport = (presets, complete, options = {}) => {
+  if (!sceneManager?.renderer || !sceneManager?.scene || !sceneManager?.camera) {
+    complete([]);
+    return;
+  }
+
+  const saved = {
+    position: sceneManager.camera.position.clone(),
+    target: sceneManager.orbit.target.clone(),
+    mode: constructionModeEnabled.value,
+    visibility: { ...layerVisibility.value },
+  };
+
+  layersStore.setConstructionMode(false);
+  layersStore.setAllLayersVisible(true);
+  applyLayerVisibility(false);
+
+  const views = [];
+  let index = 0;
+
+  const captureNext = () => {
+    if (index >= presets.length) {
+      layersStore.setConstructionMode(saved.mode);
+      Object.entries(saved.visibility).forEach(([id, val]) => {
+        layersStore.setLayerVisibility(id, val);
+      });
+      applyLayerVisibility(false);
+      sceneManager.camera.position.copy(saved.position);
+      sceneManager.orbit.target.copy(saved.target);
+      sceneManager.orbit.update();
+      renderSceneFrame();
+      complete(views);
+      return;
+    }
+
+    const preset = presets[index];
+    applyPresetCamera(preset.key, options);
+    renderSceneFrame();
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const dataUrl = captureSceneDataUrl();
+        if (dataUrl) {
+          views.push({ dataUrl, label: preset.label, key: preset.key });
+        }
+        index += 1;
+        captureNext();
+      });
+    });
+  };
+
+  captureNext();
+};
+
+const handleScenePresetViewsCaptureRequest = (event) => {
+  const complete = event?.detail?.complete;
+  const presets = event?.detail?.presets;
+
+  if (typeof complete !== 'function') return;
+
+  capturePresetViewsForExport(
+    Array.isArray(presets) && presets.length
+      ? presets
+      : [
+          { key: 'top', label: 'Planta (vista superior)' },
+          { key: 'front', label: 'Fachada (vista frontal)' },
+          { key: 'side', label: 'Corte (vista lateral)' },
+        ],
+    complete,
+    { tight: event?.detail?.tight === true },
+  );
 };
 
 onMounted(() => {
@@ -1388,11 +1721,17 @@ onMounted(() => {
     handleCanvasPointerDown,
   );
 
+  const recintosLayoutSignature = () =>
+    recintosStore.recintos
+      .map((r) =>
+        `${r.id}:${r.coords?.x},${r.coords?.z},${r.dimensions?.w},${r.dimensions?.l},${r.piso},${r.tipo},${r.materialEstructuralId ?? ""}`,
+      )
+      .join("|");
+
   stopSceneWatcher = watch(
     [
-      () => topology.walls.value,
-      () => recintosStore.recintos,
-      () => Array.from(recintosStore.selectedForBudget).sort(),
+      () => recintosLayoutSignature(),
+      () => Array.from(recintosStore.selectedForBudget).sort().join(","),
       () => recintosStore.activeRecintoId,
       () => recintosStore.currentFloor,
       () => props.materialEstructuralId,
@@ -1405,10 +1744,7 @@ onMounted(() => {
       syncWalls();
       syncRooms();
     },
-    {
-      deep: true,
-      immediate: true,
-    },
+    { immediate: true },
   );
 
   stopLayerWatcher = watch(
@@ -1439,6 +1775,7 @@ onMounted(() => {
     () => recintosStore.layoutInteractionActive,
     (active, wasActive) => {
       if (wasActive && !active && sceneManager) {
+        wallBuilder?.setWallHeight(wallHeightM.value);
         syncWalls();
         syncRooms();
       }
@@ -1450,6 +1787,16 @@ onMounted(() => {
     (quality) => applyQuality3d(quality),
   );
 
+  watch(
+    () => wallHeightM.value,
+    () => {
+      if (!sceneManager || recintosStore.layoutInteractionActive) return;
+      wallBuilder?.setWallHeight(wallHeightM.value);
+      syncWalls();
+      syncRooms();
+    },
+  );
+
   if (typeof ResizeObserver !== 'undefined') {
     resizeObserver = new ResizeObserver(onResize);
     resizeObserver.observe(containerRef.value);
@@ -1457,6 +1804,7 @@ onMounted(() => {
 
   window.addEventListener('resize', onResize);
   window.addEventListener('siec:capture-scene', handleSceneCaptureRequest);
+  window.addEventListener('siec:capture-scene-views', handleScenePresetViewsCaptureRequest);
 
   // Pausar el render 3D cuando el visor sale del viewport (scroll)
   if (typeof IntersectionObserver !== 'undefined' && containerRef.value) {
@@ -1495,6 +1843,7 @@ onBeforeUnmount(() => {
 
   document.removeEventListener('fullscreenchange', handleFullscreenChange);
   window.removeEventListener('siec:capture-scene', handleSceneCaptureRequest);
+  window.removeEventListener('siec:capture-scene-views', handleScenePresetViewsCaptureRequest);
 
   if (onDocumentClick) {
     document.removeEventListener('click', onDocumentClick);
@@ -1537,8 +1886,13 @@ onBeforeUnmount(() => {
     mesh.material?.dispose?.();
   }
 
+  for (const group of cantileverBeamMeshes.values()) {
+    disposeGroupRecursive(group);
+  }
+
   wallMeshes.clear();
   roomMeshes.clear();
+  cantileverBeamMeshes.clear();
 
   sceneManager?.dispose();
 });
@@ -1550,8 +1904,6 @@ onBeforeUnmount(() => {
     class="scene3d-root relative flex w-full flex-col rounded-3xl border border-slate-200/90 bg-white/85 p-4 shadow-2xl shadow-slate-950/10 backdrop-blur-xl transition-all duration-300 dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/35"
     :class="isFullScreen ? 'fullscreen-active' : 'normal-mode'"
   >
-    <PropertiesSidebar />
-
     <!-- Header -->
     <header
       ref="headerRef"
@@ -1646,11 +1998,7 @@ onBeforeUnmount(() => {
               class="inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1 shadow-sm dark:border-slate-800 dark:bg-slate-950"
             >
               <button
-                v-for="tool in [
-                  { id: 'move', icon: 'pan_tool', label: t('toolMove') },
-                  { id: 'scale', icon: 'open_in_full', label: t('toolScale') },
-                  { id: 'measure', icon: 'straighten', label: t('toolMeasure') },
-                ]"
+                v-for="tool in sceneTools"
                 :key="tool.id"
                 type="button"
                 class="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2.5 py-2 text-[10px] font-black uppercase tracking-[0.08em] transition-all duration-200 active:scale-[0.98] sm:px-3"
@@ -1660,7 +2008,7 @@ onBeforeUnmount(() => {
                     : 'text-slate-500 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100'
                 "
                 :title="tool.label"
-                @click="currentTool = tool.id"
+                @click="selectSceneTool(tool.id)"
               >
                 <span class="material-symbols-outlined text-[15px]">
                   {{ tool.icon }}
@@ -1690,17 +2038,22 @@ onBeforeUnmount(() => {
               <button
                 type="button"
                 class="flex h-8 w-8 items-center justify-center rounded-xl text-xs font-black text-slate-500 transition-all duration-200 hover:bg-slate-100 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-30 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
-                :disabled="recintosStore.currentFloor >= 3"
+                :disabled="recintosStore.currentFloor >= MAX_FLOORS"
                 @click="recintosStore.setFloor(recintosStore.currentFloor + 1)"
               >
                 +
               </button>
+              <button
+                type="button"
+                class="flex h-8 items-center justify-center rounded-xl px-2 text-[10px] font-black uppercase tracking-[0.08em] text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800"
+                title="Clonar piso completo"
+                @click="handleCloneFloor"
+              >
+                <span class="material-symbols-outlined text-[16px]">content_copy</span>
+              </button>
             </div>
-          </div>
-
-          <div class="tour-scene-3d-actions flex shrink-0 items-center">
             <div
-              class="scene3d-labeled-actions inline-flex items-stretch overflow-visible rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950"
+              class="tour-scene-3d-actions scene3d-labeled-actions inline-flex items-stretch overflow-visible rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950"
             >
               <div class="relative scene3d-layers-menu">
                 <button
@@ -1713,18 +2066,20 @@ onBeforeUnmount(() => {
                   <span class="material-symbols-outlined text-[17px]">layers</span>
                   <span class="whitespace-nowrap">{{ t('layersBtn') }}</span>
                 </button>
-                <Teleport to="body">
+                <Teleport :to="floatingMenuTeleport">
                   <Transition name="export-menu">
                     <div
                       v-if="showLayersMenu"
-                      class="scene3d-layers-menu-panel w-64 overflow-hidden rounded-3xl border border-slate-200/90 bg-white/95 p-3 shadow-2xl shadow-slate-950/15 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/40"
+                      class="scene3d-layers-menu-panel pointer-events-auto w-64 overflow-hidden rounded-3xl border border-slate-200/90 bg-white/95 p-3 shadow-2xl shadow-slate-950/15 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/40"
                       :style="layersMenuStyle"
+                      @click.stop
                     >
                       <div class="space-y-1">
                         <label
-                          v-for="layer in layersStore.layers"
+                          v-for="layer in layersStore.allLayerDefinitions"
                           :key="layer.id"
                           class="flex cursor-pointer items-center justify-between rounded-xl px-3 py-2 transition-colors hover:bg-slate-50 dark:hover:bg-slate-900"
+                          @click.prevent="layersStore.toggleLayer(layer.id)"
                         >
                           <span class="flex min-w-0 items-center gap-2.5">
                             <span class="material-symbols-outlined shrink-0 text-[16px] text-slate-500 dark:text-slate-400">{{ layer.icon }}</span>
@@ -1736,11 +2091,17 @@ onBeforeUnmount(() => {
                           >
                             <span class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform duration-300" :class="layerVisibility[layer.id] ? 'translate-x-4' : 'translate-x-0.5'" />
                           </span>
-                          <input :checked="layerVisibility[layer.id]" type="checkbox" class="sr-only" @change="layersStore.toggleLayer(layer.id)" />
+                          <input
+                            :checked="layerVisibility[layer.id]"
+                            type="checkbox"
+                            class="sr-only"
+                            tabindex="-1"
+                            @click.prevent
+                          />
                         </label>
                       </div>
                       <div class="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
-                        {{ layersStore.activeLayerCount }} de 3 capas activas
+                        {{ Object.values(layerVisibility).filter(Boolean).length }} de {{ layersStore.allLayerDefinitions.length }} capas activas
                       </div>
                     </div>
                   </Transition>
@@ -1758,19 +2119,17 @@ onBeforeUnmount(() => {
                   <span class="material-symbols-outlined text-[17px]">download</span>
                   <span class="whitespace-nowrap">{{ t('export') }}</span>
                 </button>
-                <Teleport to="body">
+                <Teleport :to="floatingMenuTeleport">
                   <Transition name="export-menu">
                     <div
                       v-if="exportMenuOpen"
-                      class="scene3d-export-menu-panel export-menu-panel min-w-[14rem] w-56 rounded-3xl border border-orange-200/90 bg-white p-2 shadow-2xl shadow-orange-500/15 dark:border-orange-800/80 dark:bg-slate-950 dark:shadow-black/50"
+                      class="scene3d-export-menu-panel export-menu-panel pointer-events-auto min-w-[14rem] w-56 rounded-3xl border border-orange-200/90 bg-white p-2 shadow-2xl shadow-orange-500/15 dark:border-orange-800/80 dark:bg-slate-950 dark:shadow-black/50"
                       :style="exportMenuStyle"
                       role="menu"
+                      @click.stop
                     >
                       <button
-                        v-for="fmt in [
-                          { id: 'png', label: 'Imagen PNG', icon: 'image' },
-                          { id: 'html', label: 'Visor HTML', icon: 'language' },
-                        ]"
+                        v-for="fmt in exportMenuItems"
                         :key="fmt.id"
                         type="button"
                         class="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-xs font-bold text-slate-700 transition-all duration-200 hover:bg-slate-50 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-slate-100"
@@ -1797,6 +2156,12 @@ onBeforeUnmount(() => {
       ref="containerRef"
       class="scene3d-canvas scene3d-canvas--interaction relative overflow-hidden rounded-3xl border border-slate-200 bg-slate-950 shadow-inner dark:border-slate-800"
     >
+      <PropertiesSidebar
+        v-if="recintosStore.activeRecinto"
+        embedded
+        :project-material-id="materialEstructuralId"
+      />
+
       <MiniMap2D
         :visible="showMinimap"
         :recintos="recintosStore.recintos"
@@ -1829,10 +2194,22 @@ onBeforeUnmount(() => {
       :excepcion="metalconValidator.detalleExcepcion"
       @close="metalconValidator.cerrarModal()"
     />
+
+    <div
+      id="scene3d-floating-menus"
+      class="pointer-events-none fixed inset-0 z-[10050]"
+      aria-hidden="true"
+    />
   </section>
 </template>
 
 <style scoped>
+.scene3d-root {
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 .scene3d-root.normal-mode {
   width: 100%;
   display: flex;
@@ -1866,7 +2243,18 @@ onBeforeUnmount(() => {
 }
 
 .scene3d-canvas--interaction :deep(canvas) {
-  cursor: default;
+  cursor: default !important;
+  caret-color: transparent;
+}
+
+.scene3d-canvas--interaction :deep(.transform-controls),
+.scene3d-canvas--interaction :deep(.transform-controls *) {
+  cursor: grab;
+}
+
+.scene3d-canvas--interaction :deep(.transform-controls.dragging),
+.scene3d-canvas--interaction :deep(.transform-controls.dragging *) {
+  cursor: grabbing;
 }
 
 .scene3d-canvas--interaction :deep([data-siec-minimap]) {

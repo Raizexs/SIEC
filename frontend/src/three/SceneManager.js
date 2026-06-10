@@ -88,6 +88,8 @@ export class SceneManager {
     this.roomsGroup.name = "rooms";
     this.furnitureGroup = new THREE.Group();
     this.furnitureGroup.name = "furniture";
+    this.cantileverBeamsGroup = new THREE.Group();
+    this.cantileverBeamsGroup.name = "cantilever-beams";
     this.openingsGroup = new THREE.Group();
     this.openingsGroup.name = "openings";
     this.roofGroup = new THREE.Group();
@@ -95,6 +97,7 @@ export class SceneManager {
     this.buildingGroup.add(
       this.wallsGroup,
       this.roomsGroup,
+      this.cantileverBeamsGroup,
       this.furnitureGroup,
       this.openingsGroup,
       this.roofGroup,

@@ -10,8 +10,25 @@ import {
   normalizeRoomRect,
   snapRectFlushToNeighbors,
   terrainFromEditor,
+  getSupportRoomsBelow,
+  findSupportedPosition,
 } from "../composables/useSpatialConstraints.js";
+import { isRoomStructurallyValid } from "../utils/cantileverSupport.js";
 import { prefersReducedMotion } from "../design/motionTokens.js";
+import { MAX_FLOORS, MIN_ROOM_HEIGHT, MAX_WALL_HEIGHT, WALL_HEIGHT_STEP, clampWallHeight, DEFAULT_WALL_HEIGHT } from "../constants/spatial.js";
+import { useProductPreferences } from "../composables/useProductPreferences.js";
+import { MATERIAL_EDGE_COLORS } from "../utils/roomTypeColors.js";
+import {
+  RECINTO_2D_COLOR_PRESETS,
+  resolveRecintoFill2d,
+  resolveRecintoStroke2d,
+} from "../utils/recinto2dColors.js";
+import { MATERIAL_OPTIONS, materialLabel, resolveRecintoMaterial } from "../utils/materialHelpers.js";
+import { useBilling } from "../composables/useBilling";
+import { useWorkspaceStore } from "../stores/workspace";
+import { downloadBlueprint } from "../utils/blueprintGenerator";
+import { getMaterialLabel } from "../utils/budgetExporter";
+import { toast } from "vue-sonner";
 
 const props = defineProps({
   m2Totales:         { type: Number, default: 100 },
@@ -21,6 +38,7 @@ const props = defineProps({
   showGrid:          { type: Boolean, default: true },
   showLabels:        { type: Boolean, default: true },
   defaultRoomHeight: { type: Number, default: 2.4 },
+  materialEstructuralId: { type: Number, default: 1 },
   /** true cuando el paso Diseñar está visible (v-show); evita medir aspecto con ancho 0 */
   editorVisible:     { type: Boolean, default: true },
 });
@@ -32,7 +50,7 @@ const DIM_OFFSET  = 22;   // pixels from the wall to the dimension line
 const TICK_LEN    = 6;    // half-length of dimension ticks
 
 const MIN_ROOM_DIM = 0.5;
-const MIN_ROOM_HEIGHT = 1.0;
+const ROOM_DIM_STEP = 0.1;
 const DEFAULT_FINE_STEP = 0.1;
 const MOVE_OVERFLOW_MARGIN = 0; // misma regla que 3D: el recinto no sale del terreno
 const OVERLAP_EPS = 0.001; // evita falsos positivos cuando dos recintos quedan exactamente pegados
@@ -51,10 +69,51 @@ const svgViewportRef = ref(null);
 const viewportAspect = ref(0);
 const isFullScreen = ref(false);
 const store  = useRecintosStore();
+const workspaceStore = useWorkspaceStore();
+const { canUseMaterial } = useBilling();
 const { t } = useI18n();
+const { productPreferences, saveProductPreferences } = useProductPreferences();
 
-// ── Resize Lock ───────────────────────────────────────────────────────────────
-const resizeLocked = ref(false);
+const exportBlueprintPlan = () => {
+  const recintos = store.recintos || [];
+  if (!recintos.length) {
+    toast.error(t("blueprintExportEmpty"));
+    return;
+  }
+
+  const floors = [...new Set(recintos.map((r) => r.piso || 1))].sort((a, b) => a - b);
+  const suffix = floors.length > 1 ? "multi-piso" : `p${store.currentFloor}`;
+
+  try {
+    downloadBlueprint(
+      {
+        recintos,
+        projectName: workspaceStore.activePresetName || "Proyecto SIEC",
+        material: getMaterialLabel(props.materialEstructuralId),
+        m2: props.m2Totales,
+      },
+      `siec-plano-${suffix}.pdf`,
+    );
+    toast.success(t("blueprintExportSuccess"));
+  } catch (err) {
+    console.error(err);
+    toast.error(t("blueprintExportFailed"));
+  }
+};
+
+// ── Layout lock (2D + 3D) ─────────────────────────────────────────────────────
+const layoutLocked = computed(() => store.layoutLocked);
+const upperFloorNeedsSupport = computed(
+  () => store.currentFloor > 1 && !store.floorBelowHasSupport,
+);
+
+const notifyUpperFloorSupportRequired = () => {
+  toast.error(t('upperFloorSupportRequired'));
+};
+
+const notifyUpperFloorPlacementFailed = () => {
+  toast.error(t('upperFloorPlacementFailed'));
+};
 
 // ── Add Recinto Modal ─────────────────────────────────────────────────────────
 const showAddModal = ref(false);
@@ -62,7 +121,7 @@ const addForm = reactive({
   nombre: t('roomDefaultName'),
   w: 3.5,
   l: 3.0,
-  h: 2.4,
+  color2d: null,
 });
 
 const defaultAddWidth = () =>
@@ -72,18 +131,22 @@ const defaultAddLength = () =>
   Math.min(3.0, Math.max(MIN_ROOM_DIM, budgetRect.value.h * 0.85));
 
 const openAddModal = () => {
+  if (upperFloorNeedsSupport.value) {
+    notifyUpperFloorSupportRequired();
+    return;
+  }
   editor.selectedRecintoId.value = null;
   addForm.nombre = t('roomDefaultName');
   addForm.w = defaultAddWidth();
   addForm.l = defaultAddLength();
-  addForm.h = Math.max(MIN_ROOM_HEIGHT, Number(props.defaultRoomHeight) || 2.4);
+  addForm.color2d = null;
   showAddModal.value = true;
 };
 
 const confirmAdd = () => {
   const w = clampNumber(addForm.w, MIN_ROOM_DIM, budgetRect.value.w);
   const l = clampNumber(addForm.l, MIN_ROOM_DIM, budgetRect.value.h);
-  const h = Math.max(MIN_ROOM_HEIGHT, Number(addForm.h) || props.defaultRoomHeight || 2.4);
+  const h = clampWallHeight(props.defaultRoomHeight, DEFAULT_WALL_HEIGHT);
 
   if (w > budgetRect.value.w || l > budgetRect.value.h) {
     return;
@@ -91,7 +154,6 @@ const confirmAdd = () => {
 
   addForm.w = w;
   addForm.l = l;
-  addForm.h = h;
   showAddModal.value = false;
 
   const id = store.addRecinto(
@@ -100,16 +162,32 @@ const confirmAdd = () => {
     w,
     l,
     h,
+    addForm.color2d,
   );
+
+  if (!id) {
+    notifyUpperFloorSupportRequired();
+    return;
+  }
 
   const room = store.recintos.find((r) => r.id === id);
   if (room) {
     placeRoomWithoutGap(room);
+    if (!roomHasSupport(room)) {
+      store.deleteRecinto(id);
+      notifyUpperFloorPlacementFailed();
+      return;
+    }
     editor.selectedRecintoId.value = id;
   }
 };
 
 const quickAdd = () => {
+  if (upperFloorNeedsSupport.value) {
+    notifyUpperFloorSupportRequired();
+    return;
+  }
+
   const w = defaultAddWidth();
   const l = defaultAddLength();
   const id = store.addRecinto(
@@ -117,12 +195,22 @@ const quickAdd = () => {
      t('roomDefaultName'),
     w,
     l,
-    Math.max(MIN_ROOM_HEIGHT, Number(props.defaultRoomHeight) || 2.4),
+    clampWallHeight(props.defaultRoomHeight, DEFAULT_WALL_HEIGHT),
   );
+
+  if (!id) {
+    notifyUpperFloorSupportRequired();
+    return;
+  }
 
   const room = store.recintos.find((r) => r.id === id);
   if (room) {
     placeRoomWithoutGap(room);
+    if (!roomHasSupport(room)) {
+      store.deleteRecinto(id);
+      notifyUpperFloorPlacementFailed();
+      return;
+    }
     editor.selectedRecintoId.value = id;
   }
 };
@@ -236,9 +324,22 @@ const commitCorridorDraw = () => {
     nombre,
     Number(pr.w.toFixed(3)),
     Number(pr.l.toFixed(3)),
-    Math.max(1.0, Number(props.defaultRoomHeight) || 2.4),
+    clampWallHeight(props.defaultRoomHeight, DEFAULT_WALL_HEIGHT),
   );
-  store.updateRecinto(id, { coords: { x: Number(pr.x0.toFixed(3)), z: Number(pr.z0.toFixed(3)) } });
+
+  if (!id) {
+    notifyUpperFloorSupportRequired();
+    return;
+  }
+
+  const placedCoords = { x: Number(pr.x0.toFixed(3)), z: Number(pr.z0.toFixed(3)) };
+  const updated = store.updateRecinto(id, { coords: placedCoords });
+  if (!updated) {
+    store.deleteRecinto(id);
+    notifyUpperFloorPlacementFailed();
+    return;
+  }
+
   editor.selectedRecintoId.value = id;
 
   nextTick(() => {
@@ -397,7 +498,6 @@ const applyLiveDragCoords = (roomId, x, z) => {
   const safe = applyDragPreviewCoords(x, z);
   if (!safe || !roomId) return null;
 
-  store.updateRecinto(roomId, { coords: { x: safe.x, z: safe.z } });
   dragPreview.value = { id: roomId, x: safe.x, z: safe.z };
   return safe;
 };
@@ -481,9 +581,9 @@ const normalizeRoomInsideTerrain = (room) => {
     terrain,
     MOVE_OVERFLOW_MARGIN,
   );
-  const safeH = Math.max(
-    MIN_ROOM_HEIGHT,
-    Number(room.dimensions?.h) || props.defaultRoomHeight || 2.4,
+  const safeH = clampWallHeight(
+    room.dimensions?.h ?? props.defaultRoomHeight,
+    DEFAULT_WALL_HEIGHT,
   );
 
   store.updateRecinto(room.id, {
@@ -498,6 +598,24 @@ const normalizeRoomInsideTerrain = (room) => {
       z: Number(clamped.z.toFixed(3)),
     },
   });
+};
+
+const roomHasSupport = (room) => {
+  if (!room) return false;
+  const piso = room.piso || store.currentFloor || 1;
+  if (piso <= 1) return true;
+  const lowerRooms = getSupportRoomsBelow(store.recintos, piso);
+  const materialId = resolveRecintoMaterial(room, props.materialEstructuralId);
+  return isRoomStructurallyValid(
+    {
+      id: room.id,
+      piso,
+      coords: room.coords,
+      dimensions: room.dimensions,
+    },
+    lowerRooms,
+    materialId,
+  );
 };
 
 const roomOverlapsAny = (room, x, z, w, l) => {
@@ -522,13 +640,33 @@ const roomOverlapsAny = (room, x, z, w, l) => {
   });
 };
 
-const canPlaceRoomAt = (room, x, z, w, l) => (
-  x >= 0 &&
-  z >= 0 &&
-  x + w <= budgetRect.value.w &&
-  z + l <= budgetRect.value.h &&
-  !roomOverlapsAny(room, x, z, w, l)
-);
+const canPlaceRoomAt = (room, x, z, w, l) => {
+  const piso = room.piso || store.currentFloor || 1;
+  const baseOk =
+    x >= 0 &&
+    z >= 0 &&
+    x + w <= budgetRect.value.w &&
+    z + l <= budgetRect.value.h &&
+    !roomOverlapsAny(room, x, z, w, l);
+
+  if (!baseOk) return false;
+  if (piso <= 1) return true;
+
+  const lowerRooms = getSupportRoomsBelow(store.recintos, piso);
+  const materialId = resolveRecintoMaterial(room, props.materialEstructuralId);
+  return isRoomStructurallyValid(
+    {
+      id: room.id,
+      piso,
+      x,
+      z,
+      w,
+      l,
+    },
+    lowerRooms,
+    materialId,
+  );
+};
 
 const placeRoomWithoutGap = (room) => {
   if (!room) return;
@@ -538,6 +676,33 @@ const placeRoomWithoutGap = (room) => {
   const sameFloorRooms = store.recintos.filter((other) =>
     other.id !== room.id && (other.piso || 1) === (room.piso || store.currentFloor || 1),
   );
+
+  const floor = room.piso || store.currentFloor || 1;
+  if (floor > 1) {
+    const supported = findSupportedPosition(
+      room,
+      w,
+      l,
+      store.recintos,
+      sameFloorRooms,
+      resolveRecintoMaterial(room, props.materialEstructuralId),
+    );
+    if (supported) {
+      store.updateRecinto(room.id, {
+        dimensions: {
+          ...room.dimensions,
+          w: Number(w.toFixed(3)),
+          l: Number(l.toFixed(3)),
+        },
+        coords: {
+          x: Number(supported.x.toFixed(3)),
+          z: Number(supported.z.toFixed(3)),
+        },
+      });
+      normalizeRoomInsideTerrain(room);
+      return;
+    }
+  }
 
   const candidates = [];
   const last = sameFloorRooms[sameFloorRooms.length - 1];
@@ -900,7 +1065,6 @@ const isGhostFading = ref(false);
 /** pointerId activo del drag/resize actual (evita pointerup ajenos). */
 const pointerSessionId = ref(null);
 
-let pointerMoveFrame = null;
 
 const handlePointerMove = (e) => {
   if (
@@ -945,24 +1109,8 @@ const handlePointerMove = (e) => {
   }
 };
 
-const useInstantPointerMove = () =>
-  prefersReducedMotion()
-  || editor.activeMode.value === 'drag'
-  || editor.activeMode.value === 'resize';
-
 const onPointerMove = (e) => {
-  if (useInstantPointerMove()) {
-    handlePointerMove(e);
-    return;
-  }
-
-  if (corridorDraw.value || editor.activeMode.value) {
-    if (pointerMoveFrame) return;
-    pointerMoveFrame = requestAnimationFrame(() => {
-      pointerMoveFrame = null;
-      handlePointerMove(e);
-    });
-  }
+  handlePointerMove(e);
 };
 
 const onPointerUp = (e) => {
@@ -988,7 +1136,12 @@ const onPointerUp = (e) => {
     }
 
     if (mode === "drag") {
-      const dragged = selectedDraggedRoom();
+      if (dragPreview.value) {
+        commitDragPreviewToStore();
+      }
+      const dragged = store.recintos.find(
+        (r) => r.id === editor.selectedRecintoId.value,
+      );
       const flushed = dragged ? applyFlushSnapToRoom(dragged) : null;
       if (flushed) {
         store.updateRecinto(dragged.id, {
@@ -1048,6 +1201,7 @@ const onPointerUp = (e) => {
 };
 
 const startDrag = (e, id) => {
+  if (store.layoutLocked) return;
   e.preventDefault();
   e.stopPropagation();
   pointerSessionId.value = e.pointerId;
@@ -1068,12 +1222,19 @@ const startDrag = (e, id) => {
   cacheValidDragCoords(r);
   isGhostFading.value = false;
 
+  dragPreview.value = {
+    id,
+    x: Number(r.coords?.x) || 0,
+    z: Number(r.coords?.z) || 0,
+  };
+
   const world = toWorld(e.clientX, e.clientY);
   editor.beginDrag(id, world);
   applyLiveDragCoords(id, Number(r.coords?.x) || 0, Number(r.coords?.z) || 0);
 };
 
 const startResize = (e, id) => {
+  if (store.layoutLocked) return;
   e.preventDefault();
   e.stopPropagation();
   pointerSessionId.value = e.pointerId;
@@ -1146,8 +1307,15 @@ const interactionCapture = { capture: true };
 watch(isFullScreen, () => scheduleViewportAspectSync());
 
 // ── Room helpers ───────────────────────────────────────────────────────────────
-const roomFill   = (t) => t === "pasillo" ? "#14b8a6" : "#3b82f6";
-const roomEdge   = (t) => t === "pasillo" ? "#2dd4bf" : "#60a5fa";
+const roomFill = (recinto) => resolveRecintoFill2d(recinto);
+const roomEdge = (recinto) => resolveRecintoStroke2d(recinto);
+const isRecintoColorActive = (recinto, color) => {
+  if (!recinto) return false;
+  const current = recinto.color2d
+    ? String(recinto.color2d).toLowerCase()
+    : resolveRecintoFill2d({ ...recinto, color2d: null }).toLowerCase();
+  return current === String(color).toLowerCase();
+};
 const isActive   = (id) => !!editor.activeMode.value && editor.selectedRecintoId.value === id;
 const isSelected = (id) => editor.selectedRecintoId.value === id; // persistent, even after drag ends
 const isResizing = (id) => editor.activeMode.value === "resize" && editor.selectedRecintoId.value === id;
@@ -1208,59 +1376,178 @@ const selectedRoomLength = computed({
   set: (val) => commitSelectedRoomLength(val),
 });
 
-const selectedRoomHeight = computed({
-  get: () => (selectedRoom.value ? Number((selectedRoom.value.dimensions.h || 2.4).toFixed(2)) : 0),
-  set: (val) => commitSelectedRoomHeight(val),
+const selectedRoomMaxWidth = computed(() =>
+  selectedRoom.value
+    ? maxRoomWidthFromPosition(selectedRoom.value)
+    : budgetRect.value.w,
+);
+
+const selectedRoomMaxLength = computed(() =>
+  selectedRoom.value
+    ? maxRoomLengthFromPosition(selectedRoom.value)
+    : budgetRect.value.h,
+);
+
+const widthSliderProgress = computed(() => {
+  const max = selectedRoomMaxWidth.value;
+  const span = max - MIN_ROOM_DIM;
+  if (span <= 0) return 0;
+  return ((selectedRoomWidth.value - MIN_ROOM_DIM) / span) * 100;
 });
 
-const commitSelectedRoomWidth = (val) => {
+const lengthSliderProgress = computed(() => {
+  const max = selectedRoomMaxLength.value;
+  const span = max - MIN_ROOM_DIM;
+  if (span <= 0) return 0;
+  return ((selectedRoomLength.value - MIN_ROOM_DIM) / span) * 100;
+});
+
+/** Vista previa local al arrastrar altura; evita tocar store/3D en cada tick. */
+const inspectorWallHeightPreview = ref(null);
+
+const projectWallHeight = computed(() =>
+  clampWallHeight(
+    inspectorWallHeightPreview.value ?? props.defaultRoomHeight,
+    DEFAULT_WALL_HEIGHT,
+  ),
+);
+
+const wallHeightSliderProgress = computed(() => {
+  const span = MAX_WALL_HEIGHT - MIN_ROOM_HEIGHT;
+  if (span <= 0) return 0;
+  return ((projectWallHeight.value - MIN_ROOM_HEIGHT) / span) * 100;
+});
+
+let inspectorSliderFrame = null;
+let inspectorSliderSession = false;
+let inspectorHeightChanged = false;
+const inspectorSliderDirty = { width: null, length: null };
+
+const beginInspectorSliderSession = () => {
+  if (inspectorSliderSession) return;
+  inspectorSliderSession = true;
+  store.layoutInteractionActive = true;
+};
+
+const flushInspectorSliderFrame = () => {
+  inspectorSliderFrame = null;
+
+  if (inspectorSliderDirty.width != null) {
+    commitSelectedRoomWidth(inspectorSliderDirty.width, {
+      saveHistory: false,
+      normalize: false,
+    });
+    inspectorSliderDirty.width = null;
+  }
+
+  if (inspectorSliderDirty.length != null) {
+    commitSelectedRoomLength(inspectorSliderDirty.length, {
+      saveHistory: false,
+      normalize: false,
+    });
+    inspectorSliderDirty.length = null;
+  }
+};
+
+const queueInspectorSliderUpdate = (field, value) => {
+  inspectorSliderDirty[field] = value;
+  if (inspectorSliderFrame) return;
+  inspectorSliderFrame = requestAnimationFrame(flushInspectorSliderFrame);
+};
+
+const endInspectorSliderSession = () => {
+  if (!inspectorSliderSession) return;
+
+  if (inspectorSliderFrame) {
+    cancelAnimationFrame(inspectorSliderFrame);
+    inspectorSliderFrame = null;
+    flushInspectorSliderFrame();
+  }
+
   const room = selectedRoom.value;
-  if (!room || resizeLocked.value) return selectedRoomWidth.value;
+  if (room) normalizeRoomInsideTerrain(room);
+
+  if (inspectorHeightChanged) {
+    const h = inspectorWallHeightPreview.value
+      ?? clampWallHeight(props.defaultRoomHeight, DEFAULT_WALL_HEIGHT);
+    applyProjectWallHeight(h, { saveHistory: false, persistPrefs: false });
+    saveProductPreferences();
+    inspectorWallHeightPreview.value = null;
+    inspectorHeightChanged = false;
+  }
+
+  store.saveHistoryState();
+  inspectorSliderSession = false;
+  store.layoutInteractionActive = false;
+};
+
+const applyProjectWallHeight = (
+  rawValue,
+  { saveHistory = true, persistPrefs = true } = {},
+) => {
+  const h = clampWallHeight(rawValue, DEFAULT_WALL_HEIGHT);
+
+  productPreferences.value.defaultRoomHeight = h;
+  productPreferences.value.useCustomRoomHeight = true;
+  if (persistPrefs) saveProductPreferences();
+  store.syncProjectWallHeight(h, { saveHistory });
+  return h;
+};
+
+const handleProjectWallHeightSlider = (event) => {
+  if (layoutLocked.value) return;
+  inspectorHeightChanged = true;
+  beginInspectorSliderSession();
+  inspectorWallHeightPreview.value = clampWallHeight(
+    event?.target?.value,
+    DEFAULT_WALL_HEIGHT,
+  );
+};
+
+const commitSelectedRoomWidth = (
+  val,
+  { saveHistory = true, normalize = true } = {},
+) => {
+  const room = selectedRoom.value;
+  if (!room || layoutLocked.value) return selectedRoomWidth.value;
 
   const safeWidth = clampNumber(val, MIN_ROOM_DIM, maxRoomWidthFromPosition(room));
   store.updateRecinto(room.id, { w: Number(safeWidth.toFixed(3)) });
-  const updated = store.recintos.find((r) => r.id === room.id);
-  if (updated) normalizeRoomInsideTerrain(updated);
-  store.saveHistoryState();
+  if (normalize) {
+    const updated = store.recintos.find((r) => r.id === room.id);
+    if (updated) normalizeRoomInsideTerrain(updated);
+  }
+  if (saveHistory) store.saveHistoryState();
   return Number(safeWidth.toFixed(3));
 };
 
-const commitSelectedRoomLength = (val) => {
+const commitSelectedRoomLength = (
+  val,
+  { saveHistory = true, normalize = true } = {},
+) => {
   const room = selectedRoom.value;
-  if (!room || resizeLocked.value) return selectedRoomLength.value;
+  if (!room || layoutLocked.value) return selectedRoomLength.value;
 
   const safeLength = clampNumber(val, MIN_ROOM_DIM, maxRoomLengthFromPosition(room));
   store.updateRecinto(room.id, { l: Number(safeLength.toFixed(3)) });
-  const updated = store.recintos.find((r) => r.id === room.id);
-  if (updated) normalizeRoomInsideTerrain(updated);
-  store.saveHistoryState();
+  if (normalize) {
+    const updated = store.recintos.find((r) => r.id === room.id);
+    if (updated) normalizeRoomInsideTerrain(updated);
+  }
+  if (saveHistory) store.saveHistoryState();
   return Number(safeLength.toFixed(3));
 };
 
-const commitSelectedRoomHeight = (val) => {
-  const room = selectedRoom.value;
-  if (!room) return selectedRoomHeight.value;
-
-  const safeHeight = Math.max(MIN_ROOM_HEIGHT, Number(val) || MIN_ROOM_HEIGHT);
-  room.dimensions.h = Number(safeHeight.toFixed(3));
-  store.saveHistoryState();
-  return Number(safeHeight.toFixed(3));
+const handleSelectedRoomWidthSlider = (event) => {
+  if (layoutLocked.value) return;
+  beginInspectorSliderSession();
+  queueInspectorSliderUpdate('width', event?.target?.value);
 };
 
-const forceInputValue = (event, value) => {
-  if (event?.target) event.target.value = value;
-};
-
-const handleSelectedRoomWidthInput = (event) => {
-  forceInputValue(event, commitSelectedRoomWidth(event?.target?.value));
-};
-
-const handleSelectedRoomLengthInput = (event) => {
-  forceInputValue(event, commitSelectedRoomLength(event?.target?.value));
-};
-
-const handleSelectedRoomHeightInput = (event) => {
-  forceInputValue(event, commitSelectedRoomHeight(event?.target?.value));
+const handleSelectedRoomLengthSlider = (event) => {
+  if (layoutLocked.value) return;
+  beginInspectorSliderSession();
+  queueInspectorSliderUpdate('length', event?.target?.value);
 };
 
 const selectedRoomName = computed({
@@ -1389,7 +1676,11 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  if (pointerMoveFrame) cancelAnimationFrame(pointerMoveFrame);
+  if (inspectorSliderFrame) cancelAnimationFrame(inspectorSliderFrame);
+  inspectorSliderSession = false;
+  inspectorSliderDirty.width = null;
+  inspectorSliderDirty.length = null;
+  inspectorWallHeightPreview.value = null;
   store.layoutInteractionActive = false;
   dragPreview.value = null;
   pointerSessionId.value = null;
@@ -1508,7 +1799,7 @@ defineExpose({ openAddModal });
             <button
               type="button"
               class="flex h-8 w-8 items-center justify-center rounded-xl text-xs font-black text-slate-500 transition-all duration-200 hover:bg-slate-100 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-30 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
-              :disabled="store.currentFloor >= 3"
+              :disabled="store.currentFloor >= MAX_FLOORS"
               @click="store.setFloor(store.currentFloor + 1)"
             >
               +
@@ -1538,17 +1829,43 @@ defineExpose({ openAddModal });
 
           <button
             type="button"
+            class="tool-btn tool-btn-sm tool-btn-neutral"
+            :title="t('blueprintExportBtn')"
+            @click="exportBlueprintPlan"
+          >
+            <span class="material-symbols-outlined text-[15px]">architecture</span>
+            {{ t('blueprintExportBtn') }}
+          </button>
+
+          <button
+            type="button"
             class="tool-btn tool-btn-sm"
-            :class="resizeLocked ? 'tool-btn-danger' : 'tool-btn-neutral'"
-            :title="resizeLocked ? t('unlockResize') : t('lockResize')"
-            @click="resizeLocked = !resizeLocked"
+            :class="layoutLocked ? 'tool-btn-danger' : 'tool-btn-neutral'"
+            :title="layoutLocked ? t('unlockResize') : t('lockResize')"
+            @click="store.toggleLayoutLock()"
           >
             <span class="material-symbols-outlined text-[15px]">
-              {{ resizeLocked ? 'lock' : 'lock_open' }}
+              {{ layoutLocked ? 'lock' : 'lock_open' }}
             </span>
-            {{ resizeLocked ? t('resizeLocked') : t('resizeLock') }}
+            {{ layoutLocked ? t('resizeLocked') : t('resizeLock') }}
           </button>
         </div>
+
+        <p
+          v-if="store.currentFloor > 1"
+          class="rounded-xl border px-3 py-2 text-[11px] leading-relaxed"
+          :class="
+            upperFloorNeedsSupport
+              ? 'border-amber-300/70 bg-amber-50 text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-200'
+              : 'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400'
+          "
+        >
+          {{
+            upperFloorNeedsSupport
+              ? t('upperFloorSupportHintEmpty')
+              : t('upperFloorSupportHint')
+          }}
+        </p>
       </div>
     </header>
 
@@ -1798,9 +2115,9 @@ defineExpose({ openAddModal });
               :y="toSZ(recinto.coords.z)"
               :width="recinto.dimensions.w * PPM"
               :height="recinto.dimensions.l * PPM"
-              :fill="roomFill(recinto.tipo)"
+              :fill="roomFill(recinto)"
               :fill-opacity="isActive(recinto.id) ? 0.96 : isSelected(recinto.id) ? 0.88 : 0.76"
-              :stroke="isActive(recinto.id) ? '#ffffff' : isSelected(recinto.id) ? '#fb923c' : roomEdge(recinto.tipo)"
+              :stroke="isActive(recinto.id) ? '#ffffff' : isSelected(recinto.id) ? '#fb923c' : roomEdge(recinto)"
               :stroke-width="isActive(recinto.id) ? 2.6 : isSelected(recinto.id) ? 2.2 : 1.5"
               rx="5"
               :filter="isActive(recinto.id) ? 'none' : 'url(#room-shadow)'"
@@ -1876,7 +2193,7 @@ defineExpose({ openAddModal });
 
             <!-- Resize hit area -->
             <rect
-              v-if="!resizeLocked && (recinto.piso || 1) === store.currentFloor"
+              v-if="!layoutLocked && (recinto.piso || 1) === store.currentFloor"
               :x="toSX(recinto.coords.x + recinto.dimensions.w) - 18"
               :y="toSZ(recinto.coords.z + recinto.dimensions.l) - 18"
               width="30"
@@ -1896,7 +2213,7 @@ defineExpose({ openAddModal });
                   ${toSZ(recinto.coords.z + recinto.dimensions.l)}
                 L ${toSX(recinto.coords.x + recinto.dimensions.w) - 15}
                   ${toSZ(recinto.coords.z + recinto.dimensions.l)} Z`"
-              :fill="resizeLocked ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.86)'"
+              :fill="layoutLocked ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.86)'"
               style="pointer-events: none"
             />
 
@@ -2052,7 +2369,7 @@ defineExpose({ openAddModal });
                   {{ t('inspectorEyebrow') }}
                 </p>
                 <h4 class="mt-0.5 text-sm font-black tracking-tight text-slate-950 dark:text-slate-100">
-                  {{ t('inspectorTitle') }}
+                  {{ t('inspectorRecintoTitle') }}
                 </h4>
               </div>
             </div>
@@ -2079,60 +2396,147 @@ defineExpose({ openAddModal });
               />
             </div>
 
-            <div class="grid grid-cols-1 gap-3">
+            <div class="grid grid-cols-1 gap-4">
               <div class="space-y-2">
-                <label class="editor-label">{{ t('widthM') }}</label>
+                <div class="flex items-center justify-between gap-2">
+                  <label class="editor-label mb-0">{{ t('widthM') }}</label>
+                  <span class="editor-slider-value">{{ selectedRoomWidth.toFixed(1) }} m</span>
+                </div>
                 <input
+                  type="range"
+                  class="editor-range w-full"
+                  :min="MIN_ROOM_DIM"
+                  :max="selectedRoomMaxWidth"
+                  :step="ROOM_DIM_STEP"
                   :value="selectedRoomWidth"
-                  type="number"
-                  class="editor-input text-center font-mono"
-                  step="0.1"
-                  min="0.5"
-                  :max="selectedRoom ? maxRoomWidthFromPosition(selectedRoom) : budgetRect.w"
-                  :disabled="resizeLocked"
-                  @input="handleSelectedRoomWidthInput"
-                  @change="handleSelectedRoomWidthInput"
-                  @blur="handleSelectedRoomWidthInput"
+                  :disabled="layoutLocked"
+                  :style="{ '--range-progress': `${widthSliderProgress}%` }"
+                  @input="handleSelectedRoomWidthSlider"
+                  @change="endInspectorSliderSession"
+                  @pointerup="endInspectorSliderSession"
                 />
+                <div class="editor-range-ticks">
+                  <span>{{ MIN_ROOM_DIM }} m</span>
+                  <span>{{ selectedRoomMaxWidth.toFixed(1) }} m</span>
+                </div>
               </div>
 
               <div class="space-y-2">
-                <label class="editor-label">{{ t('lengthM') }}</label>
+                <div class="flex items-center justify-between gap-2">
+                  <label class="editor-label mb-0">{{ t('lengthM') }}</label>
+                  <span class="editor-slider-value">{{ selectedRoomLength.toFixed(1) }} m</span>
+                </div>
                 <input
+                  type="range"
+                  class="editor-range w-full"
+                  :min="MIN_ROOM_DIM"
+                  :max="selectedRoomMaxLength"
+                  :step="ROOM_DIM_STEP"
                   :value="selectedRoomLength"
-                  type="number"
-                  class="editor-input text-center font-mono"
-                  step="0.1"
-                  min="0.5"
-                  :max="selectedRoom ? maxRoomLengthFromPosition(selectedRoom) : budgetRect.h"
-                  :disabled="resizeLocked"
-                  @input="handleSelectedRoomLengthInput"
-                  @change="handleSelectedRoomLengthInput"
-                  @blur="handleSelectedRoomLengthInput"
+                  :disabled="layoutLocked"
+                  :style="{ '--range-progress': `${lengthSliderProgress}%` }"
+                  @input="handleSelectedRoomLengthSlider"
+                  @change="endInspectorSliderSession"
+                  @pointerup="endInspectorSliderSession"
                 />
+                <div class="editor-range-ticks">
+                  <span>{{ MIN_ROOM_DIM }} m</span>
+                  <span>{{ selectedRoomMaxLength.toFixed(1) }} m</span>
+                </div>
               </div>
 
               <div class="space-y-2">
-                <label class="editor-label">{{ t('heightM') }}</label>
+                <div class="flex items-center justify-between gap-2">
+                  <label class="editor-label mb-0">{{ t('projectWallHeightLabel') }}</label>
+                  <span class="editor-slider-value">{{ projectWallHeight.toFixed(1) }} m</span>
+                </div>
                 <input
-                  :value="selectedRoomHeight"
-                  type="number"
-                  class="editor-input text-center font-mono"
-                  step="0.1"
-                  min="1"
-                  @input="handleSelectedRoomHeightInput"
-                  @change="handleSelectedRoomHeightInput"
-                  @blur="handleSelectedRoomHeightInput"
+                  type="range"
+                  class="editor-range w-full"
+                  :min="MIN_ROOM_HEIGHT"
+                  :max="MAX_WALL_HEIGHT"
+                  :step="WALL_HEIGHT_STEP"
+                  :value="projectWallHeight"
+                  :style="{ '--range-progress': `${wallHeightSliderProgress}%` }"
+                  @input="handleProjectWallHeightSlider"
+                  @change="endInspectorSliderSession"
+                  @pointerup="endInspectorSliderSession"
                 />
+                <div class="editor-range-ticks">
+                  <span>{{ MIN_ROOM_HEIGHT }} m</span>
+                  <span>{{ MAX_WALL_HEIGHT }} m</span>
+                </div>
+                <p class="text-[10px] leading-relaxed text-slate-500">
+                  {{ t('projectWallHeightHint', { min: MIN_ROOM_HEIGHT, max: MAX_WALL_HEIGHT }) }}
+                </p>
               </div>
+            </div>
+
+            <div v-if="selectedRoom" class="space-y-2">
+              <label class="editor-label">{{ t('recintoColor2dLabel') }}</label>
+              <div class="flex flex-wrap gap-1.5">
+                <button
+                  v-for="color in RECINTO_2D_COLOR_PRESETS"
+                  :key="color"
+                  type="button"
+                  class="h-7 w-7 rounded-lg border-2 transition-transform hover:scale-105"
+                  :class="
+                    isRecintoColorActive(selectedRoom, color)
+                      ? 'border-orange-400 ring-2 ring-orange-300/50'
+                      : 'border-slate-200 dark:border-slate-700'
+                  "
+                  :style="{ backgroundColor: color }"
+                  :title="color"
+                  @click.stop="store.setRecintoColor2d(selectedRoom.id, color)"
+                />
+                <button
+                  type="button"
+                  class="rounded-lg border border-dashed border-slate-300 px-2 py-1 text-[10px] font-bold uppercase tracking-tight text-slate-500 dark:border-slate-700"
+                  @click.stop="store.setRecintoColor2d(selectedRoom.id, null)"
+                >
+                  {{ t('recintoColor2dDefault') }}
+                </button>
+              </div>
+              <p class="text-[10px] leading-relaxed text-slate-500">
+                {{ t('recintoColor2dHint') }}
+              </p>
+            </div>
+
+            <div v-if="selectedRoom" class="space-y-2">
+              <label class="editor-label">{{ t('recintoMaterialLabel') }}</label>
+              <div class="grid grid-cols-2 gap-2">
+                <button
+                  v-for="mat in MATERIAL_OPTIONS.filter((m) => canUseMaterial(m.id))"
+                  :key="mat.id"
+                  type="button"
+                  class="rounded-xl border px-2 py-2 text-[10px] font-bold uppercase tracking-tight transition-all"
+                  :class="
+                    resolveRecintoMaterial(selectedRoom, props.materialEstructuralId) === mat.id
+                      ? 'border-orange-400 bg-orange-50 text-orange-800 dark:border-orange-700 dark:bg-orange-950/40 dark:text-orange-200'
+                      : 'border-slate-200 bg-white text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300'
+                  "
+                  @click="store.setRecintoMaterial(selectedRoom.id, mat.id)"
+                >
+                  {{ mat.label }}
+                </button>
+              </div>
+              <p class="text-[10px] text-slate-500">
+                {{ materialLabel(resolveRecintoMaterial(selectedRoom, props.materialEstructuralId)) }}
+              </p>
             </div>
 
             <div
-              v-if="resizeLocked"
-              class="rounded-2xl border border-red-200 bg-red-50 p-3 text-xs font-semibold leading-relaxed text-red-700 dark:border-red-900/70 dark:bg-red-950/25 dark:text-red-300"
+              v-if="layoutLocked"
+              class="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold leading-relaxed text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/25 dark:text-amber-100"
             >
               {{ t('resizeLockedHint') }}
             </div>
+            <p
+              v-else
+              class="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs leading-relaxed text-slate-600 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-400"
+            >
+              {{ t('resizeUnlockedHint') }}
+            </p>
           </div>
         </aside>
       </transition>
@@ -2224,13 +2628,37 @@ defineExpose({ openAddModal });
                     vertical_align_top
                   </span>
                   <label>{{ t('heightShort') }}</label>
-                  <input v-model.number="addForm.h" type="number" step="0.1" min="1" />
+                  <span class="font-mono text-sm font-bold text-orange-600 dark:text-orange-300">
+                    {{ projectWallHeight.toFixed(2) }}
+                  </span>
                   <span>m</span>
                 </div>
               </div>
 
               <p class="add-room-area-pill">
                 {{ t('roomAreaLabel', { area: (addForm.w * addForm.l).toFixed(2) }) }}
+              </p>
+            </div>
+
+            <div class="space-y-2">
+              <label class="editor-label">{{ t('recintoColor2dLabel') }}</label>
+              <div class="flex flex-wrap gap-1.5">
+                <button
+                  v-for="color in RECINTO_2D_COLOR_PRESETS"
+                  :key="'add-' + color"
+                  type="button"
+                  class="h-7 w-7 rounded-lg border-2 transition-transform hover:scale-105"
+                  :class="
+                    (addForm.color2d || '').toLowerCase() === color.toLowerCase()
+                      ? 'border-orange-400 ring-2 ring-orange-300/50'
+                      : 'border-slate-200 dark:border-slate-700'
+                  "
+                  :style="{ backgroundColor: color }"
+                  @click.stop="addForm.color2d = color"
+                />
+              </div>
+              <p class="text-[10px] leading-relaxed text-slate-500">
+                {{ t('recintoColor2dHint') }}
               </p>
             </div>
           </div>
@@ -2864,5 +3292,85 @@ svg rect.editor-hit-pointer:hover {
 
 .add-room-primary-btn:active {
   transform: scale(0.98);
+}
+
+.editor-slider-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.95rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: rgb(234 88 12);
+}
+
+.dark .editor-slider-value {
+  color: rgb(251 146 60);
+}
+
+.editor-range-ticks {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: rgb(148 163 184);
+}
+
+.dark .editor-range-ticks {
+  color: rgb(100 116 139);
+}
+
+.editor-range:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.editor-range:disabled::-webkit-slider-thumb {
+  cursor: not-allowed;
+}
+
+.editor-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 0.45rem;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    rgb(249 115 22) 0%,
+    rgb(249 115 22) var(--range-progress, 0%),
+    rgb(226 232 240) var(--range-progress, 0%),
+    rgb(226 232 240) 100%
+  );
+}
+
+.dark .editor-range {
+  background: linear-gradient(
+    to right,
+    rgb(249 115 22) 0%,
+    rgb(249 115 22) var(--range-progress, 0%),
+    rgb(51 65 85) var(--range-progress, 0%),
+    rgb(51 65 85) 100%
+  );
+}
+
+.editor-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 1.1rem;
+  width: 1.1rem;
+  border-radius: 9999px;
+  border: 2px solid rgb(255 255 255);
+  background: rgb(249 115 22);
+  box-shadow: 0 2px 8px rgb(249 115 22 / 0.35);
+  cursor: pointer;
+}
+
+.editor-range::-moz-range-thumb {
+  height: 1.1rem;
+  width: 1.1rem;
+  border-radius: 9999px;
+  border: 2px solid rgb(255 255 255);
+  background: rgb(249 115 22);
+  box-shadow: 0 2px 8px rgb(249 115 22 / 0.35);
+  cursor: pointer;
 }
 </style>
