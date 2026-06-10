@@ -33,25 +33,33 @@ export class DoorWindowSystem {
       (recintos || []).map((r) => [r.id, r]),
     );
 
-    const groundWalls = walls.filter((w) => (w.piso || 1) === 1);
-    const exteriorWalls = groundWalls.filter((w) => w.tipo === "exterior");
-    const interiorWalls = groundWalls.filter((w) => w.tipo === "interior");
-
-    const closedOnFloor = (recintos || []).filter(
-      (r) => (r.piso || 1) === 1 && this._isClosedRoom(r),
+    const floors = [...new Set(walls.map((w) => w.piso || 1))].sort(
+      (a, b) => a - b,
     );
 
-    // 1. Puerta principal en el mejor muro exterior habitable
-    const frontDoorWall = this._pickFrontDoorWall(exteriorWalls, recintoById);
-    if (frontDoorWall) {
-      this._pushOpening(result, frontDoorWall.id, {
-        id: `door-front-${frontDoorWall.id}`,
-        wall_id: frontDoorWall.id,
-        type: "door",
-        center: 0.5,
-        ...FRONT_DOOR,
-      });
-    }
+    for (const floor of floors) {
+      const floorWalls = walls.filter((w) => (w.piso || 1) === floor);
+      const exteriorWalls = floorWalls.filter((w) => w.tipo === "exterior");
+      const interiorWalls = floorWalls.filter((w) => w.tipo === "interior");
+
+      const closedOnFloor = (recintos || []).filter(
+        (r) => (r.piso || 1) === floor && this._isClosedRoom(r),
+      );
+
+      const frontDoorWall =
+        floor === 1
+          ? this._pickFrontDoorWall(exteriorWalls, recintoById)
+          : null;
+
+      if (frontDoorWall) {
+        this._pushOpening(result, frontDoorWall.id, {
+          id: `door-front-${frontDoorWall.id}`,
+          wall_id: frontDoorWall.id,
+          type: "door",
+          center: 0.5,
+          ...FRONT_DOOR,
+        });
+      }
 
     // 2. Ventanas contextuales: máx. 1 por recinto habitable, solo fachada útil
     const windowsPerRoom = new Map();
@@ -156,6 +164,7 @@ export class DoorWindowSystem {
         recintoById,
         roomHasInteriorDoor,
       );
+    }
     }
 
     return result;
