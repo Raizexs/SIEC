@@ -258,6 +258,7 @@ def startup_event():
                     models.MaterialEstructural(id=2, nombre="Metalcom", descripcion="", activo=True),
                     models.MaterialEstructural(id=3, nombre="Albañilería", descripcion="", activo=True),
                     models.MaterialEstructural(id=4, nombre="Hormigón Armado", descripcion="", activo=True),
+                    models.MaterialEstructural(id=5, nombre="Híbrido", descripcion="Sistema mixto madera y metalcon", activo=True),
                 ]
                 db.add_all(materiales)
                 db.commit()
@@ -267,7 +268,7 @@ def startup_event():
         log.error("startup_seed_failed", error=str(exc))
 
 # Materiales permitidos según requerimientos
-ALLOWED_MATERIALS = ["Madera", "Metalcom", "Albañilería", "Hormigón Armado"]
+ALLOWED_MATERIALS = ["Madera", "Metalcom", "Albañilería", "Hormigón Armado", "Híbrido"]
 
 # Recargo obligatorio por leyes sociales (28% - 29%). Ajustable vía variable de entorno SOCIAL_LEY_FACTOR.
 try:
@@ -293,6 +294,7 @@ ESPESORES_POR_DEFECTO = {
     2: 0.09,  # Metalcom - 9 cm
     3: 0.14,  # Albañilería - 14 cm (muro)
     4: 0.18,  # Hormigón Armado - 18 cm (muro)
+    5: 0.10,  # Híbrido - 10 cm (muro mixto)
 }
 ESPESOR_LOSA_HA = 0.10  # Losa hormigón armado: 10 cm
 
@@ -343,7 +345,7 @@ def crear_simulacion(
             detail="Superficie total debe estar entre 1 y 1000 m².",
         )
 
-    if sim.materialEstructuralId not in [1, 2, 3, 4]:
+    if sim.materialEstructuralId not in [1, 2, 3, 4, 5]:
         raise HTTPException(status_code=400, detail="Material estructural ID no válido.")
 
     try:
@@ -475,28 +477,127 @@ def asociar_y_validar_layout_estricto(simulacion_id: int, payload: PayloadLayout
         "limite_m2_disponibles": simulacion.m2_totales
     }
 
-@app.post("/api/simulacion/{simulacion_id}/calcular-insumos", response_model=DesgloseResponse)
-def calcular_insumos(
+
+def _merge_insumo_item(a: InsumoCalculado, b: InsumoCalculado) -> InsumoCalculado:
+    sub_a = a.subtotal or 0.0
+    sub_b = b.subtotal or 0.0
+    subtotal = None
+    if a.subtotal is not None or b.subtotal is not None:
+        subtotal = sub_a + sub_b
+    cant_obj = None
+    if a.cantidad_objetivo is not None or b.cantidad_objetivo is not None:
+        cant_obj = (a.cantidad_objetivo or 0.0) + (b.cantidad_objetivo or 0.0)
+    cant_comp = None
+    if a.cantidad_compra is not None or b.cantidad_compra is not None:
+        cant_comp = (a.cantidad_compra or 0.0) + (b.cantidad_compra or 0.0)
+    return InsumoCalculado(
+        insumo=a.insumo,
+        cantidad=(a.cantidad or 0.0) + (b.cantidad or 0.0),
+        unidad=a.unidad or b.unidad,
+        precio_unitario=a.precio_unitario or b.precio_unitario,
+        subtotal=subtotal,
+        tienda=a.tienda or b.tienda,
+        url_producto=a.url_producto or b.url_producto,
+        cantidad_objetivo=cant_obj,
+        cantidad_compra=cant_comp,
+        perdida_porcentual=a.perdida_porcentual if a.perdida_porcentual is not None else b.perdida_porcentual,
+        metodo_optimizacion=a.metodo_optimizacion or b.metodo_optimizacion,
+        formato_comercial=a.formato_comercial or b.formato_comercial,
+    )
+
+
+def _fusionar_desglose_responses(
+    partials: List[DesgloseResponse],
     simulacion_id: int,
-    payload: Optional[DeduccionMermasPayload] = None,
-    db: Session = Depends(get_db),
-    user: CurrentUser = Depends(get_optional_user),
-):
+    m2_totales: int,
+) -> DesgloseResponse:
+    if not partials:
+        raise HTTPException(status_code=422, detail="No hay resultados para fusionar.")
+    if len(partials) == 1:
+        return partials[0]
+
+    items_por_categoria: dict[str, dict[str, InsumoCalculado]] = defaultdict(dict)
+    orden_categorias: List[str] = []
+    for partial in partials:
+        for categoria in partial.desglose:
+            if categoria.categoria not in orden_categorias:
+                orden_categorias.append(categoria.categoria)
+            bucket = items_por_categoria[categoria.categoria]
+            for item in categoria.items:
+                if item.insumo not in bucket:
+                    bucket[item.insumo] = item
+                else:
+                    bucket[item.insumo] = _merge_insumo_item(bucket[item.insumo], item)
+
+    desglose_list = []
+    for cat_name in orden_categorias:
+        items = list(items_por_categoria[cat_name].values())
+        has_subt = any(i.subtotal is not None for i in items)
+        subcat = sum((i.subtotal for i in items if i.subtotal is not None)) if has_subt else None
+        desglose_list.append(CategoriaDesglose(categoria=cat_name, items=items, subtotal_categoria=subcat))
+
+    materiales = sorted({p.material for p in partials if p.material})
+    costo_total = sum((p.costo_total or 0.0) for p in partials) or None
+    area_bruta = sum((p.area_bruta_m2 or 0.0) for p in partials) or None
+    area_vanos = sum((p.area_vanos_m2 or 0.0) for p in partials) or None
+    area_neta = sum((p.area_neta_m2 or 0.0) for p in partials) or None
+    perimetro = sum((p.perimetro_ml or 0.0) for p in partials) or None
+    area_muro = sum((p.area_muro_neta_m2 or 0.0) for p in partials) or None
+    vol_neto = sum((p.volumen_neto_previo or 0.0) for p in partials) or None
+    vol_comp = sum((p.volumen_compensado_pre_cotizacion or 0.0) for p in partials) or None
+    items_opt = sum((p.items_optimizados or 0) for p in partials) or None
+    perdidas = [p.perdida_promedio_porcentual for p in partials if p.perdida_promedio_porcentual is not None]
+    perdida_prom = (sum(perdidas) / len(perdidas)) if perdidas else None
+    tarifas = [p.tarifa_pura_local for p in partials if p.tarifa_pura_local is not None]
+    tarifa = (sum(tarifas) / len(tarifas)) if tarifas else None
+    fechas = [p.fecha_precios for p in partials if p.fecha_precios]
+    alturas = [p.altura_muro_m for p in partials if p.altura_muro_m is not None]
+    espesores = [p.espesor_muro_m for p in partials if p.espesor_muro_m is not None]
+
+    return DesgloseResponse(
+        simulacion_id=simulacion_id,
+        m2_totales=m2_totales,
+        material=" + ".join(materiales) if materiales else "Mixto",
+        desglose=desglose_list,
+        costo_total=costo_total,
+        fecha_precios=min(fechas) if fechas else None,
+        tarifa_pura_local=tarifa,
+        area_bruta_m2=area_bruta,
+        area_vanos_m2=area_vanos,
+        area_neta_m2=area_neta,
+        volumen_neto_previo=vol_neto,
+        volumen_compensado_pre_cotizacion=vol_comp,
+        items_optimizados=items_opt,
+        perdida_promedio_porcentual=perdida_prom,
+        perimetro_ml=perimetro if perimetro and perimetro > 0 else None,
+        altura_muro_m=alturas[0] if alturas else None,
+        area_muro_neta_m2=area_muro if area_muro and area_muro > 0 else None,
+        incluir_techumbre=any(p.incluir_techumbre for p in partials),
+        espesor_muro_m=espesores[0] if espesores else None,
+    )
+
+
+def _calcular_insumos_material(
+    simulacion_id: int,
+    payload: Optional[DeduccionMermasPayload],
+    db: Session,
+    user: CurrentUser,
+    simulacion: models.ConfiguracionSimulacion,
+    material_id_override: Optional[int] = None,
+    m2_totales_override: Optional[int] = None,
+    perimetro_ml_override: Optional[float] = None,
+) -> DesgloseResponse:
     """
     Calcula el desglose de insumos para una simulación usando la Matriz de Rendimiento.
     """
-    # 1. Recuperar simulacion
-    simulacion = db.query(models.ConfiguracionSimulacion).filter(models.ConfiguracionSimulacion.id == simulacion_id).first()
-    if not simulacion:
-        raise HTTPException(status_code=404, detail="La simulación especificada no existe.")
-
+    material_id = int(material_id_override or simulacion.material_estructural_id)
     try:
         from billing.service import enforce_simulation_material
     except ModuleNotFoundError:
         from backend.billing.service import enforce_simulation_material  # type: ignore
-    enforce_simulation_material(db, user, int(simulacion.material_estructural_id))
-        
-    m2_totales = simulacion.m2_totales
+    enforce_simulation_material(db, user, material_id)
+
+    m2_totales = int(m2_totales_override if m2_totales_override is not None else simulacion.m2_totales)
     area_bruta = float(payload.area_bruta_m2) if payload and payload.area_bruta_m2 is not None else float(m2_totales)
     area_vanos = calcular_area_vanos(payload.vanos if payload else [])
     area_neta = calcular_area_neta(area_bruta, area_vanos)
@@ -507,7 +608,10 @@ def calcular_insumos(
         )
 
     # ── Geometría de muros y techumbre ────────────────────────────────────────
-    perimetro_ml = float(simulacion.perimetro_ml) if simulacion.perimetro_ml else 0.0
+    if perimetro_ml_override is not None:
+        perimetro_ml = float(perimetro_ml_override)
+    else:
+        perimetro_ml = float(simulacion.perimetro_ml) if simulacion.perimetro_ml else 0.0
     altura_muro_m = float(simulacion.altura_muro_m) if simulacion.altura_muro_m else 2.44
     incluir_techumbre = bool(simulacion.incluir_techumbre) if simulacion.incluir_techumbre is not None else False
     area_muro_bruta = perimetro_ml * altura_muro_m if perimetro_ml > 0 else 0.0
@@ -532,8 +636,6 @@ def calcular_insumos(
         }
         for recinto in (payload.recintos if payload else [])
     ]
-    material_id = simulacion.material_estructural_id
-
     # 2. Material nombre
     material = db.query(models.MaterialEstructural).filter(models.MaterialEstructural.id == material_id).first()
     material_nombre = material.nombre if material else "Desconocido"
@@ -1152,6 +1254,58 @@ def calcular_insumos(
         espesor_muro_m=espesor_muro,
     )
 
+
+@app.post("/api/simulacion/{simulacion_id}/calcular-insumos", response_model=DesgloseResponse)
+def calcular_insumos(
+    simulacion_id: int,
+    payload: Optional[DeduccionMermasPayload] = None,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_optional_user),
+):
+    simulacion = db.query(models.ConfiguracionSimulacion).filter(
+        models.ConfiguracionSimulacion.id == simulacion_id
+    ).first()
+    if not simulacion:
+        raise HTTPException(status_code=404, detail="La simulación especificada no existe.")
+
+    recintos_insumos = list(payload.recintos_insumos) if payload and payload.recintos_insumos else []
+    if recintos_insumos:
+        groups: dict[int, list] = defaultdict(list)
+        for recinto in recintos_insumos:
+            groups[int(recinto.material_id)].append(recinto)
+        partials: List[DesgloseResponse] = []
+        m2_acum = 0.0
+        for mat_id, items in groups.items():
+            group_m2 = sum(float(i.m2) for i in items)
+            m2_acum += group_m2
+            group_perim = sum(float(i.perimetro_ml or 0) for i in items)
+            partials.append(
+                _calcular_insumos_material(
+                    simulacion_id=simulacion_id,
+                    payload=payload,
+                    db=db,
+                    user=user,
+                    simulacion=simulacion,
+                    material_id_override=mat_id,
+                    m2_totales_override=max(1, int(round(group_m2))),
+                    perimetro_ml_override=group_perim if group_perim > 0 else None,
+                )
+            )
+        return _fusionar_desglose_responses(
+            partials,
+            simulacion_id,
+            max(1, int(round(m2_acum))),
+        )
+
+    return _calcular_insumos_material(
+        simulacion_id=simulacion_id,
+        payload=payload,
+        db=db,
+        user=user,
+        simulacion=simulacion,
+    )
+
+
 ## SCRUM-97
 ## Ley 21.725 - Validación de Cumplimiento Normativo (Ley del Mono)
 try:
@@ -1166,6 +1320,33 @@ def endpoint_validar_ley_mono(payload: ValidacionLeyMonoRequest):
         costo_total_clp=payload.costo_total_clp,
         valor_uf_actual=payload.valor_uf_actual,
     )
+
+
+class ValidarNormativaRequest(BaseModel):
+    area_m2: Optional[float] = Field(None, gt=0)
+    valor_uf_actual: Optional[float] = Field(None, gt=0)
+    costo_total_clp: Optional[float] = Field(None, ge=0)
+    material_id: Optional[int] = Field(None, ge=1)
+    recintos: List[dict] = Field(default_factory=list)
+    muros: List[dict] = Field(default_factory=list)
+    adyacencias: List[dict] = Field(default_factory=list)
+
+
+class ValidarNormativaResponse(BaseModel):
+    alerts: List[dict]
+    injections: List[dict]
+    compliant: bool
+
+
+try:
+    from normativa.validator import validar_normativa
+except ModuleNotFoundError:
+    from backend.normativa.validator import validar_normativa  # type: ignore
+
+
+@app.post("/api/validar-normativa", response_model=ValidarNormativaResponse)
+def endpoint_validar_normativa(payload: ValidarNormativaRequest):
+    return validar_normativa(payload.model_dump())
 
 
 if __name__ == "__main__":
