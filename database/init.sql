@@ -79,7 +79,8 @@ INSERT INTO "Material_Estructural" ("Nombre", "Descripcion", "Activo") VALUES
   ('Madera', 'Estructura de madera para viviendas', TRUE),
   ('Metalcom', 'Estructura con perfiles metalcom', TRUE),
   ('Albañilería', 'Estructura de albañilería y hormigón', TRUE),
-  ('Hormigón Armado', 'Estructura de hormigón con armadura de acero', TRUE)
+  ('Hormigón Armado', 'Estructura de hormigón con armadura de acero', TRUE),
+  ('Híbrido', 'Sistema mixto madera y metalcon', TRUE)
 ON CONFLICT ("Nombre") DO NOTHING;
 
 -- Seed 002: Poblar Configuracion_Simulacion (ejemplo)
@@ -173,6 +174,12 @@ INSERT INTO "Matriz_Rendimiento" ("Material_Estructural_ID", "Insumo_ID", "Facto
   (4, 7,  0.21,   'planchas por m2', TRUE),
   (4, 16, 0.025,  'rollos por m2', TRUE),       -- 2.5 / 100
   (4, 19, 0.083,  'tubos por m2', TRUE),        -- 0.25 / 3
+  -- HÍBRIDO (ID=5) — promedio madera + metalcon
+  (5, 2,  0.275,  'sacos por m2', TRUE),
+  (5, 3,  0.075,  'barras por m2', TRUE),
+  (5, 7,  0.56,   'planchas por m2', TRUE),
+  (5, 16, 0.033,  'rollos por m2', TRUE),
+  (5, 19, 0.050,  'tubos por m2', TRUE),
   -- NUEVOS MATERIALES (Asignaciones aproximadas para cumplir con agregar a matriz)
   -- MADERA (ID=1)
   (1, 28, 1.5,    'unidades por m2', TRUE),     -- Pino Dimensionado 2x3
