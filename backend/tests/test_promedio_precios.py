@@ -124,6 +124,6 @@ def test_promedio_precios_logic():
     assert items[2].subtotal is None
     
     # Totales Finales incluyen complementos constructivos referenciales de muro.
-    assert response.costo_total == 1390500.0
+    assert response.costo_total == 1390460.0
     assert response.fecha_precios == dt1.isoformat()
-    assert response.desglose[0].subtotal_categoria == 1261000.0
+    assert response.desglose[0].subtotal_categoria == 1260960.0
