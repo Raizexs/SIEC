@@ -12,9 +12,9 @@
  */
 
 import { ref, computed, watchEffect, watch, nextTick, onMounted, onUnmounted, provide } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
-import { driver } from 'driver.js';
-import 'driver.js/dist/driver.css';
+import { startWorkspaceTour } from '../composables/useWorkspaceTour.js';
 import AppRail from './shell/AppRail.vue';
 import Sidebar from './Sidebar.vue';
 import TopNavBar from './TopNavBar.vue';
@@ -26,10 +26,12 @@ import FlowGuide from './workspace/FlowGuide.vue';
 import RoomEditor2D from './RoomEditor2D.vue';
 import Scene3D from './Scene3D.vue';
 import BudgetBreakdownPanel from './BudgetBreakdownPanel.vue';
-import SaveLayoutDialog from './SaveLayoutDialog.vue';
+import Ley21725AlertModal from './Ley21725AlertModal.vue';
+import NormativePanel from './NormativePanel.vue';
 
 import UserManualModal from './UserManualModal.vue';
 import ShareDialog from './ShareDialog.vue';
+import SaveLayoutDialog from './SaveLayoutDialog.vue';
 import { useRecintosStore } from '../stores/recintos';
 import { useWorkspaceStore } from '../stores/workspace';
 import { useTokenCounter } from '../composables/useTokenCounter';
@@ -40,8 +42,12 @@ import { toast } from 'vue-sonner';
 import { generateCommercialPDF } from '../utils/pdfGenerator';
 import {
   captureSceneImage,
+  captureProjectPreviewCollage,
   resolveMainSceneCanvas,
 } from '../proposal/proposalSceneCapture.js';
+import { generateLayoutThumbnail } from '../utils/thumbnailGenerator.js';
+import { compressPreviewCollage } from '../utils/imageCompress.js';
+import { storeProjectPreview } from '../utils/projectPreview.js';
 import { useAuthStore } from '../stores/auth';
 import { useProMotion } from '../composables/useProMotion';
 import { GraduationCap, BookOpen } from 'lucide-vue-next';
@@ -79,6 +85,14 @@ const projectsApi = useProjectsApi();
 const { t, currentLanguage } = useI18n();
 
 const { productPreferences } = useProductPreferences();
+const route = useRoute();
+const router = useRouter();
+
+/** Altura de muro alineada con preferencias (2.4 / 2.6 / 2.8 m). */
+const alturaMuroM = computed(() => {
+  const h = Number(productPreferences.value.defaultRoomHeight);
+  return Number.isFinite(h) && h >= 2.1 ? h : 2.4;
+});
 
 const workspaceFeatures = computed(
   () => ({
@@ -93,8 +107,14 @@ const editorInitialView = computed(
 const showEditor2dPanel = computed(
   () => editorInitialView.value === '2d' || editorInitialView.value === 'split',
 );
+const forceDesignForCapture = ref(false);
+const force3dForCapture = ref(false);
+
 const showEditor3dPanel = computed(
-  () => editorInitialView.value === '3d' || editorInitialView.value === 'split',
+  () =>
+    force3dForCapture.value ||
+    editorInitialView.value === '3d' ||
+    editorInitialView.value === 'split',
 );
 const editorGridClass = computed(() =>
   editorInitialView.value === 'split'
@@ -108,6 +128,26 @@ const motionRoot = ref(null);
 useProMotion(motionRoot, { skipIntro: true });
 
 const showManual = ref(false);
+const showLey21725Modal = ref(false);
+const ley21725Alert = ref(null);
+
+const handleApplyPreset = (layout) => {
+  if (!layout) return;
+  applyLayoutToStore(layout);
+  if (layout.materialEstructuralId != null) {
+    formData.value.materialEstructuralId = clampMaterialId(layout.materialEstructuralId);
+  }
+  if (layout.m2Totales != null) {
+    formData.value.m2Totales = layout.m2Totales;
+  }
+  goToStep('design');
+  toast.success('Layout aplicado. Puede ajustar recintos en 2D/3D.');
+};
+
+const onLey21725Violation = (alert) => {
+  ley21725Alert.value = alert;
+  showLey21725Modal.value = true;
+};
 const hasBudget = ref(false);
 const budgetSession = createWorkspaceBudgetSession();
 provide(WORKSPACE_BUDGET_SESSION_KEY, budgetSession);
@@ -151,6 +191,10 @@ const {
   hasBudget,
   selectedM2,
 });
+
+const showDesignStepForCapture = computed(
+  () => showDesignStep.value || forceDesignForCapture.value,
+);
 
 const appKey = computed(() => `app-${currentLanguage.value}`);
 
@@ -396,6 +440,23 @@ onMounted(async () => {
   await fetchBilling();
   await bootstrapWorkspace();
   applyMaterialPlanLimits();
+
+  window.addEventListener('siec:export', onSiecExport);
+  window.addEventListener('siec:save-version', onSaveVersionEvent);
+
+  await nextTick();
+  const stepQuery = route.query.step;
+  if (stepQuery === 'budget' || stepQuery === 'export' || stepQuery === 'design' || stepQuery === 'configure') {
+    goToStep(String(stepQuery));
+  }
+  if (route.query.tour === '1') {
+    setTimeout(() => startTutorial(), 600);
+  }
+});
+
+onUnmounted(() => {
+  window.removeEventListener('siec:save-version', onSaveVersionEvent);
+  window.removeEventListener('siec:export', onSiecExport);
 });
 
 watch(
@@ -486,7 +547,50 @@ watch(
 const isSubmitting = ref(false);
 const activeTab = ref('generalSpecs');
 const showSaveDialog = ref(false);
+const isSavingLayout = ref(false);
 const showShareDialog = ref(false);
+
+const suggestedLayoutName = computed(() => {
+  const current = workspaceStore.activePresetName?.trim();
+  if (current && current !== 'Proyecto Sin Título') return current;
+  return t('defaultProjectName');
+});
+
+const CAPTURE_PREVIEW_TIMEOUT_MS = 14000;
+
+const waitForSceneCanvas = async (maxMs = 5000) => {
+  const started = Date.now();
+  while (Date.now() - started < maxMs) {
+    if (resolveMainSceneCanvas()) return true;
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+  }
+  return Boolean(resolveMainSceneCanvas());
+};
+
+const prepareForSceneCapture = async () => {
+  const previousStep = currentStep.value;
+  forceDesignForCapture.value = true;
+  force3dForCapture.value = true;
+
+  if (previousStep !== 'design') {
+    goToStep('design');
+  }
+
+  await nextTick();
+  await new Promise((resolve) => setTimeout(resolve, 120));
+  await waitForSceneCanvas();
+  await new Promise((resolve) => setTimeout(resolve, 350));
+
+  return previousStep;
+};
+
+const restoreAfterSceneCapture = (previousStep) => {
+  force3dForCapture.value = false;
+  forceDesignForCapture.value = false;
+  if (previousStep && previousStep !== currentStep.value) {
+    goToStep(previousStep);
+  }
+};
 
 const hasRecintos = computed(() => recintosStore.recintos.length > 0);
 
@@ -552,14 +656,154 @@ const loadLayout = (layout) => {
   }, 500);
 };
 
-const handleSaveLayout = (name) => {
-  saveLayout(name, formData.value);
-  showSaveDialog.value = false;
-  showToast.value = true;
+const buildProjectPayload = () => ({
+  recintos: recintosStore.recintos,
+  currentFloor: recintosStore.currentFloor,
+  selectedForBudget: [...recintosStore.selectedForBudget],
+  terrenoAncho: formData.value.terrenoAncho,
+  terrenoLargo: formData.value.terrenoLargo,
+  m2Totales: formData.value.m2Totales,
+  materialEstructuralId: formData.value.materialEstructuralId,
+  habitacionesSimples: formData.value.habitacionesSimples,
+  habitacionesDobles: formData.value.habitacionesDobles,
+  habitacionesTriples: formData.value.habitacionesTriples,
+  banios: formData.value.banios,
+  areasComunes: formData.value.areasComunes,
+});
 
-  setTimeout(() => {
-    showToast.value = false;
-  }, 3000);
+const resolvePreviewHero = async () => {
+  try {
+    const preview = await captureProjectPreviewCollage();
+    if (preview?.hero) return preview;
+  } catch {
+    /* 3D no disponible */
+  }
+
+  const fallback = generateLayoutThumbnail(recintosStore.recintos);
+  return fallback ? { hero: fallback } : null;
+};
+
+const capturePreviewWithTimeout = async () => {
+  const previousStep = await prepareForSceneCapture();
+  try {
+    return await Promise.race([
+      resolvePreviewHero(),
+      new Promise((_, reject) => {
+        window.setTimeout(() => reject(new Error('preview-timeout')), CAPTURE_PREVIEW_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    restoreAfterSceneCapture(previousStep);
+  }
+};
+
+const persistProjectRemote = async (trimmed, payload, previewHero, savedLayout) => {
+  const m2 = Math.round(totalAreaOcupada.value || formData.value.m2Totales || 0);
+  const materialId = enforceMaterialForPlan(formData.value.materialEstructuralId);
+  const patch = {
+    name: trimmed,
+    payload,
+    thumbnail_url: previewHero?.hero ?? undefined,
+    m2_totales: m2,
+    material_id: materialId,
+  };
+
+  let projectId = props.projectId;
+
+  if (projectId && !isLocalProjectId(projectId)) {
+    await projectsApi.update(projectId, patch);
+    try {
+      await projectsApi.createVersion(projectId, {
+        summary: trimmed,
+        payload,
+      });
+    } catch (versionErr) {
+      logger.warn('[save] No se pudo crear versión:', versionErr);
+    }
+    return projectId;
+  }
+
+  const created = await projectsApi.create(patch);
+  projectId = created.id;
+  savedLayout.id = projectId;
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem('siec.lastWorkspacePath', `/workspace/${projectId}`);
+  }
+  await router.replace(`/workspace/${projectId}`);
+  return projectId;
+};
+
+const handleSaveLayout = async (name) => {
+  const trimmed = String(name || suggestedLayoutName.value || '').trim();
+  if (!trimmed || isSavingLayout.value) return;
+
+  isSavingLayout.value = true;
+  const toastId = toast.loading(t('savingProject'));
+
+  try {
+    workspaceStore.activePresetName = trimmed;
+    workspaceStore.saveWorkspace();
+
+    let previewHero = null;
+    try {
+      const raw = await capturePreviewWithTimeout();
+      previewHero = await compressPreviewCollage(raw);
+    } catch (captureErr) {
+      logger.warn('[save] Captura de portada omitida:', captureErr);
+    }
+
+    const layoutExtras = {
+      ...formData.value,
+      ...(previewHero?.hero ? { thumbnail: previewHero.hero } : {}),
+    };
+
+    const savedLayout = saveLayout(trimmed, layoutExtras);
+
+    const savedAt = new Date().toISOString();
+    const payload = {
+      ...buildProjectPayload(),
+      saved_at: savedAt,
+      ...(previewHero ? { preview_collage: previewHero } : {}),
+    };
+
+    if (previewHero?.hero) {
+      const previewKey = props.projectId && !isLocalProjectId(props.projectId)
+        ? props.projectId
+        : savedLayout.id;
+      storeProjectPreview(previewKey, previewHero);
+    }
+
+    let syncedRemote = false;
+    if (authStore.accessToken) {
+      try {
+        const remoteId = await persistProjectRemote(trimmed, payload, previewHero, savedLayout);
+        if (previewHero?.hero && remoteId) {
+          storeProjectPreview(remoteId, previewHero);
+        }
+        syncedRemote = true;
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('siec:projects-changed'));
+        }
+      } catch (apiErr) {
+        logger.warn('[save] API remota falló, quedó guardado localmente:', apiErr);
+      }
+    }
+
+    showSaveDialog.value = false;
+    showToast.value = true;
+    toast.success(
+      syncedRemote ? t('layoutSaved') : t('layoutSavedLocalOnly'),
+      { id: toastId },
+    );
+    setTimeout(() => {
+      showToast.value = false;
+    }, 3000);
+  } catch (err) {
+    const msg = err?.message || t('saveLayoutError');
+    toast.error(msg, { id: toastId });
+  } finally {
+    isSavingLayout.value = false;
+  }
 };
 
 const onSaveVersionEvent = () => {
@@ -595,13 +839,6 @@ watch(
   },
 );
 
-onMounted(() => {
-  window.addEventListener('siec:save-version', onSaveVersionEvent);
-});
-
-onUnmounted(() => {
-  window.removeEventListener('siec:save-version', onSaveVersionEvent);
-});
 
 const handleNewEstimate = () => {
   if (
@@ -657,6 +894,7 @@ const executePdfExport = async (exportPrefs) => {
 
     await generateCommercialPDF(canvas, workspaceStore.activePresetName, {
       export: exp,
+      contingency: productPreferences.value.contingency,
       snapshotDataUrl,
       m2Totales: formData.value.m2Totales,
       materialEstructuralId: formData.value.materialEstructuralId,
@@ -693,157 +931,7 @@ const prepareTutorialStep = async (stepId) => {
 };
 
 const startTutorial = () => {
-  const driverObj = driver({
-    showProgress: true,
-    animate: true,
-    smoothScroll: true,
-    allowClose: true,
-    overlayOpacity: 0.58,
-    stagePadding: 10,
-    stageRadius: 22,
-    popoverClass: 'siec-driver-theme',
-    nextBtnText: t('tourBtnNext'),
-    prevBtnText: t('tourBtnPrev'),
-    doneBtnText: t('tourBtnDone'),
-    progressText: '{{current}} / {{total}}',
-    steps: [
-      {
-        popover: {
-          title: t('tourWelcomeTitle'),
-          description: t('tourWelcomeDesc'),
-          side: 'over',
-          align: 'center',
-        },
-      },
-      {
-        element: '.tour-workspace-stepper',
-        popover: {
-          title: t('tourStepperTitle'),
-          description: t('tourStepperDesc'),
-          side: 'bottom',
-          align: 'start',
-        },
-      },
-      {
-        element: '.tour-config-panel',
-        onHighlightStarted: () => {
-          void prepareTutorialStep('configure');
-        },
-        popover: {
-          title: t('tourConfigureTitle'),
-          description: t('tourConfigureDesc'),
-          side: 'right',
-          align: 'start',
-        },
-      },
-      {
-        element: '.tour-metrics-bar',
-        onHighlightStarted: () => {
-          void prepareTutorialStep('design');
-        },
-        popover: {
-          title: t('tourMetricsTitle'),
-          description: t('tourMetricsDesc'),
-          side: 'bottom',
-          align: 'start',
-        },
-      },
-      {
-        element: '.tour-editor-2d-toolbar',
-        onHighlightStarted: () => {
-          void prepareTutorialStep('design');
-        },
-        popover: {
-          title: t('tourEditorToolsTitle'),
-          description: t('tourEditorToolsDesc'),
-          side: 'bottom',
-          align: 'start',
-        },
-      },
-      {
-        element: '.tour-editor-2d-actions',
-        onHighlightStarted: () => {
-          void prepareTutorialStep('design');
-        },
-        popover: {
-          title: t('tourEditorActionsTitle'),
-          description: t('tourEditorActionsDesc'),
-          side: 'left',
-          align: 'center',
-        },
-      },
-      {
-        element: '.tour-editor-2d',
-        onHighlightStarted: () => {
-          void prepareTutorialStep('design');
-        },
-        popover: {
-          title: t('tourEditorCanvasTitle'),
-          description: t('tourEditorCanvasDesc'),
-          side: 'top',
-          align: 'center',
-        },
-      },
-      {
-        element: '.tour-scene-3d-tools',
-        onHighlightStarted: () => {
-          void prepareTutorialStep('design');
-        },
-        popover: {
-          title: t('tourSceneToolsTitle'),
-          description: t('tourSceneToolsDesc'),
-          side: 'bottom',
-          align: 'start',
-        },
-      },
-      {
-        element: '.tour-scene-3d-actions',
-        onHighlightStarted: () => {
-          void prepareTutorialStep('design');
-        },
-        popover: {
-          title: t('tourSceneActionsTitle'),
-          description: t('tourSceneActionsDesc'),
-          side: 'left',
-          align: 'center',
-        },
-      },
-      {
-        element: '.tour-budget-step',
-        onHighlightStarted: () => {
-          void prepareTutorialStep('budget');
-        },
-        popover: {
-          title: t('tourBudgetTitle'),
-          description: t('tourBudgetDesc'),
-          side: 'top',
-          align: 'start',
-        },
-      },
-      {
-        element: '.tour-export-step',
-        onHighlightStarted: () => {
-          void prepareTutorialStep('export');
-        },
-        popover: {
-          title: t('tourExportTitle'),
-          description: t('tourExportDesc'),
-          side: 'top',
-          align: 'start',
-        },
-      },
-      {
-        popover: {
-          title: t('tourDoneTitle'),
-          description: t('tourDoneDesc'),
-          side: 'over',
-          align: 'center',
-        },
-      },
-    ],
-  });
-
-  driverObj.drive();
+  startWorkspaceTour({ t, prepareTutorialStep });
 };
 </script>
 
@@ -861,6 +949,7 @@ const startTutorial = () => {
     <!-- Contextual sidebar -->
     <Sidebar
       @load-layout="loadLayout"
+      @apply-preset="handleApplyPreset"
       @collapse-change="(val) => (sidebarCollapsed = val)"
       @new-estimate="handleNewEstimate"
     />
@@ -976,9 +1065,23 @@ const startTutorial = () => {
               :hide-locked-materials="isFree"
               @update:formData="updateFormData"
             />
+            <NormativePanel
+              class="mt-4"
+              :material-estructural-id="formData.materialEstructuralId"
+              :m2-totales="terrainM2FromDimensions"
+              :altura-muro-m="alturaMuroM"
+              @ley21725-violation="onLey21725Violation"
+            />
           </section>
 
-          <section v-show="showDesignStep" class="space-y-4" data-motion="section">
+          <section v-show="showDesignStepForCapture" class="space-y-4" data-motion="section">
+            <div
+              v-if="!isFlowGuideDismissed"
+              class="rounded-2xl border border-blue-200 bg-blue-50/80 px-4 py-3 text-sm text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200"
+            >
+              Puede asignar un material distinto a cada recinto desde el inspector 2D o 3D (pantalla completa).
+              El material de Configurar se aplica solo a recintos nuevos.
+            </div>
             <div :class="editorGridClass">
               <RoomEditor2D
                 v-show="showEditor2dPanel"
@@ -991,17 +1094,59 @@ const startTutorial = () => {
                 :show-grid="productPreferences.editor.showGrid"
                 :show-labels="productPreferences.editor.showLabels"
                 :default-room-height="productPreferences.defaultRoomHeight"
+                :material-estructural-id="formData.materialEstructuralId"
               />
 
               <Scene3D
                 v-show="showEditor3dPanel"
-                class="tour-scene-3d min-h-[420px] xl:min-h-[520px]"
+                :class="[
+                  'tour-scene-3d min-h-[420px] xl:min-h-[520px]',
+                  force3dForCapture
+                    ? 'pointer-events-none fixed -left-[120vw] top-0 z-0 h-[720px] w-[1280px] max-w-none opacity-0'
+                    : '',
+                ]"
                 :materialEstructuralId="formData.materialEstructuralId"
                 :terreno-ancho="formData.terrenoAncho"
                 :terreno-largo="formData.terrenoLargo"
                 :show-minimap="productPreferences.editor.showMinimap"
+                :wall-height="alturaMuroM"
                 :quality-3d="productPreferences.editor.quality3d"
               />
+            </div>
+
+            <div
+              v-if="recintosStore.selectedM2 > 0"
+              class="flex flex-col gap-4 rounded-2xl border border-emerald-200/90 bg-emerald-50/85 px-4 py-4 shadow-sm dark:border-emerald-900/55 dark:bg-emerald-950/30 sm:flex-row sm:items-center sm:justify-between"
+              data-motion="section"
+            >
+              <div class="flex min-w-0 items-start gap-3">
+                <div
+                  class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-200 bg-white text-emerald-600 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300"
+                >
+                  <span class="material-symbols-outlined text-[22px]">request_quote</span>
+                </div>
+                <div class="min-w-0">
+                  <p class="text-sm font-bold text-emerald-950 dark:text-emerald-100">
+                    {{ t('designBudgetCtaTitle') }}
+                  </p>
+                  <p class="mt-1 text-sm font-medium leading-relaxed text-emerald-800/90 dark:text-emerald-200/85">
+                    {{
+                      t('designBudgetCtaHint', {
+                        count: recintosStore.selectedForBudget.size,
+                        m2: Math.round(recintosStore.selectedM2),
+                      })
+                    }}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                class="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-emerald-900/15 transition hover:bg-emerald-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500 dark:bg-emerald-500 dark:hover:bg-emerald-400"
+                @click="goToStep('budget')"
+              >
+                <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+                {{ t('designBudgetCtaBtn') }}
+              </button>
             </div>
           </section>
 
@@ -1013,7 +1158,7 @@ const startTutorial = () => {
               :m2Totales="recintosStore.selectedM2"
               :materialEstructuralId="formData.materialEstructuralId"
               :perimetroMl="Number(totalWallLength)"
-              :alturaMuroM="2.44"
+              :alturaMuroM="alturaMuroM"
               :pdf-watermark="limits.pdf_watermark"
               @budget-calculated="onBudgetCalculated"
               @go-export="goToStep('export')"
@@ -1052,7 +1197,7 @@ const startTutorial = () => {
               :m2Totales="recintosStore.selectedM2"
               :materialEstructuralId="formData.materialEstructuralId"
               :perimetroMl="Number(totalWallLength)"
-              :alturaMuroM="2.44"
+              :alturaMuroM="alturaMuroM"
               :pdf-watermark="limits.pdf_watermark"
               @budget-calculated="onBudgetCalculated"
             />
@@ -1099,6 +1244,8 @@ const startTutorial = () => {
 
     <SaveLayoutDialog
       :show="showSaveDialog"
+      :layout-name="suggestedLayoutName"
+      :saving="isSavingLayout"
       @close="showSaveDialog = false"
       @save="handleSaveLayout"
     />
@@ -1115,6 +1262,12 @@ const startTutorial = () => {
     <UserManualModal
       :show="showManual"
       @close="showManual = false"
+    />
+
+    <Ley21725AlertModal
+      :show="showLey21725Modal"
+      :resultado="ley21725Alert"
+      @close="showLey21725Modal = false"
     />
 
     <!-- Premium toast -->
@@ -1216,10 +1369,14 @@ const startTutorial = () => {
 }
 
 .siec-driver-theme .driver-popover-description {
+  max-height: min(38vh, 220px) !important;
+  overflow-y: auto !important;
   color: #64748b !important;
   font-size: 0.875rem !important;
   font-weight: 600 !important;
   line-height: 1.65 !important;
+  padding-bottom: 0.15rem !important;
+  scrollbar-width: thin;
 }
 
 .siec-driver-theme .driver-popover-footer {
@@ -1337,25 +1494,33 @@ const startTutorial = () => {
   border-bottom-color: rgba(255, 255, 255, 0.98) !important;
 }
 
-/* Overlay: NO blur. This fixes the unfocused highlighted area. */
+/* Overlay SVG: sin fondo sólido — el path SVG ya crea el agujero del spotlight.
+   Un background aquí oscurecía también el recuadro resaltado. */
 .driver-overlay {
-  background: rgba(2, 6, 23, 0.58) !important;
+  background: transparent !important;
   backdrop-filter: none !important;
+  pointer-events: none !important;
 }
 
-/* Highlighted element */
+.driver-overlay path {
+  pointer-events: auto !important;
+}
+
 .driver-active-element {
+  position: relative !important;
+  z-index: 10001 !important;
   border-radius: 1.5rem !important;
   box-shadow:
-    0 0 0 2px rgba(249, 115, 22, 0.9),
-    0 0 0 8px rgba(249, 115, 22, 0.18),
-    0 24px 80px rgba(15, 23, 42, 0.28) !important;
+    0 0 0 3px rgba(249, 115, 22, 1),
+    0 0 0 10px rgba(249, 115, 22, 0.22),
+    0 16px 48px rgba(15, 23, 42, 0.18) !important;
 }
 
 /* Prevent Driver from making selected complex panels look washed out */
 .driver-active-element,
 .driver-active-element * {
   filter: none !important;
+  opacity: 1 !important;
 }
 
 /* Dark mode */
