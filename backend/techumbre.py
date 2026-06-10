@@ -194,8 +194,8 @@ def calcular_partida_techumbre(
     precio_lana, tienda_lana, url_lana = _lookup(48, _PRECIOS["lana vidrio"])
 
     # ── Estructura según material ─────────────────────────────────────────
-    if material_id in (1, 2):
-        # ── Madera o Metalcom: cerchas ────────────────────────────────────
+    if material_id in (1, 2, 5):
+        # ── Madera, Metalcom o Híbrido: cerchas ───────────────────────────
         cant_cerchas = math.ceil(largo / 0.60) + 1
         if material_id == 1:
             # Cerchas de pino 2x4
@@ -235,7 +235,7 @@ def calcular_partida_techumbre(
                 formato_comercial="3.2 m",
             )
         else:
-            # Metalcom: cerchas de perfil C 60x38mm
+            # Metalcom / Híbrido: cerchas de perfil C 60x38mm
             ml_perfil_por_cercha = 10.0
             total_ml_perfil = cant_cerchas * ml_perfil_por_cercha
             largo_comercial = 6.0
