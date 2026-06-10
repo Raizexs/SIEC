@@ -300,10 +300,9 @@ const cancelUnsavedDialog = () => {
   showUnsavedDialog.value = false;
 };
 
-onMounted(async () => {
+onMounted(() => {
   preferencesDraft.syncFromSaved();
-  auth.refreshFactors();
-  fetchBilling();
+  void auth.refreshFactors();
 });
 
 onBeforeRouteLeave((_to, _from, next) => {
@@ -326,18 +325,15 @@ watch(
   { immediate: true },
 );
 
-watch(
-  tab,
-  (value) => {
-    if (value === 'billing') fetchBilling(true);
-  },
-  { immediate: true },
-);
+watch(tab, (value) => {
+  if (value === 'billing') fetchBilling(true);
+});
 </script>
 
 <template>
   <div
     ref="motionRoot"
+    data-siec-app-shell
     class="flex min-h-screen bg-slate-50 text-slate-950 transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100"
   >
     <AppRail active="settings" />

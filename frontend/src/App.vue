@@ -66,7 +66,10 @@ const isBareAuthShell = (el) => el?.getAttribute?.('data-siec-bare-route') === '
 /** Editor 3D: micro-entrada rápida (antes sin animación + sensación de “lag” al montar Three). */
 const isWorkspaceShell = (el) => el?.getAttribute?.('data-siec-workspace-shell') != null;
 
+const isAppShell = (el) => el?.getAttribute?.('data-siec-app-shell') != null;
+
 const WORKSPACE_ENTER_S = 0.2;
+const APP_SHELL_ENTER_S = 0.16;
 
 /**
  * Entrada de ruta en un solo `fromTo` (sin `beforeEnter` previo).
@@ -91,6 +94,23 @@ const enter = (el, done) => {
           y: 0,
           opacity: 1,
           duration: WORKSPACE_ENTER_S,
+          ease: motionTokens.ease.standardOut,
+          clearProps: "transform",
+          onComplete: finish,
+        },
+      );
+      return;
+    }
+    if (isAppShell(el)) {
+      gsap.killTweensOf(el);
+      gsap.set(el, { autoAlpha: 1 });
+      gsap.fromTo(
+        el,
+        { y: 6, opacity: 0.98 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: APP_SHELL_ENTER_S,
           ease: motionTokens.ease.standardOut,
           clearProps: "transform",
           onComplete: finish,
@@ -126,6 +146,10 @@ const leave = (el, done) => {
     return;
   }
   if (isWorkspaceShell(el)) {
+    finish();
+    return;
+  }
+  if (isAppShell(el)) {
     finish();
     return;
   }

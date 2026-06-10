@@ -107,7 +107,7 @@ const next = async () => {
   }
 
   isSaving.value = false;
-  router.push('/dashboard?tour=1');
+  router.push('/workspace?tour=1');
 };
 
 const back = () => {
