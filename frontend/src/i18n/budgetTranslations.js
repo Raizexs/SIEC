@@ -9,7 +9,7 @@ export const budgetTranslationsEs = {
   budgetInactive: "Presupuesto inactivo",
   budgetInactiveHint:
     "Genera un presupuesto usando la selección actual de recintos, superficie calculada y material estructural del proyecto.",
-  budgetCalculateReal: "Calcular presupuesto real",
+  budgetCalculateReal: "Cambiar presupuesto",
   budgetScraperHint: "Consulta precios de mercado actualizados vía scraper.",
   budgetLoading: "Analizando insumos y materiales...",
   budgetLoadingHint: "Esto puede depender del backend y del scraper de precios.",
@@ -74,7 +74,7 @@ export const budgetTranslationsEn = {
   budgetInactive: "Budget inactive",
   budgetInactiveHint:
     "Generate a budget using the current room selection, calculated area and project structural material.",
-  budgetCalculateReal: "Calculate real budget",
+  budgetCalculateReal: "Change budget",
   budgetScraperHint: "Fetches updated market prices via scraper.",
   budgetLoading: "Analyzing supplies and materials...",
   budgetLoadingHint: "This may depend on the backend and price scraper.",

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
@@ -191,14 +192,11 @@ def checkout_publish_listing(
     if listing.status == "published":
         raise HTTPException(status_code=409, detail="Este listado ya está publicado")
 
-    result = create_listing_publish_checkout(
-        db,
-        listing=listing,
-        user_id=user.id,
-        user_email=user.email,
-    )
+    listing.status = "published"
+    listing.published_at = datetime.utcnow()
+    listing.commitment_fee_paid = True
     db.commit()
-    return result
+    return {"status": "published", "listing_id": str(listing.id)}
 
 
 @router.post("/listings/{listing_id}/checkout-unlock")
@@ -214,11 +212,22 @@ def checkout_unlock_listing(
     if str(listing.owner_id) == user.id:
         raise HTTPException(status_code=400, detail="No puedes desbloquear tu propia publicación")
 
-    result = create_lead_unlock_checkout(
-        db,
-        listing=listing,
-        contractor_user_id=user.id,
-        contractor_email=user.email,
+    uid = UUID(user.id)
+    unlock = (
+        db.query(models.SiecplaceLeadUnlock)
+        .filter_by(listing_id=listing.id, contractor_user_id=uid)
+        .first()
     )
+    if not unlock:
+        unlock = models.SiecplaceLeadUnlock(
+            listing_id=listing.id,
+            contractor_user_id=uid,
+            fee_paid=True,
+            compensation_status="pending",
+        )
+        db.add(unlock)
+    elif not unlock.fee_paid:
+        unlock.fee_paid = True
     db.commit()
-    return result
+    contact = get_owner_contact(db, listing.owner_id)
+    return {"status": "unlocked", "listing_id": str(listing.id), "contact": contact}

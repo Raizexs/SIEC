@@ -66,16 +66,20 @@ export function useSiecPlace() {
   const checkoutPublish = async (listingId) => {
     try {
       const res = await api.post(`/siecplace/listings/${listingId}/checkout-publish`, {});
+      if (res.status === "published") {
+        toast.success("Obra publicada en SIEC Place");
+        return res;
+      }
       if (res.checkout_url) {
         window.location.href = res.checkout_url;
         return res;
       }
-      toast.error('No se pudo iniciar el pago de publicación.');
+      toast.error("No se pudo publicar la obra.");
       return res;
     } catch (err) {
       const detail = err.payload?.detail;
       const msg =
-        typeof detail === 'object' ? detail.message : detail || 'Pagos no disponibles';
+        typeof detail === "object" ? detail.message : detail || "Pagos no disponibles";
       toast.error(msg);
       throw err;
     }
@@ -84,16 +88,20 @@ export function useSiecPlace() {
   const checkoutUnlock = async (listingId) => {
     try {
       const res = await api.post(`/siecplace/listings/${listingId}/checkout-unlock`, {});
+      if (res.status === "unlocked") {
+        toast.success("Contacto desbloqueado");
+        return res;
+      }
       if (res.checkout_url) {
         window.location.href = res.checkout_url;
         return res;
       }
-      toast.error('No se pudo iniciar el pago de contacto.');
+      toast.error("No se pudo desbloquear el contacto.");
       return res;
     } catch (err) {
       const detail = err.payload?.detail;
       const msg =
-        typeof detail === 'object' ? detail.message : detail || 'Pagos no disponibles';
+        typeof detail === "object" ? detail.message : detail || "Pagos no disponibles";
       toast.error(msg);
       throw err;
     }

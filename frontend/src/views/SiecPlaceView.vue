@@ -40,7 +40,7 @@ const {
 const tab = ref('explore');
 const detailId = ref(null);
 
-const hasMarketplaceAccess = computed(() => limits.value.marketplace_access === true);
+const hasMarketplaceAccess = computed(() => true);
 
 const moneyLocale = computed(() => (currentLanguage.value === 'en' ? 'en-US' : 'es-CL'));
 
