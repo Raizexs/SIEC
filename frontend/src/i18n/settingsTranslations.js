@@ -130,6 +130,9 @@ export const settingsTranslationsEs = {
   settingsViewSplit: "Split",
   settingsCurrencyDefault: "Moneda por defecto",
   settingsUnitArea: "Unidad de superficie",
+  settingsUnitsFixed: "Metros y m² (sistema métrico)",
+  settingsUnitsFixedHint:
+    "SIEC modela recintos en m y m². No hay conversión imperial en el editor ni en presupuesto.",
   settingsContingencyMargin: "Margen de contingencia",
   settingsMaterialDefault: "Materialidad por defecto",
   settingsCustomHeight: "Personalizada",
@@ -306,6 +309,9 @@ export const settingsTranslationsEn = {
   settingsViewSplit: "Split",
   settingsCurrencyDefault: "Default currency",
   settingsUnitArea: "Area unit",
+  settingsUnitsFixed: "Meters and m² (metric system)",
+  settingsUnitsFixedHint:
+    "SIEC models recintos in m and m². There is no imperial conversion in the editor or budget.",
   settingsContingencyMargin: "Contingency margin",
   settingsMaterialDefault: "Default material",
   settingsCustomHeight: "Custom",
