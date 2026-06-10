@@ -1,6 +1,37 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { useMetalconValidator } from "../composables/useMetalconValidator";
+import { MAX_FLOORS, clampWallHeight, DEFAULT_WALL_HEIGHT } from "../constants/spatial.js";
+import {
+  getSupportRoomsBelow,
+} from "../composables/useSpatialConstraints.js";
+import { isRoomStructurallyValid } from "../utils/cantileverSupport.js";
+import { cloneState } from "../utils/schedule.js";
+
+export { MAX_FLOORS };
+
+/** Dimensiones base por tipo — compartidas con presets y layout manager. */
+export const RECINTO_BASE_DIMS = {
+  habitacion: { w: 3.5, l: 3.0, h: 2.4 },
+  banio: { w: 2.0, l: 2.0, h: 2.4 },
+  areaComun: { w: 4.5, l: 3.5, h: 2.4 },
+  pasillo: { w: 1.5, l: 3.0, h: 2.4 },
+};
+
+export const normalizeRecintoTipo = (tipo) => {
+  if (tipo === "comun") return "areaComun";
+  if (tipo === "area_comun") return "areaComun";
+  if (tipo === "baño") return "banio";
+  if (tipo === "bano") return "banio";
+  return tipo || "habitacion";
+};
+
+export const RECINTO_NOMBRES_POR_TIPO = {
+  habitacion: "Habitación",
+  banio: "Baño",
+  areaComun: "Área común",
+  pasillo: "Pasillo",
+};
 
 // Función simple para generar IDs únicos sin dependencias externas
 const generateId = () =>
@@ -35,7 +66,7 @@ export const useRecintosStore = defineStore("recintos", () => {
     if (historyIndex.value < history.value.length - 1) {
       history.value = history.value.slice(0, historyIndex.value + 1);
     }
-    history.value.push(JSON.parse(JSON.stringify(recintos.value)));
+    history.value.push(cloneState(recintos.value));
     if (history.value.length > 50) {
       history.value.shift();
     } else {
@@ -46,21 +77,21 @@ export const useRecintosStore = defineStore("recintos", () => {
   const undo = () => {
     if (historyIndex.value > 0) {
       historyIndex.value--;
-      recintos.value = JSON.parse(JSON.stringify(history.value[historyIndex.value]));
+      recintos.value = cloneState(history.value[historyIndex.value]);
     }
   };
 
   const redo = () => {
     if (historyIndex.value < history.value.length - 1) {
       historyIndex.value++;
-      recintos.value = JSON.parse(JSON.stringify(history.value[historyIndex.value]));
+      recintos.value = cloneState(history.value[historyIndex.value]);
     }
   };
 
   const copyToClipboard = (id) => {
     const room = recintos.value.find(r => r.id === id);
     if (room) {
-      clipboard.value = JSON.parse(JSON.stringify(room));
+      clipboard.value = cloneState(room);
     }
   };
 
@@ -93,6 +124,17 @@ export const useRecintosStore = defineStore("recintos", () => {
     return newId;
   };
 
+  /** Bloquea mover/redimensionar recintos en 2D y 3D. */
+  const layoutLocked = ref(false);
+
+  const setLayoutLocked = (value) => {
+    layoutLocked.value = Boolean(value);
+  };
+
+  const toggleLayoutLock = () => {
+    layoutLocked.value = !layoutLocked.value;
+  };
+
   // Metadata de configuración para el layout inicial
   const configMetadata = ref({
     m2Totales: 0,
@@ -112,30 +154,18 @@ export const useRecintosStore = defineStore("recintos", () => {
   /**
    * Base dimensions for each room type (prototypical size in metres).
    */
-  const BASE_DIMS = {
-    habitacion: { w: 3.5, l: 3.0, h: 2.4 },
-    banio:      { w: 2.0, l: 2.0, h: 2.4 },
-    areaComun:  { w: 4.5, l: 3.5, h: 2.4 },
-    pasillo:    { w: 1.5, l: 3.0, h: 2.4 },
-  };
+  const BASE_DIMS = RECINTO_BASE_DIMS;
 
   // Default values for the Add Recinto quick-create form
   const DEFAULT_RECINTO = {
     tipo: 'habitacion',
-    nombre: 'Habitación',
-    w: 3.5,
-    l: 3.0,
-    h: 2.4,
+    nombre: RECINTO_NOMBRES_POR_TIPO.habitacion,
+    w: RECINTO_BASE_DIMS.habitacion.w,
+    l: RECINTO_BASE_DIMS.habitacion.l,
+    h: RECINTO_BASE_DIMS.habitacion.h,
   };
 
-  const normalizeTipo = (tipo) => {
-    if (tipo === "comun") return "areaComun";
-    if (tipo === "area_comun") return "areaComun";
-    if (tipo === "baño") return "banio";
-    if (tipo === "bano") return "banio";
-
-    return tipo || "habitacion";
-  };
+  const normalizeTipo = normalizeRecintoTipo;
 
   const toNumber = (value, fallback = 0) => {
     const parsed = Number(value);
@@ -143,6 +173,24 @@ export const useRecintosStore = defineStore("recintos", () => {
   };
 
   const round3 = (value) => Number(toNumber(value).toFixed(3));
+
+  const roomHasVerticalSupport = (room) => {
+    const piso = room?.piso || 1;
+    if (piso <= 1) return true;
+    const lowerRooms = getSupportRoomsBelow(recintos.value, piso);
+    const materialId =
+      room?.materialEstructuralId ?? configMetadata.value.materialEstructuralId ?? 1;
+    return isRoomStructurallyValid(
+      {
+        id: room.id,
+        piso,
+        coords: room.coords,
+        dimensions: room.dimensions,
+      },
+      lowerRooms,
+      materialId,
+    );
+  };
 
   const normalizeIncomingRecinto = (recinto, index = 0) => {
     const tipo = normalizeTipo(recinto.tipo);
@@ -164,7 +212,13 @@ export const useRecintosStore = defineStore("recintos", () => {
       fallbackDims.h,
     );
 
-    return {
+    const materialRaw = recinto.materialEstructuralId ?? recinto.material_id;
+    const materialEstructuralId =
+      materialRaw != null && Number.isFinite(Number(materialRaw))
+        ? Math.min(5, Math.max(1, Number(materialRaw)))
+        : undefined;
+
+    const normalized = {
       ...recinto,
       id,
       stackId: recinto.stackId || id,
@@ -173,12 +227,12 @@ export const useRecintosStore = defineStore("recintos", () => {
         recinto.nombre ||
         recinto.name ||
         (tipo === "banio"
-          ? "Baño"
+          ? RECINTO_NOMBRES_POR_TIPO.banio
           : tipo === "areaComun"
-            ? "Área común"
+            ? RECINTO_NOMBRES_POR_TIPO.areaComun
             : tipo === "pasillo"
-              ? "Pasillo"
-              : `Recinto ${index + 1}`),
+              ? RECINTO_NOMBRES_POR_TIPO.pasillo
+              : `${RECINTO_NOMBRES_POR_TIPO.habitacion} ${index + 1}`),
       piso: toNumber(recinto.piso ?? recinto.floor, 1),
       coords: {
         x: round3(recinto.coords?.x ?? recinto.x ?? 0),
@@ -190,6 +244,47 @@ export const useRecintosStore = defineStore("recintos", () => {
         h: round3(Math.max(height, 2.1)),
       },
     };
+
+    if (materialEstructuralId != null) {
+      normalized.materialEstructuralId = materialEstructuralId;
+    }
+
+    return normalized;
+  };
+
+  const getRecintoMaterial = (recintoId, projectMaterialId = 1) => {
+    const recinto = recintos.value.find((r) => r.id === recintoId);
+    if (!recinto) return projectMaterialId;
+    const id = Number(recinto.materialEstructuralId);
+    if (Number.isFinite(id) && id >= 1 && id <= 5) return id;
+    return Number(projectMaterialId) || 1;
+  };
+
+  const setRecintoMaterial = (recintoId, materialId) => {
+    const target = recintos.value.find((r) => r.id === recintoId);
+    if (!target) return;
+    const n = Math.min(5, Math.max(1, Number(materialId)));
+    if (!Number.isFinite(n)) return;
+    target.materialEstructuralId = n;
+    saveHistoryState();
+  };
+
+  /** Color de relleno solo en vista 2D (no afecta al render 3D). */
+  const setRecintoColor2d = (recintoId, color) => {
+    const target = recintos.value.find((r) => r.id === recintoId);
+    if (!target) return;
+
+    const normalized =
+      color && /^#[0-9a-fA-F]{6}$/.test(String(color).trim())
+        ? String(color).trim().toLowerCase()
+        : null;
+
+    if (normalized) {
+      target.color2d = normalized;
+    } else {
+      delete target.color2d;
+    }
+    saveHistoryState();
   };
 
   /**
@@ -304,7 +399,7 @@ export const useRecintosStore = defineStore("recintos", () => {
 
     selectedForBudget.value = new Set();
     activeRecintoId.value = null;
-    currentFloor.value = Math.min(3, Math.max(1, toNumber(nextFloor, 1)));
+    currentFloor.value = Math.min(MAX_FLOORS, Math.max(1, toNumber(nextFloor, 1)));
 
     if (metadata) {
       configMetadata.value = {
@@ -349,9 +444,14 @@ export const useRecintosStore = defineStore("recintos", () => {
    * @param {number} l        - Length in metres
    * @param {number} h        - Height in metres (stored for future use)
    */
-  const addRecinto = (tipo = 'habitacion', nombre = 'Habitación', w = 3.5, l = 3.0, h = 2.4) => {
+  const addRecinto = (tipo = 'habitacion', nombre = 'Habitación', w = 3.5, l = 3.0, h = 2.4, color2d = null) => {
+    if (currentFloor.value > 1) {
+      const lowerRooms = getSupportRoomsBelow(recintos.value, currentFloor.value);
+      if (!lowerRooms.length) return null;
+    }
+
     const id = generateId();
-    recintos.value.push({
+    const room = {
       id,
       stackId: id,
       tipo,
@@ -363,13 +463,17 @@ export const useRecintosStore = defineStore("recintos", () => {
         l: parseFloat(l.toFixed(3)),
         h: parseFloat(h.toFixed(3)),
       },
-    });
+    };
+    if (color2d && /^#[0-9a-fA-F]{6}$/.test(String(color2d).trim())) {
+      room.color2d = String(color2d).trim().toLowerCase();
+    }
+    recintos.value.push(room);
     saveHistoryState();
     return id;
   };
 
   const setFloor = (floor) => {
-    currentFloor.value = Math.min(3, Math.max(1, floor));
+    currentFloor.value = Math.min(MAX_FLOORS, Math.max(1, floor));
   };
 
   const cloneToCurrentFloor = (id) => {
@@ -379,8 +483,7 @@ export const useRecintosStore = defineStore("recintos", () => {
     // Evitar clonar sobre el mismo piso o saltarse pisos
     if (source.piso !== currentFloor.value - 1) return;
 
-    // Verificar límite máximo de 3 pisos
-    if (currentFloor.value > 3) return;
+    if (currentFloor.value > MAX_FLOORS) return;
 
     recintos.value.push({
       id: generateId(),
@@ -389,6 +492,10 @@ export const useRecintosStore = defineStore("recintos", () => {
       piso: currentFloor.value,
       coords: { x: source.coords.x, z: source.coords.z },
       dimensions: { ...source.dimensions },
+      ...(source.color2d ? { color2d: source.color2d } : {}),
+      ...(source.materialEstructuralId != null
+        ? { materialEstructuralId: source.materialEstructuralId }
+        : {}),
     });
 
     // SCRUM-98: Validar cruce Insumo (Metalcon) vs Altura (pisos) tras clonar
@@ -405,7 +512,7 @@ export const useRecintosStore = defineStore("recintos", () => {
    */
   const cloneEntireFloor = () => {
     const targetFloor = currentFloor.value + 1;
-    if (targetFloor > 3) return false;
+    if (targetFloor > MAX_FLOORS) return false;
 
     const sourceRooms = recintos.value.filter(r => (r.piso || 1) === currentFloor.value);
     if (sourceRooms.length === 0) return false;
@@ -422,6 +529,10 @@ export const useRecintosStore = defineStore("recintos", () => {
         piso: targetFloor,
         coords: { x: r.coords.x, z: r.coords.z },
         dimensions: { ...r.dimensions },
+        ...(r.color2d ? { color2d: r.color2d } : {}),
+        ...(r.materialEstructuralId != null
+          ? { materialEstructuralId: r.materialEstructuralId }
+          : {}),
       });
     });
 
@@ -434,19 +545,66 @@ export const useRecintosStore = defineStore("recintos", () => {
    * Mutadores limpios para que la Capa 3 (Editor) pueda alterar posición/tamaño
    * El editor debe llamar a estos para invalidar el cache de topología
    */
-  const updateRecinto = (id, updates) => {
+  const updateRecinto = (id, updates, { preview = false } = {}) => {
     const targetIndex = recintos.value.findIndex((r) => r.id === id);
-    if (targetIndex !== -1) {
-      const target = recintos.value[targetIndex];
-      const stackId = target.stackId || target.id;
-      
-      const hasDims =
-        updates.dimensions ||
-        updates.w !== undefined ||
-        updates.l !== undefined ||
-        updates.h !== undefined;
+    if (targetIndex === -1) return false;
+
+    const target = recintos.value[targetIndex];
+    const stackId = target.stackId || target.id;
+    const previousDimensions = { ...target.dimensions };
+    const previousCoords = { ...target.coords };
+
+    const hasDims =
+      updates.dimensions ||
+      updates.w !== undefined ||
+      updates.l !== undefined ||
+      updates.h !== undefined;
+    const hasCoords = updates.coords || updates.x !== undefined || updates.z !== undefined;
+
+    if (preview) {
+      if (hasDims) {
+        const newW = updates.dimensions?.w ?? updates.w ?? target.dimensions.w;
+        const newL = updates.dimensions?.l ?? updates.l ?? target.dimensions.l;
+        const newH =
+          updates.dimensions?.h ??
+          updates.h ??
+          target.dimensions.h ??
+          BASE_DIMS[target.tipo]?.h ??
+          2.4;
+
+        target.dimensions = {
+          ...target.dimensions,
+          w: round3(Math.max(newW, 0.5)),
+          l: round3(Math.max(newL, 0.5)),
+          h: round3(Math.max(newH, 2.1)),
+        };
+      }
+
+      if (hasCoords) {
+        const newX = updates.coords?.x ?? updates.x ?? target.coords.x;
+        const newZ = updates.coords?.z ?? updates.z ?? target.coords.z;
+        const px = round3(newX);
+        const pz = round3(newZ);
+        recintos.value
+          .filter((r) => (r.stackId || r.id) === stackId)
+          .forEach((r) => {
+            r.coords.x = px;
+            r.coords.z = pz;
+          });
+      }
+
+      if ("nombre" in updates && updates.nombre != null) {
+        target.nombre = String(updates.nombre).trim() || target.nombre;
+      }
+
+      return true;
+    }
 
       if (hasDims) {
+        const stackSnapshot = recintos.value
+          .filter((r) => (r.stackId || r.id) === stackId)
+          .map((r) => ({ id: r.id, dimensions: { ...r.dimensions } }));
+
         const newW = updates.dimensions?.w ?? updates.w ?? target.dimensions.w;
         const newL = updates.dimensions?.l ?? updates.l ?? target.dimensions.l;
         const newH =
@@ -498,27 +656,67 @@ export const useRecintosStore = defineStore("recintos", () => {
             };
           }
         }
+
+        const stackSupported = stack.every((member) => roomHasVerticalSupport(member));
+        if (!stackSupported) {
+          stackSnapshot.forEach((snap) => {
+            const member = recintos.value.find((r) => r.id === snap.id);
+            if (member) member.dimensions = { ...snap.dimensions };
+          });
+          return false;
+        }
       }
 
-      const hasCoords = updates.coords || updates.x !== undefined || updates.z !== undefined;
       if (hasCoords) {
         const newX = updates.coords?.x ?? updates.x ?? target.coords.x;
         const newZ = updates.coords?.z ?? updates.z ?? target.coords.z;
-
-        target.coords = {
+        const proposedCoords = {
           x: round3(newX),
           z: round3(newZ),
         };
-        
+
         const stack = recintos.value.filter(r => (r.stackId || r.id) === stackId);
+        const stackSupported = stack.every((member) => {
+          const piso = member.piso || 1;
+          if (piso <= 1) return true;
+          const lowerRooms = getSupportRoomsBelow(recintos.value, piso);
+          return isRoomStructurallyValid(
+            {
+              id: member.id,
+              piso,
+              coords: proposedCoords,
+              dimensions: member.dimensions,
+            },
+            lowerRooms,
+            member.materialEstructuralId ?? configMetadata.value.materialEstructuralId ?? 1,
+          );
+        });
+
+        if (!stackSupported) {
+          target.coords = previousCoords;
+          return false;
+        }
+
         stack.forEach(r => {
-          r.coords = {
-            x: round3(newX),
-            z: round3(newZ),
-          };
+          r.coords = { ...proposedCoords };
         });
       }
+
+      if ('nombre' in updates && updates.nombre != null) {
+        target.nombre = String(updates.nombre).trim() || target.nombre;
+      }
+
+    return true;
+  };
+
+  /** Sincroniza altura de muro del proyecto en todos los recintos (3D, presupuesto, normativa). */
+  const syncProjectWallHeight = (heightM, { saveHistory = true } = {}) => {
+    const h = round3(clampWallHeight(heightM, DEFAULT_WALL_HEIGHT));
+    for (const r of recintos.value) {
+      if (r.dimensions?.h !== h) r.dimensions.h = h;
     }
+    if (saveHistory) saveHistoryState();
+    return h;
   };
 
   const deleteRecinto = (id) => {
@@ -575,6 +773,11 @@ export const useRecintosStore = defineStore("recintos", () => {
     pasillos: recintos.value.filter((r) => r.tipo === "pasillo").length,
   }));
 
+  const floorBelowHasSupport = computed(() => {
+    if (currentFloor.value <= 1) return true;
+    return getSupportRoomsBelow(recintos.value, currentFloor.value).length > 0;
+  });
+
   return {
     // State
     recintos,
@@ -584,7 +787,9 @@ export const useRecintosStore = defineStore("recintos", () => {
     selectedForBudget,
     activeRecintoId,
     currentFloor,
+    floorBelowHasSupport,
     layoutInteractionActive,
+    layoutLocked,
 
     // Methods
     initializeLayout,
@@ -595,10 +800,16 @@ export const useRecintosStore = defineStore("recintos", () => {
     cloneToCurrentFloor,
     cloneEntireFloor,
     updateRecinto,
+    syncProjectWallHeight,
     deleteRecinto,
     toggleBudget,
     setActiveRecinto,
     clearActiveRecinto,
+    getRecintoMaterial,
+    setRecintoMaterial,
+    setRecintoColor2d,
+    setLayoutLocked,
+    toggleLayoutLock,
 
     rotateMatrix: (direction, oldW, oldH) => {
       recintos.value.forEach(r => {

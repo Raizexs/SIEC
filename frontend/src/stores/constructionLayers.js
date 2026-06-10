@@ -77,15 +77,26 @@ export const useConstructionLayersStore = defineStore(
       selectedLayerId.value = null;
     };
 
+    const setAllLayersVisible = (visible = true) => {
+      const next = { ...layerVisibility.value };
+      Object.keys(next).forEach((key) => {
+        next[key] = visible;
+      });
+      layerVisibility.value = next;
+    };
+
+    const allLayerDefinitions = [
+      ...layers,
+      { id: "insulation", labelKey: "insulationLayer", icon: "layers" },
+      { id: "installations", labelKey: "installationsLayer", icon: "plumbing" },
+    ];
+
     const setSelectedLayer = (layerId) => {
       if (!layerId || !(layerId in layerVisibility.value)) {
         selectedLayerId.value = null;
         return;
       }
       selectedLayerId.value = layerId;
-      if (!layerVisibility.value[layerId]) {
-        setLayerVisibility(layerId, true);
-      }
     };
 
     return {
@@ -93,6 +104,7 @@ export const useConstructionLayersStore = defineStore(
       layerVisibility,
       selectedLayerId,
       layers,
+      allLayerDefinitions,
       visibleLayerIds,
       activeLayerCount,
       toggleConstructionMode,
@@ -101,6 +113,7 @@ export const useConstructionLayersStore = defineStore(
       setLayerVisibility,
       setSelectedLayer,
       resetLayers,
+      setAllLayersVisible,
     };
   },
 );
