@@ -12,6 +12,7 @@ export const MATERIAL_COSTS = {
   2: 1100, // Steel Frame
   3: 950, // Masonry
   4: 1200, // Concrete
+  5: 1025, // Hybrid wood + metalcon
 };
 
 const STORAGE_KEY = "siec_saved_layouts";
@@ -626,6 +627,7 @@ export function useLayoutManager() {
       2: "Galvanized Steel",
       3: "Masonry",
       4: "Ferrocement",
+      5: "Hybrid wood + metalcon",
     };
 
     return materials[materialId] || "Unknown";

@@ -36,6 +36,7 @@ import { useI18n } from "../composables/useI18n";
 import {
   getProjectPreviewHero,
   hasProjectPreviewImage,
+  resolveProjectMaterialId,
   slimProjectList,
 } from "../utils/projectPreview.js";
 import { listCachedProjects } from "../lib/OfflineCache";
@@ -639,11 +640,7 @@ onBeforeUnmount(() => {
                 <span
                   class="absolute right-3 top-3 inline-flex items-center rounded-full border border-white/20 bg-white/90 px-2.5 py-1 text-[10px] font-black uppercase tracking-tight text-slate-700 shadow-sm backdrop-blur-md dark:bg-slate-950/80 dark:text-slate-200"
                 >
-                  {{
-                    projectMaterialName(
-                      project.materialEstructuralId || project.material_id,
-                    )
-                  }}
+                  {{ projectMaterialName(resolveProjectMaterialId(project)) }}
                 </span>
 
                 <span

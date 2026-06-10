@@ -12,6 +12,7 @@ import {
   portfolioMaterialName,
   portfolioUntitled,
 } from "../i18n/portfolioAnalyticsMessages.js";
+import { resolveProjectMaterialId } from "../utils/projectPreview.js";
 import { useI18n } from "./useI18n.js";
 
 /** @typedef {'warn'|'info'} RiskSeverity */
@@ -27,6 +28,7 @@ export const MATERIAL_BAR_CLASS = {
   2: "bg-slate-600",
   3: "bg-stone-500",
   4: "bg-slate-800",
+  5: "bg-orange-600",
 };
 
 /** @param {number | null | undefined} id @param {'es'|'en'} [lang] */
@@ -53,11 +55,7 @@ export function normalizePortfolioItem(raw, index = 0, lang = "es") {
   const ec = raw.estimated_cost;
   const estimatedCost =
     ec != null && ec !== "" ? Number(ec) : null;
-  const materialIdRaw = raw.material_id ?? raw.materialEstructuralId;
-  const materialId =
-    materialIdRaw != null && materialIdRaw !== ""
-      ? Number(materialIdRaw)
-      : null;
+  const materialId = resolveProjectMaterialId(raw);
 
   return {
     id: raw.id ?? raw.name ?? `row-${index}`,

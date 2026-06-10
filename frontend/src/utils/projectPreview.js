@@ -35,12 +35,33 @@ export function storeProjectPreview(projectId, preview) {
 
 const MAX_INLINE_THUMB_CHARS = 120_000;
 
+/** Material del proyecto: columna API, layout local o payload guardado. */
+export function resolveProjectMaterialId(project) {
+  if (!project || typeof project !== 'object') return null;
+
+  const fromRoot = project.material_id ?? project.materialEstructuralId;
+  if (fromRoot != null && Number(fromRoot) > 0) {
+    return Number(fromRoot);
+  }
+
+  const payload = parsePayload(project.payload);
+  const fromPayload =
+    payload?.materialEstructuralId ?? payload?.material_estructural_id ?? null;
+
+  if (fromPayload != null && Number(fromPayload) > 0) {
+    return Number(fromPayload);
+  }
+
+  return null;
+}
+
 /** Quita imágenes pesadas del listado — las portadas viven en localStorage. */
 export function slimProjectForList(project) {
   if (!project || typeof project !== 'object') return project;
 
   const payload = parsePayload(project.payload);
   const savedAt = payload?.saved_at ?? null;
+  const materialId = resolveProjectMaterialId(project);
   const thumb =
     typeof project.thumbnail_url === 'string' &&
     project.thumbnail_url.startsWith('data:image') &&
@@ -48,10 +69,16 @@ export function slimProjectForList(project) {
       ? project.thumbnail_url
       : null;
 
+  const slimPayload = {};
+  if (savedAt) slimPayload.saved_at = savedAt;
+  if (materialId != null) slimPayload.materialEstructuralId = materialId;
+
   return {
     ...project,
+    material_id: materialId ?? project.material_id,
+    materialEstructuralId: materialId ?? project.materialEstructuralId,
     thumbnail_url: thumb,
-    payload: savedAt ? { saved_at: savedAt } : {},
+    payload: Object.keys(slimPayload).length ? slimPayload : {},
   };
 }
 
