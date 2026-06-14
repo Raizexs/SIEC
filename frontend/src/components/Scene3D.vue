@@ -1,0 +1,2539 @@
+<script setup>
+import logger from '../utils/logger.js';
+/**
+ * Scene3D — refactored to use modular three/ classes:
+ *   - SceneManager: renderer, camera, controls, post-FX
+ *   - WallBuilder: walls with CSG-cut openings
+ *   - DoorWindowSystem: puertas/ventanas según tipo de recinto y layout
+ *   - RoomFurnisher: procedural furniture per room type
+ *   - LightingRig: day/night cycle (SunCalc)
+ *   - Walkthrough: first-person navigation
+ *   - MeasureTool, SectionTool, SceneExporter
+ *
+ * Backwards-compatible with existing Scene3D consumers in EditorShell.vue.
+ */
+import { onBeforeUnmount, onMounted, ref, watch, nextTick, computed } from 'vue';
+import * as THREE from 'three';
+import { DragControls } from 'three/examples/jsm/controls/DragControls.js';
+import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
+import { storeToRefs } from 'pinia';
+import gsap from 'gsap';
+
+import { useTopologyComputed } from '../composables/useTopologyComputed';
+import { useRecintosStore } from '../stores/recintos';
+import { useConstructionLayersStore } from '../stores/constructionLayers';
+import { useI18n } from '../composables/useI18n';
+
+import PropertiesSidebar from './PropertiesSidebar.vue';
+import MetalconAlertModal from './MetalconAlertModal.vue';
+import MiniMap2D from './MiniMap2D.vue';
+
+import {
+  createLayerVisibilityState,
+  isLayerMeshVisible,
+} from '../utils/layerVisibilityEngine';
+
+import MaterialLibrary from '../utils/MaterialLibrary.js';
+import {
+  MIN_ROOM_DIM as SPATIAL_MIN_ROOM_DIM,
+  MOVE_OVERFLOW_MARGIN,
+  OVERLAP_EPS as SPATIAL_OVERLAP_EPS,
+  clampNumber as clampSpatialNumber,
+  clampRectToTerrain,
+  normalizeTerrain,
+  normalizeRoomRect,
+  roomOverlapsAny as spatialRoomOverlapsAny,
+  getSupportRoomsBelow,
+  clampRectToVerticalSupport,
+} from '../composables/useSpatialConstraints.js';
+import { validateStructuralSupport } from '../utils/cantileverSupport.js';
+import { CantileverBeamBuilder } from '../three/CantileverBeamBuilder.js';
+
+import { SceneManager } from '../three/SceneManager.js';
+import { WallBuilder } from '../three/WallBuilder.js';
+import { DoorWindowSystem } from '../three/DoorWindowSystem.js';
+import { RoomFurnisher } from '../three/RoomFurnisher.js';
+import { LightingRig } from '../three/LightingRig.js';
+import { Walkthrough } from '../three/Walkthrough.js';
+import { MeasureTool } from '../three/MeasureTool.js';
+import { SectionTool } from '../three/SectionTool.js';
+import { SceneExporter } from '../three/SceneExporter.js';
+import { DEFAULT_WALL_HEIGHT, MAX_FLOORS } from '../constants/spatial.js';
+import { useBilling } from '../composables/useBilling';
+import {
+  resolveMatTypeKey,
+  resolveRecintoMaterial,
+  resolveWallMaterialId,
+} from '../utils/materialHelpers.js';
+
+const props = defineProps({
+  materialEstructuralId: { type: Number, default: 4 },
+  /** Deben venir desde el mismo estado usado por RoomEditor2D (EditorShell). */
+  terrenoAncho: { type: Number, default: 15 },
+  terrenoLargo: { type: Number, default: 7 },
+  /** Alineado con preferencias de producto: mostrar minimapa 2D en la escena. */
+  showMinimap: { type: Boolean, default: true },
+  quality3d: { type: String, default: 'medium' },
+  wallHeight: { type: Number, default: DEFAULT_WALL_HEIGHT },
+});
+
+const containerRef = ref(null);
+const rootRef = ref(null);
+const headerRef = ref(null);
+
+const isFullScreen = ref(false);
+/** Minimapa: compacto en workspace; tamaño original en pantalla completa. */
+const MINIMAP_SIZE = 100;
+const MINIMAP_SIZE_FULLSCREEN = 128;
+const minimapSize = computed(() =>
+  isFullScreen.value ? MINIMAP_SIZE_FULLSCREEN : MINIMAP_SIZE,
+);
+const currentTool = ref('move'); // move | scale | measure
+const isWalkthrough = ref(false);
+const showFurniture = ref(true);
+const sectionEnabled = ref(false);
+const sectionHeight = ref(1.2);
+const timeOfDay = ref(13);
+const cameraInfo = ref({ x: 0, z: 0, yaw: 0 });
+const exportMenuOpen = ref(false);
+const showLayersMenu = ref(false);
+const exportFormat = ref(null);
+const layersMenuBtnRef = ref(null);
+const exportMenuBtnRef = ref(null);
+const layersMenuStyle = ref({});
+const exportMenuStyle = ref({});
+
+const floatingMenuTeleport = computed(() =>
+  isFullScreen.value ? '#scene3d-floating-menus' : 'body',
+);
+
+const positionFloatingMenu = (btnRef, menuWidth, styleRef) => {
+  const el = btnRef.value;
+  if (!el) return;
+
+  const rect = el.getBoundingClientRect();
+  styleRef.value = {
+    position: 'fixed',
+    top: `${rect.bottom + 8}px`,
+    left: `${Math.max(8, rect.right - menuWidth)}px`,
+    zIndex: 10000,
+  };
+};
+
+const selectSceneTool = (toolId) => {
+  if (toolId === 'scale' && isProPlus.value && !scaleDisclaimerAccepted.value) {
+    const ok = window.confirm(t('developerModeDisclaimer'));
+    if (!ok) return;
+    scaleDisclaimerAccepted.value = true;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('siec.scale.disclaimer', '1');
+    }
+  }
+  currentTool.value = toolId;
+};
+
+const repositionFloatingMenus = () => {
+  if (showLayersMenu.value) {
+    positionFloatingMenu(layersMenuBtnRef, 256, layersMenuStyle);
+  }
+  if (exportMenuOpen.value) {
+    positionFloatingMenu(exportMenuBtnRef, 256, exportMenuStyle);
+  }
+};
+
+const toggleLayersMenu = () => {
+  showLayersMenu.value = !showLayersMenu.value;
+  exportMenuOpen.value = false;
+  if (showLayersMenu.value) {
+    nextTick(() => positionFloatingMenu(layersMenuBtnRef, 256, layersMenuStyle));
+  }
+};
+
+const toggleExportMenu = () => {
+  exportMenuOpen.value = !exportMenuOpen.value;
+  showLayersMenu.value = false;
+  if (exportMenuOpen.value) {
+    nextTick(() => positionFloatingMenu(exportMenuBtnRef, 224, exportMenuStyle));
+  }
+};
+
+const QUALITY_PRESETS = {
+  low: { pixelRatio: 1, enablePostFX: false, enableShadows: false },
+  medium: {
+    pixelRatio: Math.min(typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1, 1.5),
+    enablePostFX: true,
+    enableShadows: true,
+  },
+  high: {
+    pixelRatio: Math.min(typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1, 2),
+    enablePostFX: true,
+    enableShadows: true,
+  },
+};
+
+const applyQuality3d = (quality) => {
+  const preset = QUALITY_PRESETS[quality] || QUALITY_PRESETS.medium;
+  if (!sceneManager?.renderer) return;
+
+  sceneManager.renderer.setPixelRatio(preset.pixelRatio);
+  sceneManager.renderer.shadowMap.enabled = preset.enableShadows;
+  sceneManager.setPostFXEnabled(preset.enablePostFX);
+  sceneManager.options.pixelRatio = preset.pixelRatio;
+  sceneManager.options.enablePostFX = preset.enablePostFX;
+  sceneManager.options.enableShadows = preset.enableShadows;
+};
+
+const { t } = useI18n();
+const { isProPlus } = useBilling();
+
+const wallHeightM = computed(() => {
+  const h = Number(props.wallHeight);
+  return Number.isFinite(h) && h >= 2.1 ? h : DEFAULT_WALL_HEIGHT;
+});
+
+const scaleDisclaimerAccepted = ref(
+  typeof localStorage !== 'undefined' &&
+    localStorage.getItem('siec.scale.disclaimer') === '1',
+);
+
+const sceneTools = computed(() => {
+  const tools = [
+    { id: 'move', icon: 'pan_tool', label: t('toolMove') },
+    { id: 'measure', icon: 'straighten', label: t('toolMeasure') },
+  ];
+  if (isProPlus.value) {
+    tools.splice(1, 0, {
+      id: 'scale',
+      icon: 'developer_mode',
+      label: t('toolDeveloperMode'),
+    });
+  }
+  return tools;
+});
+
+const exportMenuItems = computed(() => [
+  { id: 'png', label: 'Imagen PNG (vista actual)', icon: 'image' },
+  { id: 'png-top', label: 'PNG — Planta', icon: 'grid_view' },
+  { id: 'png-front', label: 'PNG — Fachada', icon: 'apartment' },
+  { id: 'png-side', label: 'PNG — Corte lateral', icon: 'view_column' },
+  { id: 'html', label: 'Visor HTML', icon: 'language' },
+]);
+
+const exportFormats = computed(() => [
+  { id: 'gltf', label: t('exportGltf'), icon: 'view_in_ar' },
+  { id: 'obj', label: t('exportObj'), icon: 'category' },
+  { id: 'ifc', label: t('exportIfc'), icon: 'architecture' },
+  { id: 'png', label: t('exportPng'), icon: 'image' },
+]);
+const topology = useTopologyComputed();
+const recintosStore = useRecintosStore();
+const layersStore = useConstructionLayersStore();
+
+const { constructionModeEnabled, layerVisibility } = storeToRefs(layersStore);
+const { layoutLocked } = storeToRefs(recintosStore);
+
+const metalconValidator = recintosStore.metalconValidator;
+
+let sceneManager = null;
+let wallBuilder = null;
+let cantileverBeamBuilder = null;
+let furnisher = null;
+/** Aperturas (puertas/ventanas) del último sync de muros. */
+let lastWallOpenings = new Map();
+let lightingRig = null;
+let walkthrough = null;
+let measureTool = null;
+let sectionTool = null;
+let dragControls = null;
+let transformControl = null;
+let transformHelper = null;
+let resizeObserver = null;
+let visibilityObserver = null;
+let handleTabVisibility = null;
+let onDocumentClick = null;
+
+let isManipulating = false;
+let savedScrollY = 0;
+
+let stopSceneWatcher = null;
+let stopLayoutSyncWatcher = null;
+let stopQualityWatcher = null;
+let stopLayerWatcher = null;
+let stopActiveRoomWatcher = null;
+
+const wallMeshes = new Map();
+const roomMeshes = new Map();
+const cantileverBeamMeshes = new Map();
+const matLib = new MaterialLibrary();
+
+const ROOM_MIN_SIZE = SPATIAL_MIN_ROOM_DIM;
+const COLLISION_EPSILON = Math.max(0.03, SPATIAL_OVERLAP_EPS);
+
+const MAT_TYPE_MAP = {
+  1: 'wood_frame',
+  2: 'steel_framed',
+  3: 'masonry',
+  4: 'concrete',
+};
+
+const LAYER_PRIORITY = [
+  'structure',
+  'facade',
+  'insulation',
+  'installations',
+  'interior',
+];
+
+const getCurrentLayerState = () =>
+  createLayerVisibilityState(constructionModeEnabled.value, layerVisibility.value);
+
+const isMeshVisible = (mesh, layerState = getCurrentLayerState()) =>
+  isLayerMeshVisible(mesh.userData.layerTags, layerState);
+
+const disposeGroupRecursive = (group) => {
+  if (!group) return;
+  const children = [...group.children];
+  for (const child of children) {
+    if (child.children && child.children.length > 0) {
+      disposeGroupRecursive(child);
+    }
+    child.geometry?.dispose();
+    if (Array.isArray(child.material)) {
+      child.material.forEach((m) => m?.dispose?.());
+    } else {
+      child.material?.dispose?.();
+    }
+    group.remove(child);
+  }
+};
+
+const setChildLayerVisible = (child, visible, animate = false) => {
+  if (!child) return;
+
+  // Kill any active GSAP animations on this child's materials
+  gsap.killTweensOf(child.material);
+
+  const setVis = (v) => {
+    child.visible = v;
+    if (child.material && typeof child.material === 'object') {
+      child.material.transparent = !v;
+      child.material.opacity = v ? 1 : 0;
+    }
+  };
+
+  if (!animate) {
+    setVis(visible);
+    return;
+  }
+
+  if (visible) {
+    child.visible = true;
+    if (child.material && typeof child.material === 'object' && !Array.isArray(child.material)) {
+      child.material.transparent = true;
+      child.material.opacity = 0;
+      child.material.needsUpdate = true;
+      gsap.to(child.material, {
+        opacity: 1,
+        duration: 0.35,
+        ease: 'power2.out',
+        onComplete: () => {
+          if (child.material) {
+            child.material.transparent = false;
+            child.material.opacity = 1;
+            child.material.needsUpdate = true;
+          }
+        },
+      });
+    }
+  } else {
+    if (child.material && typeof child.material === 'object' && !Array.isArray(child.material)) {
+      child.material.transparent = true;
+      child.material.needsUpdate = true;
+      gsap.to(child.material, {
+        opacity: 0,
+        duration: 0.25,
+        ease: 'power2.in',
+        onComplete: () => {
+          child.visible = false;
+          if (child.material) {
+            child.material.transparent = false;
+            child.material.opacity = 1;
+            child.material.needsUpdate = true;
+          }
+        },
+      });
+    } else {
+      child.visible = false;
+    }
+  }
+};
+
+/**
+ * Update visibility of all wall layer children based on current layer state.
+ * Called when layer toggles change, without rebuilding walls.
+ */
+const applyLayerVisibility = (animate = true) => {
+  if (!sceneManager) return;
+
+  const layerState = getCurrentLayerState();
+  const onlyStructure = layerState.constructionModeEnabled
+    && layerState.activeLayerIds.size === 1
+    && layerState.activeLayerIds.has("structure");
+
+  for (const [id, group] of wallMeshes.entries()) {
+    if (!group || !group.children) continue;
+
+    const wallPiso = group.userData?.piso || 1;
+    const floorVisible = wallPiso <= recintosStore.currentFloor;
+
+    for (const child of group.children) {
+      if (!child.userData?.layerTags) {
+        child.visible = floorVisible;
+        continue;
+      }
+
+      // Paneles de relleno de ventana: visibles solo en vista "estructura aislada"
+      if (child.name === "ml-layer-structure-solid") {
+        const targetVisible = onlyStructure && floorVisible;
+        if (child.visible !== targetVisible) {
+          setChildLayerVisible(child, targetVisible, animate);
+        }
+        continue;
+      }
+
+      // Entramado estructural: siempre visible cuando la capa está activa
+      if (child.name === "ml-layer-structure") {
+        const layerVisible = isLayerMeshVisible(child.userData.layerTags, layerState);
+        const targetVisible = layerVisible && floorVisible;
+        if (child.visible !== targetVisible) {
+          setChildLayerVisible(child, targetVisible, animate);
+        }
+        continue;
+      }
+
+      const layerVisible = isLayerMeshVisible(child.userData.layerTags, layerState);
+      const targetVisible = layerVisible && floorVisible;
+
+      if (child.visible !== targetVisible) {
+        setChildLayerVisible(child, targetVisible, animate);
+      }
+    }
+  }
+
+  for (const [id, group] of cantileverBeamMeshes.entries()) {
+    if (!group) continue;
+    const piso = group.userData?.piso || 1;
+    const floorVisible = piso <= recintosStore.currentFloor;
+    const layerVisible = isLayerMeshVisible(['structure'], layerState);
+    const targetVisible = layerVisible && floorVisible;
+
+    if (group.visible !== targetVisible) {
+      setChildLayerVisible(group, targetVisible, animate);
+    }
+  }
+};
+
+
+// ── Spatial authority: same terrain rules as Editor 2D ───────────────────────
+// 3D is a view/editor, not a separate source of truth. Every transform is
+// normalized against the same terrain limits and collision rules used in 2D.
+const terrainRect = () => normalizeTerrain({ w: props.terrenoAncho, h: props.terrenoLargo });
+
+const meshToRoomRect = (mesh) => {
+  if (!mesh?.userData?.roomId) return null;
+
+  const width = Math.max(ROOM_MIN_SIZE, Number(mesh.scale.x) || ROOM_MIN_SIZE);
+  const length = Math.max(ROOM_MIN_SIZE, Number(mesh.scale.z) || ROOM_MIN_SIZE);
+
+  return normalizeRoomRect({
+    id: mesh.userData.roomId,
+    piso: mesh.userData.piso || 1,
+    x: mesh.position.x - width / 2,
+    z: mesh.position.z - length / 2,
+    w: width,
+    l: length,
+  });
+};
+
+const roomRectToMesh = (mesh, rect) => {
+  if (!mesh || !rect) return;
+
+  mesh.scale.x = Math.max(ROOM_MIN_SIZE, Number(rect.w) || ROOM_MIN_SIZE);
+  mesh.scale.z = Math.max(ROOM_MIN_SIZE, Number(rect.l) || ROOM_MIN_SIZE);
+  mesh.scale.y = 1;
+
+  mesh.position.x = rect.x + mesh.scale.x / 2;
+  mesh.position.z = rect.z + mesh.scale.z / 2;
+  mesh.position.y = 0.04 + ((mesh.userData.piso || 1) - 1) * wallHeightM.value;
+  mesh.updateMatrixWorld(true);
+};
+
+const snapRectOrigin = (rect) => rect;
+
+const clampMeshToTerrain = (mesh) => {
+  const rect = meshToRoomRect(mesh);
+  if (!rect) return null;
+
+  const clamped = clampRectToTerrain(rect, terrainRect(), MOVE_OVERFLOW_MARGIN);
+  roomRectToMesh(mesh, clamped);
+  return clamped;
+};
+
+const clampMeshScaleToTerrain = (mesh) => {
+  const rect = meshToRoomRect(mesh);
+  if (!rect) return null;
+
+  const terrain = terrainRect();
+  const safeW = clampSpatialNumber(rect.w, ROOM_MIN_SIZE, terrain.w);
+  const safeL = clampSpatialNumber(rect.l, ROOM_MIN_SIZE, terrain.h);
+
+  const clamped = clampRectToTerrain(
+    { ...rect, w: safeW, l: safeL },
+    terrain,
+    MOVE_OVERFLOW_MARGIN,
+  );
+
+  roomRectToMesh(mesh, clamped);
+  return clamped;
+};
+
+const hasStoreCollision = (mesh) => {
+  const rect = meshToRoomRect(mesh);
+  if (!rect) return false;
+
+  return spatialRoomOverlapsAny(rect, recintosStore.recintos);
+};
+
+const normalizeRoomMesh = (object) => {
+  if (!object) return null;
+
+  if (object.userData?.roomId) {
+    return object;
+  }
+
+  if (object.parent?.userData?.roomId) {
+    return object.parent;
+  }
+
+  return null;
+};
+
+const rememberValidTransform = (mesh) => {
+  if (!mesh) return;
+
+  mesh.userData.prevPosition = mesh.position.clone();
+  mesh.userData.prevScale = mesh.scale.clone();
+};
+
+const restoreValidTransform = (mesh) => {
+  if (!mesh) return;
+
+  if (mesh.userData.prevPosition) {
+    mesh.position.copy(mesh.userData.prevPosition);
+  }
+
+  if (mesh.userData.prevScale) {
+    mesh.scale.copy(mesh.userData.prevScale);
+  }
+
+  mesh.updateMatrixWorld(true);
+};
+
+const getRoomBox = (mesh) => {
+  mesh.updateMatrixWorld(true);
+
+  const box = new THREE.Box3().setFromObject(mesh);
+  box.expandByScalar(-COLLISION_EPSILON);
+
+  return box;
+};
+
+const hasRoomCollision = (mesh) => {
+  if (!sceneManager || !mesh) return false;
+
+  const box = getRoomBox(mesh);
+
+  for (const other of sceneManager.roomsGroup.children) {
+    if (!other) continue;
+    if (other === mesh) continue;
+    if (!other.visible) continue;
+
+    const sameRoom = other.userData.roomId === mesh.userData.roomId;
+
+    if (sameRoom) continue;
+
+    const sameFloor =
+      (other.userData.piso || 1) === (mesh.userData.piso || 1);
+
+    if (!sameFloor) continue;
+
+    const otherBox = getRoomBox(other);
+
+    if (box.intersectsBox(otherBox)) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+const validateMetalcon = () => {
+  if (!metalconValidator?.validarDesdeStore) return;
+
+  metalconValidator.validarDesdeStore(
+    props.materialEstructuralId,
+    recintosStore.recintos,
+  );
+};
+
+watch(
+  () => [
+    props.materialEstructuralId,
+    recintosStore.recintos.map((recinto) => recinto.piso).join(","),
+  ],
+  validateMetalcon,
+);
+
+const initScene = () => {
+  if (!containerRef.value) return;
+
+  sceneManager = new SceneManager(containerRef.value, {
+    ...(QUALITY_PRESETS[props.quality3d] || QUALITY_PRESETS.medium),
+  });
+
+  // Camera boundaries — evita que el usuario se aleje o se acerque demasiado.
+if (sceneManager.orbit) {
+  sceneManager.orbit.minDistance = 6;
+  sceneManager.orbit.maxDistance = 45;
+
+  // Evita que la cámara se vaya bajo el suelo o demasiado vertical.
+  sceneManager.orbit.minPolarAngle = Math.PI * 0.12;
+  sceneManager.orbit.maxPolarAngle = Math.PI * 0.48;
+
+  // Suavizado premium.
+  sceneManager.orbit.enableDamping = true;
+  sceneManager.orbit.dampingFactor = 0.08;
+
+  // Limita velocidad de zoom para que no se sienta brusco.
+  sceneManager.orbit.zoomSpeed = 0.75;
+  sceneManager.orbit.rotateSpeed = 0.65;
+  sceneManager.orbit.panSpeed = 0.55;
+
+  sceneManager.orbit.update();
+}
+
+  lightingRig = new LightingRig(sceneManager.scene, {
+    renderer: sceneManager.renderer,
+  });
+
+  lightingRig.setTimeOfDay(timeOfDay.value);
+
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(200, 200),
+    new THREE.MeshStandardMaterial({
+      color: '#0f172a',
+      roughness: 0.9,
+    }),
+  );
+
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = -0.005;
+  ground.receiveShadow = true;
+  ground.raycast = () => {};
+
+  sceneManager.scene.add(ground);
+
+  const grid = new THREE.GridHelper(200, 200, '#22d3ee', '#1e293b');
+  grid.material.opacity = 0.15;
+  grid.material.transparent = true;
+
+  sceneManager.scene.add(grid);
+
+  wallBuilder = new WallBuilder(matLib, { wallHeight: wallHeightM.value });
+  cantileverBeamBuilder = new CantileverBeamBuilder();
+  furnisher = new RoomFurnisher(sceneManager.furnitureGroup);
+  walkthrough = new Walkthrough(sceneManager, sceneManager.wallsGroup);
+
+  measureTool = new MeasureTool(
+    sceneManager.scene,
+    sceneManager.camera,
+    sceneManager.renderer.domElement,
+  );
+
+  sectionTool = new SectionTool(
+    sceneManager.renderer,
+    sceneManager.scene,
+    'y',
+  );
+
+  setupDragAndTransformControls();
+
+  sceneManager.onTick(() => {
+    if (!sceneManager?.camera) return;
+
+    cameraInfo.value.x = sceneManager.camera.position.x;
+    cameraInfo.value.z = sceneManager.camera.position.z;
+
+    const dir = new THREE.Vector3();
+    sceneManager.camera.getWorldDirection(dir);
+
+    cameraInfo.value.yaw = Math.atan2(dir.x, dir.z);
+  });
+
+  sceneManager.start();
+
+  sceneManager.renderer.domElement.setAttribute('data-siec-scene-canvas', '');
+};
+
+const updateRoomStoreFromMesh = (mesh) => {
+  commitMeshRectToStore(mesh, { positionOnly: false });
+};
+
+/** Normaliza mesh → rect (snap + límites terreno) y opcionalmente persiste en Pinia. */
+const commitMeshRectToStore = (mesh, { positionOnly = false, persist = true } = {}) => {
+  let rect = meshToRoomRect(mesh);
+  if (!rect) return null;
+
+  const room = recintosStore.recintos.find((r) => r.id === mesh.userData.roomId);
+  rect = snapRectOrigin(rect);
+  rect = clampRectToTerrain(rect, terrainRect(), MOVE_OVERFLOW_MARGIN);
+
+  if (room && (room.piso || 1) > 1) {
+    const lowerRooms = getSupportRoomsBelow(recintosStore.recintos, room.piso || 1);
+    const materialId = resolveRecintoMaterial(room, props.materialEstructuralId);
+    const supported = clampRectToVerticalSupport(
+      { ...rect, id: room.id, piso: room.piso || 1 },
+      lowerRooms,
+      recintosStore.recintos,
+      materialId,
+    );
+    if (supported) {
+      rect = supported;
+    } else if (mesh.userData.lastValidRect) {
+      rect = { ...mesh.userData.lastValidRect };
+    }
+  }
+
+  roomRectToMesh(mesh, rect);
+
+  if (persist) {
+    const payload = positionOnly
+      ? {
+          coords: {
+            x: parseFloat(rect.x.toFixed(3)),
+            z: parseFloat(rect.z.toFixed(3)),
+          },
+        }
+      : {
+          dimensions: {
+            w: parseFloat(rect.w.toFixed(3)),
+            l: parseFloat(rect.l.toFixed(3)),
+          },
+          coords: {
+            x: parseFloat(rect.x.toFixed(3)),
+            z: parseFloat(rect.z.toFixed(3)),
+          },
+        };
+
+    const ok = recintosStore.updateRecinto(mesh.userData.roomId, payload);
+    if (!ok && mesh.userData.lastValidRect) {
+      roomRectToMesh(mesh, mesh.userData.lastValidRect);
+      return mesh.userData.lastValidRect;
+    }
+    if (ok) rememberValidTransform(mesh);
+  }
+
+  return rect;
+};
+
+const syncManipulatorAvailability = () => {
+  const locked = layoutLocked.value;
+  const tool = currentTool.value;
+
+  if (dragControls) {
+    dragControls.enabled = !locked && tool === 'move';
+  }
+
+  if (transformControl) {
+    const canScale = !locked && tool === 'scale';
+    transformControl.enabled = canScale;
+    transformControl.visible = canScale;
+
+    if (!canScale) {
+      transformControl.detach();
+    } else if (recintosStore.activeRecintoId && roomMeshes.has(recintosStore.activeRecintoId)) {
+      const mesh = roomMeshes.get(recintosStore.activeRecintoId);
+      rememberValidTransform(mesh);
+      transformControl.attach(mesh);
+    }
+  }
+};
+
+const updateRoomPositionStoreFromMesh = (mesh) => {
+  commitMeshRectToStore(mesh, { positionOnly: true });
+};
+
+const setupDragAndTransformControls = () => {
+  if (!sceneManager) return;
+
+  dragControls = new DragControls(
+    sceneManager.roomsGroup.children,
+    sceneManager.camera,
+    sceneManager.renderer.domElement,
+  );
+
+  sceneManager.renderer.domElement.addEventListener(
+    'pointerdown',
+    (event) => {
+      if (!dragControls) return;
+
+      if (event.button !== 0) {
+        dragControls.enabled = false;
+        return;
+      }
+
+      dragControls.enabled = !layoutLocked.value && currentTool.value === 'move';
+    },
+    { capture: true },
+  );
+
+  sceneManager.renderer.domElement.addEventListener('pointerup', () => {
+    if (dragControls && currentTool.value === 'move') {
+      dragControls.enabled = true;
+    }
+  });
+
+  dragControls.addEventListener('dragstart', (event) => {
+    if (layoutLocked.value) return;
+    if (!sceneManager) return;
+
+    const mesh = normalizeRoomMesh(event.object);
+
+    if (!mesh) return;
+
+    sceneManager.orbit.enabled = false;
+    isManipulating = true;
+    recintosStore.layoutInteractionActive = true;
+
+    rememberValidTransform(mesh);
+    recintosStore.setActiveRecinto(mesh.userData.roomId);
+  });
+
+  dragControls.addEventListener('drag', (event) => {
+    if (!sceneManager) return;
+
+    const mesh = normalizeRoomMesh(event.object);
+
+    if (!mesh) return;
+
+    const rect = commitMeshRectToStore(mesh, { positionOnly: true, persist: false });
+    if (!rect) return;
+
+    if (hasRoomCollision(mesh) || hasStoreCollision(mesh)) {
+      restoreValidTransform(mesh);
+      return;
+    }
+
+    rememberValidTransform(mesh);
+  });
+
+  dragControls.addEventListener('dragend', (event) => {
+    if (sceneManager?.orbit) {
+      sceneManager.orbit.enabled = true;
+    }
+
+    isManipulating = false;
+
+    const mesh = normalizeRoomMesh(event.object);
+
+    if (mesh) {
+      clampMeshToTerrain(mesh);
+
+      if (hasRoomCollision(mesh) || hasStoreCollision(mesh)) {
+        restoreValidTransform(mesh);
+      }
+
+      updateRoomPositionStoreFromMesh(mesh);
+      rememberValidTransform(mesh);
+      recintosStore.saveHistoryState?.();
+    }
+
+    recintosStore.layoutInteractionActive = false;
+  });
+
+  transformControl = new TransformControls(
+    sceneManager.camera,
+    sceneManager.renderer.domElement,
+  );
+
+  transformControl.setMode('scale');
+  transformControl.showY = false;
+  transformControl.enabled = false;
+  transformControl.visible = false;
+
+  transformControl.addEventListener('dragging-changed', (event) => {
+    if (layoutLocked.value) {
+      if (sceneManager?.orbit) sceneManager.orbit.enabled = true;
+      isManipulating = false;
+      recintosStore.layoutInteractionActive = false;
+      transformControl.detach();
+      return;
+    }
+
+    if (sceneManager?.orbit) {
+      sceneManager.orbit.enabled = !event.value;
+    }
+
+    isManipulating = event.value;
+    recintosStore.layoutInteractionActive = event.value;
+
+    const mesh = transformControl.object;
+
+    if (!mesh?.userData?.roomId) return;
+
+    if (event.value) {
+      rememberValidTransform(mesh);
+    } else {
+      clampMeshScaleToTerrain(mesh);
+
+      if (hasRoomCollision(mesh) || hasStoreCollision(mesh)) {
+        restoreValidTransform(mesh);
+      }
+
+      updateRoomStoreFromMesh(mesh);
+      rememberValidTransform(mesh);
+      recintosStore.saveHistoryState?.();
+    }
+  });
+
+  transformControl.addEventListener('change', () => {
+    if (!transformControl) return;
+
+    const mesh = transformControl.object;
+
+    if (!mesh || !transformControl.dragging) return;
+    if (!mesh.userData.roomId) return;
+
+    mesh.scale.x = Math.max(ROOM_MIN_SIZE, mesh.scale.x);
+    mesh.scale.z = Math.max(ROOM_MIN_SIZE, mesh.scale.z);
+    mesh.scale.y = 1;
+
+    clampMeshScaleToTerrain(mesh);
+
+    if (hasRoomCollision(mesh) || hasStoreCollision(mesh)) {
+      restoreValidTransform(mesh);
+      return;
+    }
+
+    rememberValidTransform(mesh);
+    commitMeshRectToStore(mesh, { positionOnly: false, persist: false });
+  });
+
+  transformHelper =
+    typeof transformControl.getHelper === 'function'
+      ? transformControl.getHelper()
+      : transformControl;
+
+  sceneManager.scene.add(transformHelper);
+  syncManipulatorAvailability();
+};
+
+const syncWalls = () => {
+  if (!sceneManager || !wallBuilder) return;
+
+  const walls = topology.walls.value;
+  const openings = DoorWindowSystem.generate(walls, recintosStore.recintos);
+  lastWallOpenings = openings;
+
+  const incomingIds = new Set(walls.map((wall) => wall.id));
+
+  for (const [id, group] of wallMeshes.entries()) {
+    if (!incomingIds.has(id)) {
+      sceneManager.wallsGroup.remove(group);
+      disposeGroupRecursive(group);
+      wallMeshes.delete(id);
+    }
+  }
+
+  const recintoById = new Map(
+    recintosStore.recintos.map((r) => [r.id, r]),
+  );
+
+  for (const wall of walls) {
+    const ops = openings.get(wall.id) || [];
+    const wallPart = wall.tipo === 'interior' ? 'interior_wall' : 'exterior_wall';
+
+    let group = wallMeshes.get(wall.id);
+
+    if (group) {
+      sceneManager.wallsGroup.remove(group);
+      disposeGroupRecursive(group);
+    }
+
+    const wallMaterialId = resolveWallMaterialId(
+      wall,
+      recintoById,
+      props.materialEstructuralId,
+    );
+    const wallMatTypeKey = resolveMatTypeKey(wallMaterialId);
+
+    group = wallBuilder.buildMultiLayerWall(wall, ops, {
+      matTypeKey: wallMatTypeKey,
+      wallPart,
+    }, recintoById);
+
+    group.userData.piso = wall.piso || 1;
+    wallBuilder.positionWall(group, wall);
+
+    sceneManager.wallsGroup.add(group);
+    wallMeshes.set(wall.id, group);
+  }
+
+  applyLayerVisibility(false);
+};
+
+const syncCantileverBeams = () => {
+  if (!sceneManager || !cantileverBeamBuilder) return;
+
+  const recintos = recintosStore.recintos;
+  const incomingIds = new Set(recintos.map((r) => r.id));
+
+  for (const [id, group] of cantileverBeamMeshes.entries()) {
+    if (!incomingIds.has(id)) {
+      sceneManager.cantileverBeamsGroup.remove(group);
+      disposeGroupRecursive(group);
+      cantileverBeamMeshes.delete(id);
+    }
+  }
+
+  for (const recinto of recintos) {
+    const piso = recinto.piso || 1;
+    if (piso <= 1) {
+      const existing = cantileverBeamMeshes.get(recinto.id);
+      if (existing) {
+        sceneManager.cantileverBeamsGroup.remove(existing);
+        disposeGroupRecursive(existing);
+        cantileverBeamMeshes.delete(recinto.id);
+      }
+      continue;
+    }
+
+    const lowerRooms = getSupportRoomsBelow(recintos, piso);
+    const materialId = resolveRecintoMaterial(recinto, props.materialEstructuralId);
+    const analysis = validateStructuralSupport(
+      {
+        id: recinto.id,
+        piso,
+        coords: recinto.coords,
+        dimensions: recinto.dimensions,
+      },
+      lowerRooms,
+      materialId,
+    );
+
+    const existing = cantileverBeamMeshes.get(recinto.id);
+    if (existing) {
+      sceneManager.cantileverBeamsGroup.remove(existing);
+      disposeGroupRecursive(existing);
+      cantileverBeamMeshes.delete(recinto.id);
+    }
+
+    if (!analysis.beams.length) continue;
+
+    const matTypeKey = resolveMatTypeKey(materialId);
+    const group = cantileverBeamBuilder.build(recinto, analysis, {
+      wallHeight: wallHeightM.value,
+      matTypeKey,
+    });
+
+    sceneManager.cantileverBeamsGroup.add(group);
+    cantileverBeamMeshes.set(recinto.id, group);
+  }
+
+  applyLayerVisibility(false);
+};
+
+const syncRooms = () => {
+  if (!sceneManager || !furnisher || !lightingRig) return;
+
+  const recintos = recintosStore.recintos;
+  const incomingIds = new Set(recintos.map((recinto) => recinto.id));
+
+  for (const [id, mesh] of roomMeshes.entries()) {
+    if (!incomingIds.has(id)) {
+      sceneManager.roomsGroup.remove(mesh);
+      mesh.geometry?.dispose();
+      mesh.material?.dispose?.();
+      roomMeshes.delete(id);
+      furnisher.clearRoom(id);
+    }
+  }
+
+  for (const recinto of recintos) {
+    let mesh = roomMeshes.get(recinto.id);
+
+    if (!mesh) {
+      mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(1, 0.08, 1),
+        new THREE.MeshStandardMaterial({
+          color: '#ffffff',
+          roughness: 0.8,
+          metalness: 0.05,
+        }),
+      );
+
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.userData.layerTags = [];
+      mesh.userData.roomId = recinto.id;
+      mesh.userData.piso = recinto.piso || 1;
+      mesh.userData.prevPosition = mesh.position.clone();
+      mesh.userData.prevScale = mesh.scale.clone();
+
+      sceneManager.roomsGroup.add(mesh);
+      roomMeshes.set(recinto.id, mesh);
+    }
+
+    const roomMaterialId = resolveRecintoMaterial(
+      recinto,
+      props.materialEstructuralId,
+    );
+    const floorMatType = resolveMatTypeKey(roomMaterialId);
+    const cacheKey = `${floorMatType}_floor_${recinto.tipo}_${roomMaterialId}`;
+
+    if (mesh.material.userData.floorCacheKey !== cacheKey) {
+      mesh.material.dispose();
+
+      mesh.material = matLib.getMaterial(floorMatType, 'floor');
+      mesh.material.userData.floorCacheKey = cacheKey;
+
+      if (mesh.material.map) {
+        mesh.material.map.repeat.set(
+          Math.max(1, recinto.dimensions.w / 2),
+          Math.max(1, recinto.dimensions.l / 2),
+        );
+      }
+    }
+
+    const selectedForBudget = recintosStore.selectedForBudget.has(recinto.id);
+
+    mesh.material.color.set(selectedForBudget ? '#f5c842' : '#ffffff');
+    mesh.material.transparent = false;
+    mesh.material.opacity = 1.0;
+
+    const piso = recinto.piso || 1;
+    const isCurrentlyActive =
+      isManipulating && recinto.id === recintosStore.activeRecintoId;
+
+    if (!isCurrentlyActive) {
+      mesh.scale.set(
+        Math.max(ROOM_MIN_SIZE, recinto.dimensions.w),
+        1,
+        Math.max(ROOM_MIN_SIZE, recinto.dimensions.l),
+      );
+
+      mesh.position.set(
+        recinto.coords.x + recinto.dimensions.w / 2,
+        0.04 + (piso - 1) * wallHeightM.value,
+        recinto.coords.z + recinto.dimensions.l / 2,
+      );
+
+      mesh.userData.prevPosition = mesh.position.clone();
+      mesh.userData.prevScale = mesh.scale.clone();
+    }
+
+    mesh.userData.piso = piso;
+
+    mesh.visible = piso <= recintosStore.currentFloor;
+
+    mesh.material.emissive.setHex(
+      recinto.id === recintosStore.activeRecintoId ? 0x2563eb : 0x000000,
+    );
+
+    mesh.material.emissiveIntensity =
+      recinto.id === recintosStore.activeRecintoId ? 0.4 : 0;
+
+    if (showFurniture.value && piso === 1 && piso <= recintosStore.currentFloor) {
+      furnisher.furnish(recinto, {
+        walls: topology.walls.value,
+        openings: lastWallOpenings,
+        recintos,
+      });
+    } else {
+      furnisher.clearRoom(recinto.id);
+    }
+  }
+
+  furnisher.setVisible(showFurniture.value);
+  syncCantileverBeams();
+
+  if (sceneManager.outline) {
+    const active =
+      recintosStore.activeRecintoId && roomMeshes.has(recintosStore.activeRecintoId)
+        ? roomMeshes.get(recintosStore.activeRecintoId)
+        : null;
+
+    sceneManager.setOutlineSelection(active ? [active] : []);
+  }
+
+  lightingRig.setupInteriorLights(recintos);
+};
+
+
+const computeSceneBounds = () => {
+  const box = new THREE.Box3();
+
+  for (const mesh of wallMeshes.values()) {
+    box.expandByObject(mesh);
+  }
+
+  for (const mesh of roomMeshes.values()) {
+    box.expandByObject(mesh);
+  }
+
+  if (box.isEmpty() && sceneManager?.buildingGroup) {
+    box.setFromObject(sceneManager.buildingGroup);
+  }
+
+  return box;
+};
+
+const applyPresetCamera = (preset, options = {}) => {
+  if (!sceneManager) return;
+
+  const box = computeSceneBounds();
+  if (box.isEmpty()) return;
+
+  const center = new THREE.Vector3();
+  const size = new THREE.Vector3();
+  box.getCenter(center);
+  box.getSize(size);
+
+  const maxDim = Math.max(size.x, size.y, size.z, 1);
+  const tight = options.tight === true;
+  const dist = maxDim * (tight ? 0.78 : 1.35);
+  const eyeHeight = size.y * (tight ? 0.42 : 0.35);
+
+  if (preset === 'top') {
+    sceneManager.camera.position.set(center.x, center.y + dist, center.z);
+  } else if (preset === 'front') {
+    sceneManager.camera.position.set(center.x, center.y + eyeHeight, center.z + dist);
+  } else if (preset === 'side') {
+    sceneManager.camera.position.set(center.x + dist, center.y + eyeHeight, center.z);
+  } else {
+    sceneManager.fitTo(box);
+    return;
+  }
+
+  sceneManager.orbit.target.copy(center);
+  sceneManager.orbit.update();
+};
+
+const captureWithAllLayers = () => {
+  const savedMode = constructionModeEnabled.value;
+  const savedVisibility = { ...layerVisibility.value };
+
+  layersStore.setConstructionMode(false);
+  layersStore.setAllLayersVisible(true);
+  applyLayerVisibility(false);
+  centerCamera();
+  renderSceneFrame();
+
+  const dataUrl = captureSceneDataUrl();
+
+  layersStore.setConstructionMode(savedMode);
+  Object.entries(savedVisibility).forEach(([id, val]) => {
+    layersStore.setLayerVisibility(id, val);
+  });
+  applyLayerVisibility(false);
+  renderSceneFrame();
+
+  return dataUrl;
+};
+
+const centerCamera = () => {
+  if (!sceneManager) return;
+
+  const box = computeSceneBounds();
+  if (!box.isEmpty()) {
+    sceneManager.fitTo(box);
+  }
+};
+
+const renderSceneFrame = () => {
+  if (!sceneManager) return;
+
+  if (sceneManager.mode === 'orbit') {
+    sceneManager.orbit.update();
+  }
+
+  if (sceneManager.options.enablePostFX && sceneManager.composer) {
+    sceneManager.composer.render(0);
+  } else {
+    sceneManager.renderer.render(sceneManager.scene, sceneManager.camera);
+  }
+};
+
+const captureSceneDataUrl = () => {
+  try {
+    const canvas = sceneManager?.renderer?.domElement;
+    if (!canvas) return null;
+    return canvas.toDataURL('image/jpeg', 0.9);
+  } catch {
+    return null;
+  }
+};
+
+const inferLayerFromObject = (object) => {
+  const tags = object?.userData?.layerTags;
+
+  if (!Array.isArray(tags) || tags.length === 0) return null;
+
+  for (const layer of LAYER_PRIORITY) {
+    if (tags.includes(layer)) return layer;
+  }
+
+  return tags[0] || null;
+};
+
+const handleCloneFloor = () => {
+  const result = recintosStore.cloneEntireFloor();
+
+  if (result !== 'conflict') return;
+
+  const target = recintosStore.currentFloor + 1;
+
+  const confirmed = window.confirm(
+    `El Piso ${target} ya tiene recintos. ¿Continuar?`,
+  );
+
+  if (!confirmed) return;
+
+  recintosStore.recintos
+    .filter((recinto) => (recinto.piso || 1) === target)
+    .map((recinto) => recinto.id)
+    .forEach((id) => recintosStore.deleteRecinto(id));
+
+  recintosStore.cloneEntireFloor();
+};
+
+const toggleWalkthrough = () => {
+  if (!walkthrough) return;
+
+  if (isWalkthrough.value) {
+    walkthrough.disable();
+    isWalkthrough.value = false;
+    return;
+  }
+
+  const firstRoom = recintosStore.recintos[0];
+
+  const floor = recintosStore.currentFloor || 1;
+  const spawnY = (floor - 1) * wallHeightM.value + 1.65;
+
+  const spawn = firstRoom
+    ? new THREE.Vector3(
+        firstRoom.coords.x + firstRoom.dimensions.w / 2,
+        spawnY,
+        firstRoom.coords.z + firstRoom.dimensions.l / 2,
+      )
+    : new THREE.Vector3(0, spawnY, 0);
+
+  walkthrough.enable(spawn);
+  isWalkthrough.value = true;
+};
+
+const startAutoTour = () => {
+  if (!walkthrough) return;
+
+  const points = recintosStore.recintos.map((recinto) => ({
+    x: recinto.coords.x + recinto.dimensions.w / 2,
+    z: recinto.coords.z + recinto.dimensions.l / 2,
+  }));
+
+  if (points.length < 2) return;
+
+  walkthrough.enable();
+  isWalkthrough.value = true;
+  walkthrough.startAutoTour(points);
+};
+
+const toggleSection = () => {
+  sectionEnabled.value = !sectionEnabled.value;
+  sectionTool?.setEnabled(sectionEnabled.value);
+};
+
+watch(sectionHeight, (height) => {
+  sectionTool?.setHeight(height);
+});
+
+watch(currentTool, (tool, previousTool) => {
+  if (!sceneManager) return;
+
+  if (previousTool === 'measure') {
+    measureTool?.disable();
+  }
+
+  if (tool === 'measure') {
+    if (dragControls) dragControls.enabled = false;
+
+    transformControl?.detach();
+    measureTool?.enable();
+    syncManipulatorAvailability();
+    return;
+  }
+
+  if (tool === 'move') {
+    measureTool?.disable();
+    syncManipulatorAvailability();
+    return;
+  }
+
+  if (tool === 'scale') {
+    measureTool?.disable();
+    syncManipulatorAvailability();
+    return;
+  }
+});
+
+watch(layoutLocked, () => {
+  syncManipulatorAvailability();
+});
+
+watch(timeOfDay, (hour) => {
+  lightingRig?.setTimeOfDay(hour);
+});
+
+watch(
+  () => [props.terrenoAncho, props.terrenoLargo],
+  () => {
+    for (const mesh of roomMeshes.values()) {
+      clampMeshScaleToTerrain(mesh);
+      updateRoomStoreFromMesh(mesh);
+      rememberValidTransform(mesh);
+    }
+
+    recintosStore.saveHistoryState?.();
+  },
+);
+
+
+const handleExport = async (format) => {
+  if (!sceneManager) return;
+
+  const exporter = new SceneExporter({
+    buildingGroup: sceneManager.buildingGroup,
+    scene: sceneManager.scene,
+    camera: sceneManager.camera,
+    renderer: sceneManager.renderer,
+  });
+
+  exportFormat.value = format;
+
+  const savedCam = {
+    position: sceneManager.camera.position.clone(),
+    target: sceneManager.orbit.target.clone(),
+  };
+
+  try {
+    if (format === 'html') {
+      const blob = await exporter.exportHTML();
+      SceneExporter.download(blob, 'siec-modelo-3d.html');
+    } else if (format.startsWith('png')) {
+      if (format === 'png-top') applyPresetCamera('top');
+      else if (format === 'png-front') applyPresetCamera('front');
+      else if (format === 'png-side') applyPresetCamera('side');
+      else centerCamera();
+
+      renderSceneFrame();
+      const blob = await exporter.exportImage({
+        width: 3840,
+        height: 2160,
+      });
+      const suffix =
+        format === 'png-top'
+          ? 'planta'
+          : format === 'png-front'
+            ? 'fachada'
+            : format === 'png-side'
+              ? 'corte'
+              : '4k';
+      SceneExporter.download(blob, `siec-render-${suffix}.png`);
+    }
+  } finally {
+    sceneManager.camera.position.copy(savedCam.position);
+    sceneManager.orbit.target.copy(savedCam.target);
+    sceneManager.orbit.update();
+    renderSceneFrame();
+    exportFormat.value = null;
+    exportMenuOpen.value = false;
+  }
+};
+
+const onResize = () => {
+  sceneManager?.resize();
+};
+
+const toggleFullScreen = async () => {
+  if (typeof document === 'undefined') return;
+
+  if (!document.fullscreenElement) {
+    savedScrollY = window.scrollY;
+
+    try {
+      await rootRef.value?.requestFullscreen?.();
+    } catch (error) {
+      logger.error('No se pudo activar pantalla completa:', error);
+    }
+
+    return;
+  }
+
+  try {
+    await document.exitFullscreen?.();
+  } catch (error) {
+    logger.error('No se pudo salir de pantalla completa:', error);
+  }
+};
+
+const applyFullscreenLayout = () => {
+  if (!containerRef.value) return;
+
+  const headerHeight = headerRef.value ? headerRef.value.offsetHeight : 0;
+  const padding = 16;
+
+  containerRef.value.style.height = `${window.innerHeight - headerHeight - padding * 2}px`;
+  containerRef.value.style.width = '100%';
+
+  onResize();
+};
+
+const restoreNormalLayout = () => {
+  if (!containerRef.value) return;
+
+  containerRef.value.style.height = '';
+  containerRef.value.style.width = '';
+
+  onResize();
+};
+
+const handleFullscreenChange = () => {
+  const entering = !!document.fullscreenElement;
+
+  isFullScreen.value = entering;
+  showLayersMenu.value = false;
+  exportMenuOpen.value = false;
+
+  setTimeout(() => {
+    if (entering) {
+      applyFullscreenLayout();
+      nextTick(() => repositionFloatingMenus());
+      return;
+    }
+
+    restoreNormalLayout();
+
+    window.scrollTo({
+      top: savedScrollY,
+      behavior: 'auto',
+    });
+  }, 80);
+};
+
+const handleCanvasPointerDown = (event) => {
+  if (!sceneManager) return;
+  if (event.button !== 0) return;
+  if (transformControl && transformControl.axis !== null) return;
+
+  const rect = sceneManager.renderer.domElement.getBoundingClientRect();
+
+  const mouse = new THREE.Vector2(
+    ((event.clientX - rect.left) / rect.width) * 2 - 1,
+    -((event.clientY - rect.top) / rect.height) * 2 + 1,
+  );
+
+  const raycaster = new THREE.Raycaster();
+
+  raycaster.setFromCamera(mouse, sceneManager.camera);
+
+  const intersects = raycaster.intersectObjects(
+    [
+      ...sceneManager.roomsGroup.children,
+      ...sceneManager.wallsGroup.children,
+    ],
+    true,
+  );
+
+  if (intersects.length > 0) {
+    let object = intersects[0].object;
+
+    const roomMesh = normalizeRoomMesh(object);
+
+    if (roomMesh) {
+      object = roomMesh;
+      recintosStore.setActiveRecinto(object.userData.roomId);
+    }
+
+    const layerTarget = object.parent?.userData?.layerTags
+      ? object.parent
+      : object;
+
+    const inferredLayer = inferLayerFromObject(layerTarget);
+
+    if (inferredLayer && layerVisibility.value[inferredLayer]) {
+      layersStore.setSelectedLayer(inferredLayer);
+    }
+
+    return;
+  }
+
+  recintosStore.clearActiveRecinto();
+  layersStore.setSelectedLayer(null);
+};
+
+const handleSceneCaptureRequest = (event) => {
+  const complete = event?.detail?.complete;
+
+  if (typeof complete !== 'function') return;
+
+  if (!sceneManager?.renderer || !sceneManager?.scene || !sceneManager?.camera) {
+    complete(null);
+    return;
+  }
+
+  const saved = {
+    position: sceneManager.camera.position.clone(),
+    target: sceneManager.orbit.target.clone(),
+  };
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const dataUrl = captureWithAllLayers();
+
+      sceneManager.camera.position.copy(saved.position);
+      sceneManager.orbit.target.copy(saved.target);
+      sceneManager.orbit.update();
+      renderSceneFrame();
+
+      complete(dataUrl);
+    });
+  });
+};
+
+const capturePresetViewsForExport = (presets, complete, options = {}) => {
+  if (!sceneManager?.renderer || !sceneManager?.scene || !sceneManager?.camera) {
+    complete([]);
+    return;
+  }
+
+  const saved = {
+    position: sceneManager.camera.position.clone(),
+    target: sceneManager.orbit.target.clone(),
+    mode: constructionModeEnabled.value,
+    visibility: { ...layerVisibility.value },
+  };
+
+  layersStore.setConstructionMode(false);
+  layersStore.setAllLayersVisible(true);
+  applyLayerVisibility(false);
+
+  const views = [];
+  let index = 0;
+
+  const captureNext = () => {
+    if (index >= presets.length) {
+      layersStore.setConstructionMode(saved.mode);
+      Object.entries(saved.visibility).forEach(([id, val]) => {
+        layersStore.setLayerVisibility(id, val);
+      });
+      applyLayerVisibility(false);
+      sceneManager.camera.position.copy(saved.position);
+      sceneManager.orbit.target.copy(saved.target);
+      sceneManager.orbit.update();
+      renderSceneFrame();
+      complete(views);
+      return;
+    }
+
+    const preset = presets[index];
+    applyPresetCamera(preset.key, options);
+    renderSceneFrame();
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const dataUrl = captureSceneDataUrl();
+        if (dataUrl) {
+          views.push({ dataUrl, label: preset.label, key: preset.key });
+        }
+        index += 1;
+        captureNext();
+      });
+    });
+  };
+
+  captureNext();
+};
+
+const handleScenePresetViewsCaptureRequest = (event) => {
+  const complete = event?.detail?.complete;
+  const presets = event?.detail?.presets;
+
+  if (typeof complete !== 'function') return;
+
+  capturePresetViewsForExport(
+    Array.isArray(presets) && presets.length
+      ? presets
+      : [
+          { key: 'top', label: 'Planta (vista superior)' },
+          { key: 'front', label: 'Fachada (vista frontal)' },
+          { key: 'side', label: 'Corte (vista lateral)' },
+        ],
+    complete,
+    { tight: event?.detail?.tight === true },
+  );
+};
+
+onMounted(() => {
+  initScene();
+
+  if (!sceneManager || !containerRef.value) return;
+
+  onDocumentClick = (event) => {
+    if (
+      !event.target.closest?.('.scene3d-export-menu') &&
+      !event.target.closest?.('.scene3d-export-menu-panel')
+    ) {
+      exportMenuOpen.value = false;
+    }
+    if (
+      !event.target.closest?.('.scene3d-layers-menu') &&
+      !event.target.closest?.('.scene3d-layers-menu-panel')
+    ) {
+      showLayersMenu.value = false;
+    }
+  };
+
+  document.addEventListener('click', onDocumentClick);
+  document.addEventListener('fullscreenchange', handleFullscreenChange);
+
+  sceneManager.renderer.domElement.addEventListener(
+    'pointerdown',
+    handleCanvasPointerDown,
+  );
+
+  const recintosLayoutSignature = () =>
+    recintosStore.recintos
+      .map((r) =>
+        `${r.id}:${r.coords?.x},${r.coords?.z},${r.dimensions?.w},${r.dimensions?.l},${r.piso},${r.tipo},${r.materialEstructuralId ?? ""}`,
+      )
+      .join("|");
+
+  stopSceneWatcher = watch(
+    [
+      () => recintosLayoutSignature(),
+      () => Array.from(recintosStore.selectedForBudget).sort().join(","),
+      () => recintosStore.activeRecintoId,
+      () => recintosStore.currentFloor,
+      () => props.materialEstructuralId,
+      () => showFurniture.value,
+    ],
+    () => {
+      if (!sceneManager) return;
+      if (recintosStore.layoutInteractionActive) return;
+
+      syncWalls();
+      syncRooms();
+    },
+    { immediate: true },
+  );
+
+  stopLayerWatcher = watch(
+    [() => constructionModeEnabled.value, () => layerVisibility.value],
+    () => {
+      applyLayerVisibility(true);
+    },
+    { deep: true },
+  );
+
+  stopActiveRoomWatcher = watch(
+    () => recintosStore.activeRecintoId,
+    (id) => {
+      if (!transformControl) return;
+
+      if (currentTool.value === 'scale' && id && roomMeshes.has(id)) {
+        const mesh = roomMeshes.get(id);
+
+        rememberValidTransform(mesh);
+        transformControl.attach(mesh);
+      } else {
+        transformControl.detach();
+      }
+    },
+  );
+
+  stopLayoutSyncWatcher = watch(
+    () => recintosStore.layoutInteractionActive,
+    (active, wasActive) => {
+      if (wasActive && !active && sceneManager) {
+        wallBuilder?.setWallHeight(wallHeightM.value);
+        syncWalls();
+        syncRooms();
+      }
+    },
+  );
+
+  stopQualityWatcher = watch(
+    () => props.quality3d,
+    (quality) => applyQuality3d(quality),
+  );
+
+  watch(
+    () => wallHeightM.value,
+    () => {
+      if (!sceneManager || recintosStore.layoutInteractionActive) return;
+      wallBuilder?.setWallHeight(wallHeightM.value);
+      syncWalls();
+      syncRooms();
+    },
+  );
+
+  if (typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver(onResize);
+    resizeObserver.observe(containerRef.value);
+  }
+
+  window.addEventListener('resize', onResize);
+  window.addEventListener('siec:capture-scene', handleSceneCaptureRequest);
+  window.addEventListener('siec:capture-scene-views', handleScenePresetViewsCaptureRequest);
+
+  // Pausar el render 3D cuando el visor sale del viewport (scroll)
+  if (typeof IntersectionObserver !== 'undefined' && containerRef.value) {
+    visibilityObserver = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting && !document.hidden) {
+            sceneManager?.start();
+          } else {
+            sceneManager?.stop();
+          }
+        }
+      },
+      { threshold: 0 },
+    );
+    visibilityObserver.observe(containerRef.value);
+  }
+
+  // Pausar el render 3D cuando la pestaña está en segundo plano
+  handleTabVisibility = () => {
+    if (document.hidden) {
+      sceneManager?.stop();
+    } else {
+      sceneManager?.start();
+    }
+  };
+  document.addEventListener('visibilitychange', handleTabVisibility);
+});
+
+onBeforeUnmount(() => {
+  stopSceneWatcher?.();
+  stopLayerWatcher?.();
+  stopActiveRoomWatcher?.();
+  stopLayoutSyncWatcher?.();
+  stopQualityWatcher?.();
+
+  document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  window.removeEventListener('siec:capture-scene', handleSceneCaptureRequest);
+  window.removeEventListener('siec:capture-scene-views', handleScenePresetViewsCaptureRequest);
+
+  if (onDocumentClick) {
+    document.removeEventListener('click', onDocumentClick);
+  }
+
+  if (sceneManager?.renderer?.domElement) {
+    sceneManager.renderer.domElement.removeEventListener(
+      'pointerdown',
+      handleCanvasPointerDown,
+    );
+  }
+
+  window.removeEventListener('resize', onResize);
+
+  resizeObserver?.disconnect();
+  visibilityObserver?.disconnect();
+  if (handleTabVisibility) {
+    document.removeEventListener('visibilitychange', handleTabVisibility);
+    handleTabVisibility = null;
+  }
+
+  measureTool?.disable();
+  walkthrough?.dispose();
+  furnisher?.clearAll();
+  wallBuilder?.clearCache();
+  lightingRig?.dispose();
+  dragControls?.dispose();
+
+  if (transformControl) {
+    transformControl.detach();
+    transformControl.dispose?.();
+  }
+
+  for (const group of wallMeshes.values()) {
+    disposeGroupRecursive(group);
+  }
+
+  for (const mesh of roomMeshes.values()) {
+    mesh.geometry?.dispose();
+    mesh.material?.dispose?.();
+  }
+
+  for (const group of cantileverBeamMeshes.values()) {
+    disposeGroupRecursive(group);
+  }
+
+  wallMeshes.clear();
+  roomMeshes.clear();
+  cantileverBeamMeshes.clear();
+
+  sceneManager?.dispose();
+});
+</script>
+
+<template>
+  <section
+    ref="rootRef"
+    class="scene3d-root relative flex w-full flex-col rounded-3xl border border-slate-200/90 bg-white/85 p-4 shadow-2xl shadow-slate-950/10 backdrop-blur-xl transition-all duration-300 dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/35"
+    :class="isFullScreen ? 'fullscreen-active' : 'normal-mode'"
+  >
+    <!-- Header -->
+    <header
+      ref="headerRef"
+      class="scene3d-header relative z-20 mb-4 flex shrink-0 flex-col overflow-hidden rounded-3xl border border-slate-200/90 bg-slate-50/80 shadow-sm backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-900/60"
+    >
+      <div
+        class="h-1 w-full shrink-0 bg-gradient-to-r from-orange-400 via-orange-500 to-slate-900 dark:to-orange-300"
+        aria-hidden="true"
+      />
+
+      <div class="flex flex-col gap-3 p-4">
+        <!-- Fila 1: identidad + badge | iconos de vista -->
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex min-w-0 flex-wrap items-center gap-3">
+            <div class="flex items-center gap-3">
+              <div
+                class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-orange-200 bg-orange-50 text-orange-600 shadow-sm dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
+              >
+                <span class="material-symbols-outlined text-[22px]">
+                  view_in_ar
+                </span>
+              </div>
+
+              <div class="min-w-0">
+                <p
+                  class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
+                >
+                  {{ t('renderer') }}
+                </p>
+
+                <h3 class="mt-0.5 truncate text-base font-black tracking-tight text-slate-950 dark:text-slate-100">
+                  {{ t('scene3DTitle') }}
+                </h3>
+              </div>
+            </div>
+
+            <span
+              class="inline-flex shrink-0 items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-tight text-emerald-700 shadow-sm dark:border-emerald-900/70 dark:bg-emerald-950/25 dark:text-emerald-300"
+            >
+              <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+              {{ t('liveRender') }}
+            </span>
+          </div>
+
+          <div
+            class="scene3d-icon-rail inline-flex shrink-0 items-center gap-1 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm dark:border-slate-800 dark:bg-slate-950"
+          >
+            <button
+              type="button"
+              class="icon-action"
+              :class="showFurniture ? 'is-active' : ''"
+              :title="showFurniture ? t('hideFurniture') : t('showFurniture')"
+              @click="showFurniture = !showFurniture"
+            >
+              <span class="material-symbols-outlined text-[18px]">{{ showFurniture ? 'chair' : 'chair_alt' }}</span>
+            </button>
+
+            <button
+              type="button"
+              class="icon-action"
+              :class="isWalkthrough ? 'is-active' : ''"
+              :title="t('walkthrough')"
+              @click="toggleWalkthrough"
+            >
+              <span class="material-symbols-outlined text-[18px]">{{ isWalkthrough ? 'directions_run' : 'directions_walk' }}</span>
+            </button>
+
+            <button
+              type="button"
+              class="icon-action"
+              :title="t('centerCamera')"
+              @click="centerCamera"
+            >
+              <span class="material-symbols-outlined text-[18px]">my_location</span>
+            </button>
+
+            <button
+              type="button"
+              class="icon-action"
+              :title="isFullScreen ? t('exitFullscreen') : t('fullscreen')"
+              @click="toggleFullScreen"
+            >
+              <span class="material-symbols-outlined text-[18px]">{{ isFullScreen ? 'fullscreen_exit' : 'fullscreen' }}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Fila 2: herramientas + piso | capas + exportar -->
+        <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <div class="tour-scene-3d-tools flex min-w-0 flex-wrap items-center gap-2">
+            <div
+              class="inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1 shadow-sm dark:border-slate-800 dark:bg-slate-950"
+            >
+              <button
+                v-for="tool in sceneTools"
+                :key="tool.id"
+                type="button"
+                class="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2.5 py-2 text-[10px] font-black uppercase tracking-[0.08em] transition-all duration-200 active:scale-[0.98] sm:px-3"
+                :class="
+                  currentTool === tool.id
+                    ? 'bg-orange-500 text-white shadow-sm shadow-orange-500/20 dark:bg-orange-400 dark:text-orange-950'
+                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100'
+                "
+                :title="tool.label"
+                @click="selectSceneTool(tool.id)"
+              >
+                <span class="material-symbols-outlined text-[15px]">
+                  {{ tool.icon }}
+                </span>
+                <span class="hidden min-[420px]:inline">{{ tool.label }}</span>
+              </button>
+            </div>
+
+            <div
+              class="inline-flex shrink-0 items-center gap-1 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm dark:border-slate-800 dark:bg-slate-950"
+            >
+              <button
+                type="button"
+                class="flex h-8 w-8 items-center justify-center rounded-xl text-xs font-black text-slate-500 transition-all duration-200 hover:bg-slate-100 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-30 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                :disabled="recintosStore.currentFloor <= 1"
+                @click="recintosStore.setFloor(recintosStore.currentFloor - 1)"
+              >
+                -
+              </button>
+
+              <span
+                class="whitespace-nowrap rounded-xl border border-orange-200 bg-orange-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-orange-700 dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
+              >
+                {{ t('floor') }} {{ recintosStore.currentFloor }}
+              </span>
+
+              <button
+                type="button"
+                class="flex h-8 w-8 items-center justify-center rounded-xl text-xs font-black text-slate-500 transition-all duration-200 hover:bg-slate-100 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-30 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                :disabled="recintosStore.currentFloor >= MAX_FLOORS"
+                @click="recintosStore.setFloor(recintosStore.currentFloor + 1)"
+              >
+                +
+              </button>
+              <button
+                type="button"
+                class="flex h-8 items-center justify-center rounded-xl px-2 text-[10px] font-black uppercase tracking-[0.08em] text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800"
+                title="Clonar piso completo"
+                @click="handleCloneFloor"
+              >
+                <span class="material-symbols-outlined text-[16px]">content_copy</span>
+              </button>
+            </div>
+            <div
+              class="tour-scene-3d-actions scene3d-labeled-actions inline-flex items-stretch overflow-visible rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950"
+            >
+              <div class="relative scene3d-layers-menu">
+                <button
+                  ref="layersMenuBtnRef"
+                  type="button"
+                  class="toolbar-btn toolbar-btn-segment"
+                  :class="showLayersMenu ? 'is-menu-open' : ''"
+                  @click.stop="toggleLayersMenu"
+                >
+                  <span class="material-symbols-outlined text-[17px]">layers</span>
+                  <span class="whitespace-nowrap">{{ t('layersBtn') }}</span>
+                </button>
+                <Teleport :to="floatingMenuTeleport">
+                  <Transition name="export-menu">
+                    <div
+                      v-if="showLayersMenu"
+                      class="scene3d-layers-menu-panel pointer-events-auto w-64 overflow-hidden rounded-3xl border border-slate-200/90 bg-white/95 p-3 shadow-2xl shadow-slate-950/15 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/40"
+                      :style="layersMenuStyle"
+                      @click.stop
+                    >
+                      <div class="space-y-1">
+                        <label
+                          v-for="layer in layersStore.allLayerDefinitions"
+                          :key="layer.id"
+                          class="flex cursor-pointer items-center justify-between rounded-xl px-3 py-2 transition-colors hover:bg-slate-50 dark:hover:bg-slate-900"
+                          @click.prevent="layersStore.toggleLayer(layer.id)"
+                        >
+                          <span class="flex min-w-0 items-center gap-2.5">
+                            <span class="material-symbols-outlined shrink-0 text-[16px] text-slate-500 dark:text-slate-400">{{ layer.icon }}</span>
+                            <span class="truncate text-xs font-semibold" :class="layerVisibility[layer.id] ? 'text-slate-800 dark:text-slate-200' : 'text-slate-400 dark:text-slate-500'">{{ t(layer.labelKey) }}</span>
+                          </span>
+                          <span
+                            class="relative ml-2 inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-colors duration-300"
+                            :class="layerVisibility[layer.id] ? 'border-emerald-400 bg-emerald-500 shadow-sm shadow-emerald-500/20' : 'border-slate-300 bg-slate-200 dark:border-slate-700 dark:bg-slate-800'"
+                          >
+                            <span class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform duration-300" :class="layerVisibility[layer.id] ? 'translate-x-4' : 'translate-x-0.5'" />
+                          </span>
+                          <input
+                            :checked="layerVisibility[layer.id]"
+                            type="checkbox"
+                            class="sr-only"
+                            tabindex="-1"
+                            @click.prevent
+                          />
+                        </label>
+                      </div>
+                      <div class="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+                        {{ Object.values(layerVisibility).filter(Boolean).length }} de {{ layersStore.allLayerDefinitions.length }} capas activas
+                      </div>
+                    </div>
+                  </Transition>
+                </Teleport>
+              </div>
+
+              <div class="relative scene3d-export-menu border-l border-slate-200 dark:border-slate-800">
+                <button
+                  ref="exportMenuBtnRef"
+                  type="button"
+                  class="toolbar-btn toolbar-btn-segment toolbar-btn-export"
+                  :class="exportMenuOpen ? 'is-menu-open' : ''"
+                  @click.stop="toggleExportMenu"
+                >
+                  <span class="material-symbols-outlined text-[17px]">download</span>
+                  <span class="whitespace-nowrap">{{ t('export') }}</span>
+                </button>
+                <Teleport :to="floatingMenuTeleport">
+                  <Transition name="export-menu">
+                    <div
+                      v-if="exportMenuOpen"
+                      class="scene3d-export-menu-panel export-menu-panel pointer-events-auto min-w-[14rem] w-56 rounded-3xl border border-orange-200/90 bg-white p-2 shadow-2xl shadow-orange-500/15 dark:border-orange-800/80 dark:bg-slate-950 dark:shadow-black/50"
+                      :style="exportMenuStyle"
+                      role="menu"
+                      @click.stop
+                    >
+                      <button
+                        v-for="fmt in exportMenuItems"
+                        :key="fmt.id"
+                        type="button"
+                        class="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-xs font-bold text-slate-700 transition-all duration-200 hover:bg-slate-50 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-slate-100"
+                        @click="handleExport(fmt.id)"
+                      >
+                        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-orange-200 bg-orange-50 text-orange-600 dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300">
+                          <span class="material-symbols-outlined text-[16px]">{{ fmt.icon }}</span>
+                        </span>
+                        <span class="min-w-0 flex-1">{{ fmt.label }}</span>
+                        <span v-if="exportFormat === fmt.id" class="material-symbols-outlined animate-spin text-[15px] text-orange-500">progress_activity</span>
+                      </button>
+                    </div>
+                  </Transition>
+                </Teleport>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Canvas shell -->
+    <div
+      ref="containerRef"
+      class="scene3d-canvas scene3d-canvas--interaction relative overflow-hidden rounded-3xl border border-slate-200 bg-slate-950 shadow-inner dark:border-slate-800"
+    >
+      <PropertiesSidebar
+        v-if="recintosStore.activeRecinto"
+        embedded
+        :project-material-id="materialEstructuralId"
+      />
+
+      <MiniMap2D
+        :visible="showMinimap"
+        :recintos="recintosStore.recintos"
+        :camera-pos="cameraInfo"
+        :size="minimapSize"
+      />
+
+      <transition name="fade">
+        <div
+          v-if="isWalkthrough"
+          class="scene3d-walkthrough-hud absolute left-1/2 top-4 z-30 flex -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-full border border-emerald-200 bg-white/90 px-4 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-700 shadow-xl shadow-slate-950/10 backdrop-blur-xl dark:border-emerald-900/70 dark:bg-slate-950/90 dark:text-slate-200 dark:shadow-black/30"
+        >
+          <span class="text-emerald-600 dark:text-emerald-300">WASD</span>
+          Mover
+          <span class="text-slate-300 dark:text-slate-700">·</span>
+          <span class="text-emerald-600 dark:text-emerald-300">Mouse</span>
+          Mirar
+          <span class="text-slate-300 dark:text-slate-700">·</span>
+          <span class="text-emerald-600 dark:text-emerald-300">Shift</span>
+          Correr
+          <span class="text-slate-300 dark:text-slate-700">·</span>
+          <span class="text-red-500 dark:text-red-300">Esc</span>
+          Salir
+        </div>
+      </transition>
+    </div>
+
+    <MetalconAlertModal
+      :show="metalconValidator.showModal"
+      :excepcion="metalconValidator.detalleExcepcion"
+      @close="metalconValidator.cerrarModal()"
+    />
+
+    <div
+      id="scene3d-floating-menus"
+      class="pointer-events-none fixed inset-0 z-[10050]"
+      aria-hidden="true"
+    />
+  </section>
+</template>
+
+<style scoped>
+.scene3d-root {
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.scene3d-root.normal-mode {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+}
+
+.scene3d-root.normal-mode .scene3d-canvas {
+  width: 100%;
+  height: 420px;
+  position: relative;
+}
+
+.scene3d-header {
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.scene3d-header .toolbar-btn,
+.scene3d-header .icon-action,
+.scene3d-header button:not(:disabled),
+.scene3d-header .premium-range {
+  cursor: pointer;
+}
+
+.scene3d-canvas--interaction {
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.scene3d-canvas--interaction :deep(canvas) {
+  cursor: default !important;
+  caret-color: transparent;
+}
+
+.scene3d-canvas--interaction :deep(.transform-controls),
+.scene3d-canvas--interaction :deep(.transform-controls *) {
+  cursor: grab;
+}
+
+.scene3d-canvas--interaction :deep(.transform-controls.dragging),
+.scene3d-canvas--interaction :deep(.transform-controls.dragging *) {
+  cursor: grabbing;
+}
+
+.scene3d-canvas--interaction :deep([data-siec-minimap]) {
+  cursor: default;
+}
+
+.scene3d-canvas--interaction :deep([data-siec-minimap] canvas) {
+  cursor: default;
+}
+
+.scene3d-walkthrough-hud,
+.scene3d-walkthrough-hud span {
+  cursor: default;
+}
+
+.scene3d-labeled-actions {
+  overflow: visible;
+}
+
+.toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  height: 2.5rem;
+  min-height: 2.5rem;
+  border-radius: 1rem;
+  border: 1px solid rgb(226 232 240);
+  background: white;
+  padding: 0 0.9rem;
+  color: rgb(71 85 105);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease;
+}
+
+.toolbar-btn-segment {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  height: 2.5rem;
+}
+
+.toolbar-btn-segment:first-of-type {
+  border-radius: 0.85rem 0 0 0.85rem;
+}
+
+.scene3d-export-menu .toolbar-btn-segment {
+  border-radius: 0 0.85rem 0.85rem 0;
+}
+
+.toolbar-btn:hover {
+  background: rgb(248 250 252);
+  color: rgb(15 23 42);
+}
+
+.toolbar-btn:active {
+  transform: scale(0.98);
+}
+
+.toolbar-btn.is-menu-open:not(.toolbar-btn-export) {
+  background: rgb(241 245 249);
+  color: rgb(15 23 42);
+}
+
+.dark .toolbar-btn {
+  border-color: rgb(30 41 59);
+  background: rgb(15 23 42);
+  color: rgb(203 213 225);
+}
+
+.dark .toolbar-btn-segment {
+  border: none;
+  background: transparent;
+}
+
+.dark .toolbar-btn:hover {
+  background: rgb(30 41 59);
+  color: rgb(248 250 252);
+}
+
+.dark .toolbar-btn.is-menu-open:not(.toolbar-btn-export) {
+  background: rgb(30 41 59);
+  color: rgb(248 250 252);
+}
+
+.toolbar-btn-export {
+  cursor: pointer;
+  color: rgb(194 65 12);
+  background: rgb(255 247 237);
+}
+
+.toolbar-btn-export:hover,
+.toolbar-btn-export.is-menu-open {
+  background: rgb(255 237 213);
+  color: rgb(154 52 18);
+}
+
+.dark .toolbar-btn-export {
+  color: rgb(253 186 116);
+  background: rgba(67, 20, 7, 0.35);
+}
+
+.dark .toolbar-btn-export:hover,
+.dark .toolbar-btn-export.is-menu-open {
+  background: rgba(67, 20, 7, 0.55);
+  color: rgb(254 215 170);
+}
+
+.scene3d-icon-rail .icon-action {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+.scene3d-icon-rail .icon-action:hover {
+  background: rgb(248 250 252);
+}
+
+.dark .scene3d-icon-rail .icon-action:hover {
+  background: rgb(30 41 59);
+}
+
+.export-menu-item {
+  border: 1px solid transparent;
+}
+
+.export-menu-panel {
+  pointer-events: auto;
+}
+
+.icon-action {
+  display: inline-flex;
+  height: 2.25rem;
+  width: 2.25rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
+  border: 1px solid transparent;
+  background: transparent;
+  color: rgb(71 85 105);
+  transition:
+    transform 0.18s ease,
+    background-color 0.18s ease,
+    color 0.18s ease;
+}
+
+.icon-action:hover {
+  background: rgb(248 250 252);
+  color: rgb(15 23 42);
+}
+
+.icon-action:active {
+  transform: scale(0.98);
+}
+
+.icon-action.is-active {
+  border-color: rgb(254 215 170);
+  background: rgb(255 247 237);
+  color: rgb(194 65 12);
+}
+
+.dark .icon-action {
+  color: rgb(203 213 225);
+}
+
+.dark .icon-action:hover {
+  background: rgb(30 41 59);
+  color: rgb(248 250 252);
+}
+
+.dark .icon-action.is-active {
+  border-color: rgba(154, 52, 18, 0.7);
+  background: rgba(67, 20, 7, 0.32);
+  color: rgb(253 186 116);
+}
+
+/* Premium range input */
+.premium-range {
+  height: 0.45rem;
+  cursor: pointer;
+  appearance: none;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    rgb(249 115 22),
+    rgb(251 146 60)
+  );
+  outline: none;
+}
+
+.premium-range::-webkit-slider-thumb {
+  height: 1rem;
+  width: 1rem;
+  appearance: none;
+  border: 3px solid white;
+  border-radius: 9999px;
+  background: rgb(249 115 22);
+  box-shadow:
+    0 8px 20px rgba(15, 23, 42, 0.18),
+    0 0 0 4px rgba(249, 115, 22, 0.12);
+}
+
+.premium-range::-moz-range-thumb {
+  height: 1rem;
+  width: 1rem;
+  border: 3px solid white;
+  border-radius: 9999px;
+  background: rgb(249 115 22);
+  box-shadow:
+    0 8px 20px rgba(15, 23, 42, 0.18),
+    0 0 0 4px rgba(249, 115, 22, 0.12);
+}
+
+.dark .premium-range::-webkit-slider-thumb {
+  border-color: rgb(15 23 42);
+  background: rgb(251 146 60);
+}
+
+.dark .premium-range::-moz-range-thumb {
+  border-color: rgb(15 23 42);
+  background: rgb(251 146 60);
+}
+
+.export-menu-enter-active,
+.export-menu-leave-active {
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+}
+
+.export-menu-enter-from,
+.export-menu-leave-to {
+  opacity: 0;
+  transform: translateY(-6px) scale(0.98);
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>
+
+<style>
+.scene3d-root:fullscreen,
+.scene3d-root:-webkit-full-screen {
+  width: 100vw !important;
+  height: 100vh !important;
+  border-radius: 0 !important;
+  border: none !important;
+  padding: 1rem !important;
+  display: flex !important;
+  flex-direction: column !important;
+  background:
+    radial-gradient(circle at top left, rgba(249, 115, 22, 0.08), transparent 28%),
+    #020617 !important;
+  box-shadow: none !important;
+}
+
+.scene3d-root:fullscreen .scene3d-canvas,
+.scene3d-root:-webkit-full-screen .scene3d-canvas {
+  flex: 1 1 auto;
+  width: 100% !important;
+  min-height: 0;
+  border-radius: 1.5rem !important;
+  overflow: hidden !important;
+  background: #020617 !important;
+}
+</style>

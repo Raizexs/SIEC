@@ -1,0 +1,25 @@
+node_modules/
+dist_packaged/
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# VS Code
+.vscode/
+
+# Archivos SCRUM
+SCRUM-*.md
+
+# Agentes
+.agents
+.vercel
+.cursor
+skills-lock.json
+design-system
