@@ -15,7 +15,7 @@ import { useAuthStore } from '../../stores/auth';
 import { useI18n } from '../../composables/useI18n';
 import { useBilling } from '../../composables/useBilling';
 import { LEGAL } from '../../constants/legal.js';
-import { computed, onMounted, watch, nextTick, ref } from 'vue';
+import { computed, onMounted, onBeforeUnmount, watch, nextTick, ref } from 'vue';
 import { gsap } from 'gsap';
 import {
   getMotionProfile,
@@ -44,6 +44,81 @@ const { hasMarketplaceAccess, fetchBilling } = useBilling();
 
 const navRef = ref(null);
 const indicatorRef = ref(null);
+const railRootRef = ref(null);
+let unbindRailHover = null;
+
+const bindRailLinksHover = () => {
+  unbindRailHover?.();
+  const root = railRootRef.value;
+  if (!root || prefersReducedMotion()) return;
+
+  const profile = getMotionProfile();
+  const links = root.querySelectorAll('.rail-link:not(.rail-link-locked)');
+  const handlers = [];
+
+  links.forEach((link) => {
+    const icon = link.querySelector('svg');
+
+    const onEnter = () => {
+      if (prefersReducedMotion() || link.classList.contains('rail-link-active')) return;
+      link.classList.add('rail-link-hovered');
+      gsap.to(link, {
+        y: -3,
+        duration: profile.duration.fast,
+        ease: profile.ease.standardOut,
+        overwrite: 'auto',
+        force3D: true,
+      });
+      if (icon) {
+        gsap.to(icon, {
+          scale: 1.06,
+          duration: profile.duration.fast,
+          ease: profile.ease.standardOut,
+          overwrite: 'auto',
+        });
+      }
+    };
+
+    const onLeave = () => {
+      link.classList.remove('rail-link-hovered');
+      gsap.to(link, {
+        y: 0,
+        duration: profile.duration.base * 0.65,
+        ease: profile.ease.standardOut,
+        overwrite: 'auto',
+      });
+      if (icon) {
+        gsap.to(icon, {
+          scale: 1,
+          duration: profile.duration.fast,
+          ease: profile.ease.standardOut,
+          overwrite: 'auto',
+        });
+      }
+    };
+
+    link.addEventListener('mouseenter', onEnter);
+    link.addEventListener('mouseleave', onLeave);
+    handlers.push({ link, onEnter, onLeave });
+  });
+
+  unbindRailHover = () => {
+    handlers.forEach(({ link, onEnter, onLeave }) => {
+      link.removeEventListener('mouseenter', onEnter);
+      link.removeEventListener('mouseleave', onLeave);
+      link.classList.remove('rail-link-hovered');
+      gsap.set(link, { clearProps: 'transform' });
+      const icon = link.querySelector('svg');
+      if (icon) gsap.set(icon, { clearProps: 'transform' });
+    });
+  };
+};
+
+const refreshRailHover = async () => {
+  await nextTick();
+  bindRailLinksHover();
+  syncRailIndicator();
+};
 
 const showPremiumIndicator = computed(
   () => getMotionTier() === 'premium' && !prefersReducedMotion(),
@@ -65,10 +140,16 @@ const syncRailIndicator = async () => {
 
 onMounted(() => {
   fetchBilling();
-  syncRailIndicator();
+  refreshRailHover();
+  window.addEventListener('siec:motion-preference', refreshRailHover);
 });
 
-watch(() => route.path, syncRailIndicator);
+onBeforeUnmount(() => {
+  window.removeEventListener('siec:motion-preference', refreshRailHover);
+  unbindRailHover?.();
+});
+
+watch(() => route.path, refreshRailHover);
 
 const isSiecPlaceLocked = computed(() => !hasMarketplaceAccess.value);
 
@@ -166,6 +247,7 @@ const isActive = (link) => {
 
 <template>
   <aside
+    ref="railRootRef"
     class="sticky top-0 z-30 flex h-screen w-16 shrink-0 flex-col items-center border-r border-slate-200/80 bg-slate-50/90 px-2 py-4 backdrop-blur-xl transition-colors duration-300 dark:border-slate-800/80 dark:bg-slate-950/90"
   >
     <!-- Logo -->
@@ -261,7 +343,10 @@ const isActive = (link) => {
         to="/settings"
         title="Configuración"
         class="rail-link group"
-        :class="{ 'rail-link-active': active === 'settings' || route.path.startsWith('/settings') }"
+        :class="{
+          'rail-link-active':
+            active === 'settings' || route.path.startsWith('/settings'),
+        }"
       >
         <Settings class="h-5 w-5" :stroke-width="2" />
 
@@ -311,11 +396,19 @@ const isActive = (link) => {
 
 <style scoped>
 .rail-link {
-  @apply relative flex h-10 w-10 items-center justify-center rounded-xl border border-transparent text-slate-500 transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white hover:text-slate-950 hover:shadow-sm active:translate-y-0 active:scale-95 dark:text-slate-400 dark:hover:border-slate-700 dark:hover:bg-slate-900 dark:hover:text-slate-100;
+  @apply relative flex h-10 w-10 items-center justify-center rounded-xl border border-transparent text-slate-500 shadow-none transition-colors duration-200 active:scale-95 dark:text-slate-400;
+}
+
+.rail-link-hovered:not(.rail-link-active) {
+  @apply border-slate-300 bg-white text-slate-950 shadow-md;
+  @apply dark:border-transparent dark:bg-slate-900 dark:text-slate-100 dark:shadow-md dark:shadow-black/35;
 }
 
 .rail-link-active {
-  @apply border-slate-900 bg-slate-950 text-white shadow-md hover:border-slate-900 hover:bg-slate-950 hover:text-white dark:border-slate-200 dark:bg-white dark:text-slate-950 dark:hover:border-slate-200 dark:hover:bg-white dark:hover:text-slate-950;
+  @apply translate-y-0 border-slate-950 bg-slate-950 text-white shadow-md;
+  @apply hover:translate-y-0 hover:border-slate-950 hover:bg-slate-950 hover:text-white hover:shadow-md;
+  @apply dark:border-transparent dark:bg-white dark:text-slate-950 dark:shadow-md dark:shadow-black/35;
+  @apply dark:hover:border-transparent dark:hover:bg-white dark:hover:text-slate-950 dark:hover:shadow-md dark:hover:shadow-black/35;
 }
 
 .rail-link-locked {
