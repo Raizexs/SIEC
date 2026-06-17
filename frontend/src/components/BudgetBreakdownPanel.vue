@@ -1,5 +1,7 @@
 <script setup>
 import { ref, watch, computed, nextTick, onMounted, onUnmounted, inject } from "vue";
+import gsap from "gsap";
+import { getMotionProfile, prefersReducedMotion } from "../design/motionTokens";
 import { useI18n } from "../composables/useI18n";
 import { useRecintosStore } from "../stores/recintos";
 import { useWorkspaceStore } from "../stores/workspace";
@@ -103,6 +105,153 @@ const exportFormat = ref(null);
 const exportMenuRef = ref(null);
 const normativaResult = ref(null);
 const normativaLoading = ref(false);
+
+const BUDGET_LOADING_STEPS = ["sim", "supplies", "normativa"];
+const loadingPhase = ref(null);
+const loadingProgressDisplay = ref(0);
+const loadingEtaSeconds = ref(28);
+const budgetLoadingRef = ref(null);
+const budgetSpinnerRef = ref(null);
+const loadingProgressState = { value: 0 };
+let loadingSpinnerTween = null;
+let loadingCreepTween = null;
+let loadingEtaTimer = null;
+let loadingStartedAt = 0;
+
+const loadingPhaseLabel = computed(() => {
+  const keyByPhase = {
+    sim: "budgetLoadingStepSim",
+    supplies: "budgetLoadingStepSupplies",
+    normativa: "budgetLoadingStepNormativa",
+  };
+  const key = keyByPhase[loadingPhase.value];
+  return key ? t(key) : t("budgetLoading");
+});
+
+const loadingSteps = computed(() => [
+  { id: "sim", label: t("budgetLoadingStepSimShort") },
+  { id: "supplies", label: t("budgetLoadingStepSuppliesShort") },
+  { id: "normativa", label: t("budgetLoadingStepNormativaShort") },
+]);
+
+const loadingStepState = (stepId) => {
+  const current = BUDGET_LOADING_STEPS.indexOf(loadingPhase.value);
+  const stepIdx = BUDGET_LOADING_STEPS.indexOf(stepId);
+  if (current < 0 || stepIdx < 0) return "pending";
+  if (stepIdx < current) return "done";
+  if (stepIdx === current) return "active";
+  return "pending";
+};
+
+const syncLoadingProgressBar = () => {
+  loadingProgressDisplay.value = loadingProgressState.value;
+};
+
+const animateLoadingProgress = (target, duration = 0.85) => {
+  loadingCreepTween?.kill();
+  loadingCreepTween = null;
+
+  if (prefersReducedMotion()) {
+    loadingProgressState.value = target;
+    syncLoadingProgressBar();
+    return;
+  }
+
+  const profile = getMotionProfile();
+  gsap.to(loadingProgressState, {
+    value: target,
+    duration,
+    ease: profile.ease.standardOut,
+    onUpdate: syncLoadingProgressBar,
+  });
+};
+
+const startLoadingCreep = (from, to, duration = 26) => {
+  loadingCreepTween?.kill();
+  loadingProgressState.value = from;
+  syncLoadingProgressBar();
+
+  if (prefersReducedMotion()) return;
+
+  loadingCreepTween = gsap.to(loadingProgressState, {
+    value: to,
+    duration,
+    ease: "none",
+    onUpdate: syncLoadingProgressBar,
+  });
+};
+
+const setLoadingPhase = (phase, targetProgress, options = {}) => {
+  loadingPhase.value = phase;
+  if (options.creep) {
+    startLoadingCreep(targetProgress, options.creepTo ?? targetProgress + 24, options.creepDuration);
+    return;
+  }
+  animateLoadingProgress(targetProgress, options.duration ?? 0.85);
+};
+
+const startLoadingMotion = async () => {
+  loadingStartedAt = Date.now();
+  loadingPhase.value = "sim";
+  loadingProgressState.value = 0;
+  loadingProgressDisplay.value = 0;
+  loadingEtaSeconds.value = 28;
+
+  await nextTick();
+
+  const spinner = budgetSpinnerRef.value;
+  const panel = budgetLoadingRef.value;
+
+  loadingSpinnerTween?.kill();
+  if (spinner && !prefersReducedMotion()) {
+    gsap.set(spinner, { rotation: 0, transformOrigin: "50% 50%" });
+    loadingSpinnerTween = gsap.to(spinner, {
+      rotation: 360,
+      duration: 1.15,
+      ease: "none",
+      repeat: -1,
+    });
+  }
+
+  if (panel && !prefersReducedMotion()) {
+    gsap.fromTo(
+      panel,
+      { autoAlpha: 0, y: 14 },
+      { autoAlpha: 1, y: 0, duration: 0.38, ease: "power3.out" },
+    );
+  }
+
+  loadingEtaTimer = window.setInterval(() => {
+    if (!isLoading.value) return;
+    const elapsed = (Date.now() - loadingStartedAt) / 1000;
+    const progress = Math.max(loadingProgressDisplay.value, 10) / 100;
+    const remaining = Math.round((elapsed / progress) * (1 - progress));
+    loadingEtaSeconds.value = Math.max(2, Math.min(45, remaining));
+  }, 700);
+};
+
+const stopLoadingMotion = async () => {
+  loadingCreepTween?.kill();
+  loadingCreepTween = null;
+  loadingSpinnerTween?.kill();
+  loadingSpinnerTween = null;
+
+  if (loadingEtaTimer) {
+    clearInterval(loadingEtaTimer);
+    loadingEtaTimer = null;
+  }
+
+  if (!prefersReducedMotion() && loadingProgressDisplay.value < 100) {
+    await new Promise((resolve) => {
+      animateLoadingProgress(100, 0.28);
+      window.setTimeout(resolve, 280);
+    });
+  }
+
+  loadingPhase.value = null;
+  loadingProgressState.value = 0;
+  loadingProgressDisplay.value = 0;
+};
 
 const enabledDesglose = computed(() =>
   desglose.value.filter(cat => !disabledCategories.value.has(cat.categoria)),
@@ -396,6 +545,8 @@ const fetchBudget = async () => {
 
   isLoading.value = true;
   error.value = null;
+  void startLoadingMotion();
+  setLoadingPhase("sim", 12, { duration: 0.45 });
 
   try {
     const materialId = clampMaterialId(props.materialEstructuralId);
@@ -411,6 +562,8 @@ const fetchBudget = async () => {
       incluir_techumbre: true,
     });
 
+    setLoadingPhase("supplies", 34, { creep: true, creepTo: 72, creepDuration: 32 });
+
     const recintosInsumos = buildRecintosInsumosPayload();
     const calcBody = {
       area_bruta_m2: Math.max(1, Math.round(props.m2Totales)),
@@ -424,6 +577,8 @@ const fetchBudget = async () => {
       `/api/simulacion/${simData.idSimulacion}/calcular-insumos`,
       calcBody,
     );
+
+    setLoadingPhase("normativa", 82, { duration: 0.5 });
 
     desglose.value = reorganizeDesglose(data.desglose || []);
     costoTotal.value = data.costo_total;
@@ -458,6 +613,7 @@ const fetchBudget = async () => {
       error.value = err.message;
     }
   } finally {
+    await stopLoadingMotion();
     isLoading.value = false;
   }
 };
@@ -609,6 +765,9 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener("click", onDocumentClick);
+  loadingCreepTween?.kill();
+  loadingSpinnerTween?.kill();
+  if (loadingEtaTimer) clearInterval(loadingEtaTimer);
 });
 </script>
 
@@ -792,23 +951,141 @@ onUnmounted(() => {
       <!-- Loading -->
       <div
         v-if="isLoading"
-        class="flex flex-col items-center justify-center rounded-3xl border border-slate-200 bg-slate-50/70 py-16 dark:border-slate-800 dark:bg-slate-900/50"
+        ref="budgetLoadingRef"
+        class="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-gradient-to-b from-slate-50 via-white to-orange-50/20 px-6 py-12 dark:border-slate-800/90 dark:from-slate-950 dark:via-slate-900/70 dark:to-orange-950/10 sm:px-8 sm:py-14"
       >
         <div
-          class="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950"
-        >
-          <div
-            class="h-7 w-7 animate-spin rounded-full border-2 border-slate-200 border-t-orange-500 dark:border-slate-700 dark:border-t-orange-300"
-          ></div>
+          class="pointer-events-none absolute inset-x-8 top-0 h-28 rounded-full bg-orange-500/10 blur-3xl dark:bg-orange-500/15"
+          aria-hidden="true"
+        />
+
+        <div class="relative mx-auto flex max-w-md flex-col items-center text-center">
+          <div class="relative mb-6 flex h-[4.75rem] w-[4.75rem] items-center justify-center">
+            <div
+              class="absolute inset-1 rounded-full bg-orange-400/20 blur-md dark:bg-orange-500/25"
+              aria-hidden="true"
+            />
+
+            <div
+              class="relative flex h-16 w-16 items-center justify-center rounded-2xl border border-slate-200/90 bg-white shadow-lg shadow-slate-950/10 dark:border-slate-700 dark:bg-slate-950 dark:shadow-black/30"
+            >
+              <svg
+                ref="budgetSpinnerRef"
+                class="absolute h-10 w-10 text-orange-500 dark:text-orange-400"
+                viewBox="0 0 40 40"
+                aria-hidden="true"
+              >
+                <circle
+                  cx="20"
+                  cy="20"
+                  r="16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  class="text-slate-200 dark:text-slate-800"
+                />
+                <circle
+                  cx="20"
+                  cy="20"
+                  r="16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-dasharray="42 100"
+                  class="text-orange-500 dark:text-orange-400"
+                />
+              </svg>
+
+              <span class="material-symbols-outlined relative text-[20px] text-orange-600 dark:text-orange-300">
+                calculate
+              </span>
+            </div>
+          </div>
+
+          <p class="text-base font-black tracking-tight text-slate-950 dark:text-slate-100">
+            {{ loadingPhaseLabel }}
+          </p>
+
+          <p class="mt-2 text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400">
+            {{ t("budgetLoadingHint") }}
+          </p>
+
+          <div class="mt-8 w-full">
+            <div class="mb-2 flex items-center justify-between text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+              <span>{{ t("budgetLoadingProgress") }}</span>
+              <span class="tabular-nums text-slate-600 dark:text-slate-300">
+                {{ Math.round(loadingProgressDisplay) }}%
+              </span>
+            </div>
+
+            <div class="h-2 overflow-hidden rounded-full bg-slate-200/90 dark:bg-slate-800/90">
+              <div
+                class="h-full rounded-full bg-gradient-to-r from-orange-500 via-amber-400 to-orange-400 shadow-[0_0_12px_rgba(249,115,22,0.35)]"
+                :style="{ width: `${loadingProgressDisplay}%` }"
+              />
+            </div>
+
+            <p class="mt-2.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+              {{
+                loadingEtaSeconds <= 3
+                  ? t("budgetLoadingAlmostDone")
+                  : t("budgetLoadingEta", { seconds: loadingEtaSeconds })
+              }}
+            </p>
+          </div>
+
+          <ol class="mt-8 w-full space-y-2 text-left">
+            <li
+              v-for="step in loadingSteps"
+              :key="step.id"
+              class="flex items-center gap-3 rounded-2xl border px-3.5 py-2.5 transition-colors duration-200"
+              :class="
+                loadingStepState(step.id) === 'active'
+                  ? 'border-orange-200/90 bg-orange-50/80 dark:border-orange-900/50 dark:bg-orange-950/20'
+                  : loadingStepState(step.id) === 'done'
+                    ? 'border-emerald-200/80 bg-emerald-50/50 dark:border-emerald-900/40 dark:bg-emerald-950/15'
+                    : 'border-slate-200/70 bg-white/50 dark:border-slate-800/70 dark:bg-slate-950/40'
+              "
+            >
+              <span
+                class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[11px] font-black"
+                :class="
+                  loadingStepState(step.id) === 'active'
+                    ? 'border-orange-300 bg-white text-orange-600 dark:border-orange-800 dark:bg-slate-950 dark:text-orange-300'
+                    : loadingStepState(step.id) === 'done'
+                      ? 'border-emerald-300 bg-emerald-500 text-white dark:border-emerald-700 dark:bg-emerald-600'
+                      : 'border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-500'
+                "
+              >
+                <span
+                  v-if="loadingStepState(step.id) === 'done'"
+                  class="material-symbols-outlined text-[14px]"
+                >
+                  check
+                </span>
+                <span
+                  v-else-if="loadingStepState(step.id) === 'active'"
+                  class="h-2 w-2 rounded-full bg-orange-500 dark:bg-orange-400"
+                />
+                <span v-else class="text-[10px]">{{ loadingSteps.findIndex((s) => s.id === step.id) + 1 }}</span>
+              </span>
+
+              <span
+                class="min-w-0 flex-1 text-xs font-semibold leading-snug"
+                :class="
+                  loadingStepState(step.id) === 'active'
+                    ? 'text-slate-900 dark:text-slate-100'
+                    : loadingStepState(step.id) === 'done'
+                      ? 'text-slate-600 dark:text-slate-300'
+                      : 'text-slate-400 dark:text-slate-500'
+                "
+              >
+                {{ step.label }}
+              </span>
+            </li>
+          </ol>
         </div>
-
-        <p class="text-sm font-bold text-slate-700 dark:text-slate-200">
-          {{ t("budgetLoading") }}
-        </p>
-
-        <p class="mt-1 text-xs font-medium text-slate-400 dark:text-slate-500">
-          {{ t("budgetLoadingHint") }}
-        </p>
       </div>
 
       <!-- Error -->
