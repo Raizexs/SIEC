@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import or_, func, and_
 from sqlalchemy.orm import Session
 
@@ -63,13 +63,32 @@ def _user_can_edit(db: Session, project: models.Proyecto, user: CurrentUser) -> 
     return collab is not None and collab.rol in {"editor", "owner"}
 
 
-def _audit(db: Session, user: CurrentUser, action: str, entity_id: str, metadata: Optional[dict] = None):
+def _audit(
+    db: Session,
+    user: CurrentUser,
+    action: str,
+    entity_id: str,
+    metadata: Optional[dict] = None,
+    request: Optional[Request] = None,
+):
+    ip_address = None
+    user_agent = None
+    if request is not None:
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            ip_address = forwarded.split(",")[0].strip()
+        elif request.client:
+            ip_address = request.client.host
+        user_agent = request.headers.get("user-agent")
+
     log = models.Auditoria(
         actor_id=user.id,
         action=action,
         entity_type="project",
         entity_id=entity_id,
         extra=metadata or {},
+        ip_address=ip_address,
+        user_agent=user_agent,
     )
     db.add(log)
 
@@ -105,6 +124,33 @@ def list_projects(
             )
         )
     return q.order_by(models.Proyecto.updated_at.desc()).limit(200).all()
+
+
+@router.get("/share/{token}", response_model=schemas.PublicProjectResponse)
+def get_public_project_by_token(token: str, db: Session = Depends(get_db)):
+    project = (
+        db.query(models.Proyecto)
+        .filter(
+            models.Proyecto.public_token == token,
+            models.Proyecto.is_public.is_(True),
+        )
+        .first()
+    )
+    if not project:
+        raise HTTPException(404, "Enlace no válido")
+    now = datetime.now(timezone.utc)
+    if project.public_expires_at and project.public_expires_at < now:
+        raise HTTPException(410, "Enlace expirado")
+
+    hide_cliente = bool((project.payload or {}).get("_share_hide_cliente"))
+    return schemas.PublicProjectResponse(
+        name=project.name,
+        description=project.description,
+        m2_totales=project.m2_totales,
+        estimated_cost=float(project.estimated_cost) if project.estimated_cost is not None else None,
+        material_id=project.material_id,
+        expires_at=project.public_expires_at,
+    )
 
 
 @router.post("", response_model=schemas.ProjectResponse, status_code=201)
@@ -320,18 +366,43 @@ def remove_collaborator(
 def create_share_link(
     project_id: UUID,
     payload: schemas.ShareLinkRequest,
+    request: Request,
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    try:
+        from services.privacy_helpers import has_active_consent
+    except ModuleNotFoundError:
+        from backend.services.privacy_helpers import has_active_consent  # type: ignore
+
+    if not has_active_consent(db, user.id, "public_share"):
+        raise HTTPException(
+            status_code=403,
+            detail="Se requiere consentimiento para enlaces públicos (public_share)",
+        )
+
     project = db.get(models.Proyecto, project_id)
     if not project or str(project.owner_id) != user.id:
         raise HTTPException(403, "Solo el owner puede crear enlaces")
     token = secrets.token_urlsafe(32)
-    expires = datetime.now(timezone.utc) + timedelta(days=payload.expires_in_days)
+    expires = datetime.now(timezone.utc) + timedelta(days=min(payload.expires_in_days, 90))
     project.is_public = True
     project.public_token = token
     project.public_expires_at = expires
-    _audit(db, user, "project.shared", str(project_id), {"expires": expires.isoformat()})
+    if payload.hide_cliente:
+        pl = dict(project.payload or {})
+        pl["_share_hide_cliente"] = True
+        project.payload = pl
+        if project.cliente:
+            project.cliente = None
+    _audit(
+        db,
+        user,
+        "project.shared",
+        str(project_id),
+        {"expires": expires.isoformat(), "hide_cliente": payload.hide_cliente},
+        request=request,
+    )
     db.commit()
     return schemas.ShareLinkResponse(
         public_token=token,
