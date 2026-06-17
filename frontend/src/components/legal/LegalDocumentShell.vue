@@ -1,9 +1,19 @@
 <script setup>
 import { ref, onMounted, nextTick } from 'vue';
-import { RouterLink } from 'vue-router';
+import { RouterLink, useRouter } from 'vue-router';
 import { gsap } from 'gsap';
 import { ArrowLeft, Shield } from 'lucide-vue-next';
 import { prefersReducedMotion, getMotionProfile } from '../../design/motionTokens';
+
+const router = useRouter();
+
+const goBack = () => {
+  if (router.options.history.state?.back != null) {
+    router.back();
+    return;
+  }
+  router.push('/login');
+};
 
 defineProps({
   title: { type: String, required: true },
@@ -46,13 +56,14 @@ onMounted(async () => {
 
     <div class="relative z-10 mx-auto max-w-3xl px-4 py-10 sm:px-6 sm:py-14">
       <header class="mb-10">
-        <RouterLink
-          to="/login"
+        <button
+          type="button"
           class="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/80 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em] text-slate-400 transition-colors hover:border-slate-700 hover:text-orange-300"
+          @click="goBack"
         >
           <ArrowLeft class="h-3.5 w-3.5" />
           Volver
-        </RouterLink>
+        </button>
 
         <div
           ref="legalCardRef"
