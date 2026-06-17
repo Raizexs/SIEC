@@ -1,12 +1,16 @@
 <script setup>
 
-import { ref, computed, inject } from 'vue';
+import { ref, computed, inject, nextTick } from 'vue';
 
 import { useI18n } from '../../composables/useI18n';
 
 import { PREFERENCES_DRAFT_KEY } from '../../composables/usePreferencesDraft';
 
 import { useBilling } from '../../composables/useBilling';
+
+import { getMotionTier, prefersReducedMotion } from '../../design/motionTokens';
+
+import { introMotionReveal, SETTINGS_PANEL_REVEAL } from '../../composables/useMotionContext';
 
 import {
 
@@ -43,11 +47,22 @@ const { draft: productPreferences } = draftCtx;
 
 
 const openExport = ref(false);
+const panelRef = ref(null);
 
-const toggleExport = () => {
+const motionEnabled = () => !prefersReducedMotion() && getMotionTier() !== 'off';
 
+const refreshPanelHover = () => {
+  window.dispatchEvent(new CustomEvent('siec:settings-hover-refresh'));
+};
+
+const toggleExport = async () => {
   openExport.value = !openExport.value;
-
+  await nextTick();
+  if (!openExport.value || !panelRef.value) return;
+  if (motionEnabled()) {
+    introMotionReveal(panelRef.value, SETTINGS_PANEL_REVEAL);
+  }
+  refreshPanelHover();
 };
 
 
@@ -240,7 +255,7 @@ const preferenceSummary = computed(() => {
 
     <Transition name="pref-accordion">
 
-      <div v-show="openExport">
+      <div v-show="openExport" ref="panelRef">
 
         <div class="space-y-5 p-5">
 

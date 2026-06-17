@@ -1,10 +1,9 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
-import { gsap } from 'gsap';
 import { usePrivacy } from '../../composables/usePrivacy';
 import { useAuthStore } from '../../stores/auth';
-import { runReveal, bindCardHover } from '../../composables/useMotionContext';
+import { bindCardHover, introMotionReveal } from '../../composables/useMotionContext';
 import { toast } from 'vue-sonner';
 import {
   Shield,
@@ -39,7 +38,6 @@ const deleteStep = ref('idle');
 const deleteConfirmText = ref('');
 
 const legalDocsRef = ref(null);
-let legalDocsCtx = null;
 let unbindLegalHover = null;
 
 const DPO_EMAIL = 'privacidad@siec.app';
@@ -141,39 +139,33 @@ const formatConsentType = (type) => {
   return labels[type] || type;
 };
 
-const animateLegalDocuments = async () => {
+const bindLegalDocumentHover = async () => {
   await nextTick();
   if (!legalDocsRef.value) return;
 
-  legalDocsCtx?.revert();
   unbindLegalHover?.();
-
-  legalDocsCtx = gsap.context(() => {
-    runReveal(legalDocsRef.value, {
-      selector: '[data-legal-motion]',
-      pace: 'snappy',
-      levels: ['hero', 'card'],
-    });
-    unbindLegalHover = bindCardHover(
-      legalDocsRef.value.querySelectorAll('[data-legal-motion="card"]'),
-    );
-  }, legalDocsRef.value);
+  introMotionReveal(legalDocsRef.value, {
+    selector: '[data-legal-motion]',
+    levels: ['label', 'card'],
+  });
+  unbindLegalHover = bindCardHover(
+    legalDocsRef.value.querySelectorAll('[data-legal-motion="card"]'),
+  );
 };
 
 const onSettingsTabRevealed = (event) => {
-  if (event.detail?.tab === 'privacy') animateLegalDocuments();
+  if (event.detail?.tab === 'privacy') bindLegalDocumentHover();
 };
 
 onMounted(() => {
   loadConsents();
-  animateLegalDocuments();
+  bindLegalDocumentHover();
   window.addEventListener('siec:settings-tab-revealed', onSettingsTabRevealed);
 });
 
 onUnmounted(() => {
   window.removeEventListener('siec:settings-tab-revealed', onSettingsTabRevealed);
   unbindLegalHover?.();
-  legalDocsCtx?.revert();
 });
 </script>
 
