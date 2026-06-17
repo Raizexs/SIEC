@@ -1,4 +1,6 @@
 <script setup>
+defineOptions({ name: 'LoginView' });
+
 import { ref, computed, onMounted, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
@@ -11,6 +13,7 @@ import {
   ArrowRight,
   AlertCircle,
   CheckCircle2,
+  Check,
   Loader2,
   Wand2,
   ShieldCheck,
@@ -97,6 +100,17 @@ const passwordStrong = computed(() => {
     /[0-9]/.test(value)
   );
 });
+
+const toggleAcceptedLegal = () => {
+  acceptedLegal.value = !acceptedLegal.value;
+};
+
+const onLegalCheckboxKeydown = (event) => {
+  if (event.key === ' ' || event.key === 'Enter') {
+    event.preventDefault();
+    toggleAcceptedLegal();
+  }
+};
 
 const canSubmit = computed(() => {
   if (mode.value === 'login') {
@@ -663,36 +677,43 @@ onMounted(() => {
                   :password="password"
                 />
 
-                <label
+                <div
                   v-if="mode === 'register'"
-                  class="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/40"
+                  class="auth-legal-consent mt-4 flex items-start gap-3"
                 >
-                  <input
-                    v-model="acceptedLegal"
-                    type="checkbox"
-                    class="mt-0.5 h-4 w-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500"
-                    required
-                  />
-                  <span class="text-xs font-medium leading-relaxed text-slate-600 dark:text-slate-300">
+                  <button
+                    type="button"
+                    role="checkbox"
+                    :aria-checked="acceptedLegal"
+                    aria-label="Aceptar política de privacidad y términos de servicio"
+                    class="siec-premium-checkbox"
+                    @click="toggleAcceptedLegal"
+                    @keydown="onLegalCheckboxKeydown"
+                  >
+                    <Check
+                      v-show="acceptedLegal"
+                      class="h-3 w-3"
+                      :stroke-width="3"
+                      aria-hidden="true"
+                    />
+                  </button>
+                  <p class="auth-legal-consent-copy">
                     Acepto la
                     <router-link
                       to="/legal/privacidad"
-                      class="font-bold text-orange-600 underline dark:text-orange-400"
-                      target="_blank"
+                      class="auth-legal-consent-link"
                     >
                       política de privacidad
                     </router-link>
                     y los
                     <router-link
                       to="/legal/terminos"
-                      class="font-bold text-orange-600 underline dark:text-orange-400"
-                      target="_blank"
+                      class="auth-legal-consent-link"
                     >
-                      términos de servicio
+                      términos de servicio.
                     </router-link>
-                    (v{{ policyVersion }}).
-                  </span>
-                </label>
+                  </p>
+                </div>
               </div>
 
               <!-- MFA -->
