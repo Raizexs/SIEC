@@ -226,6 +226,7 @@ const translations = {
     scene3DTitle: "Vista 3D en tiempo real",
     liveRender: "Live render",
     toolMove: "Mover",
+    toolNavigate: "Navegar",
     toolScale: "Escalar",
     toolDeveloperMode: "Modo desarrollador",
     developerModeDisclaimer:
@@ -632,6 +633,7 @@ const translations = {
     scene3DTitle: "Real-time 3D view",
     liveRender: "Live render",
     toolMove: "Move",
+    toolNavigate: "Navigate",
     toolScale: "Scale",
     toolDeveloperMode: "Developer mode",
     developerModeDisclaimer:

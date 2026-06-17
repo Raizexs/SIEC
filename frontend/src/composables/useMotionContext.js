@@ -230,27 +230,58 @@ export function runReveal(root, options = {}) {
   return tl;
 }
 
-/** Preset rápido para tabs de Settings (sections/cards, sin items). */
+/** Preset suave para tabs de Settings — sin salto vertical perceptible. */
 export const SETTINGS_TAB_REVEAL = {
   pace: "snappy",
   levels: ["section", "card"],
+  y: 0,
+  autoAlpha: 0.98,
+  durationScale: 0.8,
+  staggerScale: 0.6,
 };
 
-/** Preset fluido para Dashboard (tabs + grid). */
+/** Preset suave para acordeones internos de Preferencias. */
+export const SETTINGS_PANEL_REVEAL = {
+  levels: ["item"],
+  y: 0,
+  autoAlpha: 0.98,
+  durationScale: 0.8,
+  staggerScale: 0.5,
+};
+
+/** Preset suave para tabs del Dashboard (sin salto vertical). */
 export const DASHBOARD_TAB_REVEAL = {
   pace: "smooth",
   levels: ["section", "card", "item"],
+  y: 0,
+  autoAlpha: 0.98,
+  durationScale: 0.8,
+  staggerScale: 0.6,
 };
 
-/** Preset fluido para pasos del workspace (intro inicial, solo cards). */
+/** Alias para reveal del panel activo (proyectos / analítica). */
+export const DASHBOARD_VIEW_REVEAL = DASHBOARD_TAB_REVEAL;
+
+/** Crossfade entre Proyectos y Analítica — desplazamiento mínimo, prioriza fade. */
+export const DASHBOARD_VIEW_SWAP = {
+  pace: "smooth",
+  slide: 0,
+};
+
+/** Preset suave para pasos del workspace. */
 export const WORKSPACE_STEP_REVEAL = {
   pace: "smooth",
-  levels: ["card"],
+  levels: ["section", "card", "item"],
+  y: 0,
+  autoAlpha: 0.98,
+  durationScale: 0.8,
+  staggerScale: 0.6,
 };
 
 /** Opciones para crossfade paralelo entre paneles de paso. */
 export const WORKSPACE_STEP_SWAP = {
   pace: "smooth",
+  slide: 0,
 };
 
 /**
@@ -286,10 +317,10 @@ export function introMotionReveal(rootEl, options = {}) {
   }
 
   const profile = getMotionProfile();
-  const targets = filterMotionTargets(
-    rootEl.querySelectorAll("[data-motion]"),
-    rootEl,
-  );
+  const selector = options.selector ?? "[data-motion]";
+  const levelAttr = selector.includes("legal-motion") ? "data-legal-motion" : "data-motion";
+  const motionRoot = options.motionRoot ?? rootEl;
+  const targets = filterMotionTargets(rootEl.querySelectorAll(selector), motionRoot);
   if (!targets.length) return null;
 
   gsap.killTweensOf(targets);
@@ -297,18 +328,25 @@ export function introMotionReveal(rootEl, options = {}) {
 
   const levels = options.levels ?? ["section", "card", "item"];
   const filtered = targets.filter((el) => {
-    const level = el.getAttribute("data-motion");
+    const level = el.getAttribute(levelAttr);
     return levels.includes(level);
   });
   const list = filtered.length ? filtered : targets;
 
+  const y =
+    options.y ??
+    Math.max(4, Math.round(profile.distance.xs * 0.35));
+  const startAlpha = options.autoAlpha ?? 0.88;
+  const duration =
+    profile.duration.fast * (options.durationScale ?? 1);
+
   return gsap.from(list, {
-    autoAlpha: 0.88,
-    y: Math.max(4, Math.round(profile.distance.xs * 0.35)),
-    stagger: profile.stagger.tight,
-    duration: profile.duration.fast,
+    autoAlpha: startAlpha,
+    y,
+    stagger: profile.stagger.tight * (options.staggerScale ?? 1),
+    duration,
     ease: profile.ease.entrance,
-    force3D: true,
+    force3D: y !== 0,
     clearProps: "transform,opacity,visibility,willChange",
     onComplete: () => setMotionFinalState(list),
   });
@@ -341,6 +379,114 @@ export function revealMotionItems(rootEl, itemSelector = '[data-motion="item"]',
   });
 }
 
+/** Crossfade entre pasos del workspace — perceptible pero sin slide/blur. */
+export const WORKSPACE_STEP_FADE = {
+  durationScale: 1.4,
+};
+
+const settlePanelFadeLayout = (container, inEl, inHeight, stackHeight, profile, onSettled) => {
+  onSettled?.();
+  gsap.set(inEl, { clearProps: "all" });
+  setMotionFinalState(inEl);
+
+  const targetH = Math.max(inEl.offsetHeight || inHeight, 80);
+  if (!container) return Promise.resolve();
+
+  const delta = Math.abs(stackHeight - targetH);
+  if (delta <= 6) {
+    container.classList.remove("is-step-swapping");
+    gsap.set(container, { clearProps: "minHeight,position" });
+    return Promise.resolve();
+  }
+
+  gsap.set(container, { minHeight: stackHeight });
+  return new Promise((resolve) => {
+    gsap.to(container, {
+      minHeight: targetH,
+      duration: Math.min(0.32, profile.duration.base * 0.85),
+      ease: profile.ease.standardOut,
+      onComplete: () => {
+        container.classList.remove("is-step-swapping");
+        gsap.set(container, { clearProps: "minHeight,position" });
+        resolve();
+      },
+    });
+  });
+};
+
+/**
+ * Crossfade puro entre dos paneles hermanos (dashboard).
+ * Pre-posiciona en el mismo tick para evitar flash antes del tween.
+ */
+export function runPanelFadeSwap(outEl, inEl, options = {}) {
+  if (!outEl || !inEl || prefersReducedMotion()) {
+    setMotionFinalState([outEl, inEl].filter(Boolean));
+    options.onSettled?.();
+    return Promise.resolve();
+  }
+
+  const profile = getMotionProfile();
+  const duration =
+    options.duration ??
+    Math.max(0.26, profile.duration.fast * (options.durationScale ?? 0.8));
+  const container = options.container || outEl.parentElement;
+  const inHeight = inEl.scrollHeight || inEl.offsetHeight;
+
+  gsap.killTweensOf([outEl, inEl, container]);
+
+  const stackHeight = Math.max(
+    outEl.offsetHeight || outEl.scrollHeight,
+    inHeight,
+    120,
+  );
+
+  if (container) {
+    container.classList.add("is-step-swapping");
+    gsap.set(container, { minHeight: stackHeight, position: "relative" });
+  }
+
+  gsap.set(outEl, {
+    position: "absolute",
+    width: "100%",
+    top: 0,
+    left: 0,
+    autoAlpha: 1,
+    y: 0,
+    zIndex: 1,
+    pointerEvents: "none",
+  });
+  gsap.set(inEl, {
+    visibility: "visible",
+    display: "block",
+    position: "absolute",
+    width: "100%",
+    top: 0,
+    left: 0,
+    autoAlpha: 0,
+    y: 0,
+    zIndex: 2,
+    pointerEvents: "none",
+  });
+
+  return new Promise((resolve) => {
+    gsap.timeline({
+      onComplete: () => {
+        gsap.set(outEl, { clearProps: "all" });
+        void settlePanelFadeLayout(
+          container,
+          inEl,
+          inHeight,
+          stackHeight,
+          profile,
+          options.onSettled,
+        ).then(resolve);
+      },
+    })
+      .to(outEl, { autoAlpha: 0, duration, ease: profile.ease.standardOut }, 0)
+      .to(inEl, { autoAlpha: 1, duration, ease: profile.ease.entrance }, 0);
+  });
+}
+
 /**
  * Crossfade paralelo entre dos paneles de paso (workspace).
  * Salida e entrada simultáneas — evita el corte brusco de v-show.
@@ -367,7 +513,7 @@ export function runStepSwap(outEl, inEl, options = {}) {
   const stackHeight = Math.max(outHeight, inHeight, 120);
 
   if (container) {
-    gsap.set(container, { minHeight: stackHeight });
+    gsap.set(container, { minHeight: stackHeight, position: "relative" });
     container.classList.add("is-step-swapping");
   }
 
@@ -409,7 +555,7 @@ export function runStepSwap(outEl, inEl, options = {}) {
     const delta = Math.abs(stackHeight - targetH);
     if (delta <= 6) {
       container.classList.remove("is-step-swapping");
-      gsap.set(container, { clearProps: "minHeight" });
+      gsap.set(container, { clearProps: "minHeight,position" });
       return Promise.resolve();
     }
 
@@ -417,11 +563,11 @@ export function runStepSwap(outEl, inEl, options = {}) {
     return new Promise((resolve) => {
       gsap.to(container, {
         minHeight: targetH,
-        duration: Math.min(0.3, profile.duration.base * 0.75),
+        duration: Math.min(0.32, profile.duration.base * 0.85),
         ease: profile.ease.standardOut,
         onComplete: () => {
           container.classList.remove("is-step-swapping");
-          gsap.set(container, { clearProps: "minHeight" });
+          gsap.set(container, { clearProps: "minHeight,position" });
           resolve();
         },
       });
@@ -528,6 +674,23 @@ export async function runCrossfade(outTargets, inTargets, options = {}) {
         resolve();
       },
     });
+  });
+}
+
+/** Hover suave en botones de toolbar del editor 2D/3D (no canvas). */
+export function bindEditorToolHover(rootEl, options = {}) {
+  if (!rootEl || prefersReducedMotion()) return () => {};
+
+  const targets = gsap.utils
+    .toArray(rootEl.querySelectorAll('[data-editor-hover="tool"]'))
+    .filter((el) => !el.disabled && el.getAttribute("aria-disabled") !== "true");
+
+  if (!targets.length) return () => {};
+
+  return bindCardHover(targets, {
+    lift: -3,
+    iconSelector: "svg, .material-symbols-outlined",
+    ...options,
   });
 }
 

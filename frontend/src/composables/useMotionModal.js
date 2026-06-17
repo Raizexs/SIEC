@@ -1,7 +1,7 @@
 import { watch, onBeforeUnmount, nextTick, unref } from "vue";
 import { gsap } from "gsap";
 import { getMotionProfile, getMotionTier, prefersReducedMotion } from "../design/motionTokens";
-import { setMotionFinalState, revealMotionItems } from "./useMotionContext";
+import { setMotionFinalState, revealMotionItems, bindCardHover } from "./useMotionContext";
 
 /**
  * Animación tier-aware para modales/overlays.
@@ -17,11 +17,27 @@ export function useMotionModal(showRef, options = {}) {
   } = options;
 
   let ctx = null;
+  let unbindHover = null;
 
   const resetPanelMotion = (panel) => {
     if (!panel) return;
     setMotionFinalState(panel.querySelectorAll('[data-motion="item"]'));
     setMotionFinalState(panel);
+  };
+
+  const bindModalItemHover = async () => {
+    unbindHover?.();
+    if (prefersReducedMotion()) return;
+    await nextTick();
+    const panel = panelRef?.value;
+    if (!panel) return;
+    unbindHover = bindCardHover(
+      panel.querySelectorAll('[data-motion="item"], [data-motion-hover="modal-action"]'),
+      {
+        lift: -3,
+        iconSelector: "svg, .material-symbols-outlined",
+      },
+    );
   };
 
   const animateOpen = async () => {
@@ -69,6 +85,7 @@ export function useMotionModal(showRef, options = {}) {
           revealMotionItems(panel, '[data-motion="item"]', {
             delay: profile.duration.fast * 0.35,
           });
+          void bindModalItemHover();
         }
 
         if (emphasis && tier === "premium") {
@@ -91,6 +108,8 @@ export function useMotionModal(showRef, options = {}) {
   };
 
   const animateClose = () => {
+    unbindHover?.();
+    unbindHover = null;
     ctx?.revert();
     ctx = null;
     resetPanelMotion(panelRef?.value);
@@ -107,6 +126,7 @@ export function useMotionModal(showRef, options = {}) {
 
   onBeforeUnmount(() => {
     stop();
+    unbindHover?.();
     ctx?.revert();
     resetPanelMotion(panelRef?.value);
   });
