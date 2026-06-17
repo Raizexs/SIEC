@@ -14,14 +14,21 @@ import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from '../../stores/auth';
 import { useI18n } from '../../composables/useI18n';
 import { useBilling } from '../../composables/useBilling';
-import { computed, onMounted } from 'vue';
+import { LEGAL } from '../../constants/legal.js';
+import { computed, onMounted, watch, nextTick, ref } from 'vue';
+import { gsap } from 'gsap';
+import {
+  getMotionProfile,
+  getMotionTier,
+  prefersReducedMotion,
+} from '../../design/motionTokens';
 import {
   LayoutDashboard,
   Building2,
   Store,
   Settings,
   LogOut,
-  HelpCircle,
+  Keyboard,
   Lock,
 } from 'lucide-vue-next';
 
@@ -35,9 +42,33 @@ const auth = useAuthStore();
 const { currentLanguage, t } = useI18n();
 const { hasMarketplaceAccess, fetchBilling } = useBilling();
 
+const navRef = ref(null);
+const indicatorRef = ref(null);
+
+const showPremiumIndicator = computed(
+  () => getMotionTier() === 'premium' && !prefersReducedMotion(),
+);
+
+const syncRailIndicator = async () => {
+  await nextTick();
+  if (!showPremiumIndicator.value || !navRef.value || !indicatorRef.value) return;
+  const active = navRef.value.querySelector('.rail-link-active');
+  if (!active) return;
+  const profile = getMotionProfile();
+  gsap.to(indicatorRef.value, {
+    y: active.offsetTop,
+    duration: profile.duration.fast,
+    ease: profile.ease.emphasizedOut,
+    overwrite: 'auto',
+  });
+};
+
 onMounted(() => {
   fetchBilling();
+  syncRailIndicator();
 });
+
+watch(() => route.path, syncRailIndicator);
 
 const isSiecPlaceLocked = computed(() => !hasMarketplaceAccess.value);
 
@@ -152,13 +183,19 @@ const isActive = (link) => {
     </router-link>
 
     <!-- Primary navigation -->
-    <nav class="flex flex-1 flex-col items-center gap-2">
+    <nav ref="navRef" class="relative flex flex-1 flex-col items-center gap-2">
+      <div
+        v-show="showPremiumIndicator"
+        ref="indicatorRef"
+        class="pointer-events-none absolute left-1/2 z-0 h-10 w-10 -translate-x-1/2 rounded-xl border border-orange-200/70 bg-orange-50/90 shadow-sm dark:border-orange-900/50 dark:bg-orange-950/50"
+        aria-hidden="true"
+      />
       <router-link
         v-for="link in links"
         :key="link.id"
         :to="typeof link.to === 'string' ? link.to : link.to.value"
         :title="lockedLinkTitle(link)"
-        class="rail-link group"
+        class="rail-link group relative z-[1]"
         :class="{
           'rail-link-active': isActive(link) && !isLinkLocked(link),
           'rail-link-locked': isLinkLocked(link),
@@ -184,17 +221,36 @@ const isActive = (link) => {
       </router-link>
     </nav>
 
-    <!-- Footer: shortcuts + settings + user actions -->
+    <!-- Footer: legal + shortcuts + settings + user actions -->
     <div
       class="mt-auto flex w-full flex-col items-center gap-2 border-t border-slate-200/80 pt-3 dark:border-slate-800/80"
     >
+      <router-link
+        :to="LEGAL.termsPath"
+        :title="t('shortcutTerms')"
+        class="rail-link group"
+        :class="{ 'rail-link-active': route.path.startsWith(LEGAL.termsPath) }"
+        :aria-label="t('shortcutTerms')"
+      >
+        <span
+          class="flex h-5 w-5 items-center justify-center text-[17px] font-bold leading-none tracking-tight"
+          aria-hidden="true"
+        >
+          ?
+        </span>
+
+        <span class="rail-tooltip">
+          {{ t('railTerms') }}
+        </span>
+      </router-link>
+
       <button
         title="Atajos de teclado"
         class="rail-link group"
         aria-label="Mostrar atajos de teclado"
         @click="showShortcuts"
       >
-        <HelpCircle class="h-5 w-5" :stroke-width="2" />
+        <Keyboard class="h-5 w-5" :stroke-width="2" />
 
         <span class="rail-tooltip">
           Atajos

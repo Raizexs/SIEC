@@ -6,9 +6,10 @@ import { gsap } from 'gsap';
 import { useAuthStore } from './stores/auth';
 import { useTheme } from './composables/useTheme';
 import { useKeyboardShortcuts } from './composables/useKeyboardShortcuts';
-import { motionTokens, prefersReducedMotion } from './design/motionTokens';
+import { motionTokens, prefersReducedMotion, getMotionProfile, dispatchRouteEnterComplete } from './design/motionTokens';
 import CommandPalette from './components/CommandPalette.vue';
 import KeyboardShortcuts from './components/KeyboardShortcuts.vue';
+import { LEGAL } from './constants/legal.js';
 
 const router = useRouter();
 const route = useRoute();
@@ -24,6 +25,7 @@ const showShortcuts = ref(false);
 
 useKeyboardShortcuts({
   help: () => (showShortcuts.value = true),
+  gotoTerms: () => router.push(LEGAL.termsPath),
   gotoDashboard: () => router.push('/dashboard'),
   gotoWorkspace: () => router.push('/workspace'),
   gotoSettings: () => router.push('/settings'),
@@ -76,7 +78,13 @@ const isWorkspaceShell = (el) => el?.getAttribute?.('data-siec-workspace-shell')
 const isAppShell = (el) => el?.getAttribute?.('data-siec-app-shell') != null;
 
 const WORKSPACE_ENTER_S = 0.2;
-const APP_SHELL_ENTER_S = 0.16;
+
+const finishRouteEnter = (finish) => {
+  finish();
+  dispatchRouteEnterComplete();
+};
+
+const appShellEnterDuration = () => getMotionProfile().duration.fast;
 
 /**
  * Entrada de ruta en un solo `fromTo` (sin `beforeEnter` previo).
@@ -88,7 +96,7 @@ const enter = (el, done) => {
     if (prefersReducedMotion()) {
       gsap.killTweensOf(el);
       gsap.set(el, { autoAlpha: 1, y: 0, clearProps: "transform,opacity" });
-      finish();
+      finishRouteEnter(finish);
       return;
     }
     if (isWorkspaceShell(el)) {
@@ -103,7 +111,7 @@ const enter = (el, done) => {
           duration: WORKSPACE_ENTER_S,
           ease: motionTokens.ease.standardOut,
           clearProps: "transform",
-          onComplete: finish,
+          onComplete: () => finishRouteEnter(finish),
         },
       );
       return;
@@ -113,14 +121,14 @@ const enter = (el, done) => {
       gsap.set(el, { autoAlpha: 1 });
       gsap.fromTo(
         el,
-        { y: 6, opacity: 0.98 },
+        { y: 4, opacity: 0.99 },
         {
           y: 0,
           opacity: 1,
-          duration: APP_SHELL_ENTER_S,
-          ease: motionTokens.ease.standardOut,
+          duration: Math.min(appShellEnterDuration(), 0.18),
+          ease: getMotionProfile().ease.standardOut,
           clearProps: "transform",
-          onComplete: finish,
+          onComplete: () => finishRouteEnter(finish),
         },
       );
       return;
@@ -128,7 +136,7 @@ const enter = (el, done) => {
     if (isBareAuthShell(el)) {
       gsap.killTweensOf(el);
       gsap.set(el, { autoAlpha: 1, y: 0, clearProps: 'transform,opacity' });
-      finish();
+      finishRouteEnter(finish);
       return;
     }
     gsap.killTweensOf(el);
@@ -140,7 +148,7 @@ const enter = (el, done) => {
         y: 0,
         duration: motionTokens.duration.base,
         ease: motionTokens.ease.entrance,
-        onComplete: finish,
+        onComplete: () => finishRouteEnter(finish),
       },
     );
   });
@@ -157,7 +165,14 @@ const leave = (el, done) => {
     return;
   }
   if (isAppShell(el)) {
-    finish();
+    gsap.killTweensOf(el);
+    gsap.to(el, {
+      autoAlpha: 0,
+      y: -6,
+      duration: getMotionProfile().duration.fast,
+      ease: getMotionProfile().ease.standardInOut,
+      onComplete: finish,
+    });
     return;
   }
   if (isBareAuthShell(el)) {
