@@ -101,12 +101,14 @@ const runConfirmAction = async () => {
   closeConfirm();
   if (typeof fn === 'function') await fn();
 };
+
 </script>
 
 <template>
   <div class="space-y-6">
     <!-- MFA -->
     <article
+      data-motion="section"
       class="overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30"
     >
       <header
@@ -245,6 +247,7 @@ const runConfirmAction = async () => {
 
     <!-- Sessions -->
     <article
+      data-motion="section"
       class="overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30"
     >
       <div class="flex flex-col gap-4 p-5 sm:flex-row sm:items-start">

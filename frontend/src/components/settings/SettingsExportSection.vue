@@ -44,8 +44,6 @@ const { draft: productPreferences } = draftCtx;
 
 const openExport = ref(false);
 
-
-
 const toggleExport = () => {
 
   openExport.value = !openExport.value;
@@ -160,9 +158,8 @@ const preferenceSummary = computed(() => {
 <template>
 
   <section
-
+    data-motion="section"
     class="overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30"
-
   >
 
     <button
@@ -250,13 +247,10 @@ const preferenceSummary = computed(() => {
           <div class="grid gap-3 sm:grid-cols-2">
 
             <div
-
               v-for="row in exportToggleOptions"
-
               :key="row.key"
-
+              data-motion="item"
               class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200/90 bg-slate-50/60 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/40"
-
             >
 
               <div>

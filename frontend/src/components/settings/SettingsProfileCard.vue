@@ -129,6 +129,7 @@ const onAvatarSelected = async (event) => {
   <div class="space-y-6">
     <!-- Identity card -->
     <article
+      data-motion="section"
       class="overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30"
     >
       <header
@@ -204,6 +205,7 @@ const onAvatarSelected = async (event) => {
 
     <!-- Form card -->
     <article
+      data-motion="section"
       class="overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30"
     >
       <header
