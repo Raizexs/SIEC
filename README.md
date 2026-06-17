@@ -133,8 +133,6 @@ cd SIEC
 docker-compose up --build
 ```
 
-Before running Docker, copy `.env.example` to `.env` and set `SERPAPI_METALCON_API_KEY` if you want live Metalcon search results.
-
 ### Run the frontend manually
 
 ```bash
@@ -155,32 +153,45 @@ Environment configuration depends on the module being executed.
 
 ## Project Status
 
-SIEC is currently in beta / advanced prototype stage.
+SIEC is currently in **beta** (v0.3).
 
-The main product experience, including the workspace, layout flow, visual editor, project dashboard, analytics, and settings modules, is under active development. Some integrations, export workflows, and external pricing sources may still be evolving.
+The core product loop — workspace, 2D/3D editor, normative validation, budget flow, dashboard, analytics, and settings — is functional and under active polish. Privacy compliance (Ley 21.719), SIEC Place, billing infrastructure, and the GSAP motion layer are in place. Some exports, integrations, and pricing sources remain in beta or behind feature flags.
 
 ## Roadmap
 
+### Recently Delivered (2026 Q2)
+
+- **Privacy & compliance (Ley 21.719):** consent registry, policy acceptance gate, privacy settings, data-retention migration, and compliance documentation.
+- **Motion system:** GSAP-based transitions and hover across dashboard, workspace, sidebar, top navigation, and editor toolbars.
+- **Editor preferences:** product settings wired to 2D/3D (grid, labels, minimap, initial view, 3D quality).
+- **Normative engine:** Ley 21.725 (Ley del Mono), OGUC, LOSCAT, and LOSCAA validations in the workspace.
+- **SIEC Place:** marketplace foundation, budget publishing flow, and dedicated listing views.
+- **Billing & plans:** subscription tiers and plan-gated workspace features.
+- **Exports:** PDF proposals and blueprint generation; GLB/GLTF scene export.
+
 ### Short Term
 
-- Connect product preferences directly to the editor and estimation flow.
-- Improve PDF, IFC, and GLB export behavior.
-- Refine base templates and saved layout management.
-- Strengthen visual QA across dark and light modes.
+- Stabilize **IFC** export and improve **GLB** fidelity for complex scenes.
+- Enable **project sharing** and **construction layers** once QA is complete.
+- Complete end-to-end **data subject rights** flows (access, rectification, erasure).
+- Integrate live **pricing APIs** and structured market cost sources (Metalcon / scraper pipeline).
+- Expand **SIEC Place** discovery, moderation, and contractor matching.
+- Continue visual QA across dark and light modes.
 
 ### Medium Term
 
-- Integrate real pricing APIs and structured cost sources.
-- Add customizable commercial reports.
-- Improve version history and project recovery.
-- Expand project analytics and risk detection.
+- Customizable **commercial reports** and branded proposal templates.
+- **Project version history** and recovery.
+- Portfolio **analytics**, risk detection, and preventive logistics alerts.
+- Operational **breach response** and treatment activity register (RAT).
+- Google Drive backup and BIM connector evaluation (Revit / IFC).
 
 ### Long Term
 
-- Advanced BIM integration.
-- Multi-user collaboration.
-- Cloud synchronization.
-- Predictive cost analysis.
+- Advanced **BIM** integration and IFC round-trip workflows.
+- **Multi-user** real-time collaboration in the workspace.
+- Full **cloud synchronization** and offline-capable editing.
+- **Predictive cost analysis** using historical project data.
 
 ## Team
 
