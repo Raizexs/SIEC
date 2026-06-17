@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -19,6 +20,41 @@ def get_client_ip(request: Request) -> Optional[str]:
     if request.client:
         return request.client.host
     return None
+
+
+def ensure_app_user(
+    db: Session,
+    user_id: str,
+    email: Optional[str] = None,
+    raw_claims: Optional[dict] = None,
+) -> models.AppUser:
+    """Garantiza fila en app_user (FK de user_consent). Usuarios antiguos pueden no tener trigger."""
+    uid = uuid.UUID(str(user_id))
+    row = db.query(models.AppUser).filter(models.AppUser.id == uid).first()
+    if row:
+        return row
+
+    claims = raw_claims or {}
+    meta = claims.get("user_metadata") or {}
+    resolved_email = (
+        email
+        or claims.get("email")
+        or meta.get("email")
+        or f"{user_id}@users.siec.local"
+    )
+
+    row = models.AppUser(
+        id=uid,
+        email=resolved_email,
+        full_name=meta.get("full_name"),
+        company=meta.get("company"),
+        avatar_url=meta.get("avatar_url"),
+        role=(meta.get("role") or claims.get("role") or "architect"),
+        preferences=meta.get("preferences") or {},
+    )
+    db.add(row)
+    db.flush()
+    return row
 
 
 def get_active_policy(db: Session) -> Optional[models.PrivacyPolicyVersion]:

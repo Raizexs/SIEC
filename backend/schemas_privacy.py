@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 CONSENT_TYPES = frozenset({
@@ -45,6 +45,26 @@ class ConsentOut(BaseModel):
     granted_at: datetime
     revoked_at: Optional[datetime] = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _map_consent_metadata(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "extra" in data and "metadata" not in data:
+                data = {**data, "metadata": data.get("extra") or {}}
+            return data
+        extra = getattr(data, "extra", None)
+        if extra is None:
+            return data
+        return {
+            "id": data.id,
+            "consent_type": data.consent_type,
+            "policy_version": data.policy_version,
+            "granted": data.granted,
+            "granted_at": data.granted_at,
+            "revoked_at": data.revoked_at,
+            "metadata": extra or {},
+        }
 
     class Config:
         from_attributes = True

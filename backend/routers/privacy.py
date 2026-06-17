@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 try:
@@ -19,6 +20,7 @@ try:
         PrivacyPolicyOut,
     )
     from services.privacy_helpers import (
+        ensure_app_user,
         get_active_policy,
         get_client_ip,
         has_active_consent,
@@ -38,6 +40,7 @@ except ModuleNotFoundError:
         PrivacyPolicyOut,
     )
     from backend.services.privacy_helpers import (  # type: ignore
+        ensure_app_user,
         get_active_policy,
         get_client_ip,
         has_active_consent,
@@ -73,19 +76,32 @@ def create_consent(
                 detail=f"Debe aceptar la versión vigente de la política: {policy.version}",
             )
 
-    row = record_consent(
-        db,
-        user_id=user.id,
-        consent_type=body.consent_type,
-        policy_version=body.policy_version,
-        granted=body.granted,
-        ip_address=get_client_ip(request),
-        user_agent=request.headers.get("user-agent"),
-        metadata=body.metadata,
-    )
-    db.commit()
-    db.refresh(row)
-    return row
+    try:
+        ensure_app_user(
+            db,
+            user_id=user.id,
+            email=user.email,
+            raw_claims=user.raw_claims,
+        )
+        row = record_consent(
+            db,
+            user_id=user.id,
+            consent_type=body.consent_type,
+            policy_version=body.policy_version,
+            granted=body.granted,
+            ip_address=get_client_ip(request),
+            user_agent=request.headers.get("user-agent"),
+            metadata=body.metadata,
+        )
+        db.commit()
+        db.refresh(row)
+        return row
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=503,
+            detail="No se pudo registrar el consentimiento. Verifica que las migraciones de privacidad estén aplicadas en la base de datos.",
+        ) from exc
 
 
 @router.get("/consents", response_model=List[ConsentOut])
