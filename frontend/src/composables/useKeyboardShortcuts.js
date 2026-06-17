@@ -21,9 +21,16 @@ export function useKeyboardShortcuts(handlers) {
     if (isTyping(e)) return;
     const key = e.key;
 
-    // ? help
-    if (key === "?") {
+    // Atajos de teclado (Ctrl/Cmd + /)
+    if ((e.ctrlKey || e.metaKey) && (key === "/" || e.code === "Slash")) {
+      e.preventDefault();
       handlers.help?.();
+      return;
+    }
+
+    // Términos de servicio
+    if (key === "?") {
+      handlers.gotoTerms?.();
       return;
     }
 

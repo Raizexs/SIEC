@@ -1,5 +1,17 @@
 import { driver } from 'driver.js';
 import 'driver.js/dist/driver.css';
+import '../styles/driver-tour-overrides.css';
+
+const DRIVER_CLOSE_ICON =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+
+const patchDriverCloseButton = (popover) => {
+  const closeBtn = popover?.closeButton;
+  if (!closeBtn) return;
+  closeBtn.innerHTML = DRIVER_CLOSE_ICON;
+  closeBtn.style.cursor = 'pointer';
+  closeBtn.style.userSelect = 'none';
+};
 
 let activeTourDriver = null;
 
@@ -295,6 +307,9 @@ export function startWorkspaceTour({ t, prepareTutorialStep }) {
     prevBtnText: t('tourBtnPrev'),
     doneBtnText: t('tourBtnDone'),
     progressText: t('tourProgressText'),
+    onPopoverRender: (popover) => {
+      patchDriverCloseButton(popover);
+    },
     steps,
     onDestroyed: () => {
       activeTourDriver = null;
