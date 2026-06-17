@@ -1,7 +1,7 @@
 import { createApp } from "vue";
 import { createPinia } from "pinia";
 import { gsap } from "gsap";
-import { motionTokens, syncMotionHtmlClass } from "./design/motionTokens";
+import { motionTokens, syncMotionHtmlClass, resetMotionRevealState, dispatchRouteEnterComplete } from "./design/motionTokens";
 import { installGlobalMicroMotion } from "./lib/installGlobalMicroMotion";
 import App from "./App.vue";
 import router from "./router";
@@ -20,4 +20,7 @@ app.use(router);
 syncMotionHtmlClass();
 app.mount("#app");
 installGlobalMicroMotion();
-window.addEventListener("siec:motion-preference", syncMotionHtmlClass);
+window.addEventListener("siec:motion-preference", () => {
+  syncMotionHtmlClass();
+  resetMotionRevealState();
+});

@@ -47,7 +47,7 @@
   body {
     background: var(--siec-gradient-mesh);
     color: var(--siec-text);
-    font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -67,10 +67,19 @@
 
   a,
   button:not(:disabled),
+  button:not(:disabled) *:not(input):not(textarea):not(select),
+  button:not(:disabled) svg,
+  button:not(:disabled) svg *,
   [role="button"]:not([aria-disabled="true"]),
+  [role="button"]:not([aria-disabled="true"]) *:not(input):not(textarea):not(select),
+  [role="button"]:not([aria-disabled="true"]) svg,
+  [role="button"]:not([aria-disabled="true"]) svg *,
   [type="button"]:not(:disabled),
+  [type="button"]:not(:disabled) *,
   [type="submit"]:not(:disabled),
+  [type="submit"]:not(:disabled) *,
   [type="reset"]:not(:disabled),
+  [type="reset"]:not(:disabled) *,
   summary,
   select,
   option,
@@ -81,6 +90,14 @@
   input[type="range"]:enabled,
   input[type="color"]:enabled {
     cursor: pointer;
+  }
+
+  /* Iconos dentro de botones: el hit-test va al botón, no al SVG con cursor default */
+  button:not(:disabled) > svg,
+  button:not(:disabled) > svg *,
+  [role="button"]:not([aria-disabled="true"]) > svg,
+  [role="button"]:not([aria-disabled="true"]) > svg * {
+    pointer-events: none;
   }
 
   button:disabled,
