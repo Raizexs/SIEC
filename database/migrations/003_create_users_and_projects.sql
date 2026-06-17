@@ -291,13 +291,15 @@ BEGIN
         CREATE OR REPLACE FUNCTION public.handle_new_user()
         RETURNS trigger AS $func$
         BEGIN
-            INSERT INTO public.app_user (id, email, full_name, role, avatar_url)
+            INSERT INTO public.app_user (id, email, full_name, company, avatar_url, role, preferences)
             VALUES (
                 NEW.id,
                 NEW.email,
                 COALESCE(NEW.raw_user_meta_data ->> 'full_name', split_part(NEW.email, '@', 1)),
+                NEW.raw_user_meta_data ->> 'company',
+                NEW.raw_user_meta_data ->> 'avatar_url',
                 COALESCE(NEW.raw_user_meta_data ->> 'role', 'architect'),
-                NEW.raw_user_meta_data ->> 'avatar_url'
+                COALESCE(NEW.raw_user_meta_data -> 'preferences', '{}'::jsonb)
             )
             ON CONFLICT (id) DO NOTHING;
             RETURN NEW;
