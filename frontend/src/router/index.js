@@ -13,6 +13,7 @@
  */
 import { createRouter, createWebHistory } from "vue-router";
 import { useAuthStore } from "../stores/auth";
+import { usePrivacy } from "../composables/usePrivacy";
 import { routes } from "./routes.js";
 
 const router = createRouter({
@@ -26,6 +27,21 @@ const router = createRouter({
 });
 
 let authInitialized = false;
+
+const PUBLIC_ROUTES = new Set([
+  "login",
+  "auth-callback",
+  "reset-password",
+  "legal-privacy",
+  "legal-terms",
+  "share-project",
+]);
+
+const CONSENT_EXEMPT_ROUTES = new Set([
+  ...PUBLIC_ROUTES,
+  "privacy-accept",
+  "onboarding",
+]);
 
 router.beforeEach(async (to) => {
   const auth = useAuthStore();
@@ -46,6 +62,25 @@ router.beforeEach(async (to) => {
         ? to.query.redirect
         : "/workspace";
     return redirect;
+  }
+
+  if (
+    auth.isAuthenticated &&
+    requiresAuth &&
+    !CONSENT_EXEMPT_ROUTES.has(to.name)
+  ) {
+    try {
+      const { hasConsent } = usePrivacy();
+      const ok = await hasConsent("privacy_policy");
+      if (!ok) {
+        return {
+          name: "privacy-accept",
+          query: { redirect: to.fullPath },
+        };
+      }
+    } catch {
+      // API unavailable — do not block navigation in dev
+    }
   }
 
   return true;

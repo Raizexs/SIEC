@@ -22,6 +22,30 @@ export const routes = [
     meta: { requiresAuth: false, hideShell: true },
   },
   {
+    path: "/legal/privacidad",
+    name: "legal-privacy",
+    component: () => import("../views/legal/PrivacyPolicyView.vue"),
+    meta: { requiresAuth: false, hideShell: true },
+  },
+  {
+    path: "/legal/terminos",
+    name: "legal-terms",
+    component: () => import("../views/legal/TermsView.vue"),
+    meta: { requiresAuth: false, hideShell: true },
+  },
+  {
+    path: "/privacy/accept",
+    name: "privacy-accept",
+    component: () => import("../views/PrivacyAcceptView.vue"),
+    meta: { requiresAuth: true, hideShell: true },
+  },
+  {
+    path: "/share/:token",
+    name: "share-project",
+    component: () => import("../views/ShareProjectView.vue"),
+    meta: { requiresAuth: false, hideShell: true },
+  },
+  {
     path: "/onboarding",
     name: "onboarding",
     component: () => import("../views/OnboardingView.vue"),
