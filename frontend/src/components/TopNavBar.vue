@@ -1,9 +1,11 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from '../composables/useI18n';
 import { useAuthStore } from '../stores/auth';
 import { useLayoutManager } from '../composables/useLayoutManager';
+import { bindCardHover } from '../composables/useMotionContext';
+import { prefersReducedMotion } from '../design/motionTokens';
 import {
   Save,
   ChevronDown,
@@ -25,6 +27,44 @@ defineProps({
 defineEmits(['save-layout']);
 
 const showProfileMenu = ref(false);
+const topNavRef = ref(null);
+let unbindTopNavHover = null;
+
+const bindTopNavHover = async () => {
+  unbindTopNavHover?.();
+  await nextTick();
+  const root = topNavRef.value;
+  if (!root || prefersReducedMotion()) return;
+
+  const hoverOpts = { iconSelector: 'svg' };
+  const cleanups = [
+    bindCardHover(root.querySelectorAll('[data-motion-hover="nav-action"]'), {
+      lift: -4,
+      ...hoverOpts,
+    }),
+    bindCardHover(root.querySelectorAll('[data-motion-hover="nav-item"]'), {
+      lift: -3,
+      ...hoverOpts,
+    }),
+  ];
+  unbindTopNavHover = () => cleanups.forEach((fn) => fn());
+};
+
+const refreshTopNavHover = () => {
+  void bindTopNavHover();
+};
+
+onMounted(() => {
+  refreshTopNavHover();
+  window.addEventListener('siec:motion-preference', refreshTopNavHover);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('siec:motion-preference', refreshTopNavHover);
+  unbindTopNavHover?.();
+});
+
+watch(showProfileMenu, () => refreshTopNavHover());
 
 const roleLabels = {
   engineer: () => t('roleEngineer'),
@@ -58,6 +98,8 @@ const firstName = computed(() =>
 
 const recentExports = computed(() => authStore.exportHistory.slice(0, 3));
 
+watch(recentExports, () => refreshTopNavHover());
+
 const logout = async () => {
   await authStore.logout();
   showProfileMenu.value = false;
@@ -67,6 +109,7 @@ const logout = async () => {
 
 <template>
   <header
+    ref="topNavRef"
     class="siec-header-shell sticky top-0 z-40 flex h-14 items-center justify-between border-b border-slate-200/80 bg-white/85 px-4 shadow-sm shadow-slate-950/[0.03] backdrop-blur-xl transition-colors duration-300 dark:border-slate-800/80 dark:bg-slate-950/85 dark:shadow-black/20 sm:px-6"
   >
     <!-- Left: title -->
@@ -89,11 +132,12 @@ const logout = async () => {
       <button
         v-if="showSave"
         type="button"
-        class="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold uppercase tracking-tight text-slate-600 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 hover:shadow-md active:scale-[0.98] dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+        data-motion-hover="nav-action"
+        class="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold uppercase tracking-tight text-slate-600 shadow-sm transition-colors duration-200 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-100"
         :title="t('saveCurrentDesign')"
         @click="$emit('save-layout')"
       >
-        <Save class="h-4 w-4" :stroke-width="2.2" />
+        <Save class="pointer-events-none h-4 w-4" :stroke-width="2.2" />
         {{ t('save') }}
       </button>
 
@@ -101,7 +145,8 @@ const logout = async () => {
       <div class="relative">
         <button
           type="button"
-          class="group flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50/80 py-1.5 pl-1.5 pr-2.5 shadow-sm transition-all duration-200 hover:border-slate-300 hover:bg-white hover:shadow-md active:scale-[0.98] dark:border-slate-800 dark:bg-slate-900/80 dark:hover:border-slate-700 dark:hover:bg-slate-900"
+          data-motion-hover="nav-action"
+          class="group flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50/80 py-1.5 pl-1.5 pr-2.5 shadow-sm transition-colors duration-200 hover:border-slate-300 hover:bg-white dark:border-slate-800 dark:bg-slate-900/80 dark:hover:border-slate-700 dark:hover:bg-slate-900"
           :aria-expanded="showProfileMenu"
           aria-haspopup="menu"
           @click="showProfileMenu = !showProfileMenu"
@@ -128,7 +173,8 @@ const logout = async () => {
           </span>
 
           <ChevronDown
-            class="h-3.5 w-3.5 text-slate-400 transition-transform duration-200 dark:text-slate-500"
+            data-motion-hover="chevron"
+            class="pointer-events-none h-3.5 w-3.5 text-slate-400 transition-transform duration-200 dark:text-slate-500"
             :class="showProfileMenu ? 'rotate-180' : ''"
             :stroke-width="2.2"
           />
@@ -225,12 +271,13 @@ const logout = async () => {
                 <li
                   v-for="(item, idx) in recentExports"
                   :key="item.id || idx"
-                  class="flex items-start gap-3 rounded-2xl border border-transparent p-2.5 transition-all duration-200 hover:border-slate-200 hover:bg-slate-50 dark:hover:border-slate-800 dark:hover:bg-slate-900/70"
+                  data-motion-hover="nav-item"
+                  class="flex items-start gap-3 rounded-2xl border border-transparent p-2.5 transition-colors duration-200 hover:border-slate-200 hover:bg-slate-50 dark:hover:border-slate-800 dark:hover:bg-slate-900/70"
                 >
                   <div
                     class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-orange-200 bg-orange-50 text-orange-600 shadow-sm dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
                   >
-                    <FileText class="h-4 w-4" :stroke-width="2.2" />
+                    <FileText class="pointer-events-none h-4 w-4" :stroke-width="2.2" />
                   </div>
 
                   <div class="min-w-0">
@@ -251,10 +298,11 @@ const logout = async () => {
             >
               <button
                 type="button"
-                class="flex w-full items-center justify-center gap-2 rounded-2xl border border-transparent px-3 py-2.5 text-xs font-bold uppercase tracking-[0.14em] text-red-600 transition-all duration-200 hover:border-red-200 hover:bg-red-50 active:scale-[0.98] dark:text-red-300 dark:hover:border-red-900/70 dark:hover:bg-red-950/30"
+                data-motion-hover="nav-item"
+                class="flex w-full items-center justify-center gap-2 rounded-2xl border border-transparent px-3 py-2.5 text-xs font-bold uppercase tracking-[0.14em] text-red-600 transition-colors duration-200 hover:border-red-200 hover:bg-red-50 dark:text-red-300 dark:hover:border-red-900/70 dark:hover:bg-red-950/30"
                 @click="logout"
               >
-                <LogOut class="h-4 w-4" :stroke-width="2.2" />
+                <LogOut class="pointer-events-none h-4 w-4" :stroke-width="2.2" />
                 {{ t('logout') }}
               </button>
             </div>
