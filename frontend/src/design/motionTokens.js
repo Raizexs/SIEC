@@ -35,6 +35,57 @@ export const motionTokens = {
   },
 };
 
+/** Perfiles por tier — `standard` usa tokens actuales; `premium` para Animaciones activadas. */
+export const motionProfiles = {
+  standard: {
+    duration: motionTokens.duration,
+    ease: motionTokens.ease,
+    stagger: motionTokens.stagger,
+    distance: motionTokens.distance,
+    micro: motionTokens.micro,
+    blur: null,
+    overlap: { heroSection: 0.28, sectionCard: 0.2, cardItem: 0.18 },
+    cardScale: null,
+    routeDelay: 100,
+  },
+  premium: {
+    duration: {
+      instant: 0.14,
+      fast: 0.28,
+      base: 0.48,
+      slow: 0.62,
+    },
+    ease: {
+      standardOut: "power3.out",
+      emphasizedOut: "power4.out",
+      standardInOut: "power2.inOut",
+      entrance: "power4.out",
+    },
+    stagger: {
+      tight: 0.05,
+      base: 0.09,
+      loose: 0.12,
+    },
+    distance: {
+      xs: 10,
+      sm: 16,
+      md: 22,
+      lg: 32,
+    },
+    micro: {
+      press: 0.08,
+      release: 0.5,
+      pressScale: 0.94,
+      easePress: "power3.out",
+      easeRelease: "elastic.out(1, 0.48)",
+    },
+    blur: { subtle: 4, medium: 8 },
+    overlap: { heroSection: 0.4, sectionCard: 0.33, cardItem: 0.29 },
+    cardScale: 0.98,
+    routeDelay: 120,
+  },
+};
+
 const MOTION_STORAGE_KEY = "siec.motion";
 
 /** `system` | `full` | `reduced` — controla animaciones GSAP + clase `html.siec-motion-reduced`. */
@@ -45,6 +96,25 @@ export function getMotionPreference() {
   return "system";
 }
 
+/** `none` | `standard` | `premium` — tier efectivo para animaciones GSAP. */
+export function getMotionTier() {
+  if (prefersReducedMotion()) return "none";
+  if (getMotionPreference() === "full") return "premium";
+  return "standard";
+}
+
+/** Perfil activo según tier (`standard` o `premium`). */
+export function getMotionProfile() {
+  const tier = getMotionTier();
+  if (tier === "premium") return motionProfiles.premium;
+  return motionProfiles.standard;
+}
+
+/** Micro-interacción según tier. */
+export function getMicroMotionProfile() {
+  return getMotionProfile().micro;
+}
+
 /**
  * Fuerza visibilidad en bloques con `data-motion` (mata tweens colgados).
  * Útil al pasar de «reducido» a «animaciones activadas» o tras cambiar la
@@ -52,14 +122,15 @@ export function getMotionPreference() {
  */
 export function resetMotionRevealState() {
   if (typeof document === "undefined") return;
-  document.querySelectorAll("[data-motion]").forEach((el) => {
+  const selectors = "[data-motion], [data-legal-motion]";
+  document.querySelectorAll(selectors).forEach((el) => {
     gsap.killTweensOf(el);
     gsap.set(el, {
       autoAlpha: 1,
       y: 0,
       x: 0,
       scale: 1,
-      clearProps: "transform,opacity,willChange",
+      clearProps: "transform,opacity,willChange,filter",
     });
   });
 }
@@ -93,4 +164,35 @@ export function prefersReducedMotion() {
   if (pref === "reduced") return true;
   if (pref === "full") return false;
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+/** Espera doble rAF (layout estable antes de tweens). */
+export function waitForNextFrame() {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(resolve);
+    });
+  });
+}
+
+/** Espera evento de entrada de ruta o timeout de seguridad. */
+export function waitForRouteEnter(timeoutMs = 400) {
+  if (typeof window === "undefined") return Promise.resolve();
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      window.removeEventListener("siec:route-enter-complete", onRoute);
+      resolve();
+    };
+    const onRoute = () => finish();
+    window.addEventListener("siec:route-enter-complete", onRoute, { once: true });
+    setTimeout(finish, timeoutMs);
+  });
+}
+
+export function dispatchRouteEnterComplete() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent("siec:route-enter-complete"));
 }

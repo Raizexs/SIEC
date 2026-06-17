@@ -1,5 +1,9 @@
 import { gsap } from "gsap";
-import { motionTokens, prefersReducedMotion } from "../design/motionTokens";
+import {
+  getMicroMotionProfile,
+  getMotionProfile,
+  prefersReducedMotion,
+} from "../design/motionTokens";
 
 /**
  * Micro-interacción táctil global: press con GSAP + soltado tipo resorte.
@@ -26,10 +30,10 @@ function isExcluded(el) {
 export function installGlobalMicroMotion() {
   if (typeof window === "undefined") return () => {};
 
-  const { press, release, pressScale, easePress, easeRelease } =
-    motionTokens.micro;
-
   let pressedEl = null;
+
+  const micro = () => getMicroMotionProfile();
+  const profile = () => getMotionProfile();
 
   const onPointerDown = (event) => {
     if (prefersReducedMotion()) return;
@@ -37,14 +41,16 @@ export function installGlobalMicroMotion() {
     const el = event.target.closest(PRESSABLE_SELECTOR);
     if (!el || isExcluded(el)) return;
 
+    const { press, pressScale, easePress } = micro();
+
     if (pressedEl && pressedEl !== el) {
       const prev = pressedEl;
       pressedEl = null;
       if (document.body.contains(prev)) {
         gsap.to(prev, {
           scale: 1,
-          duration: motionTokens.duration.fast,
-          ease: motionTokens.ease.standardOut,
+          duration: profile().duration.fast,
+          ease: profile().ease.standardOut,
           overwrite: "auto",
         });
       }
@@ -67,6 +73,7 @@ export function installGlobalMicroMotion() {
     pressedEl = null;
     if (prefersReducedMotion()) return;
     if (!document.body.contains(el)) return;
+    const { release, easeRelease } = micro();
     gsap.to(el, {
       scale: 1,
       duration: release,
