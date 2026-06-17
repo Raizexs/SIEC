@@ -18,8 +18,13 @@ const auth = useAuthStore();
 /** Evita remontar el editor al pasar de /workspace → /workspace/:id tras guardar. */
 const routeViewKey = computed(() => {
   if (route.name === 'workspace') return 'workspace';
+  // Clave estable: KeepAlive reutiliza LoginView (AuthScene3D) al volver desde legal.
+  if (route.name === 'login') return 'login';
   return route.fullPath;
 });
+
+/** Login en caché al leer términos/privacidad — evita reiniciar Three.js. */
+const KEEP_ALIVE_VIEWS = ['LoginView'];
 const theme = useTheme();
 const showShortcuts = ref(false);
 
@@ -194,7 +199,9 @@ const leave = (el, done) => {
 <template>
   <RouterView v-slot="{ Component }">
     <transition @enter="enter" @leave="leave">
-      <component :is="Component" :key="routeViewKey" />
+      <KeepAlive :include="KEEP_ALIVE_VIEWS">
+        <component :is="Component" :key="routeViewKey" />
+      </KeepAlive>
     </transition>
   </RouterView>
   <CommandPalette />
