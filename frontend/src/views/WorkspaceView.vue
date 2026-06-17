@@ -15,6 +15,7 @@ import { useRoute, useRouter } from 'vue-router';
 import EditorShell from '../components/EditorShell.vue';
 import { useAuthStore } from '../stores/auth';
 import { useProMotion } from '../composables/useProMotion';
+import { useMotionPreferenceSync } from '../composables/useMotionPreferenceSync';
 import {
   Loader2,
   ShieldAlert,
@@ -32,8 +33,9 @@ const workspaceError = ref('');
 const hasShownEditor = ref(false);
 
 useProMotion(motionRoot, {
-  skipIntro: true,
+  delayUntilRoute: true,
 });
+useMotionPreferenceSync(motionRoot);
 
 const projectId = computed(() => {
   const raw = route.params.projectId;
@@ -204,12 +206,8 @@ watch(
     </section>
 
     <!-- Editor -->
-    <section
-      v-else
-      class="relative min-h-screen"
-      data-motion="section"
-    >
+    <div v-else data-no-motion class="relative min-h-screen">
       <EditorShell :project-id="projectId" />
-    </section>
+    </div>
   </main>
 </template>

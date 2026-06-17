@@ -1,8 +1,22 @@
 <script setup>
-import { ref, computed, onMounted, watch, defineAsyncComponent, provide } from 'vue';
+import { ref, computed, onMounted, watch, provide, nextTick } from 'vue';
 import { useRouter, useRoute, onBeforeRouteLeave } from 'vue-router';
+import { gsap } from 'gsap';
 import { useAuthStore } from '../stores/auth';
 import { useProMotion } from '../composables/useProMotion';
+import { useMotionPreferenceSync } from '../composables/useMotionPreferenceSync';
+import {
+  filterMotionTargets,
+  setMotionFinalState,
+  SETTINGS_TAB_REVEAL,
+  smoothReplayReveal,
+  introMotionReveal,
+} from '../composables/useMotionContext';
+import {
+  prefersReducedMotion,
+  getMotionProfile,
+  waitForNextFrame,
+} from '../design/motionTokens';
 import { useLayoutManager } from '../composables/useLayoutManager';
 import { useBilling } from '../composables/useBilling';
 import { isSupabaseConfigured } from '../lib/supabaseClient';
@@ -16,6 +30,9 @@ import SettingsPreferencesPanel from '../components/settings/SettingsPreferences
 import SettingsExportSection from '../components/settings/SettingsExportSection.vue';
 import SettingsPreferencesSaveBar from '../components/settings/SettingsPreferencesSaveBar.vue';
 import SettingsIntegrationsCards from '../components/settings/SettingsIntegrationsCards.vue';
+import SettingsProfileCard from '../components/settings/SettingsProfileCard.vue';
+import SettingsSecuritySection from '../components/settings/SettingsSecuritySection.vue';
+import SettingsPrivacySection from '../components/settings/SettingsPrivacySection.vue';
 import {
   ArrowLeft,
   User2,
@@ -28,13 +45,6 @@ import {
 import AppRail from '../components/shell/AppRail.vue';
 import BillingPlansSection from '../components/billing/BillingPlansSection.vue';
 import { useI18n } from '../composables/useI18n';
-
-const SettingsProfileCard = defineAsyncComponent(() =>
-  import('../components/settings/SettingsProfileCard.vue'),
-);
-const SettingsSecuritySection = defineAsyncComponent(() =>
-  import('../components/settings/SettingsSecuritySection.vue'),
-);
 
 const preferencesDraft = usePreferencesDraft();
 provide(PREFERENCES_DRAFT_KEY, preferencesDraft);
@@ -55,8 +65,22 @@ const {
   hasMarketplaceAccess,
 } = useBilling();
 
-const tab = ref('profile');
+const SETTINGS_TAB_IDS = [
+  'profile',
+  'security',
+  'privacy',
+  'preferences',
+  'integrations',
+  'billing',
+];
+
+const resolveTab = (value) =>
+  typeof value === 'string' && SETTINGS_TAB_IDS.includes(value) ? value : 'profile';
+
+const tab = ref(resolveTab(route.query.tab));
 const motionRoot = ref(null);
+const tabPanelRef = ref(null);
+const tabContentRef = ref(null);
 const pendingTab = ref(null);
 const pendingNavigation = ref(null);
 const showUnsavedDialog = ref(false);
@@ -74,6 +98,12 @@ const tabs = computed(() => {
       id: 'security',
       label: t('settingsTabSecurity'),
       description: t('settingsTabSecuritySub'),
+      icon: ShieldCheck,
+    },
+    {
+      id: 'privacy',
+      label: 'Privacidad',
+      description: 'Datos personales y derechos',
       icon: ShieldCheck,
     },
     {
@@ -105,6 +135,7 @@ const tabHeroDescription = computed(() => {
   void currentLanguage.value;
   if (tab.value === 'profile') return t('settingsTabProfileDesc');
   if (tab.value === 'security') return t('settingsTabSecurityHero');
+  if (tab.value === 'privacy') return 'Gestiona consentimientos, exporta tus datos o elimina tu cuenta.';
   if (tab.value === 'preferences') return t('settingsTabPreferencesDesc');
   if (tab.value === 'integrations') return t('settingsTabIntegrationsDesc');
   return t('settingsTabBillingDesc');
@@ -247,7 +278,75 @@ const proPlusRoadmapItems = computed(() => {
   ];
 });
 
-useProMotion(motionRoot, { skipIntro: true });
+useProMotion(motionRoot, {
+  delayUntilRoute: true,
+  revealOptions: { levels: ['hero'], pace: 'snappy' },
+});
+useMotionPreferenceSync(motionRoot);
+useMotionPreferenceSync(tabContentRef);
+
+let tabRevealSeq = 0;
+let tabRevealReady = false;
+
+const pulseTabHeader = () => {
+  if (prefersReducedMotion() || !tabPanelRef.value) return;
+  const header = tabPanelRef.value.querySelector('header');
+  if (!header) return;
+  const profile = getMotionProfile();
+  gsap.killTweensOf(header);
+  gsap.fromTo(
+    header,
+    { autoAlpha: 0.94, x: 10 },
+    {
+      autoAlpha: 1,
+      x: 0,
+      duration: profile.duration.fast,
+      ease: profile.ease.emphasizedOut,
+      clearProps: 'transform,opacity,filter',
+    },
+  );
+};
+
+const revealTabContent = async ({ pulseHeader = false, initial = false } = {}) => {
+  const seq = ++tabRevealSeq;
+  await nextTick();
+  await waitForNextFrame();
+  if (seq !== tabRevealSeq) return;
+
+  const root = tabContentRef.value;
+  if (!root) return;
+
+  const targets = filterMotionTargets(
+    root.querySelectorAll('[data-motion]'),
+    root,
+  );
+
+  if (prefersReducedMotion()) {
+    setMotionFinalState(targets);
+    window.dispatchEvent(
+      new CustomEvent('siec:settings-tab-revealed', { detail: { tab: tab.value } }),
+    );
+    if (pulseHeader) pulseTabHeader();
+    return;
+  }
+
+  if (initial) {
+    introMotionReveal(root, SETTINGS_TAB_REVEAL);
+  } else {
+    smoothReplayReveal(root, SETTINGS_TAB_REVEAL);
+  }
+
+  window.dispatchEvent(
+    new CustomEvent('siec:settings-tab-revealed', { detail: { tab: tab.value } }),
+  );
+
+  if (pulseHeader) pulseTabHeader();
+};
+
+watch(tab, () => {
+  if (!tabRevealReady) return;
+  revealTabContent({ pulseHeader: true });
+});
 
 const requestTab = (nextTab) => {
   if (
@@ -300,9 +399,12 @@ const cancelUnsavedDialog = () => {
   showUnsavedDialog.value = false;
 };
 
-onMounted(() => {
+onMounted(async () => {
   preferencesDraft.syncFromSaved();
   void auth.refreshFactors();
+  await nextTick();
+  await revealTabContent({ pulseHeader: false, initial: true });
+  tabRevealReady = true;
 });
 
 onBeforeRouteLeave((_to, _from, next) => {
@@ -318,11 +420,9 @@ onBeforeRouteLeave((_to, _from, next) => {
 watch(
   () => route.query.tab,
   (incoming) => {
-    if (typeof incoming === 'string' && tabs.value.some((item) => item.id === incoming)) {
-      tab.value = incoming;
-    }
+    const next = resolveTab(incoming);
+    if (next !== tab.value) tab.value = next;
   },
-  { immediate: true },
 );
 
 watch(tab, (value) => {
@@ -371,13 +471,9 @@ watch(tab, (value) => {
       <main class="min-h-0 flex-1 overflow-y-auto">
         <div
           class="mx-auto grid max-w-6xl grid-cols-1 items-start gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[260px,1fr] lg:px-8 lg:py-10"
-          data-motion="section"
         >
           <!-- Tabs sidebar -->
-          <aside
-            data-motion="card"
-            class="self-start"
-          >
+          <aside class="self-start">
             <nav
               class="overflow-hidden rounded-[2rem] border border-slate-200/90 bg-white/85 p-4 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30"
               :aria-label="t('settingsSectionsAria')"
@@ -430,7 +526,7 @@ watch(tab, (value) => {
           </aside>
 
           <!-- Content -->
-          <section data-motion="section" class="min-w-0 space-y-6">
+          <section ref="tabPanelRef" class="min-w-0 space-y-6">
             <!-- Section hero -->
             <header
               class="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 p-6 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30"
@@ -465,8 +561,10 @@ watch(tab, (value) => {
             </header>
 
             <!-- Lazy-loaded tab components -->
+            <div ref="tabContentRef" data-no-motion class="space-y-6">
             <SettingsProfileCard v-if="tab === 'profile'" />
             <SettingsSecuritySection v-if="tab === 'security'" />
+            <SettingsPrivacySection v-else-if="tab === 'privacy'" />
             <div v-if="tab === 'preferences'" class="space-y-4">
               <SettingsAppearancePanel />
               <SettingsPreferencesPanel />
@@ -555,21 +653,22 @@ watch(tab, (value) => {
                 </ul>
               </article>
             </div>
+            </div>
           </section>
         </div>
       </main>
     </div>
-  </div>
 
-  <ConfirmDialog
-    :open="showUnsavedDialog"
-    :title="t('settingsUnsavedTitle')"
-    :message="t('settingsPendingChanges')"
-    :confirm-label="t('settingsSavePreferences')"
-    :cancel-label="t('settingsDiscardChanges')"
-    variant="primary"
-    @confirm="confirmUnsavedSave"
-    @cancel="confirmUnsavedDiscard"
-    @dismiss="cancelUnsavedDialog"
-  />
+    <ConfirmDialog
+      :open="showUnsavedDialog"
+      :title="t('settingsUnsavedTitle')"
+      :message="t('settingsPendingChanges')"
+      :confirm-label="t('settingsSavePreferences')"
+      :cancel-label="t('settingsDiscardChanges')"
+      variant="primary"
+      @confirm="confirmUnsavedSave"
+      @cancel="confirmUnsavedDiscard"
+      @dismiss="cancelUnsavedDialog"
+    />
+  </div>
 </template>

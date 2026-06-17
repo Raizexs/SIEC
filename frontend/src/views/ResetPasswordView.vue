@@ -22,9 +22,7 @@ const message = ref('');
 const error = ref('');
 const motionRoot = ref(null);
 
-useProMotion(motionRoot, {
-  skipIntro: true,
-});
+useProMotion(motionRoot, { mode: 'auto' });
 
 const passwordsMatch = computed(() => {
   return password.value && confirm.value && password.value === confirm.value;
