@@ -20,6 +20,8 @@ import { exportBudget, getMaterialLabel, flattenDesgloseRows } from "../utils/bu
 import { useBilling } from "../composables/useBilling";
 import { useApi, HttpError } from "../composables/useApi";
 import { useSiecPlace } from "../composables/useSiecPlace";
+import { usePrivacy } from "../composables/usePrivacy";
+import ConsentModal from "./privacy/ConsentModal.vue";
 import { useRoute } from "vue-router";
 import { captureSceneImage, captureScenePresetViews } from "../proposal/proposalSceneCapture";
 import { resolveBrandLogoUrl } from "../proposal/proposalBrand";
@@ -44,6 +46,7 @@ const api = useApi();
 const route = useRoute();
 const { recordExport, handlePlanLimitError, clampMaterialId, canUseMaterial, limits, hasMarketplaceAccess } = useBilling();
 const { createListing, checkoutPublish } = useSiecPlace();
+const { fetchPolicy, grantConsent, hasConsent } = usePrivacy();
 
 const emit = defineEmits(["budget-calculated", "go-export"]);
 
@@ -162,11 +165,36 @@ const publishDialogOpen = ref(false);
 const publishTitle = ref("");
 const publishRegion = ref("");
 const publishLoading = ref(false);
+const showPlaceConsent = ref(false);
+const policyVersion = ref("1.0");
 
-const openPublishDialog = () => {
+const openPublishDialog = async () => {
   publishTitle.value = workspaceStore.activePresetName || t("siecplacePublishTitle");
   publishRegion.value = "";
+  try {
+    const policy = await fetchPolicy();
+    policyVersion.value = policy.version;
+  } catch {
+    policyVersion.value = "1.0";
+  }
   publishDialogOpen.value = true;
+};
+
+const startPublishFlow = async () => {
+  const publishOk = await hasConsent("siecplace_publish").catch(() => false);
+  const contactOk = await hasConsent("siecplace_contact_share").catch(() => false);
+  if (!publishOk || !contactOk) {
+    showPlaceConsent.value = true;
+    return;
+  }
+  await submitPublish();
+};
+
+const onPlaceConsentConfirm = async () => {
+  await grantConsent("siecplace_publish", policyVersion.value);
+  await grantConsent("siecplace_contact_share", policyVersion.value);
+  showPlaceConsent.value = false;
+  await submitPublish();
 };
 
 const submitPublish = async () => {
@@ -586,6 +614,7 @@ onUnmounted(() => {
 
 <template>
   <section
+    data-motion="section"
     class="relative overflow-visible rounded-3xl border border-slate-200/90 bg-white/85 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl transition-colors duration-300 dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30 sm:p-6 lg:p-8"
   >
     <!-- Subtle background accent -->
@@ -1395,6 +1424,7 @@ onUnmounted(() => {
         </h3>
         <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">
           {{ t("siecplacePublishHint") }}
+          Al publicar, contratistas que paguen el lead podrán ver tu nombre y correo electrónico.
         </p>
 
         <label class="mt-5 block text-xs font-bold uppercase tracking-wide text-slate-500">
@@ -1428,13 +1458,24 @@ onUnmounted(() => {
             type="button"
             class="flex-1 rounded-2xl bg-violet-600 py-2.5 text-sm font-bold text-white hover:bg-violet-500 disabled:opacity-60"
             :disabled="publishLoading"
-            @click="submitPublish"
+            @click="startPublishFlow"
           >
             {{ publishLoading ? "…" : t("siecplacePublishSubmit") }}
           </button>
         </div>
       </div>
     </div>
+
+    <ConsentModal
+      :show="showPlaceConsent"
+      title="Publicar en SIEC Place"
+      description="Al publicar tu obra, los contratistas que desbloqueen el contacto podrán ver tu nombre y correo electrónico. Este consentimiento es independiente del registro de cuenta."
+      consent-type="siecplace_publish"
+      :policy-version="policyVersion"
+      @confirm="onPlaceConsentConfirm"
+      @cancel="showPlaceConsent = false"
+      @close="showPlaceConsent = false"
+    />
   </section>
 </template>
 

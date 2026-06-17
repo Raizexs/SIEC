@@ -1,7 +1,8 @@
 <script setup>
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useBilling } from '../../composables/useBilling';
 import { useI18n } from '../../composables/useI18n';
+import { bindCardHover } from '../../composables/useMotionContext';
 import { Check, Sparkles } from 'lucide-vue-next';
 
 const { t, currentLanguage } = useI18n();
@@ -18,7 +19,20 @@ const {
 
 onMounted(() => {
   fetchBilling(true);
+  bindPlanHover();
 });
+
+const motionRoot = ref(null);
+let unbindPlanHover = null;
+
+const bindPlanHover = () => {
+  unbindPlanHover?.();
+  if (!motionRoot.value) return;
+  unbindPlanHover = bindCardHover(
+    motionRoot.value.querySelectorAll('[data-motion="card"]'),
+    { lift: -5 },
+  );
+};
 
 const plans = computed(() => {
   void currentLanguage.value;
@@ -84,8 +98,8 @@ const showUsageSkeleton = computed(() => loading.value && !billingState.value);
 </script>
 
 <template>
-  <div class="space-y-6">
-    <header>
+  <div ref="motionRoot" class="space-y-6">
+    <header data-motion="section">
       <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
         {{ t('settingsTabPlan') }}
       </p>
@@ -114,6 +128,7 @@ const showUsageSkeleton = computed(() => loading.value && !billingState.value);
       <article
         v-for="p in plans"
         :key="p.id"
+        data-motion="card"
         class="relative flex flex-col rounded-3xl border p-5 transition-shadow"
         :class="
           plan === p.id

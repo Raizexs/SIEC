@@ -10,12 +10,13 @@
  * - Umbrales normativos presentados como métricas comparables.
  */
 
-import { computed } from 'vue';
+import { computed, ref, toRef } from 'vue';
 import {
   AREA_UMBRAL_MIN_M2,
   AREA_UMBRAL_MAX_M2,
   TASACION_LIMITE_UF,
 } from '../composables/useLey21725';
+import { useMotionModal } from '../composables/useMotionModal';
 
 const props = defineProps({
   show: {
@@ -30,6 +31,11 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['close']);
+
+const backdropRef = ref(null);
+const panelRef = ref(null);
+
+useMotionModal(toRef(props, 'show'), { backdropRef, panelRef, emphasis: true });
 
 const codigoInfraccion = computed(() => props.resultado?.codigo_infraccion || '');
 
@@ -82,20 +88,20 @@ const severityIcon = computed(() =>
 
 <template>
   <Teleport to="body">
-    <Transition name="ley-overlay">
-      <div
-        v-if="show"
-        class="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-md dark:bg-black/60"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="ley-modal-title"
-        aria-describedby="ley-modal-desc"
-        @click.self="esBloqueante ? null : emit('close')"
+    <div
+      v-if="show"
+      ref="backdropRef"
+      class="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-md dark:bg-black/60"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="ley-modal-title"
+      aria-describedby="ley-modal-desc"
+      @click.self="esBloqueante ? null : emit('close')"
+    >
+      <section
+        ref="panelRef"
+        class="w-full max-w-2xl overflow-hidden rounded-3xl border border-slate-200/90 bg-white/95 shadow-2xl shadow-slate-950/20 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/40"
       >
-        <Transition name="ley-card" appear>
-          <section
-            class="w-full max-w-2xl overflow-hidden rounded-3xl border border-slate-200/90 bg-white/95 shadow-2xl shadow-slate-950/20 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/40"
-          >
             <!-- Top severity line -->
             <div
               class="h-1 w-full"
@@ -412,33 +418,6 @@ const severityIcon = computed(() =>
               </button>
             </footer>
           </section>
-        </Transition>
-      </div>
-    </Transition>
+    </div>
   </Teleport>
 </template>
-
-<style scoped>
-.ley-overlay-enter-active,
-.ley-overlay-leave-active {
-  transition: opacity 0.18s ease;
-}
-
-.ley-overlay-enter-from,
-.ley-overlay-leave-to {
-  opacity: 0;
-}
-
-.ley-card-enter-active,
-.ley-card-leave-active {
-  transition:
-    opacity 0.2s ease,
-    transform 0.2s ease;
-}
-
-.ley-card-enter-from,
-.ley-card-leave-to {
-  opacity: 0;
-  transform: translateY(10px) scale(0.98);
-}
-</style>

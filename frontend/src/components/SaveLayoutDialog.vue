@@ -1,6 +1,7 @@
 <script setup>
-import { ref, watch, nextTick } from 'vue';
+import { ref, watch, nextTick, toRef } from 'vue';
 import { useI18n } from '../composables/useI18n';
+import { useMotionModal } from '../composables/useMotionModal';
 
 const { t } = useI18n();
 
@@ -23,6 +24,10 @@ const emit = defineEmits(['close', 'save']);
 
 const localName = ref(props.layoutName);
 const nameInputRef = ref(null);
+const backdropRef = ref(null);
+const panelRef = ref(null);
+
+useMotionModal(toRef(props, 'show'), { backdropRef, panelRef });
 
 const focusNameInput = () => {
   nextTick(() => {
@@ -64,19 +69,19 @@ const handleSave = () => {
 
 <template>
   <Teleport to="body">
-    <Transition name="save-overlay">
-      <div
-        v-if="show"
-        class="fixed inset-0 z-[20050] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-md dark:bg-black/60"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="save-layout-title"
-        @click.self="!saving && emit('close')"
+    <div
+      v-if="show"
+      ref="backdropRef"
+      class="fixed inset-0 z-[20050] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-md dark:bg-black/60"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="save-layout-title"
+      @click.self="!saving && emit('close')"
+    >
+      <section
+        ref="panelRef"
+        class="w-full max-w-md overflow-hidden rounded-3xl border border-slate-200/90 bg-white/95 shadow-2xl shadow-slate-950/20 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/40"
       >
-        <Transition name="save-card" appear>
-          <section
-            class="w-full max-w-md overflow-hidden rounded-3xl border border-slate-200/90 bg-white/95 shadow-2xl shadow-slate-950/20 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/40"
-          >
             <!-- Top accent -->
             <div class="h-1 w-full bg-gradient-to-r from-orange-400 via-orange-500 to-slate-900 dark:to-orange-300"></div>
 
@@ -199,36 +204,11 @@ const handleSave = () => {
               </button>
             </footer>
           </section>
-        </Transition>
-      </div>
-    </Transition>
+    </div>
   </Teleport>
 </template>
 
 <style scoped>
-.save-overlay-enter-active,
-.save-overlay-leave-active {
-  transition: opacity 0.2s ease;
-}
-
-.save-overlay-enter-from,
-.save-overlay-leave-to {
-  opacity: 0;
-}
-
-.save-card-enter-active,
-.save-card-leave-active {
-  transition:
-    opacity 0.22s ease,
-    transform 0.22s ease;
-}
-
-.save-card-enter-from,
-.save-card-leave-to {
-  opacity: 0;
-  transform: translateY(10px) scale(0.98);
-}
-
 .save-layout-primary-btn {
   appearance: none;
   display: inline-flex;

@@ -1702,6 +1702,7 @@ defineExpose({ openAddModal });
   <div
     ref="rootRef"
     class="editor2d-root relative flex w-full flex-col overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 p-4 shadow-2xl shadow-slate-950/10 backdrop-blur-xl transition-all duration-300 dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/35"
+    data-no-motion
     :class="isFullScreen ? 'editor2d-root--fs h-screen min-h-0 rounded-none border-none p-0' : 'normal-mode'"
   >
     <!-- Header -->

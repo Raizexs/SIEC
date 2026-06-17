@@ -17,8 +17,11 @@
 
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import { gsap } from 'gsap';
 import { useTheme } from '../composables/useTheme';
 import { useAuthStore } from '../stores/auth';
+import { prefersReducedMotion, getMotionProfile } from '../design/motionTokens';
+import { runReveal } from '../composables/useMotionContext';
 
 const router = useRouter();
 const auth = useAuthStore();
@@ -27,6 +30,7 @@ const theme = useTheme();
 const open = ref(false);
 const query = ref('');
 const inputRef = ref(null);
+const paletteRef = ref(null);
 const selectedIndex = ref(0);
 
 const recentIds = ref(
@@ -268,6 +272,29 @@ watch(open, async (value) => {
     query.value = '';
     selectedIndex.value = 0;
     inputRef.value?.focus();
+
+    if (!prefersReducedMotion() && paletteRef.value) {
+      const profile = getMotionProfile();
+      gsap.fromTo(
+        paletteRef.value,
+        { autoAlpha: 0, y: 18, scale: 0.98 },
+        {
+          autoAlpha: 1,
+          y: 0,
+          scale: 1,
+          duration: profile.duration.base,
+          ease: profile.ease.entrance,
+          clearProps: 'transform,opacity',
+        },
+      );
+      const rows = paletteRef.value.querySelectorAll('button[type="button"]');
+      if (rows.length) {
+        runReveal(paletteRef.value, {
+          groups: { item: [...rows] },
+          delay: profile.duration.fast * 0.5,
+        });
+      }
+    }
   }
 });
 
@@ -300,6 +327,7 @@ onBeforeUnmount(() => {
       >
         <transition name="command-card" appear>
           <section
+            ref="paletteRef"
             class="w-full max-w-2xl overflow-hidden rounded-3xl border border-slate-200/90 bg-white/95 shadow-2xl shadow-slate-950/20 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/40"
           >
             <!-- Top accent -->

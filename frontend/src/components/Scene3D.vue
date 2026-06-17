@@ -1902,6 +1902,7 @@ onBeforeUnmount(() => {
   <section
     ref="rootRef"
     class="scene3d-root relative flex w-full flex-col rounded-3xl border border-slate-200/90 bg-white/85 p-4 shadow-2xl shadow-slate-950/10 backdrop-blur-xl transition-all duration-300 dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/35"
+    data-no-motion
     :class="isFullScreen ? 'fullscreen-active' : 'normal-mode'"
   >
     <!-- Header -->
