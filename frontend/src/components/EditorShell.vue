@@ -56,9 +56,12 @@ import {
   WORKSPACE_STEP_SWAP,
   setMotionFinalState,
   bindCardHover,
-  smoothReplayReveal,
+  bindEditorToolHover,
+  filterMotionTargets,
+  introMotionReveal,
   runStepSwap,
 } from '../composables/useMotionContext';
+import gsap from 'gsap';
 import { prefersReducedMotion, waitForRouteEnter, waitForNextFrame } from '../design/motionTokens';
 import { GraduationCap, BookOpen } from 'lucide-vue-next';
 import {
@@ -135,12 +138,14 @@ const editorGridClass = computed(() =>
 const sidebarCollapsed = ref(false);
 const motionRoot = ref(null);
 const stepContentRef = ref(null);
+const workspaceFooterRef = ref(null);
 const displayedStep = ref('configure');
 const stepSwapPair = ref(null);
 let stepTransitionSeq = 0;
 let stepRevealReady = false;
 let stepTransitioning = false;
 let unbindStepHover = null;
+let unbindChromeHover = null;
 
 useProMotion(motionRoot, {
   delayUntilRoute: true,
@@ -170,10 +175,66 @@ const showExportPanel = computed(() => isStepPanelVisible('export'));
 const bindStepPanelHover = () => {
   unbindStepHover?.();
   const active = findStepPanel(displayedStep.value);
-  if (!active) return;
-  unbindStepHover = bindCardHover(
-    active.querySelectorAll('[data-motion="card"]'),
-    { lift: -4 },
+  const motionRoot = stepContentRef.value;
+  if (!active || !motionRoot) return;
+
+  const scoped = (selector) =>
+    filterMotionTargets(active.querySelectorAll(selector), motionRoot);
+
+  const hoverOpts = { iconSelector: 'svg' };
+  const cleanups = [
+    bindCardHover(scoped('[data-motion="section"]'), { lift: -5, ...hoverOpts }),
+    bindCardHover(scoped('[data-motion="card"]'), { lift: -6, ...hoverOpts }),
+    bindCardHover(scoped('[data-motion="item"]'), { lift: -4, ...hoverOpts }),
+  ];
+  if (displayedStep.value === 'design') {
+    cleanups.push(bindEditorToolHover(active));
+  }
+  unbindStepHover = () => cleanups.forEach((fn) => fn());
+};
+
+const bindWorkspaceChromeHover = () => {
+  unbindChromeHover?.();
+  const root = motionRoot.value;
+  if (!root || prefersReducedMotion()) return;
+
+  const hoverOpts = { iconSelector: 'svg' };
+  const cleanups = [
+    bindCardHover(root.querySelectorAll('[data-motion-hover="step"]'), {
+      lift: -4,
+      ...hoverOpts,
+    }),
+    bindCardHover(root.querySelectorAll('[data-motion-hover="action"]'), {
+      lift: -5,
+      ...hoverOpts,
+    }),
+    bindCardHover(root.querySelectorAll('[data-motion-hover="flow-guide"]'), {
+      lift: -3,
+      ...hoverOpts,
+    }),
+    bindCardHover(root.querySelectorAll('[data-workspace-nav]'), { lift: -3 }),
+  ];
+  unbindChromeHover = () => cleanups.forEach((fn) => fn());
+};
+
+const refreshDesignPanels = () => {
+  window.dispatchEvent(new CustomEvent('siec:design-panel-visible'));
+};
+
+const animateWorkspaceFooter = () => {
+  const footer = workspaceFooterRef.value;
+  if (!footer || prefersReducedMotion()) return;
+  gsap.killTweensOf(footer);
+  gsap.fromTo(
+    footer,
+    { autoAlpha: 0.35, y: 10 },
+    {
+      autoAlpha: 1,
+      y: 0,
+      duration: 0.38,
+      ease: 'power3.out',
+      clearProps: 'transform,opacity,visibility',
+    },
   );
 };
 
@@ -190,7 +251,10 @@ const revealInitialStep = async () => {
     return;
   }
 
-  smoothReplayReveal(active, WORKSPACE_STEP_REVEAL);
+  introMotionReveal(active, {
+    ...WORKSPACE_STEP_REVEAL,
+    motionRoot: stepContentRef.value,
+  });
   bindStepPanelHover();
 };
 
@@ -208,6 +272,7 @@ const transitionWorkspaceStep = async (fromStep, toStep) => {
     if (prefersReducedMotion() || forceDesignForCapture.value) {
       displayedStep.value = toStep;
       await nextTick();
+      if (toStep === 'design') refreshDesignPanels();
       bindStepPanelHover();
       return;
     }
@@ -217,13 +282,14 @@ const transitionWorkspaceStep = async (fromStep, toStep) => {
     if (!outEl || !inEl) {
       displayedStep.value = toStep;
       await nextTick();
+      if (toStep === 'design') refreshDesignPanels();
       bindStepPanelHover();
       return;
     }
 
     stepSwapPair.value = { from: fromStep, to: toStep };
     await nextTick();
-    await waitForNextFrame();
+    if (toStep === 'design') refreshDesignPanels();
 
     await runStepSwap(outEl, inEl, {
       ...WORKSPACE_STEP_SWAP,
@@ -238,7 +304,15 @@ const transitionWorkspaceStep = async (fromStep, toStep) => {
     if (seq !== stepTransitionSeq) return;
 
     await nextTick();
+    const settled = findStepPanel(toStep);
+    if (settled) {
+      gsap.set(settled, { clearProps: 'all' });
+      setMotionFinalState(settled);
+    }
+    if (toStep === 'design') refreshDesignPanels();
+    animateWorkspaceFooter();
     bindStepPanelHover();
+    bindWorkspaceChromeHover();
   } finally {
     stepTransitioning = false;
     if (seq === stepTransitionSeq) {
@@ -308,6 +382,11 @@ const {
   hasBudget,
   selectedM2,
 });
+
+const onDismissFlowGuide = () => {
+  dismissFlowGuide();
+  nextTick(() => bindWorkspaceChromeHover());
+};
 
 watch(currentStep, async (next) => {
   if (!stepRevealReady) {
@@ -553,6 +632,15 @@ const bootstrapWorkspace = async () => {
   await nextTick();
 };
 
+const onMotionPreference = () => {
+  bindStepPanelHover();
+  bindWorkspaceChromeHover();
+};
+
+const onDesignPanelVisible = () => {
+  nextTick(() => bindStepPanelHover());
+};
+
 onMounted(async () => {
   await fetchBilling();
   await bootstrapWorkspace();
@@ -560,6 +648,8 @@ onMounted(async () => {
 
   window.addEventListener('siec:export', onSiecExport);
   window.addEventListener('siec:save-version', onSaveVersionEvent);
+  window.addEventListener('siec:motion-preference', onMotionPreference);
+  window.addEventListener('siec:design-panel-visible', onDesignPanelVisible);
 
   await nextTick();
   const stepQuery = route.query.step;
@@ -574,10 +664,14 @@ onMounted(async () => {
   displayedStep.value = currentStep.value;
   await revealInitialStep();
   stepRevealReady = true;
+  bindWorkspaceChromeHover();
 });
 
 onUnmounted(() => {
   unbindStepHover?.();
+  unbindChromeHover?.();
+  window.removeEventListener('siec:motion-preference', onMotionPreference);
+  window.removeEventListener('siec:design-panel-visible', onDesignPanelVisible);
   window.removeEventListener('siec:save-version', onSaveVersionEvent);
   window.removeEventListener('siec:export', onSiecExport);
 });
@@ -1115,7 +1209,8 @@ const startTutorial = () => {
             <div class="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                class="siec-tutorial-trigger inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-600 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-300 hover:text-orange-700 hover:shadow-md active:scale-[0.98] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:border-orange-900/70 dark:hover:text-orange-300"
+                data-motion-hover="action"
+                class="siec-tutorial-trigger inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-600 shadow-sm transition-colors duration-200 hover:border-orange-300 hover:text-orange-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:border-orange-900/70 dark:hover:text-orange-300"
                 @click="startTutorial"
               >
                 <GraduationCap class="pointer-events-none h-3.5 w-3.5 shrink-0" :stroke-width="2.2" />
@@ -1124,7 +1219,8 @@ const startTutorial = () => {
 
               <button
                 type="button"
-                class="inline-flex items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-600 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:text-slate-950 hover:shadow-md active:scale-[0.98] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:text-slate-100"
+                data-motion-hover="action"
+                class="inline-flex items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-600 shadow-sm transition-colors duration-200 hover:border-slate-300 hover:text-slate-950 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:text-slate-100"
                 @click="showManual = true"
               >
                 <BookOpen class="h-3.5 w-3.5" :stroke-width="2.2" />
@@ -1144,7 +1240,7 @@ const startTutorial = () => {
           <FlowGuide
             :current-step="currentStep"
             :dismissed="isFlowGuideDismissed()"
-            @dismiss="dismissFlowGuide"
+            @dismiss="onDismissFlowGuide"
           />
 
           <div
@@ -1171,6 +1267,7 @@ const startTutorial = () => {
           <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
             <button
               type="button"
+              data-workspace-nav
               class="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-900"
               :disabled="currentStep === 'configure'"
               @click="prevStep"
@@ -1179,6 +1276,7 @@ const startTutorial = () => {
             </button>
             <button
               type="button"
+              data-workspace-nav
               class="rounded-xl bg-orange-500 px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-orange-600 disabled:opacity-40"
               :disabled="currentStep === 'export'"
               @click="nextStep"
@@ -1229,7 +1327,7 @@ const startTutorial = () => {
               <RoomEditor2D
                 v-show="showEditor2dPanel"
                 class="tour-editor-2d min-h-[420px] xl:min-h-[520px]"
-                :editor-visible="showDesignStep && showEditor2dPanel"
+                :editor-visible="showDesignPanel && showEditor2dPanel"
                 :m2-totales="terrainM2FromDimensions"
                 v-model:terrenoAncho="formData.terrenoAncho"
                 v-model:terrenoLargo="formData.terrenoLargo"
@@ -1382,6 +1480,7 @@ const startTutorial = () => {
           </div>
 
           <footer
+            ref="workspaceFooterRef"
             class="mt-8 shrink-0 flex flex-col gap-2 border-t border-slate-200/80 py-6 dark:border-slate-800/80 sm:flex-row sm:items-center sm:justify-between"
           >
             <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
@@ -1428,6 +1527,10 @@ const startTutorial = () => {
 </template>
 
 <style>
+.step-content-stack:not(.is-step-swapping) {
+  transition: min-height 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 .step-content-stack.is-step-swapping {
   position: relative;
   overflow: hidden;
@@ -1438,8 +1541,12 @@ const startTutorial = () => {
   will-change: opacity, transform;
 }
 
-.step-content-stack:not(.is-step-swapping) {
-  transition: min-height 0.28s ease-out;
+.step-content-stack:not(.is-step-swapping) > .workspace-step-panel {
+  position: static !important;
+  width: auto !important;
+  inset: auto !important;
+  pointer-events: auto !important;
+  z-index: auto !important;
 }
 
 /* ─────────────────────────────────────────────

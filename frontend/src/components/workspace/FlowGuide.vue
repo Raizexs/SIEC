@@ -43,6 +43,7 @@ const toneBorder = computed(() => {
 <template>
   <aside
     v-if="visible"
+    data-motion-hover="flow-guide"
     class="mb-4 flex items-start gap-3 rounded-2xl border px-4 py-3"
     :class="toneBorder"
   >

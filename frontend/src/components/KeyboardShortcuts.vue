@@ -147,6 +147,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeyDown));
 
           <button
             type="button"
+            data-motion-hover="modal-action"
             class="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-500 transition-colors duration-200 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
             @click="emit('close')"
           >

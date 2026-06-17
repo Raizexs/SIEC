@@ -104,6 +104,7 @@ const StepIcon = (step) => iconMap[step.icon] || Map;
           v-for="step in steps"
           :key="step.id"
           type="button"
+          data-motion-hover="step"
           class="relative z-[1] flex min-w-0 items-center justify-center gap-2 rounded-xl px-2.5 py-2.5 text-center transition-[color,opacity] duration-300 sm:justify-start sm:px-3 sm:py-3"
           :class="stepClass(step)"
           @click="emit('go', step.id)"
