@@ -35,12 +35,12 @@ import { useProMotion } from "../composables/useProMotion";
 import { useMotionPreferenceSync } from "../composables/useMotionPreferenceSync";
 import {
   bindCardHover,
-  DASHBOARD_TAB_REVEAL,
+  DASHBOARD_VIEW_REVEAL,
   filterMotionTargets,
-  revealMotionItems,
-  setMotionFinalState,
   introMotionReveal,
-  smoothReplayReveal,
+  revealMotionItems,
+  runPanelFadeSwap,
+  setMotionFinalState,
 } from "../composables/useMotionContext";
 import {
   prefersReducedMotion,
@@ -81,12 +81,18 @@ const isLoadingProjects = ref(false);
 const fetchError = ref(null);
 const search = ref("");
 const filter = ref("all"); // all | mine | shared | archived
-const dashboardView = ref("projects"); // projects | analytics
+const dashboardView = ref("projects"); // projects | analytics (toggle UI)
+const displayedView = ref("projects");
+const dashboardSwapPair = ref(null);
 const motionRoot = ref(null);
 const viewContentRef = ref(null);
-let unbindProjectHover = null;
-let unbindStatsHover = null;
+const viewSwapRef = ref(null);
+let unbindSectionHover = null;
+let unbindCardHover = null;
+let unbindItemHover = null;
 let viewRevealSeq = 0;
+let viewTransitionSeq = 0;
+let viewTransitioning = false;
 let viewRevealReady = false;
 
 const { analytics } = usePortfolioAnalytics(projects, savedLayouts, fetchError);
@@ -98,52 +104,124 @@ useProMotion(motionRoot, {
 useMotionPreferenceSync(motionRoot);
 useMotionPreferenceSync(viewContentRef);
 
-const bindProjectCardHover = () => {
-  unbindProjectHover?.();
-  if (dashboardView.value !== "projects" || !viewContentRef.value) return;
-  unbindProjectHover = bindCardHover(
-    viewContentRef.value.querySelectorAll('[data-motion="item"]'),
+const isDashboardViewVisible = (view) => {
+  if (dashboardSwapPair.value) {
+    return dashboardSwapPair.value.from === view || dashboardSwapPair.value.to === view;
+  }
+  return displayedView.value === view;
+};
+
+const findDashboardPanel = (view) => {
+  if (!viewSwapRef.value) return null;
+  return viewSwapRef.value.querySelector(`[data-dashboard-view="${view}"]`);
+};
+
+const bindDashboardHover = () => {
+  unbindSectionHover?.();
+  unbindCardHover?.();
+  unbindItemHover?.();
+
+  const root = viewContentRef.value;
+  if (!root) return;
+
+  unbindSectionHover = bindCardHover(
+    filterMotionTargets(root.querySelectorAll('[data-motion="section"]'), root),
+    { lift: -4 },
+  );
+  unbindCardHover = bindCardHover(
+    filterMotionTargets(root.querySelectorAll('[data-motion="card"]'), root),
+    { lift: -5 },
+  );
+  unbindItemHover = bindCardHover(
+    filterMotionTargets(root.querySelectorAll('[data-motion="item"]'), root),
     { lift: -6 },
   );
 };
 
-const bindStatsCardHover = () => {
-  unbindStatsHover?.();
-  if (dashboardView.value !== "projects" || !viewContentRef.value) return;
-  unbindStatsHover = bindCardHover(
-    viewContentRef.value.querySelectorAll('[data-motion="card"]'),
-    { lift: -4 },
-  );
-};
-
-const revealDashboardView = async ({ initial = false } = {}) => {
+const revealActiveDashboardPanel = async () => {
   const seq = ++viewRevealSeq;
   await nextTick();
   await waitForNextFrame();
   if (seq !== viewRevealSeq) return;
 
+  const panel = findDashboardPanel(displayedView.value);
   const root = viewContentRef.value;
-  if (!root) return;
+  if (!panel || !root) return;
 
   const targets = filterMotionTargets(
-    root.querySelectorAll("[data-motion]"),
+    panel.querySelectorAll("[data-motion]"),
     root,
   );
 
   if (prefersReducedMotion()) {
     setMotionFinalState(targets);
-    bindProjectCardHover();
-    bindStatsCardHover();
+    bindDashboardHover();
     return;
   }
 
-  if (initial) {
-    introMotionReveal(root, DASHBOARD_TAB_REVEAL);
-  } else {
-    smoothReplayReveal(root, DASHBOARD_TAB_REVEAL);
+  introMotionReveal(panel, {
+    ...DASHBOARD_VIEW_REVEAL,
+    motionRoot: root,
+  });
+  bindDashboardHover();
+};
+
+const revealDashboardView = async () => {
+  await revealActiveDashboardPanel();
+};
+
+const transitionDashboardView = async (nextView) => {
+  const current = displayedView.value;
+  if (nextView === current || viewTransitioning) return;
+
+  const seq = ++viewTransitionSeq;
+  viewTransitioning = true;
+
+  try {
+    if (prefersReducedMotion()) {
+      displayedView.value = nextView;
+      await nextTick();
+      bindDashboardHover();
+      return;
+    }
+
+    dashboardSwapPair.value = { from: current, to: nextView };
+    await nextTick();
+
+    const outEl = findDashboardPanel(current);
+    const inEl = findDashboardPanel(nextView);
+    if (!outEl || !inEl) {
+      dashboardSwapPair.value = null;
+      displayedView.value = nextView;
+      await nextTick();
+      bindDashboardHover();
+      return;
+    }
+
+    await runPanelFadeSwap(outEl, inEl, {
+      container: viewSwapRef.value,
+      onSettled: () => {
+        if (seq !== viewTransitionSeq) return;
+        dashboardSwapPair.value = null;
+        displayedView.value = nextView;
+      },
+    });
+
+    if (seq !== viewTransitionSeq) return;
+    await nextTick();
+    bindDashboardHover();
+  } finally {
+    viewTransitioning = false;
+    if (seq === viewTransitionSeq) {
+      dashboardSwapPair.value = null;
+    }
   }
-  bindProjectCardHover();
-  bindStatsCardHover();
+};
+
+const requestDashboardView = (view) => {
+  if (view === displayedView.value && !viewTransitioning) return;
+  dashboardView.value = view;
+  void transitionDashboardView(view);
 };
 
 let gridRevealTimer = null;
@@ -153,7 +231,7 @@ const revealProjectGridItems = async () => {
   const root = viewContentRef.value;
   if (!root || prefersReducedMotion()) return;
   revealMotionItems(root);
-  bindProjectCardHover();
+  bindDashboardHover();
 };
 
 const scheduleGridReveal = () => {
@@ -336,8 +414,9 @@ const onProjectsChanged = () => {
 
 onMounted(async () => {
   window.addEventListener("siec:projects-changed", onProjectsChanged);
+  window.addEventListener("siec:motion-preference", bindDashboardHover);
   await fetchProjects();
-  await revealDashboardView({ initial: true });
+  await revealDashboardView();
   viewRevealReady = true;
 });
 
@@ -346,9 +425,9 @@ watch(
   async () => {
     if (!viewRevealReady || isLoadingProjects.value) return;
     await nextTick();
-    if (dashboardView.value === "projects") {
-      await revealDashboardView();
-    }
+    if (dashboardView.value !== "projects") return;
+    bindDashboardHover();
+    scheduleGridReveal();
   },
 );
 
@@ -361,15 +440,12 @@ watch(
   },
 );
 
-watch(dashboardView, async () => {
-  if (!viewRevealReady) return;
-  await revealDashboardView();
-});
-
 onBeforeUnmount(() => {
   if (gridRevealTimer) clearTimeout(gridRevealTimer);
-  unbindProjectHover?.();
-  unbindStatsHover?.();
+  window.removeEventListener("siec:motion-preference", bindDashboardHover);
+  unbindSectionHover?.();
+  unbindCardHover?.();
+  unbindItemHover?.();
   window.removeEventListener("siec:projects-changed", onProjectsChanged);
 });
 </script>
@@ -485,7 +561,7 @@ onBeforeUnmount(() => {
                   ? 'border-orange-300 bg-orange-50 text-orange-800 shadow-sm dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-200'
                   : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300'
               "
-              @click="dashboardView = 'projects'"
+              @click="requestDashboardView('projects')"
             >
               <LayoutGrid class="h-3.5 w-3.5" :stroke-width="2.2" />
               {{ t('dashProjects') }}
@@ -498,24 +574,34 @@ onBeforeUnmount(() => {
                   ? 'border-orange-300 bg-orange-50 text-orange-800 shadow-sm dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-200'
                   : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300'
               "
-              @click="dashboardView = 'analytics'"
+              @click="requestDashboardView('analytics')"
             >
               <TrendingUp class="h-3.5 w-3.5" :stroke-width="2.2" />
               {{ t('dashAnalytics') }}
             </button>
           </section>
 
-          <PortfolioAnalyticsPanel
-            v-if="dashboardView === 'analytics'"
-            :snapshot="analytics"
-            :is-loading="isLoadingProjects"
-            :fetch-error="fetchError"
-            :has-remote-projects="hasRemoteProjects"
-            @open-project="openProject"
-            @new-project="newProject"
-          />
+          <div ref="viewSwapRef" class="dashboard-view-stack relative">
+            <div
+              v-show="isDashboardViewVisible('analytics')"
+              data-dashboard-view="analytics"
+              class="dashboard-view-panel"
+            >
+              <PortfolioAnalyticsPanel
+                :snapshot="analytics"
+                :is-loading="isLoadingProjects"
+                :fetch-error="fetchError"
+                :has-remote-projects="hasRemoteProjects"
+                @open-project="openProject"
+                @new-project="newProject"
+              />
+            </div>
 
-          <template v-else>
+            <div
+              v-show="isDashboardViewVisible('projects')"
+              data-dashboard-view="projects"
+              class="dashboard-view-panel space-y-8"
+            >
           <section
             data-motion="section"
             class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
@@ -891,7 +977,8 @@ onBeforeUnmount(() => {
               </span>
             </p>
           </transition>
-          </template>
+            </div>
+          </div>
           </div>
         </div>
       </main>
@@ -1068,6 +1155,16 @@ onBeforeUnmount(() => {
 
 .dashboard-secondary-btn:active {
   transform: scale(0.98);
+}
+
+.dashboard-view-stack.is-step-swapping {
+  position: relative;
+  overflow: hidden;
+}
+
+.dashboard-view-stack.is-step-swapping > .dashboard-view-panel {
+  margin: 0;
+  will-change: opacity, transform;
 }
 
 /* Light mode */

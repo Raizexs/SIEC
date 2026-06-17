@@ -1,15 +1,15 @@
 <script setup>
-import { ref, computed, onMounted, watch, provide, nextTick } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch, provide, nextTick } from 'vue';
 import { useRouter, useRoute, onBeforeRouteLeave } from 'vue-router';
 import { gsap } from 'gsap';
 import { useAuthStore } from '../stores/auth';
 import { useProMotion } from '../composables/useProMotion';
 import { useMotionPreferenceSync } from '../composables/useMotionPreferenceSync';
 import {
+  bindCardHover,
   filterMotionTargets,
   setMotionFinalState,
   SETTINGS_TAB_REVEAL,
-  smoothReplayReveal,
   introMotionReveal,
 } from '../composables/useMotionContext';
 import {
@@ -287,6 +287,33 @@ useMotionPreferenceSync(tabContentRef);
 
 let tabRevealSeq = 0;
 let tabRevealReady = false;
+let unbindSectionHover = null;
+let unbindCardHover = null;
+let unbindItemHover = null;
+
+const bindSettingsHover = () => {
+  unbindSectionHover?.();
+  unbindCardHover?.();
+  unbindItemHover?.();
+
+  const root = tabContentRef.value;
+  if (!root) return;
+
+  unbindSectionHover = bindCardHover(
+    filterMotionTargets(root.querySelectorAll('[data-motion="section"]'), root),
+    { lift: -4 },
+  );
+  unbindCardHover = bindCardHover(
+    filterMotionTargets(root.querySelectorAll('[data-motion="card"]'), root),
+    { lift: -5 },
+  );
+  unbindItemHover = bindCardHover(
+    filterMotionTargets(root.querySelectorAll('[data-motion="item"]'), root),
+    { lift: -3 },
+  );
+};
+
+const refreshSettingsHover = () => bindSettingsHover();
 
 const pulseTabHeader = () => {
   if (prefersReducedMotion() || !tabPanelRef.value) return;
@@ -296,18 +323,18 @@ const pulseTabHeader = () => {
   gsap.killTweensOf(header);
   gsap.fromTo(
     header,
-    { autoAlpha: 0.94, x: 10 },
+    { autoAlpha: 0.98, x: 4 },
     {
       autoAlpha: 1,
       x: 0,
-      duration: profile.duration.fast,
+      duration: profile.duration.fast * 0.85,
       ease: profile.ease.emphasizedOut,
       clearProps: 'transform,opacity,filter',
     },
   );
 };
 
-const revealTabContent = async ({ pulseHeader = false, initial = false } = {}) => {
+const revealTabContent = async ({ pulseHeader = false } = {}) => {
   const seq = ++tabRevealSeq;
   await nextTick();
   await waitForNextFrame();
@@ -323,6 +350,7 @@ const revealTabContent = async ({ pulseHeader = false, initial = false } = {}) =
 
   if (prefersReducedMotion()) {
     setMotionFinalState(targets);
+    bindSettingsHover();
     window.dispatchEvent(
       new CustomEvent('siec:settings-tab-revealed', { detail: { tab: tab.value } }),
     );
@@ -330,11 +358,8 @@ const revealTabContent = async ({ pulseHeader = false, initial = false } = {}) =
     return;
   }
 
-  if (initial) {
-    introMotionReveal(root, SETTINGS_TAB_REVEAL);
-  } else {
-    smoothReplayReveal(root, SETTINGS_TAB_REVEAL);
-  }
+  introMotionReveal(root, SETTINGS_TAB_REVEAL);
+  bindSettingsHover();
 
   window.dispatchEvent(
     new CustomEvent('siec:settings-tab-revealed', { detail: { tab: tab.value } }),
@@ -402,8 +427,9 @@ const cancelUnsavedDialog = () => {
 onMounted(async () => {
   preferencesDraft.syncFromSaved();
   void auth.refreshFactors();
+  window.addEventListener('siec:settings-hover-refresh', refreshSettingsHover);
   await nextTick();
-  await revealTabContent({ pulseHeader: false, initial: true });
+  await revealTabContent({ pulseHeader: false });
   tabRevealReady = true;
 });
 
@@ -415,6 +441,13 @@ onBeforeRouteLeave((_to, _from, next) => {
   pendingNavigation.value = () => next();
   showUnsavedDialog.value = true;
   next(false);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('siec:settings-hover-refresh', refreshSettingsHover);
+  unbindSectionHover?.();
+  unbindCardHover?.();
+  unbindItemHover?.();
 });
 
 watch(
