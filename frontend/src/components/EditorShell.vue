@@ -170,7 +170,6 @@ const isStepPanelVisible = (stepId) => {
 const showConfigurePanel = computed(() => isStepPanelVisible('configure'));
 const showDesignPanel = computed(() => isStepPanelVisible('design'));
 const showBudgetPanel = computed(() => isStepPanelVisible('budget'));
-const showExportPanel = computed(() => isStepPanelVisible('export'));
 
 const bindStepPanelHover = () => {
   unbindStepHover?.();
@@ -1399,7 +1398,7 @@ const startTutorial = () => {
           >
             <BudgetBreakdownPanel
               v-if="recintosStore.selectedM2 > 0"
-              panel-mode="budget"
+              panel-mode="full"
               :project-id="projectId"
               :m2Totales="recintosStore.selectedM2"
               :materialEstructuralId="formData.materialEstructuralId"
@@ -1407,7 +1406,6 @@ const startTutorial = () => {
               :alturaMuroM="alturaMuroM"
               :pdf-watermark="limits.pdf_watermark"
               @budget-calculated="onBudgetCalculated"
-              @go-export="goToStep('export')"
             />
             <div
               v-else
@@ -1432,49 +1430,6 @@ const startTutorial = () => {
               >
                 <span class="material-symbols-outlined text-[18px]">edit_square</span>
                 {{ t('budgetStepGoDesign') }}
-              </button>
-            </div>
-          </section>
-
-          <section
-            v-show="showExportPanel"
-            data-workspace-step="export"
-            class="workspace-step-panel tour-export-step space-y-4"
-          >
-            <BudgetBreakdownPanel
-              v-if="recintosStore.selectedM2 > 0 && hasBudget"
-              panel-mode="export"
-              :project-id="projectId"
-              :m2Totales="recintosStore.selectedM2"
-              :materialEstructuralId="formData.materialEstructuralId"
-              :perimetroMl="Number(totalWallLength)"
-              :alturaMuroM="alturaMuroM"
-              :pdf-watermark="limits.pdf_watermark"
-              @budget-calculated="onBudgetCalculated"
-            />
-            <div
-              v-else
-              data-motion="card"
-              class="flex flex-col items-center justify-center rounded-3xl border border-dashed border-violet-300/80 bg-violet-50/50 px-6 py-14 text-center dark:border-violet-800/80 dark:bg-violet-950/20"
-            >
-              <div
-                class="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-violet-200 bg-white text-violet-600 shadow-sm dark:border-violet-900 dark:bg-violet-950/50 dark:text-violet-300"
-              >
-                <span class="material-symbols-outlined text-[32px]">upload_file</span>
-              </div>
-              <h3 class="text-lg font-bold text-slate-950 dark:text-slate-100">
-                {{ t('exportStepEmptyTitle') }}
-              </h3>
-              <p class="mt-3 max-w-lg text-sm font-medium leading-relaxed text-slate-600 dark:text-slate-400">
-                {{ t('exportStepEmptyHint') }}
-              </p>
-              <button
-                type="button"
-                class="mt-6 inline-flex items-center gap-2 rounded-2xl border border-violet-300 bg-white px-5 py-2.5 text-sm font-bold text-violet-800 shadow-sm transition hover:bg-violet-50 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-200"
-                @click="goToStep('budget')"
-              >
-                <span class="material-symbols-outlined text-[18px]">request_quote</span>
-                {{ t('exportStepGoBudget') }}
               </button>
             </div>
           </section>

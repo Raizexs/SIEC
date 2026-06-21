@@ -24,17 +24,21 @@ def _seed_materiality_matrix() -> None:
             (2, "Metalcom"),
             (3, "Albañilería"),
             (4, "Hormigón Armado"),
+            (5, "Híbrido"),
         ]
         for mid, nombre in materials:
-            if not db.query(models.MaterialEstructural).filter_by(id=mid).first():
-                db.add(
-                    models.MaterialEstructural(
-                        id=mid,
-                        nombre=nombre,
-                        descripcion="",
-                        activo=True,
-                    )
+            db.query(models.MaterialEstructural).filter(
+                (models.MaterialEstructural.id == mid) | 
+                (models.MaterialEstructural.nombre == nombre)
+            ).delete(synchronize_session=False)
+            db.add(
+                models.MaterialEstructural(
+                    id=mid,
+                    nombre=nombre,
+                    descripcion="",
+                    activo=True,
                 )
+            )
 
         insumos = [
             (1, "Cemento Portland CI", "Obra Gruesa", "saco"),
@@ -42,17 +46,20 @@ def _seed_materiality_matrix() -> None:
             (3, "Perfil Metalcon CI", "Obra Gruesa", "ml"),
         ]
         for iid, nombre, categoria, unidad in insumos:
-            if not db.query(models.Insumo).filter_by(id=iid).first():
-                db.add(
-                    models.Insumo(
-                        id=iid,
-                        nombre=nombre,
-                        categoria=categoria,
-                        unidad_medida=unidad,
-                        descripcion="",
-                        activo=True,
-                    )
+            db.query(models.Insumo).filter(
+                (models.Insumo.id == iid) |
+                (models.Insumo.nombre == nombre)
+            ).delete(synchronize_session=False)
+            db.add(
+                models.Insumo(
+                    id=iid,
+                    nombre=nombre,
+                    categoria=categoria,
+                    unidad_medida=unidad,
+                    descripcion="",
+                    activo=True,
                 )
+            )
         db.commit()
 
         factors = {
@@ -60,48 +67,40 @@ def _seed_materiality_matrix() -> None:
             2: [0.15, 0.12, 0.20],
             3: [0.50, 0.04, 0.15],
             4: [0.35, 0.08, 0.12],
+            5: [0.25, 0.10, 0.18],
         }
         for mid, values in factors.items():
             for iid, factor in zip([1, 2, 3], values, strict=True):
-                row = (
-                    db.query(models.MatrizRendimiento)
-                    .filter_by(material_estructural_id=mid, insumo_id=iid)
-                    .first()
-                )
-                if row is None:
-                    db.add(
-                        models.MatrizRendimiento(
-                            material_estructural_id=mid,
-                            insumo_id=iid,
-                            factor_multiplicador=factor,
-                            activo=True,
-                        )
+                db.query(models.MatrizRendimiento).filter_by(
+                    material_estructural_id=mid, insumo_id=iid
+                ).delete(synchronize_session=False)
+                db.add(
+                    models.MatrizRendimiento(
+                        material_estructural_id=mid,
+                        insumo_id=iid,
+                        factor_multiplicador=factor,
+                        activo=True,
                     )
-                else:
-                    row.factor_multiplicador = factor
-                    row.activo = True
+                )
 
             for iid in (1, 2, 3):
-                price = (
-                    db.query(models.PrecioMercado)
-                    .filter_by(insumo_id=iid, tienda="CI-Test")
-                    .first()
-                )
-                if price is None:
-                    db.add(
-                        models.PrecioMercado(
-                            insumo_id=iid,
-                            tienda="CI-Test",
-                            nombre_producto=f"Insumo {iid} test",
-                            precio=1000.0 + iid,
-                            precio_descuento=None,
-                            stock="OK",
-                            categoria="Obra Gruesa",
-                            url="https://example.com/ci-test",
-                            fecha_scraping=datetime.now(timezone.utc),
-                            exitoso=True,
-                        )
+                db.query(models.PrecioMercado).filter_by(
+                    insumo_id=iid, tienda="CI-Test"
+                ).delete(synchronize_session=False)
+                db.add(
+                    models.PrecioMercado(
+                        insumo_id=iid,
+                        tienda="CI-Test",
+                        nombre_producto=f"Insumo {iid} test",
+                        precio=1000.0 + iid,
+                        precio_descuento=None,
+                        stock="OK",
+                        categoria="Obra Gruesa",
+                        url="https://example.com/ci-test",
+                        fecha_scraping=datetime.now(timezone.utc),
+                        exitoso=True,
                     )
+                )
         db.commit()
     finally:
         db.close()

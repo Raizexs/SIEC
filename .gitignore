@@ -3,7 +3,7 @@ dist_packaged/
 .env
 .env.local
 .env.*.local
-
+certs
 # Python
 __pycache__/
 *.py[cod]

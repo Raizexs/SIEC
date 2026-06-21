@@ -70,10 +70,11 @@ def has_active_consent(
     user_id: str,
     consent_type: str,
 ) -> bool:
+    uid = uuid.UUID(str(user_id))
     record = (
         db.query(models.UserConsent)
         .filter(
-            models.UserConsent.user_id == user_id,
+            models.UserConsent.user_id == uid,
             models.UserConsent.consent_type == consent_type,
             models.UserConsent.granted.is_(True),
             models.UserConsent.revoked_at.is_(None),
@@ -94,11 +95,12 @@ def record_consent(
     user_agent: Optional[str],
     metadata: Optional[dict] = None,
 ) -> models.UserConsent:
+    uid = uuid.UUID(str(user_id))
     if not granted:
         existing = (
             db.query(models.UserConsent)
             .filter(
-                models.UserConsent.user_id == user_id,
+                models.UserConsent.user_id == uid,
                 models.UserConsent.consent_type == consent_type,
                 models.UserConsent.granted.is_(True),
                 models.UserConsent.revoked_at.is_(None),
@@ -111,7 +113,7 @@ def record_consent(
             row.granted = False
         db.flush()
         return existing[0] if existing else models.UserConsent(
-            user_id=user_id,
+            user_id=uid,
             consent_type=consent_type,
             policy_version=policy_version,
             granted=False,
@@ -121,7 +123,7 @@ def record_consent(
         )
 
     row = models.UserConsent(
-        user_id=user_id,
+        user_id=uid,
         consent_type=consent_type,
         policy_version=policy_version,
         granted=True,

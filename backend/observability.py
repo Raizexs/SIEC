@@ -36,7 +36,38 @@ try:
 except ImportError:  # pragma: no cover
     import logging
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    log = logging.getLogger("siec")
+    _raw_log = logging.getLogger("siec")
+
+    class StructlogFallbackLogger:
+        def __init__(self, logger):
+            self._logger = logger
+
+        def _log_with_kwargs(self, level, event, *args, **kwargs):
+            parts = [event]
+            for k, v in kwargs.items():
+                parts.append(f"{k}={v}")
+            msg = " | ".join(parts)
+            self._logger.log(level, msg, *args)
+
+        def debug(self, event, *args, **kwargs):
+            self._log_with_kwargs(logging.DEBUG, event, *args, **kwargs)
+
+        def info(self, event, *args, **kwargs):
+            self._log_with_kwargs(logging.INFO, event, *args, **kwargs)
+
+        def warning(self, event, *args, **kwargs):
+            self._log_with_kwargs(logging.WARNING, event, *args, **kwargs)
+
+        def warn(self, event, *args, **kwargs):
+            self._log_with_kwargs(logging.WARNING, event, *args, **kwargs)
+
+        def error(self, event, *args, **kwargs):
+            self._log_with_kwargs(logging.ERROR, event, *args, **kwargs)
+
+        def critical(self, event, *args, **kwargs):
+            self._log_with_kwargs(logging.CRITICAL, event, *args, **kwargs)
+
+    log = StructlogFallbackLogger(_raw_log)
 
 # ── Sentry ──────────────────────────────────────────────────────────────────
 SENTRY_DSN = os.getenv("SENTRY_DSN", "")
