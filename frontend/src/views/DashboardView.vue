@@ -4,7 +4,7 @@
  * Layout: AppRail at the left + premium content shell at right.
  */
 
-import { ref, computed, onMounted, onActivated, onBeforeUnmount } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 import { HttpError } from "../composables/useApi";
@@ -30,8 +30,23 @@ import {
 
 import AppRail from "../components/shell/AppRail.vue";
 import AppTopBar from "../components/shell/AppTopBar.vue";
+import PortfolioAnalyticsPanel from "./PortfolioAnalyticsPanel.vue";
 import { useProMotion } from "../composables/useProMotion";
-import { materialName } from "../composables/usePortfolioAnalytics";
+import { useMotionPreferenceSync } from "../composables/useMotionPreferenceSync";
+import {
+  bindCardHover,
+  DASHBOARD_VIEW_REVEAL,
+  filterMotionTargets,
+  introMotionReveal,
+  revealMotionItems,
+  runPanelFadeSwap,
+  setMotionFinalState,
+} from "../composables/useMotionContext";
+import {
+  prefersReducedMotion,
+  waitForNextFrame,
+} from "../design/motionTokens";
+import { materialName, usePortfolioAnalytics } from "../composables/usePortfolioAnalytics";
 import { useI18n } from "../composables/useI18n";
 import {
   getProjectPreviewHero,
@@ -66,15 +81,166 @@ const isLoadingProjects = ref(false);
 const fetchError = ref(null);
 const search = ref("");
 const filter = ref("all"); // all | mine | shared | archived
+const dashboardView = ref("projects"); // projects | analytics (toggle UI)
+const displayedView = ref("projects");
+const dashboardSwapPair = ref(null);
 const motionRoot = ref(null);
+const viewContentRef = ref(null);
+const viewSwapRef = ref(null);
+let unbindSectionHover = null;
+let unbindCardHover = null;
+let unbindItemHover = null;
+let viewRevealSeq = 0;
+let viewTransitionSeq = 0;
+let viewTransitioning = false;
+let viewRevealReady = false;
 
-/**
- * skipIntro: la transición de RouterView en App.vue ya anima la vista;
- * el stagger GSAP en hijos dejó el panel en autoAlpha 0 en algunos navegadores.
- */
+const { analytics } = usePortfolioAnalytics(projects, savedLayouts, fetchError);
+
 useProMotion(motionRoot, {
-  skipIntro: true,
+  delayUntilRoute: true,
+  revealOptions: { levels: ["hero"], pace: "snappy" },
 });
+useMotionPreferenceSync(motionRoot);
+useMotionPreferenceSync(viewContentRef);
+
+const isDashboardViewVisible = (view) => {
+  if (dashboardSwapPair.value) {
+    return dashboardSwapPair.value.from === view || dashboardSwapPair.value.to === view;
+  }
+  return displayedView.value === view;
+};
+
+const findDashboardPanel = (view) => {
+  if (!viewSwapRef.value) return null;
+  return viewSwapRef.value.querySelector(`[data-dashboard-view="${view}"]`);
+};
+
+const bindDashboardHover = () => {
+  unbindSectionHover?.();
+  unbindCardHover?.();
+  unbindItemHover?.();
+
+  const root = viewContentRef.value;
+  if (!root) return;
+
+  unbindSectionHover = bindCardHover(
+    filterMotionTargets(root.querySelectorAll('[data-motion="section"]'), root),
+    { lift: -4 },
+  );
+  unbindCardHover = bindCardHover(
+    filterMotionTargets(root.querySelectorAll('[data-motion="card"]'), root),
+    { lift: -5 },
+  );
+  unbindItemHover = bindCardHover(
+    filterMotionTargets(root.querySelectorAll('[data-motion="item"]'), root),
+    { lift: -6 },
+  );
+};
+
+const revealActiveDashboardPanel = async () => {
+  const seq = ++viewRevealSeq;
+  await nextTick();
+  await waitForNextFrame();
+  if (seq !== viewRevealSeq) return;
+
+  const panel = findDashboardPanel(displayedView.value);
+  const root = viewContentRef.value;
+  if (!panel || !root) return;
+
+  const targets = filterMotionTargets(
+    panel.querySelectorAll("[data-motion]"),
+    root,
+  );
+
+  if (prefersReducedMotion()) {
+    setMotionFinalState(targets);
+    bindDashboardHover();
+    return;
+  }
+
+  introMotionReveal(panel, {
+    ...DASHBOARD_VIEW_REVEAL,
+    motionRoot: root,
+  });
+  bindDashboardHover();
+};
+
+const revealDashboardView = async () => {
+  await revealActiveDashboardPanel();
+};
+
+const transitionDashboardView = async (nextView) => {
+  const current = displayedView.value;
+  if (nextView === current || viewTransitioning) return;
+
+  const seq = ++viewTransitionSeq;
+  viewTransitioning = true;
+
+  try {
+    if (prefersReducedMotion()) {
+      displayedView.value = nextView;
+      await nextTick();
+      bindDashboardHover();
+      return;
+    }
+
+    dashboardSwapPair.value = { from: current, to: nextView };
+    await nextTick();
+
+    const outEl = findDashboardPanel(current);
+    const inEl = findDashboardPanel(nextView);
+    if (!outEl || !inEl) {
+      dashboardSwapPair.value = null;
+      displayedView.value = nextView;
+      await nextTick();
+      bindDashboardHover();
+      return;
+    }
+
+    await runPanelFadeSwap(outEl, inEl, {
+      container: viewSwapRef.value,
+      onSettled: () => {
+        if (seq !== viewTransitionSeq) return;
+        dashboardSwapPair.value = null;
+        displayedView.value = nextView;
+      },
+    });
+
+    if (seq !== viewTransitionSeq) return;
+    await nextTick();
+    bindDashboardHover();
+  } finally {
+    viewTransitioning = false;
+    if (seq === viewTransitionSeq) {
+      dashboardSwapPair.value = null;
+    }
+  }
+};
+
+const requestDashboardView = (view) => {
+  if (view === displayedView.value && !viewTransitioning) return;
+  dashboardView.value = view;
+  void transitionDashboardView(view);
+};
+
+let gridRevealTimer = null;
+
+const revealProjectGridItems = async () => {
+  await nextTick();
+  const root = viewContentRef.value;
+  if (!root || prefersReducedMotion()) return;
+  revealMotionItems(root);
+  bindDashboardHover();
+};
+
+const scheduleGridReveal = () => {
+  if (gridRevealTimer) clearTimeout(gridRevealTimer);
+  gridRevealTimer = setTimeout(() => {
+    gridRevealTimer = null;
+    void revealProjectGridItems();
+  }, 120);
+};
 
 const stats = computed(() => {
   const list = projects.value.length ? projects.value : savedLayouts.value;
@@ -246,18 +412,40 @@ const onProjectsChanged = () => {
   fetchProjects();
 };
 
-onMounted(() => {
-  fetchProjects();
+onMounted(async () => {
   window.addEventListener("siec:projects-changed", onProjectsChanged);
+  window.addEventListener("siec:motion-preference", bindDashboardHover);
+  await fetchProjects();
+  await revealDashboardView();
+  viewRevealReady = true;
 });
 
-onActivated(() => {
-  if (Date.now() - lastProjectsFetch > PROJECTS_STALE_MS) {
-    void fetchProjects({ background: true });
-  }
-});
+watch(
+  () => [projects.value.length, isLoadingProjects.value],
+  async () => {
+    if (!viewRevealReady || isLoadingProjects.value) return;
+    await nextTick();
+    if (dashboardView.value !== "projects") return;
+    bindDashboardHover();
+    scheduleGridReveal();
+  },
+);
+
+watch(
+  () => [filter.value, search.value, filtered.value.length],
+  () => {
+    if (!viewRevealReady || isLoadingProjects.value) return;
+    if (dashboardView.value !== "projects") return;
+    scheduleGridReveal();
+  },
+);
 
 onBeforeUnmount(() => {
+  if (gridRevealTimer) clearTimeout(gridRevealTimer);
+  window.removeEventListener("siec:motion-preference", bindDashboardHover);
+  unbindSectionHover?.();
+  unbindCardHover?.();
+  unbindItemHover?.();
   window.removeEventListener("siec:projects-changed", onProjectsChanged);
 });
 </script>
@@ -362,14 +550,65 @@ onBeforeUnmount(() => {
             </div>
           </section>
 
-          <!-- Stats -->
+          <div ref="viewContentRef" data-no-motion class="space-y-8">
+          <!-- View toggle -->
+          <section data-motion="section" class="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              class="inline-flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] transition-all duration-200"
+              :class="
+                dashboardView === 'projects'
+                  ? 'border-orange-300 bg-orange-50 text-orange-800 shadow-sm dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-200'
+                  : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300'
+              "
+              @click="requestDashboardView('projects')"
+            >
+              <LayoutGrid class="h-3.5 w-3.5" :stroke-width="2.2" />
+              {{ t('dashProjects') }}
+            </button>
+            <button
+              type="button"
+              class="inline-flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] transition-all duration-200"
+              :class="
+                dashboardView === 'analytics'
+                  ? 'border-orange-300 bg-orange-50 text-orange-800 shadow-sm dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-200'
+                  : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300'
+              "
+              @click="requestDashboardView('analytics')"
+            >
+              <TrendingUp class="h-3.5 w-3.5" :stroke-width="2.2" />
+              {{ t('dashAnalytics') }}
+            </button>
+          </section>
+
+          <div ref="viewSwapRef" class="dashboard-view-stack relative">
+            <div
+              v-show="isDashboardViewVisible('analytics')"
+              data-dashboard-view="analytics"
+              class="dashboard-view-panel"
+            >
+              <PortfolioAnalyticsPanel
+                :snapshot="analytics"
+                :is-loading="isLoadingProjects"
+                :fetch-error="fetchError"
+                :has-remote-projects="hasRemoteProjects"
+                @open-project="openProject"
+                @new-project="newProject"
+              />
+            </div>
+
+            <div
+              v-show="isDashboardViewVisible('projects')"
+              data-dashboard-view="projects"
+              class="dashboard-view-panel space-y-8"
+            >
           <section
             data-motion="section"
             class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
           >
             <article
               data-motion="card"
-              class="rounded-3xl border border-slate-200/90 bg-white/85 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lg dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30 dark:hover:border-slate-700"
+              class="rounded-3xl border border-slate-200/90 bg-white/85 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30 dark:hover:border-slate-700"
             >
               <div class="flex items-center justify-between gap-3">
                 <span
@@ -400,7 +639,7 @@ onBeforeUnmount(() => {
 
             <article
               data-motion="card"
-              class="rounded-3xl border border-slate-200/90 bg-white/85 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lg dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30 dark:hover:border-slate-700"
+              class="rounded-3xl border border-slate-200/90 bg-white/85 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30 dark:hover:border-slate-700"
             >
               <div class="flex items-center justify-between gap-3">
                 <span
@@ -431,7 +670,7 @@ onBeforeUnmount(() => {
 
             <article
               data-motion="card"
-              class="relative overflow-hidden rounded-3xl border border-orange-200 bg-orange-50/70 p-5 shadow-xl shadow-orange-500/5 backdrop-blur-xl transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-300 hover:shadow-lg dark:border-orange-900/60 dark:bg-orange-950/20 dark:shadow-black/30"
+              class="relative overflow-hidden rounded-3xl border border-orange-200 bg-orange-50/70 p-5 shadow-xl shadow-orange-500/5 backdrop-blur-xl dark:border-orange-900/60 dark:bg-orange-950/20 dark:shadow-black/30"
             >
               <div
                 class="pointer-events-none absolute -right-12 -top-12 h-32 w-32 rounded-full bg-orange-400/20 blur-2xl"
@@ -468,7 +707,7 @@ onBeforeUnmount(() => {
 
             <article
               data-motion="card"
-              class="rounded-3xl border border-slate-200/90 bg-white/85 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lg dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30 dark:hover:border-slate-700"
+              class="rounded-3xl border border-slate-200/90 bg-white/85 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30 dark:hover:border-slate-700"
             >
               <div class="flex items-center justify-between gap-3">
                 <span
@@ -610,7 +849,7 @@ onBeforeUnmount(() => {
               v-for="project in filtered"
               :key="project.id || project.name || project.nombre"
               data-motion="item"
-              class="group cursor-pointer overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 shadow-xl shadow-slate-950/5 backdrop-blur-xl transition-all duration-200 hover:-translate-y-1 hover:border-slate-300 hover:shadow-2xl hover:shadow-slate-950/10 dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30 dark:hover:border-slate-700"
+              class="group cursor-pointer overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 shadow-xl shadow-slate-950/5 backdrop-blur-xl transition-[border-color,box-shadow] duration-200 hover:border-slate-300 hover:shadow-2xl hover:shadow-slate-950/10 dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30 dark:hover:border-slate-700"
               @click="openProject(project)"
             >
               <div
@@ -738,6 +977,9 @@ onBeforeUnmount(() => {
               </span>
             </p>
           </transition>
+            </div>
+          </div>
+          </div>
         </div>
       </main>
     </div>
@@ -913,6 +1155,16 @@ onBeforeUnmount(() => {
 
 .dashboard-secondary-btn:active {
   transform: scale(0.98);
+}
+
+.dashboard-view-stack.is-step-swapping {
+  position: relative;
+  overflow: hidden;
+}
+
+.dashboard-view-stack.is-step-swapping > .dashboard-view-panel {
+  margin: 0;
+  will-change: opacity, transform;
 }
 
 /* Light mode */

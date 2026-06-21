@@ -5,14 +5,14 @@ import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { useAuthStore } from '../stores/auth';
 import { useProMotion } from '../composables/useProMotion';
 import AuthScene3D from '../components/auth/AuthScene3D.vue';
+import { usePrivacy } from '../composables/usePrivacy';
 
 const router = useRouter();
 const authStore = useAuthStore();
+const { hasConsent } = usePrivacy();
 const motionRoot = ref(null);
 
-useProMotion(motionRoot, {
-  skipIntro: true,
-});
+useProMotion(motionRoot, { mode: 'auto' });
 
 onMounted(async () => {
   if (!isSupabaseConfigured) {
@@ -32,6 +32,15 @@ onMounted(async () => {
       await authStore.loadProfile();
 
       const isFirstLogin = !data.session.user.user_metadata?.full_name;
+      const privacyOk = await hasConsent('privacy_policy').catch(() => false);
+
+      if (!privacyOk) {
+        router.replace({
+          path: '/privacy/accept',
+          query: { redirect: isFirstLogin ? '/onboarding' : '/dashboard' },
+        });
+        return;
+      }
 
       router.replace(isFirstLogin ? '/onboarding' : '/dashboard');
     } else {

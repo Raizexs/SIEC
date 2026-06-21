@@ -269,3 +269,43 @@ class SiecplacePayment(Base):
     listing_id = Column(UUID(as_uuid=True), ForeignKey("siecplace_listing.id", ondelete="SET NULL"))
     status = Column(Text, nullable=False, default="pending")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Privacy & consent (Ley 21.719)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class PrivacyPolicyVersion(Base):
+    __tablename__ = "privacy_policy_version"
+
+    id = Column(Text, primary_key=True)
+    version = Column(Text, nullable=False)
+    published_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    url_path = Column(Text, nullable=False, default="/legal/privacidad")
+    summary = Column(Text)
+
+
+class UserConsent(Base):
+    __tablename__ = "user_consent"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("app_user.id", ondelete="CASCADE"), nullable=False)
+    consent_type = Column(Text, nullable=False)
+    policy_version = Column(Text, nullable=False)
+    granted = Column(Boolean, nullable=False)
+    granted_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    revoked_at = Column(DateTime(timezone=True))
+    ip_address = Column(Text)
+    user_agent = Column(Text)
+    extra = Column("metadata", JSON, nullable=False, default=dict)
+
+
+class AccountDeletionToken(Base):
+    __tablename__ = "account_deletion_token"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("app_user.id", ondelete="CASCADE"), nullable=False)
+    token = Column(Text, unique=True, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    used_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

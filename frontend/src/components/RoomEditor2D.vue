@@ -1289,17 +1289,15 @@ const handleFullscreenChange = () => {
   const isEntering = !!document.fullscreenElement;
   isFullScreen.value = isEntering;
 
-  scheduleViewportAspectSync();
-  [0, 50, 150, 320].forEach((ms) => {
-    setTimeout(scheduleViewportAspectSync, ms);
-  });
-
-  if (!isEntering) {
-    setTimeout(() => {
-      window.scrollTo({ top: savedScrollY, behavior: 'instant' });
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
       scheduleViewportAspectSync();
-    }, 10);
-  }
+      if (!isEntering) {
+        window.scrollTo({ top: savedScrollY, behavior: 'instant' });
+        scheduleViewportAspectSync();
+      }
+    });
+  });
 };
 
 const interactionCapture = { capture: true };
@@ -1667,6 +1665,7 @@ watch(
 onMounted(() => {
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('siec:cancel', handleSiecCancel);
+  window.addEventListener('siec:design-panel-visible', scheduleViewportAspectSync);
   window.addEventListener('resize', syncViewportAspect);
   scheduleViewportAspectSync();
   document.addEventListener('pointermove', onPointerMove, interactionCapture);
@@ -1686,6 +1685,7 @@ onUnmounted(() => {
   pointerSessionId.value = null;
   window.removeEventListener('keydown', handleKeyDown);
   window.removeEventListener('siec:cancel', handleSiecCancel);
+  window.removeEventListener('siec:design-panel-visible', scheduleViewportAspectSync);
   window.removeEventListener('resize', syncViewportAspect);
   document.removeEventListener('pointermove', onPointerMove, interactionCapture);
   document.removeEventListener('pointerup', onPointerUp, interactionCapture);
@@ -1701,8 +1701,9 @@ defineExpose({ openAddModal });
 <template>
   <div
     ref="rootRef"
-    class="editor2d-root relative flex w-full flex-col overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 p-4 shadow-2xl shadow-slate-950/10 backdrop-blur-xl transition-all duration-300 dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/35"
-    :class="isFullScreen ? 'editor2d-root--fs h-screen min-h-0 rounded-none border-none p-0' : 'normal-mode'"
+    class="editor2d-root relative flex w-full flex-col overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 p-4 shadow-2xl shadow-slate-950/10 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/35"
+    data-no-motion
+    :class="isFullScreen ? 'editor2d-root--fs min-h-0 rounded-none border-none p-0 shadow-none' : 'normal-mode editor2d-root--shell'"
   >
     <!-- Header -->
     <header
@@ -1764,6 +1765,7 @@ defineExpose({ openAddModal });
           >
             <button
               type="button"
+              data-editor-hover="tool"
               class="editor2d-icon-action"
               :title="isFullScreen ? t('exitFullscreen') : t('fullscreen')"
               :aria-label="isFullScreen ? t('exitFullscreen') : t('fullscreen')"
@@ -1783,6 +1785,7 @@ defineExpose({ openAddModal });
           >
             <button
               type="button"
+              data-editor-hover="tool"
               class="flex h-8 w-8 items-center justify-center rounded-xl text-xs font-black text-slate-500 transition-all duration-200 hover:bg-slate-100 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-30 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
               :disabled="store.currentFloor <= 1"
               @click="store.setFloor(store.currentFloor - 1)"
@@ -1798,6 +1801,7 @@ defineExpose({ openAddModal });
 
             <button
               type="button"
+              data-editor-hover="tool"
               class="flex h-8 w-8 items-center justify-center rounded-xl text-xs font-black text-slate-500 transition-all duration-200 hover:bg-slate-100 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-30 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
               :disabled="store.currentFloor >= MAX_FLOORS"
               @click="store.setFloor(store.currentFloor + 1)"
@@ -1808,6 +1812,7 @@ defineExpose({ openAddModal });
 
           <button
             type="button"
+            data-editor-hover="tool"
             class="tool-btn tool-btn-primary add-room-glow"
             :title="t('addRoomBtn')"
             @click="openAddModal"
@@ -1818,6 +1823,7 @@ defineExpose({ openAddModal });
 
           <button
             type="button"
+            data-editor-hover="tool"
             class="tool-btn tool-btn-sm"
             :class="corridorMode ? 'tool-btn-teal-active' : 'tool-btn-neutral'"
             :title="corridorMode ? t('corridorsOn') : t('corridorsOff')"
@@ -1829,6 +1835,7 @@ defineExpose({ openAddModal });
 
           <button
             type="button"
+            data-editor-hover="tool"
             class="tool-btn tool-btn-sm tool-btn-neutral"
             :title="t('blueprintExportBtn')"
             @click="exportBlueprintPlan"
@@ -1839,6 +1846,7 @@ defineExpose({ openAddModal });
 
           <button
             type="button"
+            data-editor-hover="tool"
             class="tool-btn tool-btn-sm"
             :class="layoutLocked ? 'tool-btn-danger' : 'tool-btn-neutral'"
             :title="layoutLocked ? t('unlockResize') : t('lockResize')"
@@ -2697,6 +2705,12 @@ defineExpose({ openAddModal });
   flex-direction: column;
 }
 
+.editor2d-root.editor2d-root--shell {
+  transition:
+    box-shadow 0.25s ease,
+    border-color 0.25s ease;
+}
+
 .editor2d-root.normal-mode .editor2d-canvas {
   width: 100%;
   height: 420px;
@@ -2710,6 +2724,18 @@ defineExpose({ openAddModal });
   height: 100dvh;
   max-height: 100dvh;
   min-height: 0;
+  transition: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+
+.editor2d-root.editor2d-root--fs header,
+.editor2d-root:fullscreen header {
+  flex-shrink: 0;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  margin-bottom: 0.75rem;
 }
 
 .editor2d-root.editor2d-root--fs .editor2d-canvas,
@@ -2718,11 +2744,7 @@ defineExpose({ openAddModal });
   width: 100%;
   height: auto;
   min-height: 0;
-}
-
-.editor2d-root.editor2d-root--fs header,
-.editor2d-root:fullscreen header {
-  flex-shrink: 0;
+  contain: strict;
 }
 
 .editor2d-viewport {

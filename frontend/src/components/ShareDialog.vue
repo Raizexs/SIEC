@@ -10,8 +10,11 @@ import logger from '../utils/logger.js';
  * - Collaborators rendered as audit-friendly cards.
  */
 
-import { ref, onMounted, watch, computed } from 'vue';
+import { ref, onMounted, watch, computed, toRef } from 'vue';
 import { useProjectsApi } from '../composables/useProjectsApi';
+import { usePrivacy } from '../composables/usePrivacy';
+import { useMotionModal } from '../composables/useMotionModal';
+import ConsentModal from './privacy/ConsentModal.vue';
 import { toast } from 'vue-sonner';
 
 const props = defineProps({
@@ -22,14 +25,26 @@ const props = defineProps({
 const emit = defineEmits(['close']);
 
 const api = useProjectsApi();
+const { fetchPolicy, grantConsent, hasConsent } = usePrivacy();
 
 const collaborators = ref([]);
 const inviteEmail = ref('');
 const inviteRole = ref('viewer');
 const expiresInDays = ref(7);
+const hideCliente = ref(true);
 const shareLink = ref(null);
 const isLoading = ref(false);
 const isCopying = ref(false);
+const showShareConsent = ref(false);
+const policyVersion = ref('1.0');
+const backdropRef = ref(null);
+const panelRef = ref(null);
+
+useMotionModal(toRef(props, 'show'), {
+  backdropRef,
+  panelRef,
+  staggerItems: true,
+});
 
 const canInvite = computed(() => inviteEmail.value.trim().length > 0);
 
@@ -87,11 +102,22 @@ const generateShareLink = async () => {
     return;
   }
 
+  const consented = await hasConsent('public_share').catch(() => false);
+  if (!consented) {
+    showShareConsent.value = true;
+    return;
+  }
+
+  await doGenerateShareLink();
+};
+
+const doGenerateShareLink = async () => {
   isLoading.value = true;
 
   try {
     const res = await api.createShareLink(props.projectId, {
-      expires_in_days: expiresInDays.value,
+      expires_in_days: Math.min(expiresInDays.value, 90),
+      hide_cliente: hideCliente.value,
     });
 
     shareLink.value = `${window.location.origin}${res.public_url_path}`;
@@ -103,6 +129,16 @@ const generateShareLink = async () => {
     toast.error(`Error: ${e.message}`);
   } finally {
     isLoading.value = false;
+  }
+};
+
+const onShareConsentConfirm = async () => {
+  try {
+    await grantConsent('public_share', policyVersion.value);
+    showShareConsent.value = false;
+    await doGenerateShareLink();
+  } catch (e) {
+    toast.error(e.message || 'No se pudo registrar el consentimiento');
   }
 };
 
@@ -123,24 +159,32 @@ watch(
   },
 );
 
-onMounted(load);
+onMounted(async () => {
+  load();
+  try {
+    const policy = await fetchPolicy();
+    policyVersion.value = policy.version;
+  } catch {
+    policyVersion.value = '1.0';
+  }
+});
 </script>
 
 <template>
   <Teleport to="body">
-    <transition name="share-overlay">
-      <div
-        v-if="show"
-        class="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-md dark:bg-black/60 sm:p-6"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="share-dialog-title"
-        @click.self="emit('close')"
+    <div
+      v-if="show"
+      ref="backdropRef"
+      class="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-md dark:bg-black/60 sm:p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="share-dialog-title"
+      @click.self="emit('close')"
+    >
+      <section
+        ref="panelRef"
+        class="w-full max-w-2xl overflow-hidden rounded-3xl border border-slate-200/90 bg-white/95 shadow-2xl shadow-slate-950/20 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/40"
       >
-        <transition name="share-card" appear>
-          <section
-            class="w-full max-w-2xl overflow-hidden rounded-3xl border border-slate-200/90 bg-white/95 shadow-2xl shadow-slate-950/20 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/40"
-          >
             <!-- Top accent -->
             <div class="h-1 w-full bg-gradient-to-r from-orange-400 via-orange-500 to-slate-900 dark:to-orange-300"></div>
 
@@ -269,7 +313,8 @@ onMounted(load);
                     </h3>
 
                     <p class="mt-1 text-xs font-medium leading-relaxed text-slate-500 dark:text-slate-400">
-                      Genera un enlace de acceso con vencimiento automático.
+                      Genera un enlace de acceso con vencimiento automático. Puede exponer datos del
+                      proyecto (cliente, ubicación) a quien tenga el enlace.
                     </p>
                   </div>
 
@@ -281,7 +326,12 @@ onMounted(load);
                   </span>
                 </div>
 
-                <div v-if="!shareLink" class="grid gap-2 sm:grid-cols-[9rem_1fr]">
+                <div v-if="!shareLink" class="space-y-3">
+                  <label class="flex items-center gap-2 text-xs font-medium text-slate-600 dark:text-slate-400">
+                    <input v-model="hideCliente" type="checkbox" class="rounded border-slate-300" />
+                    Ocultar nombre de cliente en la vista pública
+                  </label>
+                  <div class="grid gap-2 sm:grid-cols-[9rem_1fr]">
                   <select
                     v-model.number="expiresInDays"
                     class="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-800 outline-none transition-all duration-200 focus:border-orange-400 focus:ring-4 focus:ring-orange-500/10 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-orange-500 dark:focus:ring-orange-500/15"
@@ -314,6 +364,7 @@ onMounted(load);
 
                     Generar enlace · {{ selectedExpirationLabel }}
                   </button>
+                </div>
                 </div>
 
                 <div v-else class="space-y-3">
@@ -401,6 +452,7 @@ onMounted(load);
                   <li
                     v-for="collaborator in collaborators"
                     :key="collaborator.usuario_id"
+                    data-motion="item"
                     class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950/70"
                   >
                     <div class="flex min-w-0 items-center gap-3">
@@ -448,33 +500,17 @@ onMounted(load);
               </button>
             </footer>
           </section>
-        </transition>
-      </div>
-    </transition>
+    </div>
   </Teleport>
+
+  <ConsentModal
+    :show="showShareConsent"
+    title="Compartir proyecto públicamente"
+    description="Cualquier persona con el enlace podrá ver información del proyecto hasta su vencimiento. No se incluyen tus datos de contacto."
+    consent-type="public_share"
+    :policy-version="policyVersion"
+    @confirm="onShareConsentConfirm"
+    @cancel="showShareConsent = false"
+    @close="showShareConsent = false"
+  />
 </template>
-
-<style scoped>
-.share-overlay-enter-active,
-.share-overlay-leave-active {
-  transition: opacity 0.2s ease;
-}
-
-.share-overlay-enter-from,
-.share-overlay-leave-to {
-  opacity: 0;
-}
-
-.share-card-enter-active,
-.share-card-leave-active {
-  transition:
-    opacity 0.22s ease,
-    transform 0.22s ease;
-}
-
-.share-card-enter-from,
-.share-card-leave-to {
-  opacity: 0;
-  transform: translateY(10px) scale(0.98);
-}
-</style>

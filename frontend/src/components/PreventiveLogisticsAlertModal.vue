@@ -1,5 +1,7 @@
 <script setup>
+import { ref, toRef } from 'vue';
 import { useI18n } from '../composables/useI18n';
+import { useMotionModal } from '../composables/useMotionModal';
 
 const { t } = useI18n();
 
@@ -11,24 +13,29 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['close', 'quote-light-materials']);
+
+const backdropRef = ref(null);
+const panelRef = ref(null);
+
+useMotionModal(toRef(props, 'show'), { backdropRef, panelRef, emphasis: true });
 </script>
 
 <template>
   <Teleport to="body">
-    <Transition name="logistics-overlay">
-      <div
-        v-if="props.show"
-        class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-md dark:bg-black/60"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="preventive-logistics-title"
-        aria-describedby="preventive-logistics-desc"
-        @click.self="emit('close')"
+    <div
+      v-if="props.show"
+      ref="backdropRef"
+      class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-md dark:bg-black/60"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="preventive-logistics-title"
+      aria-describedby="preventive-logistics-desc"
+      @click.self="emit('close')"
+    >
+      <section
+        ref="panelRef"
+        class="w-full max-w-xl overflow-hidden rounded-3xl border border-slate-200/90 bg-white/95 shadow-2xl shadow-slate-950/20 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/40"
       >
-        <Transition name="logistics-card" appear>
-          <section
-            class="w-full max-w-xl overflow-hidden rounded-3xl border border-slate-200/90 bg-white/95 shadow-2xl shadow-slate-950/20 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/40"
-          >
             <!-- Top accent -->
             <div class="h-1 w-full bg-gradient-to-r from-amber-400 via-orange-500 to-slate-900 dark:to-orange-300"></div>
 
@@ -170,33 +177,6 @@ const emit = defineEmits(['close', 'quote-light-materials']);
               </button>
             </footer>
           </section>
-        </Transition>
-      </div>
-    </Transition>
+    </div>
   </Teleport>
 </template>
-
-<style scoped>
-.logistics-overlay-enter-active,
-.logistics-overlay-leave-active {
-  transition: opacity 0.2s ease;
-}
-
-.logistics-overlay-enter-from,
-.logistics-overlay-leave-to {
-  opacity: 0;
-}
-
-.logistics-card-enter-active,
-.logistics-card-leave-active {
-  transition:
-    opacity 0.22s ease,
-    transform 0.22s ease;
-}
-
-.logistics-card-enter-from,
-.logistics-card-leave-to {
-  opacity: 0;
-  transform: translateY(10px) scale(0.98);
-}
-</style>

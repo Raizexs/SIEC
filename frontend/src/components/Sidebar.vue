@@ -4,11 +4,14 @@
  * Presets (top), saved layouts (bottom). Language/theme live in Settings.
  */
 
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted, onBeforeUnmount, nextTick, watch } from 'vue';
 import { useLayoutManager } from '../composables/useLayoutManager';
 import { useI18n } from '../composables/useI18n';
 import { generateLayoutThumbnail } from '../utils/thumbnailGenerator';
 import { formatFloorCountLabel } from '../utils/floorLabels';
+import { bindCardHover } from '../composables/useMotionContext';
+import { prefersReducedMotion, getMotionProfile } from '../design/motionTokens';
+import gsap from 'gsap';
 import {
   ChevronLeft,
   ChevronRight,
@@ -31,10 +34,189 @@ const emit = defineEmits([
 ]);
 
 const collapsed = ref(false);
+const isSidebarAnimating = ref(false);
+const sidebarRootRef = ref(null);
+const sidebarInnerRef = ref(null);
+const expandTabRef = ref(null);
+let unbindSidebarHover = null;
+
+const SIDEBAR_WIDTH = 224;
+
+const setCollapsedState = (value) => {
+  collapsed.value = value;
+  emit('collapse-change', value);
+};
+
+const animateExpandTabIn = () => {
+  const tab = expandTabRef.value;
+  if (!tab || prefersReducedMotion()) return;
+
+  const profile = getMotionProfile();
+  gsap.killTweensOf(tab);
+  gsap.fromTo(
+    tab,
+    { autoAlpha: 0, x: -8, scale: 0.94 },
+    {
+      autoAlpha: 1,
+      x: 0,
+      scale: 1,
+      duration: profile.duration.fast,
+      ease: profile.ease.entrance,
+      clearProps: 'transform,opacity,visibility',
+    },
+  );
+};
+
+const animateCollapse = () => {
+  const el = sidebarRootRef.value;
+  const inner = sidebarInnerRef.value;
+  if (!el) return;
+
+  if (prefersReducedMotion()) {
+    setCollapsedState(true);
+    return;
+  }
+
+  isSidebarAnimating.value = true;
+  unbindSidebarHover?.();
+
+  const profile = getMotionProfile();
+  const duration = Math.min(0.3, profile.duration.base * 0.88);
+
+  gsap.killTweensOf([el, inner]);
+  gsap
+    .timeline({
+      onComplete: () => {
+        gsap.set(el, { pointerEvents: 'none' });
+        setCollapsedState(true);
+        isSidebarAnimating.value = false;
+        nextTick(() => animateExpandTabIn());
+      },
+    })
+    .to(
+      inner,
+      {
+        autoAlpha: 0,
+        x: -10,
+        duration: duration * 0.72,
+        ease: profile.ease.standardOut,
+      },
+      0,
+    )
+    .to(
+      el,
+      {
+        width: 0,
+        opacity: 0.35,
+        x: -8,
+        duration,
+        ease: profile.ease.standardOut,
+      },
+      0,
+    );
+};
+
+const animateExpand = () => {
+  const el = sidebarRootRef.value;
+  const inner = sidebarInnerRef.value;
+  if (!el) return;
+
+  if (prefersReducedMotion()) {
+    setCollapsedState(false);
+    refreshSidebarHover();
+    return;
+  }
+
+  isSidebarAnimating.value = true;
+  setCollapsedState(false);
+
+  nextTick(() => {
+    const profile = getMotionProfile();
+    const duration = Math.min(0.34, profile.duration.base * 0.95);
+
+    gsap.killTweensOf([el, inner]);
+    gsap.set(el, {
+      width: 0,
+      opacity: 0.35,
+      x: -8,
+      pointerEvents: 'none',
+    });
+    gsap.set(inner, { autoAlpha: 0, x: -10 });
+
+    gsap
+      .timeline({
+        onComplete: () => {
+          gsap.set(el, { clearProps: 'width,opacity,transform,pointerEvents' });
+          gsap.set(inner, { clearProps: 'opacity,transform,visibility' });
+          isSidebarAnimating.value = false;
+          refreshSidebarHover();
+        },
+      })
+      .to(
+        el,
+        {
+          width: SIDEBAR_WIDTH,
+          opacity: 1,
+          x: 0,
+          duration,
+          ease: profile.ease.entrance,
+        },
+        0,
+      )
+      .to(
+        inner,
+        {
+          autoAlpha: 1,
+          x: 0,
+          duration: duration * 0.88,
+          ease: profile.ease.entrance,
+        },
+        duration * 0.12,
+      );
+  });
+};
+
+const bindSidebarHover = async () => {
+  unbindSidebarHover?.();
+  await nextTick();
+  const root = sidebarRootRef.value;
+  if (!root || prefersReducedMotion()) return;
+
+  const hoverOpts = { iconSelector: 'svg' };
+  const cleanups = [
+    bindCardHover(root.querySelectorAll('[data-motion="card"]'), { lift: -5, ...hoverOpts }),
+    bindCardHover(root.querySelectorAll('[data-motion="item"]'), { lift: -4, ...hoverOpts }),
+  ];
+  unbindSidebarHover = () => cleanups.forEach((fn) => fn());
+};
+
+const refreshSidebarHover = () => {
+  void bindSidebarHover();
+};
+
+onMounted(() => {
+  refreshSidebarHover();
+  window.addEventListener('siec:motion-preference', refreshSidebarHover);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('siec:motion-preference', refreshSidebarHover);
+  unbindSidebarHover?.();
+  gsap.killTweensOf([sidebarRootRef.value, sidebarInnerRef.value, expandTabRef.value]);
+});
+
+watch(
+  () => savedLayouts.value.length,
+  () => refreshSidebarHover(),
+);
 
 const toggleCollapse = () => {
-  collapsed.value = !collapsed.value;
-  emit('collapse-change', collapsed.value);
+  if (isSidebarAnimating.value) return;
+  if (collapsed.value) {
+    animateExpand();
+    return;
+  }
+  animateCollapse();
 };
 
 const formatDate = (value) => {
@@ -89,8 +271,9 @@ const deleteSavedLayout = (id) => {
   <Teleport to="body">
     <button
       v-if="collapsed"
+      ref="expandTabRef"
       type="button"
-      class="fixed left-16 top-[4.75rem] z-50 flex h-9 w-6 items-center justify-center rounded-r-lg border border-l-0 border-slate-200 bg-white/95 text-slate-600 shadow-md backdrop-blur-xl transition-all hover:border-slate-300 hover:text-slate-950 active:scale-95 dark:border-slate-800 dark:bg-slate-950/95 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:text-slate-100"
+      class="fixed left-16 top-[4.75rem] z-50 flex h-9 w-6 items-center justify-center rounded-r-lg border border-l-0 border-slate-200 bg-white/95 text-slate-600 shadow-md backdrop-blur-xl transition-colors hover:border-slate-300 hover:text-slate-950 dark:border-slate-800 dark:bg-slate-950/95 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:text-slate-100"
       :title="t('expandPanel')"
       :aria-label="t('expandPanel')"
       @click="toggleCollapse"
@@ -100,9 +283,13 @@ const deleteSavedLayout = (id) => {
   </Teleport>
 
   <aside
-    class="sticky top-0 z-30 flex h-screen shrink-0 flex-col overflow-hidden border-r border-slate-200/80 bg-white/90 shadow-sm shadow-slate-950/[0.03] backdrop-blur-xl transition-[width,opacity] duration-300 dark:border-slate-800/80 dark:bg-slate-950/90 dark:shadow-black/20"
-    :class="collapsed ? 'w-0 border-r-0 opacity-0 pointer-events-none' : 'w-56 opacity-100'"
+    ref="sidebarRootRef"
+    class="sticky top-0 z-30 flex h-screen w-56 shrink-0 flex-col overflow-hidden border-r border-slate-200/80 bg-white/90 shadow-sm shadow-slate-950/[0.03] backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-950/90 dark:shadow-black/20"
+    :class="{
+      'pointer-events-none border-r-0': collapsed,
+    }"
   >
+    <div ref="sidebarInnerRef" class="flex min-h-0 flex-1 flex-col">
     <div class="siec-accent-bar shrink-0" aria-hidden="true" />
 
     <header class="shrink-0 border-b border-slate-200/70 px-3.5 pb-3 pt-3.5 dark:border-slate-800/70">
@@ -147,6 +334,7 @@ const deleteSavedLayout = (id) => {
             v-for="card in presetCards"
             :key="card.preset.id"
             type="button"
+            data-motion="card"
             class="group w-full overflow-hidden rounded-xl border border-slate-200/90 bg-white/80 text-left transition hover:border-orange-200 hover:shadow-sm dark:border-slate-800 dark:bg-slate-900/50 dark:hover:border-orange-900/50"
             @click="applyPreset(card.preset)"
           >
@@ -154,7 +342,8 @@ const deleteSavedLayout = (id) => {
               <img
                 :src="card.thumbnail"
                 :alt="card.label"
-                class="h-full w-full object-cover transition group-hover:scale-[1.02]"
+                draggable="false"
+                class="pointer-events-none h-full w-full object-cover transition group-hover:scale-[1.02]"
               />
               <span
                 class="absolute bottom-1.5 right-1.5 rounded-md bg-black/55 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white"
@@ -209,6 +398,7 @@ const deleteSavedLayout = (id) => {
           <article
             v-for="layout in savedLayouts"
             :key="layout.id"
+            data-motion="item"
             class="group rounded-xl border border-slate-200/90 bg-white/80 p-2 transition hover:border-orange-200 hover:shadow-sm dark:border-slate-800 dark:bg-slate-900/50 dark:hover:border-orange-900/50"
           >
             <div class="flex items-start justify-between gap-1.5">
@@ -263,5 +453,6 @@ const deleteSavedLayout = (id) => {
         {{ t('newEstimate') }}
       </button>
     </footer>
+    </div>
   </aside>
 </template>

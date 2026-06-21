@@ -99,7 +99,7 @@ const StateIcon = computed(() => stateMeta.value.icon);
 </script>
 
 <template>
-  <section class="col-span-12 animate-fade-in lg:col-span-5">
+  <section data-motion="card" class="col-span-12 lg:col-span-5">
     <div class="sticky top-24 space-y-4">
       <header
         class="rounded-3xl border border-slate-200/90 bg-white/85 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30"

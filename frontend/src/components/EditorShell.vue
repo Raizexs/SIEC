@@ -50,6 +50,19 @@ import { compressPreviewCollage } from '../utils/imageCompress.js';
 import { storeProjectPreview } from '../utils/projectPreview.js';
 import { useAuthStore } from '../stores/auth';
 import { useProMotion } from '../composables/useProMotion';
+import { useMotionPreferenceSync } from '../composables/useMotionPreferenceSync';
+import {
+  WORKSPACE_STEP_REVEAL,
+  WORKSPACE_STEP_SWAP,
+  setMotionFinalState,
+  bindCardHover,
+  bindEditorToolHover,
+  filterMotionTargets,
+  introMotionReveal,
+  runStepSwap,
+} from '../composables/useMotionContext';
+import gsap from 'gsap';
+import { prefersReducedMotion, waitForRouteEnter, waitForNextFrame } from '../design/motionTokens';
 import { GraduationCap, BookOpen } from 'lucide-vue-next';
 import {
   useProductPreferences,
@@ -124,8 +137,189 @@ const editorGridClass = computed(() =>
 
 const sidebarCollapsed = ref(false);
 const motionRoot = ref(null);
+const stepContentRef = ref(null);
+const workspaceFooterRef = ref(null);
+const displayedStep = ref('configure');
+const stepSwapPair = ref(null);
+let stepTransitionSeq = 0;
+let stepRevealReady = false;
+let stepTransitioning = false;
+let unbindStepHover = null;
+let unbindChromeHover = null;
 
-useProMotion(motionRoot, { skipIntro: true });
+useProMotion(motionRoot, {
+  delayUntilRoute: true,
+  revealOptions: { levels: ['section'] },
+});
+useMotionPreferenceSync(motionRoot);
+useMotionPreferenceSync(stepContentRef);
+
+const findStepPanel = (stepId) => {
+  if (!stepContentRef.value || !stepId) return null;
+  return stepContentRef.value.querySelector(`[data-workspace-step="${stepId}"]`);
+};
+
+const isStepPanelVisible = (stepId) => {
+  if (stepSwapPair.value) {
+    return stepSwapPair.value.from === stepId || stepSwapPair.value.to === stepId;
+  }
+  if (forceDesignForCapture.value && stepId === 'design') return true;
+  return displayedStep.value === stepId;
+};
+
+const showConfigurePanel = computed(() => isStepPanelVisible('configure'));
+const showDesignPanel = computed(() => isStepPanelVisible('design'));
+const showBudgetPanel = computed(() => isStepPanelVisible('budget'));
+const showExportPanel = computed(() => isStepPanelVisible('export'));
+
+const bindStepPanelHover = () => {
+  unbindStepHover?.();
+  const active = findStepPanel(displayedStep.value);
+  const motionRoot = stepContentRef.value;
+  if (!active || !motionRoot) return;
+
+  const scoped = (selector) =>
+    filterMotionTargets(active.querySelectorAll(selector), motionRoot);
+
+  const hoverOpts = { iconSelector: 'svg' };
+  const cleanups = [
+    bindCardHover(scoped('[data-motion="section"]'), { lift: -5, ...hoverOpts }),
+    bindCardHover(scoped('[data-motion="card"]'), { lift: -6, ...hoverOpts }),
+    bindCardHover(scoped('[data-motion="item"]'), { lift: -4, ...hoverOpts }),
+  ];
+  if (displayedStep.value === 'design') {
+    cleanups.push(bindEditorToolHover(active));
+  }
+  unbindStepHover = () => cleanups.forEach((fn) => fn());
+};
+
+const bindWorkspaceChromeHover = () => {
+  unbindChromeHover?.();
+  const root = motionRoot.value;
+  if (!root || prefersReducedMotion()) return;
+
+  const hoverOpts = { iconSelector: 'svg' };
+  const cleanups = [
+    bindCardHover(root.querySelectorAll('[data-motion-hover="step"]'), {
+      lift: -4,
+      ...hoverOpts,
+    }),
+    bindCardHover(root.querySelectorAll('[data-motion-hover="action"]'), {
+      lift: -5,
+      ...hoverOpts,
+    }),
+    bindCardHover(root.querySelectorAll('[data-motion-hover="flow-guide"]'), {
+      lift: -3,
+      ...hoverOpts,
+    }),
+    bindCardHover(root.querySelectorAll('[data-workspace-nav]'), { lift: -3 }),
+  ];
+  unbindChromeHover = () => cleanups.forEach((fn) => fn());
+};
+
+const refreshDesignPanels = () => {
+  window.dispatchEvent(new CustomEvent('siec:design-panel-visible'));
+};
+
+const animateWorkspaceFooter = () => {
+  const footer = workspaceFooterRef.value;
+  if (!footer || prefersReducedMotion()) return;
+  gsap.killTweensOf(footer);
+  gsap.fromTo(
+    footer,
+    { autoAlpha: 0.35, y: 10 },
+    {
+      autoAlpha: 1,
+      y: 0,
+      duration: 0.38,
+      ease: 'power3.out',
+      clearProps: 'transform,opacity,visibility',
+    },
+  );
+};
+
+const revealInitialStep = async () => {
+  await nextTick();
+  await waitForNextFrame();
+
+  const active = findStepPanel(displayedStep.value);
+  if (!active) return;
+
+  if (prefersReducedMotion()) {
+    setMotionFinalState(active.querySelectorAll('[data-motion]'));
+    bindStepPanelHover();
+    return;
+  }
+
+  introMotionReveal(active, {
+    ...WORKSPACE_STEP_REVEAL,
+    motionRoot: stepContentRef.value,
+  });
+  bindStepPanelHover();
+};
+
+const transitionWorkspaceStep = async (fromStep, toStep) => {
+  if (!fromStep || fromStep === toStep) {
+    displayedStep.value = toStep;
+    bindStepPanelHover();
+    return;
+  }
+
+  const seq = ++stepTransitionSeq;
+  stepTransitioning = true;
+
+  try {
+    if (prefersReducedMotion() || forceDesignForCapture.value) {
+      displayedStep.value = toStep;
+      await nextTick();
+      if (toStep === 'design') refreshDesignPanels();
+      bindStepPanelHover();
+      return;
+    }
+
+    const outEl = findStepPanel(fromStep);
+    const inEl = findStepPanel(toStep);
+    if (!outEl || !inEl) {
+      displayedStep.value = toStep;
+      await nextTick();
+      if (toStep === 'design') refreshDesignPanels();
+      bindStepPanelHover();
+      return;
+    }
+
+    stepSwapPair.value = { from: fromStep, to: toStep };
+    await nextTick();
+    if (toStep === 'design') refreshDesignPanels();
+
+    await runStepSwap(outEl, inEl, {
+      ...WORKSPACE_STEP_SWAP,
+      container: stepContentRef.value,
+      onSettled: () => {
+        if (seq !== stepTransitionSeq) return;
+        stepSwapPair.value = null;
+        displayedStep.value = toStep;
+      },
+    });
+
+    if (seq !== stepTransitionSeq) return;
+
+    await nextTick();
+    const settled = findStepPanel(toStep);
+    if (settled) {
+      gsap.set(settled, { clearProps: 'all' });
+      setMotionFinalState(settled);
+    }
+    if (toStep === 'design') refreshDesignPanels();
+    animateWorkspaceFooter();
+    bindStepPanelHover();
+    bindWorkspaceChromeHover();
+  } finally {
+    stepTransitioning = false;
+    if (seq === stepTransitionSeq) {
+      stepSwapPair.value = null;
+    }
+  }
+};
 
 const showManual = ref(false);
 const showLey21725Modal = ref(false);
@@ -178,7 +372,6 @@ const {
   goToStep,
   nextStep,
   prevStep,
-  showConfigure,
   showDesignStep,
   showBudgetStep,
   showMetricsBar,
@@ -191,9 +384,23 @@ const {
   selectedM2,
 });
 
-const showDesignStepForCapture = computed(
-  () => showDesignStep.value || forceDesignForCapture.value,
-);
+const onDismissFlowGuide = () => {
+  dismissFlowGuide();
+  nextTick(() => bindWorkspaceChromeHover());
+};
+
+watch(currentStep, async (next) => {
+  if (!stepRevealReady) {
+    displayedStep.value = next;
+    return;
+  }
+  const from = displayedStep.value;
+  if (from === next) return;
+  if (stepTransitioning) {
+    stepTransitionSeq += 1;
+  }
+  await transitionWorkspaceStep(from, next);
+});
 
 const appKey = computed(() => `app-${currentLanguage.value}`);
 
@@ -426,6 +633,15 @@ const bootstrapWorkspace = async () => {
   await nextTick();
 };
 
+const onMotionPreference = () => {
+  bindStepPanelHover();
+  bindWorkspaceChromeHover();
+};
+
+const onDesignPanelVisible = () => {
+  nextTick(() => bindStepPanelHover());
+};
+
 onMounted(async () => {
   await fetchBilling();
   await bootstrapWorkspace();
@@ -433,6 +649,8 @@ onMounted(async () => {
 
   window.addEventListener('siec:export', onSiecExport);
   window.addEventListener('siec:save-version', onSaveVersionEvent);
+  window.addEventListener('siec:motion-preference', onMotionPreference);
+  window.addEventListener('siec:design-panel-visible', onDesignPanelVisible);
 
   await nextTick();
   const stepQuery = route.query.step;
@@ -442,9 +660,19 @@ onMounted(async () => {
   if (route.query.tour === '1') {
     setTimeout(() => startTutorial(), 600);
   }
+
+  await waitForRouteEnter();
+  displayedStep.value = currentStep.value;
+  await revealInitialStep();
+  stepRevealReady = true;
+  bindWorkspaceChromeHover();
 });
 
 onUnmounted(() => {
+  unbindStepHover?.();
+  unbindChromeHover?.();
+  window.removeEventListener('siec:motion-preference', onMotionPreference);
+  window.removeEventListener('siec:design-panel-visible', onDesignPanelVisible);
   window.removeEventListener('siec:save-version', onSaveVersionEvent);
   window.removeEventListener('siec:export', onSiecExport);
 });
@@ -982,16 +1210,18 @@ const startTutorial = () => {
             <div class="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                class="inline-flex items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-600 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-300 hover:text-orange-700 hover:shadow-md active:scale-[0.98] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:border-orange-900/70 dark:hover:text-orange-300"
+                data-motion-hover="action"
+                class="siec-tutorial-trigger inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-600 shadow-sm transition-colors duration-200 hover:border-orange-300 hover:text-orange-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:border-orange-900/70 dark:hover:text-orange-300"
                 @click="startTutorial"
               >
-                <GraduationCap class="h-3.5 w-3.5" :stroke-width="2.2" />
+                <GraduationCap class="pointer-events-none h-3.5 w-3.5 shrink-0" :stroke-width="2.2" />
                 {{ t('tutorial') }}
               </button>
 
               <button
                 type="button"
-                class="inline-flex items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-600 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:text-slate-950 hover:shadow-md active:scale-[0.98] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:text-slate-100"
+                data-motion-hover="action"
+                class="inline-flex items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-600 shadow-sm transition-colors duration-200 hover:border-slate-300 hover:text-slate-950 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:text-slate-100"
                 @click="showManual = true"
               >
                 <BookOpen class="h-3.5 w-3.5" :stroke-width="2.2" />
@@ -1000,6 +1230,7 @@ const startTutorial = () => {
             </div>
           </section>
 
+          <div data-no-motion class="workspace-chrome">
           <WorkspaceStepper
             :steps="WORKSPACE_STEPS"
             :current-step="currentStep"
@@ -1010,7 +1241,7 @@ const startTutorial = () => {
           <FlowGuide
             :current-step="currentStep"
             :dismissed="isFlowGuideDismissed()"
-            @dismiss="dismissFlowGuide"
+            @dismiss="onDismissFlowGuide"
           />
 
           <div
@@ -1032,10 +1263,12 @@ const startTutorial = () => {
               :area-recintos="totalAreaOcupada"
             />
           </div>
+          </div>
 
           <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
             <button
               type="button"
+              data-workspace-nav
               class="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-900"
               :disabled="currentStep === 'configure'"
               @click="prevStep"
@@ -1044,6 +1277,7 @@ const startTutorial = () => {
             </button>
             <button
               type="button"
+              data-workspace-nav
               class="rounded-xl bg-orange-500 px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-orange-600 disabled:opacity-40"
               :disabled="currentStep === 'budget'"
               @click="nextStep"
@@ -1052,7 +1286,16 @@ const startTutorial = () => {
             </button>
           </div>
 
-          <section v-show="showConfigure" data-motion="section">
+          <div
+            ref="stepContentRef"
+            data-no-motion
+            class="step-content-stack relative space-y-4"
+          >
+          <section
+            v-show="showConfigurePanel"
+            data-workspace-step="configure"
+            class="workspace-step-panel"
+          >
             <ConfigurationPanel
               class="tour-config-panel"
               :formData="formData"
@@ -1069,7 +1312,11 @@ const startTutorial = () => {
             />
           </section>
 
-          <section v-show="showDesignStepForCapture" class="space-y-4" data-motion="section">
+          <section
+            v-show="showDesignPanel"
+            data-workspace-step="design"
+            class="workspace-step-panel space-y-4"
+          >
             <div
               v-if="!isFlowGuideDismissed"
               class="rounded-2xl border border-blue-200 bg-blue-50/80 px-4 py-3 text-sm text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200"
@@ -1081,7 +1328,7 @@ const startTutorial = () => {
               <RoomEditor2D
                 v-show="showEditor2dPanel"
                 class="tour-editor-2d min-h-[420px] xl:min-h-[520px]"
-                :editor-visible="showDesignStep && showEditor2dPanel"
+                :editor-visible="showDesignPanel && showEditor2dPanel"
                 :m2-totales="terrainM2FromDimensions"
                 v-model:terrenoAncho="formData.terrenoAncho"
                 v-model:terrenoLargo="formData.terrenoLargo"
@@ -1112,7 +1359,7 @@ const startTutorial = () => {
             <div
               v-if="recintosStore.selectedM2 > 0"
               class="flex flex-col gap-4 rounded-2xl border border-emerald-200/90 bg-emerald-50/85 px-4 py-4 shadow-sm dark:border-emerald-900/55 dark:bg-emerald-950/30 sm:flex-row sm:items-center sm:justify-between"
-              data-motion="section"
+              data-motion="card"
             >
               <div class="flex min-w-0 items-start gap-3">
                 <div
@@ -1145,7 +1392,11 @@ const startTutorial = () => {
             </div>
           </section>
 
-          <section v-show="showBudgetStep" class="tour-budget-step space-y-4" data-motion="section">
+          <section
+            v-show="showBudgetPanel"
+            data-workspace-step="budget"
+            class="workspace-step-panel tour-budget-step space-y-4"
+          >
             <BudgetBreakdownPanel
               v-if="recintosStore.selectedM2 > 0"
               panel-mode="budget"
@@ -1160,6 +1411,7 @@ const startTutorial = () => {
             />
             <div
               v-else
+              data-motion="card"
               class="flex flex-col items-center justify-center rounded-3xl border border-dashed border-emerald-300/80 bg-emerald-50/50 px-6 py-14 text-center dark:border-emerald-800/80 dark:bg-emerald-950/20"
             >
               <div
@@ -1184,7 +1436,11 @@ const startTutorial = () => {
             </div>
           </section>
 
-          <section v-show="showExportStep" class="tour-export-step space-y-4" data-motion="section">
+          <section
+            v-show="showExportPanel"
+            data-workspace-step="export"
+            class="workspace-step-panel tour-export-step space-y-4"
+          >
             <BudgetBreakdownPanel
               v-if="recintosStore.selectedM2 > 0 && hasBudget"
               panel-mode="export"
@@ -1198,6 +1454,7 @@ const startTutorial = () => {
             />
             <div
               v-else
+              data-motion="card"
               class="flex flex-col items-center justify-center rounded-3xl border border-dashed border-violet-300/80 bg-violet-50/50 px-6 py-14 text-center dark:border-violet-800/80 dark:bg-violet-950/20"
             >
               <div
@@ -1221,9 +1478,11 @@ const startTutorial = () => {
               </button>
             </div>
           </section>
+          </div>
 
           <footer
-            class="mt-8 flex flex-col gap-2 border-t border-slate-200/80 py-6 dark:border-slate-800/80 sm:flex-row sm:items-center sm:justify-between"
+            ref="workspaceFooterRef"
+            class="mt-8 shrink-0 flex flex-col gap-2 border-t border-slate-200/80 py-6 dark:border-slate-800/80 sm:flex-row sm:items-center sm:justify-between"
           >
             <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
               {{ t('footer') }}
@@ -1269,6 +1528,28 @@ const startTutorial = () => {
 </template>
 
 <style>
+.step-content-stack:not(.is-step-swapping) {
+  transition: min-height 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.step-content-stack.is-step-swapping {
+  position: relative;
+  overflow: hidden;
+}
+
+.step-content-stack.is-step-swapping > .workspace-step-panel {
+  margin: 0;
+  will-change: opacity, transform;
+}
+
+.step-content-stack:not(.is-step-swapping) > .workspace-step-panel {
+  position: static !important;
+  width: auto !important;
+  inset: auto !important;
+  pointer-events: auto !important;
+  z-index: auto !important;
+}
+
 /* ─────────────────────────────────────────────
    SIEC Driver.js Premium Tutorial Theme
    ───────────────────────────────────────────── */
@@ -1284,11 +1565,11 @@ const startTutorial = () => {
   box-shadow:
     0 28px 90px rgba(15, 23, 42, 0.24),
     0 0 0 1px rgba(255, 255, 255, 0.72) inset !important;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+  font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
   padding: 0 !important;
   backdrop-filter: blur(18px) !important;
-  -webkit-user-select: text !important;
-  user-select: text !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
 }
 
 /* Top orange accent */
@@ -1316,6 +1597,7 @@ const startTutorial = () => {
   font-weight: 900 !important;
   line-height: 1.2 !important;
   letter-spacing: -0.025em !important;
+  cursor: default !important;
 }
 
 .siec-driver-theme .driver-popover-title::before {
@@ -1339,6 +1621,7 @@ const startTutorial = () => {
   line-height: 1.65 !important;
   padding-bottom: 0.15rem !important;
   scrollbar-width: thin;
+  cursor: default !important;
 }
 
 .siec-driver-theme .driver-popover-footer {
@@ -1359,6 +1642,7 @@ const startTutorial = () => {
   font-weight: 900 !important;
   letter-spacing: 0.12em !important;
   text-transform: uppercase !important;
+  cursor: default !important;
 }
 
 .siec-driver-theme .driver-popover-navigation-btns {
@@ -1367,8 +1651,13 @@ const startTutorial = () => {
   gap: 0.5rem !important;
 }
 
-.siec-driver-theme .driver-popover-footer button {
+.siec-driver-theme button {
   cursor: pointer !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+
+.siec-driver-theme .driver-popover-footer button {
   min-height: 2.35rem !important;
   border: 1px solid #e2e8f0 !important;
   border-radius: 1rem !important;

@@ -78,7 +78,7 @@ const hexToRgba = (hex, alpha = 1) => {
 
 const drawEmptyState = (ctx, width, dark) => {
   ctx.fillStyle = dark ? '#94a3b8' : '#64748b';
-  ctx.font = `700 ${Math.max(8, Math.round(props.size * 0.1))}px Inter, system-ui, sans-serif`;
+  ctx.font = `700 ${Math.max(8, Math.round(props.size * 0.1))}px "Plus Jakarta Sans", system-ui, sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText('Sin recintos', width / 2, width / 2);
@@ -232,7 +232,7 @@ const draw = () => {
   ctx.fillStyle = textColor;
   const northX = width - padding - 2;
   const northY = padding + 4;
-  ctx.font = `900 ${Math.max(7, Math.round(props.size * 0.09))}px Inter, system-ui, sans-serif`;
+  ctx.font = `900 ${Math.max(7, Math.round(props.size * 0.09))}px "Plus Jakarta Sans", system-ui, sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText('N', northX, northY);

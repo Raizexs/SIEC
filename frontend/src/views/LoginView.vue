@@ -1,4 +1,6 @@
 <script setup>
+defineOptions({ name: 'LoginView' });
+
 import { ref, computed, onMounted, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
@@ -11,6 +13,7 @@ import {
   ArrowRight,
   AlertCircle,
   CheckCircle2,
+  Check,
   Loader2,
   Wand2,
   ShieldCheck,
@@ -24,12 +27,18 @@ import OAuthButtons from '../components/auth/OAuthButtons.vue';
 import PasswordStrength from '../components/auth/PasswordStrength.vue';
 import { gsap } from 'gsap';
 import { useProMotion } from '../composables/useProMotion';
-import { prefersReducedMotion, motionTokens } from '../design/motionTokens';
+import { useMotionPreferenceSync } from '../composables/useMotionPreferenceSync';
+import { usePrivacy } from '../composables/usePrivacy';
+import { prefersReducedMotion, getMotionProfile, getMotionTier } from '../design/motionTokens';
 import '../styles/auth-fields.css';
 
 const router = useRouter();
 const route = useRoute();
 const authStore = useAuthStore();
+const { fetchPolicy, grantRegistrationConsents } = usePrivacy();
+
+const acceptedLegal = ref(false);
+const policyVersion = ref('1.0');
 
 const mode = ref('login'); // login | register | magic | mfa | forgot
 const email = ref('');
@@ -69,8 +78,16 @@ const companyValid = computed(() => {
   return company.value.length <= MAX_COMPANY_CHARS;
 });
 
-useProMotion(motionRoot, {
-  skipIntro: true,
+useProMotion(motionRoot, { mode: 'auto' });
+useMotionPreferenceSync(motionRoot);
+
+onMounted(async () => {
+  try {
+    const policy = await fetchPolicy();
+    policyVersion.value = policy.version;
+  } catch {
+    policyVersion.value = '1.0';
+  }
 });
 
 const passwordStrong = computed(() => {
@@ -84,6 +101,17 @@ const passwordStrong = computed(() => {
   );
 });
 
+const toggleAcceptedLegal = () => {
+  acceptedLegal.value = !acceptedLegal.value;
+};
+
+const onLegalCheckboxKeydown = (event) => {
+  if (event.key === ' ' || event.key === 'Enter') {
+    event.preventDefault();
+    toggleAcceptedLegal();
+  }
+};
+
 const canSubmit = computed(() => {
   if (mode.value === 'login') {
     return emailValid.value && !!password.value && passwordValidLength.value;
@@ -94,7 +122,8 @@ const canSubmit = computed(() => {
       emailValid.value &&
       passwordStrong.value &&
       fullNameValid.value &&
-      companyValid.value
+      companyValid.value &&
+      acceptedLegal.value
     );
   }
 
@@ -164,16 +193,20 @@ const switchMode = async (nextMode) => {
     authFormRef.value,
   ].filter(Boolean);
 
+  const profile = getMotionProfile();
+  const tier = getMotionTier();
+  const blurPx = tier === 'premium' && profile.blur ? profile.blur.medium : 0;
+
   gsap.killTweensOf(targets);
 
   await new Promise((resolve) => {
     gsap.to(targets, {
       opacity: 0,
-      y: 8,
-      filter: 'blur(6px)',
-      duration: 0.16,
-      ease: 'power2.out',
-      stagger: 0.025,
+      y: profile.distance.xs,
+      filter: blurPx ? `blur(${blurPx}px)` : 'none',
+      duration: profile.duration.fast * 0.7,
+      ease: profile.ease.standardOut,
+      stagger: profile.stagger.tight,
       onComplete: resolve,
     });
   });
@@ -190,16 +223,16 @@ const switchMode = async (nextMode) => {
     nextTargets,
     {
       opacity: 0,
-      y: 10,
-      filter: 'blur(6px)',
+      y: profile.distance.sm,
+      filter: blurPx ? `blur(${blurPx}px)` : 'none',
     },
     {
       opacity: 1,
       y: 0,
       filter: 'blur(0px)',
-      duration: 0.26,
-      ease: 'power3.out',
-      stagger: 0.035,
+      duration: profile.duration.base,
+      ease: profile.ease.entrance,
+      stagger: profile.stagger.base,
       clearProps: 'opacity,transform,filter',
     },
   );
@@ -207,11 +240,11 @@ const switchMode = async (nextMode) => {
   if (authTabsRef.value) {
     gsap.fromTo(
       authTabsRef.value,
-      { scale: 0.995 },
+      { scale: tier === 'premium' ? 0.98 : 0.995 },
       {
         scale: 1,
-        duration: 0.22,
-        ease: 'power2.out',
+        duration: profile.duration.fast,
+        ease: profile.ease.standardOut,
         clearProps: 'transform',
       },
     );
@@ -226,6 +259,7 @@ const playSignInSuccessCue = () => {
   if (!card) return Promise.resolve();
 
   return new Promise((resolve) => {
+    const profile = getMotionProfile();
     gsap.killTweensOf(card);
     gsap.set(card, {
       transformOrigin: '50% 50%',
@@ -239,13 +273,13 @@ const playSignInSuccessCue = () => {
       scale: 1.03,
       boxShadow:
         '0 0 0 2px rgba(245, 158, 11, 0.55), 0 22px 50px rgba(15, 23, 42, 0.18)',
-      duration: motionTokens.duration.fast,
-      ease: 'power2.out',
+      duration: profile.duration.fast,
+      ease: profile.ease.standardOut,
     }).to(card, {
       scale: 1,
       boxShadow: '0 20px 60px rgba(15, 23, 42, 0.10)',
-      duration: motionTokens.duration.slow,
-      ease: 'elastic.out(1, 0.55)',
+      duration: profile.duration.slow,
+      ease: profile.micro.easeRelease,
     });
 
     tl.call(() => {
@@ -287,6 +321,12 @@ const handleSubmit = async () => {
   return;
   }
 
+  if (mode.value === 'register' && !acceptedLegal.value) {
+    localError.value = 'Debes aceptar la política de privacidad y los términos de servicio.';
+    isSubmitting.value = false;
+    return;
+  }
+
   try {
     if (mode.value === 'login') {
       const res = await authStore.login(email.value, password.value);
@@ -313,6 +353,11 @@ const handleSubmit = async () => {
           localMessage.value =
             'Te enviamos un correo de confirmación. Revisa tu bandeja de entrada.';
         } else {
+          try {
+            await grantRegistrationConsents(policyVersion.value);
+          } catch (consentErr) {
+            console.warn('[privacy] consent after signup', consentErr);
+          }
           await playSignInSuccessCue();
           router.push('/onboarding');
         }
@@ -631,6 +676,44 @@ onMounted(() => {
                   v-if="mode === 'register'"
                   :password="password"
                 />
+
+                <div
+                  v-if="mode === 'register'"
+                  class="auth-legal-consent mt-4 flex items-start gap-3"
+                >
+                  <button
+                    type="button"
+                    role="checkbox"
+                    :aria-checked="acceptedLegal"
+                    aria-label="Aceptar política de privacidad y términos de servicio"
+                    class="siec-premium-checkbox"
+                    @click="toggleAcceptedLegal"
+                    @keydown="onLegalCheckboxKeydown"
+                  >
+                    <Check
+                      v-show="acceptedLegal"
+                      class="h-3 w-3"
+                      :stroke-width="3"
+                      aria-hidden="true"
+                    />
+                  </button>
+                  <p class="auth-legal-consent-copy">
+                    Acepto la
+                    <router-link
+                      to="/legal/privacidad"
+                      class="auth-legal-consent-link"
+                    >
+                      política de privacidad
+                    </router-link>
+                    y los
+                    <router-link
+                      to="/legal/terminos"
+                      class="auth-legal-consent-link"
+                    >
+                      términos de servicio.
+                    </router-link>
+                  </p>
+                </div>
               </div>
 
               <!-- MFA -->
@@ -728,6 +811,14 @@ onMounted(() => {
         class="shrink-0 border-t border-slate-200/80 bg-white/70 px-8 py-3 text-center backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-950/70"
       >
         <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+          <router-link to="/legal/privacidad" class="text-slate-500 hover:text-orange-600 dark:text-slate-400">
+            Privacidad
+          </router-link>
+          ·
+          <router-link to="/legal/terminos" class="text-slate-500 hover:text-orange-600 dark:text-slate-400">
+            Términos
+          </router-link>
+          ·
           <span class="text-slate-500 dark:text-slate-400">
             Hecho con propósito en Chile
           </span>

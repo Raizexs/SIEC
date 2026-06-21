@@ -10,12 +10,13 @@
  * - Bloqueo de renders comunicado como estado operativo.
  */
 
-import { computed } from 'vue';
+import { computed, ref, toRef } from 'vue';
 import {
   METALCON_MAX_PISOS,
   METALCON_MATERIAL_ID,
   CODIGO_EXCEPCION_METALCON,
 } from '../composables/useMetalconValidator';
+import { useMotionModal } from '../composables/useMotionModal';
 
 const props = defineProps({
   show: {
@@ -30,6 +31,11 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['close']);
+
+const backdropRef = ref(null);
+const panelRef = ref(null);
+
+useMotionModal(toRef(props, 'show'), { backdropRef, panelRef, emphasis: true });
 
 const pisosDetectados = computed(() => props.excepcion?.pisos_detectados ?? '?');
 
@@ -93,21 +99,20 @@ const estadoAltura = computed(() => {
 
 <template>
   <Teleport to="body">
-    <Transition name="metalcon-overlay">
-      <div
-        v-if="props.show"
-        class="fixed inset-0 z-[300] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-md dark:bg-black/70"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="metalcon-modal-title"
-        aria-describedby="metalcon-modal-desc"
-        data-testid="metalcon-alert-modal"
+    <div
+      v-if="props.show"
+      ref="backdropRef"
+      class="fixed inset-0 z-[300] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-md dark:bg-black/70"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="metalcon-modal-title"
+      aria-describedby="metalcon-modal-desc"
+      data-testid="metalcon-alert-modal"
+    >
+      <section
+        ref="panelRef"
+        class="w-full max-w-2xl overflow-hidden rounded-3xl border border-red-200/90 bg-white/95 shadow-2xl shadow-slate-950/25 backdrop-blur-xl dark:border-red-900/70 dark:bg-slate-950/95 dark:shadow-black/45"
       >
-        <!-- Bloqueante: no se cierra haciendo clic fuera -->
-        <Transition name="metalcon-card" appear>
-          <section
-            class="w-full max-w-2xl overflow-hidden rounded-3xl border border-red-200/90 bg-white/95 shadow-2xl shadow-slate-950/25 backdrop-blur-xl dark:border-red-900/70 dark:bg-slate-950/95 dark:shadow-black/45"
-          >
             <!-- Top severity line -->
             <div class="h-1 w-full bg-gradient-to-r from-red-500 via-orange-500 to-slate-900 dark:to-orange-300"></div>
 
@@ -380,33 +385,6 @@ const estadoAltura = computed(() => {
               </button>
             </footer>
           </section>
-        </Transition>
-      </div>
-    </Transition>
+    </div>
   </Teleport>
 </template>
-
-<style scoped>
-.metalcon-overlay-enter-active,
-.metalcon-overlay-leave-active {
-  transition: opacity 0.2s ease;
-}
-
-.metalcon-overlay-enter-from,
-.metalcon-overlay-leave-to {
-  opacity: 0;
-}
-
-.metalcon-card-enter-active,
-.metalcon-card-leave-active {
-  transition:
-    opacity 0.22s ease,
-    transform 0.22s ease;
-}
-
-.metalcon-card-enter-from,
-.metalcon-card-leave-to {
-  opacity: 0;
-  transform: translateY(10px) scale(0.98);
-}
-</style>

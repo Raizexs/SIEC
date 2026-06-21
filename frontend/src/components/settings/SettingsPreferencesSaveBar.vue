@@ -39,6 +39,7 @@ const handleDiscard = () => {
 
 <template>
   <div
+    data-motion="section"
     class="flex flex-col gap-3 rounded-3xl border p-5 shadow-xl backdrop-blur-xl transition-colors duration-200"
     :class="
       isDirty

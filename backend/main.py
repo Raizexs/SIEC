@@ -181,13 +181,6 @@ try:
 except Exception as exc:  # pragma: no cover
     log.error("router_mount_failed", router="projects", error=str(exc))
 
-# Mount Phase 5 routers (AI assistant + price intelligence)
-try:
-    from routers.ai import router as ai_router
-    app.include_router(ai_router)
-except Exception as exc:  # pragma: no cover
-    log.error("router_mount_failed", router="ai", error=str(exc))
-
 # Mount Phase 7 routers (marketplace of presets)
 try:
     from routers.marketplace import router as marketplace_router
@@ -213,6 +206,18 @@ try:
     app.include_router(siecplace_router)
 except Exception as exc:  # pragma: no cover
     log.error("router_mount_failed", router="siecplace", error=str(exc))
+
+try:
+    from routers.privacy import router as privacy_router
+    app.include_router(privacy_router)
+except Exception as exc:  # pragma: no cover
+    log.error("router_mount_failed", router="privacy", error=str(exc))
+
+try:
+    from routers.account import router as account_router
+    app.include_router(account_router)
+except Exception as exc:  # pragma: no cover
+    log.error("router_mount_failed", router="account", error=str(exc))
 
 # PDF vectorial (Playwright / Chromium print)
 try:
@@ -267,6 +272,53 @@ def startup_event():
             db.close()
     except Exception as exc:
         log.error("startup_seed_failed", error=str(exc))
+
+    try:
+        db = SessionLocal()
+        try:
+            if db.query(models.PrivacyPolicyVersion).count() == 0:
+                db.add(
+                    models.PrivacyPolicyVersion(
+                        id="2026-06-16",
+                        version="2.0",
+                        url_path="/legal/privacidad",
+                        summary="Política de privacidad SIEC v2.0 — Ley 21.719, lanzamiento público",
+                    )
+                )
+                db.commit()
+            elif (
+                db.query(models.PrivacyPolicyVersion)
+                .filter(models.PrivacyPolicyVersion.version == "2.0")
+                .count()
+                == 0
+            ):
+                db.add(
+                    models.PrivacyPolicyVersion(
+                        id="2026-06-16",
+                        version="2.0",
+                        url_path="/legal/privacidad",
+                        summary="Política de privacidad SIEC v2.0 — Ley 21.719, lanzamiento público",
+                    )
+                )
+                db.commit()
+        finally:
+            db.close()
+    except Exception as exc:
+        log.warning("privacy_policy_seed_skipped", error=str(exc))
+
+    try:
+        db = SessionLocal()
+        try:
+            from sqlalchemy import text as sql_text
+            purged = db.execute(sql_text("SELECT purge_old_auditoria()")).scalar()
+            pruned = db.execute(sql_text("SELECT prune_old_proyecto_versions()")).scalar()
+            db.commit()
+            if purged or pruned:
+                log.info("data_retention_run", purged_auditoria=purged, pruned_versions=pruned)
+        finally:
+            db.close()
+    except Exception as exc:
+        log.warning("data_retention_skipped", error=str(exc))
 
 # Materiales permitidos según requerimientos
 ALLOWED_MATERIALS = ["Madera", "Metalcom", "Albañilería", "Hormigón Armado", "Híbrido"]

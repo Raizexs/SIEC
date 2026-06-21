@@ -1,0 +1,49 @@
+/**
+ * Overrides Driver.js — cargar DESPUÉS de driver.css (useWorkspaceTour.js).
+ * Evita cursor I-beam en botón cerrar (×) e iconos del tutorial.
+ */
+
+.driver-popover.siec-driver-theme,
+.driver-popover.siec-driver-theme *:not(button):not(a) {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+
+.driver-popover.siec-driver-theme .driver-popover-title,
+.driver-popover.siec-driver-theme .driver-popover-description,
+.driver-popover.siec-driver-theme .driver-popover-progress-text {
+  cursor: default !important;
+}
+
+.driver-popover.siec-driver-theme button,
+.driver-popover.siec-driver-theme .driver-popover-close-btn {
+  cursor: pointer !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+
+.driver-popover.siec-driver-theme .driver-popover-close-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.driver-popover.siec-driver-theme .driver-popover-close-btn svg,
+.driver-popover.siec-driver-theme .driver-popover-close-btn svg * {
+  pointer-events: none !important;
+  cursor: pointer !important;
+}
+
+/* Botón Tutorial del workspace — la gorra (SVG) no debe capturar el cursor */
+.siec-tutorial-trigger,
+.siec-tutorial-trigger svg,
+.siec-tutorial-trigger svg * {
+  cursor: pointer !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+
+.siec-tutorial-trigger svg,
+.siec-tutorial-trigger svg * {
+  pointer-events: none !important;
+}

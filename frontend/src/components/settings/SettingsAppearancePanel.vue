@@ -1,13 +1,32 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, nextTick } from 'vue';
 import { useI18n } from '../../composables/useI18n';
 import { useTheme } from '../../composables/useTheme';
+import { getMotionTier, prefersReducedMotion } from '../../design/motionTokens';
+import { introMotionReveal, SETTINGS_PANEL_REVEAL } from '../../composables/useMotionContext';
 import { Sun, Moon, Languages, ChevronDown } from 'lucide-vue-next';
 
 const { t, currentLanguage, setLanguage } = useI18n();
 const theme = useTheme();
 
 const open = ref(true);
+const panelRef = ref(null);
+
+const motionEnabled = () => !prefersReducedMotion() && getMotionTier() !== 'off';
+
+const refreshPanelHover = () => {
+  window.dispatchEvent(new CustomEvent('siec:settings-hover-refresh'));
+};
+
+const toggleOpen = async () => {
+  open.value = !open.value;
+  await nextTick();
+  if (!open.value || !panelRef.value) return;
+  if (motionEnabled()) {
+    introMotionReveal(panelRef.value, SETTINGS_PANEL_REVEAL);
+  }
+  refreshPanelHover();
+};
 
 const themeLabel = computed(() =>
   theme.isDark.value ? t('themeDark') : t('themeLight'),
@@ -37,13 +56,14 @@ const cycleTheme = () => {
 
 <template>
   <section
+    data-motion="section"
     class="overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30"
   >
     <button
       type="button"
       class="flex w-full items-center gap-4 border-b border-slate-200/80 bg-slate-50/80 px-5 py-4 text-left transition-colors hover:bg-slate-100/70 dark:border-slate-800/80 dark:bg-slate-900/60 dark:hover:bg-slate-900/85"
       :aria-expanded="open"
-      @click="open = !open"
+      @click="toggleOpen"
     >
       <div
         class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-sky-200 bg-sky-50 text-sky-600 shadow-sm dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-300"
@@ -74,8 +94,11 @@ const cycleTheme = () => {
     </button>
 
     <Transition name="pref-accordion">
-      <div v-show="open" class="grid gap-3 p-5 sm:grid-cols-2">
-        <div class="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-900/50">
+      <div v-show="open" ref="panelRef" class="grid gap-3 p-5 sm:grid-cols-2">
+        <div
+          data-motion="item"
+          class="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-900/50"
+        >
           <p class="text-xs font-bold text-slate-700 dark:text-slate-200">
             {{ t('settingsLanguageLabel') }}
           </p>
@@ -89,7 +112,10 @@ const cycleTheme = () => {
           </button>
         </div>
 
-        <div class="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-900/50">
+        <div
+          data-motion="item"
+          class="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-900/50"
+        >
           <p class="text-xs font-bold text-slate-700 dark:text-slate-200">
             {{ t('settingsThemeLabel') }}
           </p>

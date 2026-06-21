@@ -112,7 +112,17 @@ class CommentResponse(BaseModel):
 
 
 class ShareLinkRequest(BaseModel):
-    expires_in_days: int = Field(default=7, ge=1, le=365)
+    expires_in_days: int = Field(default=7, ge=1, le=90)
+    hide_cliente: bool = False
+
+
+class PublicProjectResponse(BaseModel):
+    name: str
+    description: Optional[str] = None
+    m2_totales: Optional[int] = None
+    estimated_cost: Optional[float] = None
+    material_id: Optional[int] = None
+    expires_at: Optional[datetime] = None
 
 
 class ShareLinkResponse(BaseModel):

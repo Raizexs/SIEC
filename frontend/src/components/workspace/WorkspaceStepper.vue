@@ -1,4 +1,5 @@
 <script setup>
+import { computed } from 'vue';
 import { useI18n } from '../../composables/useI18n';
 import { Check, Map, PenTool, Receipt, FileOutput } from 'lucide-vue-next';
 
@@ -17,6 +18,31 @@ const isComplete = (id) => stepIndex(id) < stepIndex(props.currentStep);
 const isActive = (id) => id === props.currentStep;
 const isPending = (id) => stepIndex(id) > stepIndex(props.currentStep);
 
+const activeStepMeta = computed(
+  () => props.steps.find((s) => s.id === props.currentStep) || props.steps[0],
+);
+
+const activeStepIndex = computed(() => Math.max(0, stepIndex(props.currentStep)));
+
+const indicatorStyle = computed(() => {
+  const count = Math.max(props.steps.length, 1);
+  const widthPct = 100 / count;
+  return {
+    width: `calc(${widthPct}% - 4px)`,
+    transform: `translateX(calc(${activeStepIndex.value * 100}% + 2px))`,
+  };
+});
+
+const indicatorToneClass = computed(() => {
+  const map = {
+    sky: 'bg-sky-600 shadow-sky-600/30 ring-sky-400/25',
+    amber: 'bg-amber-600 shadow-amber-600/30 ring-amber-400/25',
+    emerald: 'bg-emerald-600 shadow-emerald-600/30 ring-emerald-400/25',
+    violet: 'bg-violet-600 shadow-violet-600/30 ring-violet-400/25',
+  };
+  return map[activeStepMeta.value?.tone] || map.sky;
+});
+
 const iconMap = {
   terrain: Map,
   design: PenTool,
@@ -26,39 +52,30 @@ const iconMap = {
 
 const toneAccent = {
   sky: {
-    active:
-      'bg-sky-600 text-white shadow-md shadow-sky-600/30 ring-1 ring-sky-400/30',
     complete: 'text-sky-700 dark:text-sky-300',
-    idle: 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/50',
+    idle: 'text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100',
   },
   amber: {
-    active:
-      'bg-amber-600 text-white shadow-md shadow-amber-600/30 ring-1 ring-amber-400/30',
     complete: 'text-amber-800 dark:text-amber-200',
-    idle: 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/50',
+    idle: 'text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100',
   },
   emerald: {
-    active:
-      'bg-emerald-600 text-white shadow-md shadow-emerald-600/30 ring-1 ring-emerald-400/30',
     complete: 'text-emerald-800 dark:text-emerald-200',
-    idle: 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/50',
+    idle: 'text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100',
   },
   violet: {
-    active:
-      'bg-violet-600 text-white shadow-md shadow-violet-600/30 ring-1 ring-violet-400/30',
     complete: 'text-violet-800 dark:text-violet-200',
-    idle: 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/50',
+    idle: 'text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100',
   },
 };
 
 const tone = (step) => toneAccent[step.tone] || toneAccent.sky;
 
 const stepClass = (step) => {
-  const a = tone(step);
-  if (isActive(step.id)) return a.active;
-  if (isComplete(step.id)) return a.complete;
+  if (isActive(step.id)) return 'text-white';
+  if (isComplete(step.id)) return tone(step).complete;
   if (isPending(step.id)) return 'text-slate-400 dark:text-slate-500';
-  return a.idle;
+  return tone(step).idle;
 };
 
 const iconWrapClass = (step) => {
@@ -69,7 +86,6 @@ const iconWrapClass = (step) => {
 };
 
 const StepIcon = (step) => iconMap[step.icon] || Map;
-
 </script>
 
 <template>
@@ -77,17 +93,24 @@ const StepIcon = (step) => iconMap[step.icon] || Map;
     <div
       class="relative overflow-hidden rounded-2xl border border-slate-200/90 bg-white/90 p-1 shadow-md shadow-slate-950/[0.06] backdrop-blur-md dark:border-slate-700/80 dark:bg-slate-900/85 dark:shadow-black/25"
     >
-      <div class="grid grid-cols-2 gap-1 sm:grid-cols-3">
+      <div
+        aria-hidden="true"
+        class="pointer-events-none absolute inset-y-1 left-1 rounded-xl shadow-md ring-1 transition-[transform,width,background-color,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+        :class="indicatorToneClass"
+        :style="indicatorStyle"
+      />
+      <div class="relative grid grid-cols-3 gap-1">
         <button
           v-for="step in steps"
           :key="step.id"
           type="button"
-          class="relative flex min-w-0 items-center justify-center gap-2 rounded-xl px-2.5 py-2.5 text-center transition-all duration-200 sm:justify-start sm:px-3 sm:py-3"
+          data-motion-hover="step"
+          class="relative z-[1] flex min-w-0 items-center justify-center gap-2 rounded-xl px-2.5 py-2.5 text-center transition-[color,opacity] duration-300 sm:justify-start sm:px-3 sm:py-3"
           :class="stepClass(step)"
           @click="emit('go', step.id)"
         >
           <span
-            class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[11px] font-bold"
+            class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[11px] font-bold transition-colors duration-300"
             :class="iconWrapClass(step)"
           >
             <Check v-if="isComplete(step.id)" class="h-3.5 w-3.5" :stroke-width="3" />

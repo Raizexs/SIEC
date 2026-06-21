@@ -111,9 +111,10 @@ const goUpgrade = () => {
 </script>
 
 <template>
-  <section class="configure-panel grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-start lg:gap-5">
+  <section data-motion="section" class="configure-panel grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-start lg:gap-5">
     <!-- Geometría y medidas -->
     <article
+      data-motion="card"
       class="configure-card lg:col-span-5"
     >
       <header class="configure-card__header">
@@ -206,6 +207,7 @@ const goUpgrade = () => {
 
     <!-- Matriz de material estructural -->
     <article
+      data-motion="card"
       class="configure-card lg:col-span-7"
     >
       <header class="configure-card__header">

@@ -9,7 +9,7 @@
  * - Proper Three.js cleanup before unmount.
  */
 
-import { onMounted, onBeforeUnmount, ref } from 'vue';
+import { onMounted, onBeforeUnmount, onActivated, onDeactivated, ref } from 'vue';
 import * as THREE from 'three';
 
 const containerRef = ref(null);
@@ -17,9 +17,12 @@ const containerRef = ref(null);
 let renderer;
 let scene;
 let camera;
-let frameId;
+let frameId = null;
 let houseGroup;
 let resizeObserver;
+let orbitAngle = 0;
+const ORBIT_CENTER = new THREE.Vector3(0, 1.7, 0);
+const ORBIT_RADIUS = 22;
 
 const HOUSE = [
   {
@@ -224,29 +227,42 @@ const setup = () => {
   houseGroup.position.set(-5.2, 0, -5.2);
   scene.add(houseGroup);
 
-  const center = new THREE.Vector3(0, 1.7, 0);
-  let angle = 0;
-  const radius = 22;
+  startRenderLoop();
+};
 
-  const animate = () => {
-    frameId = requestAnimationFrame(animate);
+const renderFrame = () => {
+  if (!renderer || !camera || !scene) return;
 
-    angle += 0.00135;
+  orbitAngle += 0.00135;
 
-    camera.position.x = center.x + Math.cos(angle) * radius;
-    camera.position.z = center.z + Math.sin(angle) * radius;
-    camera.position.y = 10.5 + Math.sin(angle * 0.75) * 1.6;
+  camera.position.x = ORBIT_CENTER.x + Math.cos(orbitAngle) * ORBIT_RADIUS;
+  camera.position.z = ORBIT_CENTER.z + Math.sin(orbitAngle) * ORBIT_RADIUS;
+  camera.position.y = 10.5 + Math.sin(orbitAngle * 0.75) * 1.6;
+  camera.lookAt(ORBIT_CENTER);
 
-    camera.lookAt(center);
+  if (houseGroup) {
+    houseGroup.rotation.y = Math.sin(orbitAngle * 0.35) * 0.015;
+  }
 
-    if (houseGroup) {
-      houseGroup.rotation.y = Math.sin(angle * 0.35) * 0.015;
-    }
+  renderer.render(scene, camera);
+};
 
-    renderer.render(scene, camera);
+const startRenderLoop = () => {
+  if (frameId != null) return;
+
+  const tick = () => {
+    frameId = requestAnimationFrame(tick);
+    renderFrame();
   };
 
-  animate();
+  tick();
+};
+
+const stopRenderLoop = () => {
+  if (frameId != null) {
+    cancelAnimationFrame(frameId);
+    frameId = null;
+  }
 };
 
 const onResize = () => {
@@ -289,14 +305,20 @@ onMounted(() => {
   window.addEventListener('resize', onResize);
 });
 
+onActivated(() => {
+  onResize();
+  startRenderLoop();
+});
+
+onDeactivated(() => {
+  stopRenderLoop();
+});
+
 onBeforeUnmount(() => {
+  stopRenderLoop();
   window.removeEventListener('resize', onResize);
 
   resizeObserver?.disconnect();
-
-  if (frameId) {
-    cancelAnimationFrame(frameId);
-  }
 
   disposeObject(scene);
 

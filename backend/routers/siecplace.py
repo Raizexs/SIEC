@@ -97,6 +97,31 @@ def _hydrate_from_project(db: Session, body: ListingCreateBody, user: CurrentUse
     )
 
 
+def _siecplace_audit(db: Session, actor_id: str, action: str, entity_id: str, metadata: Optional[dict] = None):
+    db.add(
+        models.Auditoria(
+            actor_id=actor_id,
+            action=action,
+            entity_type="siecplace",
+            entity_id=entity_id,
+            extra=metadata or {},
+        )
+    )
+
+
+def _require_owner_contact_consent(db: Session, owner_id) -> None:
+    try:
+        from services.privacy_helpers import has_active_consent
+    except ModuleNotFoundError:
+        from backend.services.privacy_helpers import has_active_consent  # type: ignore
+
+    if not has_active_consent(db, str(owner_id), "siecplace_contact_share"):
+        raise HTTPException(
+            status_code=403,
+            detail="El propietario no ha autorizado compartir datos de contacto",
+        )
+
+
 @router.get("/listings", response_model=List[ListingResponse])
 def list_published_listings(
     user: CurrentUser = Depends(get_current_user),
@@ -140,6 +165,21 @@ def create_listing(
     db: Session = Depends(get_db),
 ):
     require_marketplace_access(db, user.id)
+    try:
+        from services.privacy_helpers import has_active_consent
+    except ModuleNotFoundError:
+        from backend.services.privacy_helpers import has_active_consent  # type: ignore
+
+    if not has_active_consent(db, user.id, "siecplace_publish"):
+        raise HTTPException(
+            status_code=403,
+            detail="Se requiere consentimiento para publicar en SIEC Place (siecplace_publish)",
+        )
+    if not has_active_consent(db, user.id, "siecplace_contact_share"):
+        raise HTTPException(
+            status_code=403,
+            detail="Se requiere consentimiento para compartir contacto (siecplace_contact_share)",
+        )
     hydrated = _hydrate_from_project(db, body, user)
 
     project_uuid = UUID(hydrated.project_id) if hydrated.project_id else None
@@ -173,7 +213,18 @@ def get_listing(
     is_owner = str(listing.owner_id) == user.id
     unlocked = is_owner or user_has_unlock(db, listing.id, user.id)
     contact = None
-    if unlocked and listing.status == "published":
+    if unlocked and listing.status == "published" and not is_owner:
+        _require_owner_contact_consent(db, listing.owner_id)
+        contact = get_owner_contact(db, listing.owner_id)
+        _siecplace_audit(
+            db,
+            user.id,
+            "siecplace.contact_revealed",
+            str(listing.id),
+            {"listing_id": str(listing.id)},
+        )
+        db.commit()
+    elif unlocked and listing.status == "published" and is_owner:
         contact = get_owner_contact(db, listing.owner_id)
 
     return listing_to_public(listing, unlocked=unlocked, contact=contact if unlocked else None)

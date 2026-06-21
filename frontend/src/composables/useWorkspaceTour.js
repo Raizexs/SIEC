@@ -1,7 +1,34 @@
 import { driver } from 'driver.js';
 import 'driver.js/dist/driver.css';
+import '../styles/driver-tour-overrides.css';
+import { bindCardHover } from './useMotionContext';
+import { prefersReducedMotion } from '../design/motionTokens';
+
+const DRIVER_CLOSE_ICON =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+
+const patchDriverCloseButton = (popover) => {
+  const closeBtn = popover?.closeButton;
+  if (!closeBtn) return;
+  closeBtn.innerHTML = DRIVER_CLOSE_ICON;
+  closeBtn.style.cursor = 'pointer';
+  closeBtn.style.userSelect = 'none';
+};
 
 let activeTourDriver = null;
+let unbindTourHover = null;
+
+const bindTourPopoverHover = (popover) => {
+  unbindTourHover?.();
+  if (prefersReducedMotion()) return;
+
+  const targets = [];
+  if (popover?.closeButton) targets.push(popover.closeButton);
+  popover?.footer?.querySelectorAll?.('button')?.forEach((btn) => targets.push(btn));
+
+  if (!targets.length) return;
+  unbindTourHover = bindCardHover(targets, { lift: -2 });
+};
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -76,7 +103,7 @@ export function startWorkspaceTour({ t, prepareTutorialStep }) {
     activeTourDriver = null;
   }
 
-  const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+  const prefersReducedMotionLocal = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
 
   const stepMeta = [
     {},
@@ -280,7 +307,7 @@ export function startWorkspaceTour({ t, prepareTutorialStep }) {
 
   driverRef = driver({
     showProgress: true,
-    animate: !prefersReducedMotion,
+    animate: !prefersReducedMotionLocal,
     smoothScroll: false,
     allowClose: true,
     overlayOpacity: 0.5,
@@ -295,8 +322,14 @@ export function startWorkspaceTour({ t, prepareTutorialStep }) {
     prevBtnText: t('tourBtnPrev'),
     doneBtnText: t('tourBtnDone'),
     progressText: t('tourProgressText'),
+    onPopoverRender: (popover) => {
+      patchDriverCloseButton(popover);
+      bindTourPopoverHover(popover);
+    },
     steps,
     onDestroyed: () => {
+      unbindTourHover?.();
+      unbindTourHover = null;
       activeTourDriver = null;
       void prepareTutorialStep('design');
     },

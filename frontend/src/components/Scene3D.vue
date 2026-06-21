@@ -88,7 +88,7 @@ const MINIMAP_SIZE_FULLSCREEN = 128;
 const minimapSize = computed(() =>
   isFullScreen.value ? MINIMAP_SIZE_FULLSCREEN : MINIMAP_SIZE,
 );
-const currentTool = ref('move'); // move | scale | measure
+const currentTool = ref('navigate'); // navigate | scale | measure
 const isWalkthrough = ref(false);
 const showFurniture = ref(true);
 const sectionEnabled = ref(false);
@@ -198,11 +198,11 @@ const scaleDisclaimerAccepted = ref(
 
 const sceneTools = computed(() => {
   const tools = [
-    { id: 'move', icon: 'pan_tool', label: t('toolMove') },
+    { id: 'navigate', icon: '3d_rotation', label: t('toolNavigate') },
     { id: 'measure', icon: 'straighten', label: t('toolMeasure') },
   ];
   if (isProPlus.value) {
-    tools.splice(1, 0, {
+    tools.push({
       id: 'scale',
       icon: 'developer_mode',
       label: t('toolDeveloperMode'),
@@ -254,6 +254,29 @@ let onDocumentClick = null;
 
 let isManipulating = false;
 let savedScrollY = 0;
+
+const applyFullscreenLayout = () => {
+  if (!containerRef.value) return;
+
+  const headerHeight = headerRef.value ? headerRef.value.offsetHeight : 0;
+  const padding = 16;
+
+  containerRef.value.style.height = `${window.innerHeight - headerHeight - padding * 2}px`;
+  containerRef.value.style.width = '100%';
+
+  onResize();
+  renderSceneFrame();
+};
+
+const restoreNormalLayout = () => {
+  if (!containerRef.value) return;
+
+  containerRef.value.style.height = '';
+  containerRef.value.style.width = '';
+
+  onResize();
+  renderSceneFrame();
+};
 
 let stopSceneWatcher = null;
 let stopLayoutSyncWatcher = null;
@@ -751,7 +774,12 @@ const syncManipulatorAvailability = () => {
   const tool = currentTool.value;
 
   if (dragControls) {
-    dragControls.enabled = !locked && tool === 'move';
+    dragControls.enabled = false;
+  }
+
+  if (sceneManager?.orbit) {
+    sceneManager.orbit.enabled =
+      !isWalkthrough.value && tool !== 'measure' && !isManipulating;
   }
 
   if (transformControl) {
@@ -786,21 +814,13 @@ const setupDragAndTransformControls = () => {
     'pointerdown',
     (event) => {
       if (!dragControls) return;
-
-      if (event.button !== 0) {
-        dragControls.enabled = false;
-        return;
-      }
-
-      dragControls.enabled = !layoutLocked.value && currentTool.value === 'move';
+      dragControls.enabled = false;
     },
     { capture: true },
   );
 
   sceneManager.renderer.domElement.addEventListener('pointerup', () => {
-    if (dragControls && currentTool.value === 'move') {
-      dragControls.enabled = true;
-    }
+    if (dragControls) dragControls.enabled = false;
   });
 
   dragControls.addEventListener('dragstart', (event) => {
@@ -1323,6 +1343,7 @@ const toggleWalkthrough = () => {
   if (isWalkthrough.value) {
     walkthrough.disable();
     isWalkthrough.value = false;
+    syncManipulatorAvailability();
     return;
   }
 
@@ -1341,6 +1362,7 @@ const toggleWalkthrough = () => {
 
   walkthrough.enable(spawn);
   isWalkthrough.value = true;
+  syncManipulatorAvailability();
 };
 
 const startAutoTour = () => {
@@ -1383,8 +1405,9 @@ watch(currentTool, (tool, previousTool) => {
     return;
   }
 
-  if (tool === 'move') {
+  if (tool === 'navigate') {
     measureTool?.disable();
+    transformControl?.detach();
     syncManipulatorAvailability();
     return;
   }
@@ -1474,6 +1497,15 @@ const onResize = () => {
   sceneManager?.resize();
 };
 
+const handleDesignPanelVisible = () => {
+  if (!sceneManager) return;
+  requestAnimationFrame(() => {
+    sceneManager.resize();
+    sceneManager.start();
+    renderSceneFrame();
+  });
+};
+
 const toggleFullScreen = async () => {
   if (typeof document === 'undefined') return;
 
@@ -1494,27 +1526,6 @@ const toggleFullScreen = async () => {
   } catch (error) {
     logger.error('No se pudo salir de pantalla completa:', error);
   }
-};
-
-const applyFullscreenLayout = () => {
-  if (!containerRef.value) return;
-
-  const headerHeight = headerRef.value ? headerRef.value.offsetHeight : 0;
-  const padding = 16;
-
-  containerRef.value.style.height = `${window.innerHeight - headerHeight - padding * 2}px`;
-  containerRef.value.style.width = '100%';
-
-  onResize();
-};
-
-const restoreNormalLayout = () => {
-  if (!containerRef.value) return;
-
-  containerRef.value.style.height = '';
-  containerRef.value.style.width = '';
-
-  onResize();
 };
 
 const handleFullscreenChange = () => {
@@ -1721,6 +1732,13 @@ onMounted(() => {
     handleCanvasPointerDown,
   );
 
+  sceneManager.renderer.domElement.addEventListener('dragstart', (event) => {
+    event.preventDefault();
+  });
+  sceneManager.renderer.domElement.style.touchAction = 'none';
+
+  syncManipulatorAvailability();
+
   const recintosLayoutSignature = () =>
     recintosStore.recintos
       .map((r) =>
@@ -1805,6 +1823,7 @@ onMounted(() => {
   window.addEventListener('resize', onResize);
   window.addEventListener('siec:capture-scene', handleSceneCaptureRequest);
   window.addEventListener('siec:capture-scene-views', handleScenePresetViewsCaptureRequest);
+  window.addEventListener('siec:design-panel-visible', handleDesignPanelVisible);
 
   // Pausar el render 3D cuando el visor sale del viewport (scroll)
   if (typeof IntersectionObserver !== 'undefined' && containerRef.value) {
@@ -1844,6 +1863,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('fullscreenchange', handleFullscreenChange);
   window.removeEventListener('siec:capture-scene', handleSceneCaptureRequest);
   window.removeEventListener('siec:capture-scene-views', handleScenePresetViewsCaptureRequest);
+  window.removeEventListener('siec:design-panel-visible', handleDesignPanelVisible);
 
   if (onDocumentClick) {
     document.removeEventListener('click', onDocumentClick);
@@ -1901,8 +1921,9 @@ onBeforeUnmount(() => {
 <template>
   <section
     ref="rootRef"
-    class="scene3d-root relative flex w-full flex-col rounded-3xl border border-slate-200/90 bg-white/85 p-4 shadow-2xl shadow-slate-950/10 backdrop-blur-xl transition-all duration-300 dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/35"
-    :class="isFullScreen ? 'fullscreen-active' : 'normal-mode'"
+    class="scene3d-root relative flex w-full flex-col rounded-3xl border border-slate-200/90 bg-white/85 p-4 shadow-2xl shadow-slate-950/10 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/35"
+    data-no-motion
+    :class="isFullScreen ? 'fullscreen-active scene3d-root--fs' : 'normal-mode'"
   >
     <!-- Header -->
     <header
@@ -1953,6 +1974,7 @@ onBeforeUnmount(() => {
           >
             <button
               type="button"
+              data-editor-hover="tool"
               class="icon-action"
               :class="showFurniture ? 'is-active' : ''"
               :title="showFurniture ? t('hideFurniture') : t('showFurniture')"
@@ -1963,6 +1985,7 @@ onBeforeUnmount(() => {
 
             <button
               type="button"
+              data-editor-hover="tool"
               class="icon-action"
               :class="isWalkthrough ? 'is-active' : ''"
               :title="t('walkthrough')"
@@ -1973,6 +1996,7 @@ onBeforeUnmount(() => {
 
             <button
               type="button"
+              data-editor-hover="tool"
               class="icon-action"
               :title="t('centerCamera')"
               @click="centerCamera"
@@ -1982,6 +2006,7 @@ onBeforeUnmount(() => {
 
             <button
               type="button"
+              data-editor-hover="tool"
               class="icon-action"
               :title="isFullScreen ? t('exitFullscreen') : t('fullscreen')"
               @click="toggleFullScreen"
@@ -2001,6 +2026,7 @@ onBeforeUnmount(() => {
                 v-for="tool in sceneTools"
                 :key="tool.id"
                 type="button"
+                data-editor-hover="tool"
                 class="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2.5 py-2 text-[10px] font-black uppercase tracking-[0.08em] transition-all duration-200 active:scale-[0.98] sm:px-3"
                 :class="
                   currentTool === tool.id
@@ -2022,6 +2048,7 @@ onBeforeUnmount(() => {
             >
               <button
                 type="button"
+                data-editor-hover="tool"
                 class="flex h-8 w-8 items-center justify-center rounded-xl text-xs font-black text-slate-500 transition-all duration-200 hover:bg-slate-100 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-30 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
                 :disabled="recintosStore.currentFloor <= 1"
                 @click="recintosStore.setFloor(recintosStore.currentFloor - 1)"
@@ -2037,6 +2064,7 @@ onBeforeUnmount(() => {
 
               <button
                 type="button"
+                data-editor-hover="tool"
                 class="flex h-8 w-8 items-center justify-center rounded-xl text-xs font-black text-slate-500 transition-all duration-200 hover:bg-slate-100 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-30 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
                 :disabled="recintosStore.currentFloor >= MAX_FLOORS"
                 @click="recintosStore.setFloor(recintosStore.currentFloor + 1)"
@@ -2045,6 +2073,7 @@ onBeforeUnmount(() => {
               </button>
               <button
                 type="button"
+                data-editor-hover="tool"
                 class="flex h-8 items-center justify-center rounded-xl px-2 text-[10px] font-black uppercase tracking-[0.08em] text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800"
                 title="Clonar piso completo"
                 @click="handleCloneFloor"
@@ -2059,6 +2088,7 @@ onBeforeUnmount(() => {
                 <button
                   ref="layersMenuBtnRef"
                   type="button"
+                  data-editor-hover="tool"
                   class="toolbar-btn toolbar-btn-segment"
                   :class="showLayersMenu ? 'is-menu-open' : ''"
                   @click.stop="toggleLayersMenu"
@@ -2112,6 +2142,7 @@ onBeforeUnmount(() => {
                 <button
                   ref="exportMenuBtnRef"
                   type="button"
+                  data-editor-hover="tool"
                   class="toolbar-btn toolbar-btn-segment toolbar-btn-export"
                   :class="exportMenuOpen ? 'is-menu-open' : ''"
                   @click.stop="toggleExportMenu"
@@ -2155,6 +2186,7 @@ onBeforeUnmount(() => {
     <div
       ref="containerRef"
       class="scene3d-canvas scene3d-canvas--interaction relative overflow-hidden rounded-3xl border border-slate-200 bg-slate-950 shadow-inner dark:border-slate-800"
+      :class="{ 'scene3d-canvas--tool-navigate': currentTool === 'navigate' && !isWalkthrough }"
     >
       <PropertiesSidebar
         v-if="recintosStore.activeRecinto"
@@ -2245,6 +2277,16 @@ onBeforeUnmount(() => {
 .scene3d-canvas--interaction :deep(canvas) {
   cursor: default !important;
   caret-color: transparent;
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+
+.scene3d-canvas--tool-navigate :deep(canvas) {
+  cursor: grab !important;
+}
+
+.scene3d-canvas--tool-navigate :deep(canvas):active {
+  cursor: grabbing !important;
 }
 
 .scene3d-canvas--interaction :deep(.transform-controls),
@@ -2512,10 +2554,21 @@ onBeforeUnmount(() => {
 </style>
 
 <style>
+.scene3d-root.normal-mode {
+  transition:
+    box-shadow 0.25s ease,
+    border-color 0.25s ease;
+}
+
+.scene3d-root.scene3d-root--fs,
 .scene3d-root:fullscreen,
 .scene3d-root:-webkit-full-screen {
+  transition: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   width: 100vw !important;
   height: 100vh !important;
+  max-height: 100vh !important;
   border-radius: 0 !important;
   border: none !important;
   padding: 1rem !important;
@@ -2527,6 +2580,14 @@ onBeforeUnmount(() => {
   box-shadow: none !important;
 }
 
+.scene3d-root.scene3d-root--fs .scene3d-header,
+.scene3d-root:fullscreen .scene3d-header,
+.scene3d-root:-webkit-full-screen .scene3d-header {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.scene3d-root.scene3d-root--fs .scene3d-canvas,
 .scene3d-root:fullscreen .scene3d-canvas,
 .scene3d-root:-webkit-full-screen .scene3d-canvas {
   flex: 1 1 auto;

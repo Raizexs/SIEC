@@ -1,12 +1,16 @@
 <script setup>
 
-import { ref, computed, inject } from 'vue';
+import { ref, computed, inject, nextTick } from 'vue';
 
 import { useI18n } from '../../composables/useI18n';
 
 import { PREFERENCES_DRAFT_KEY } from '../../composables/usePreferencesDraft';
 
 import { useBilling } from '../../composables/useBilling';
+
+import { getMotionTier, prefersReducedMotion } from '../../design/motionTokens';
+
+import { introMotionReveal, SETTINGS_PANEL_REVEAL } from '../../composables/useMotionContext';
 
 import {
 
@@ -43,13 +47,22 @@ const { draft: productPreferences } = draftCtx;
 
 
 const openExport = ref(false);
+const panelRef = ref(null);
 
+const motionEnabled = () => !prefersReducedMotion() && getMotionTier() !== 'off';
 
+const refreshPanelHover = () => {
+  window.dispatchEvent(new CustomEvent('siec:settings-hover-refresh'));
+};
 
-const toggleExport = () => {
-
+const toggleExport = async () => {
   openExport.value = !openExport.value;
-
+  await nextTick();
+  if (!openExport.value || !panelRef.value) return;
+  if (motionEnabled()) {
+    introMotionReveal(panelRef.value, SETTINGS_PANEL_REVEAL);
+  }
+  refreshPanelHover();
 };
 
 
@@ -160,9 +173,8 @@ const preferenceSummary = computed(() => {
 <template>
 
   <section
-
+    data-motion="section"
     class="overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30"
-
   >
 
     <button
@@ -243,20 +255,17 @@ const preferenceSummary = computed(() => {
 
     <Transition name="pref-accordion">
 
-      <div v-show="openExport">
+      <div v-show="openExport" ref="panelRef">
 
         <div class="space-y-5 p-5">
 
           <div class="grid gap-3 sm:grid-cols-2">
 
             <div
-
               v-for="row in exportToggleOptions"
-
               :key="row.key"
-
+              data-motion="item"
               class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200/90 bg-slate-50/60 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/40"
-
             >
 
               <div>

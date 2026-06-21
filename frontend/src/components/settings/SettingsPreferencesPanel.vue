@@ -1,8 +1,10 @@
 <script setup>
-import { ref, computed, inject } from 'vue';
+import { ref, computed, inject, nextTick } from 'vue';
 import { useI18n } from '../../composables/useI18n';
 import { PREFERENCES_DRAFT_KEY } from '../../composables/usePreferencesDraft';
 import { useBilling } from '../../composables/useBilling';
+import { getMotionTier, prefersReducedMotion } from '../../design/motionTokens';
+import { introMotionReveal, SETTINGS_PANEL_REVEAL } from '../../composables/useMotionContext';
 import {
   Sparkles,
   ChevronDown,
@@ -32,8 +34,24 @@ const openSections = ref({
   estimation: false,
 });
 
-const toggleSection = (section) => {
+const motionRoot = ref(null);
+
+const motionEnabled = () => !prefersReducedMotion() && getMotionTier() !== 'off';
+
+const refreshPanelHover = () => {
+  window.dispatchEvent(new CustomEvent('siec:settings-hover-refresh'));
+};
+
+const toggleSection = async (section) => {
   openSections.value[section] = !openSections.value[section];
+  await nextTick();
+  if (!openSections.value[section]) return;
+
+  const panel = motionRoot.value?.querySelector(`[data-pref-panel="${section}"]`);
+  if (panel && motionEnabled()) {
+    introMotionReveal(panel, SETTINGS_PANEL_REVEAL);
+  }
+  refreshPanelHover();
 };
 
 const materialOptions = computed(() => {
@@ -113,7 +131,7 @@ const applyPresetRoomHeight = (m) => {
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div ref="motionRoot" class="space-y-4" data-motion="section">
     <!-- Experience -->
     <section
       class="overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30"
@@ -153,7 +171,7 @@ const applyPresetRoomHeight = (m) => {
       </button>
 
       <Transition name="pref-accordion">
-        <div v-show="openSections.experience">
+        <div v-show="openSections.experience" data-pref-panel="experience">
           <fieldset class="space-y-3 p-5">
             <legend class="sr-only">
               {{ t('settingsAnimationLegend') }}
@@ -162,6 +180,7 @@ const applyPresetRoomHeight = (m) => {
             <label
               v-for="option in motionOptions"
               :key="option.id"
+              data-motion="item"
               class="group flex cursor-pointer items-start gap-3 rounded-3xl border p-4 transition-all duration-200 active:scale-[0.99]"
               :class="
                 motionPref === option.id
@@ -238,10 +257,13 @@ const applyPresetRoomHeight = (m) => {
       </button>
 
       <Transition name="pref-accordion">
-        <div v-show="openSections.editor">
+        <div v-show="openSections.editor" data-pref-panel="editor">
           <div class="space-y-5 p-5">
             <div class="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center">
-              <div class="flex min-w-[200px] flex-1 items-center justify-between gap-3 rounded-2xl border border-slate-200/90 bg-slate-50/60 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/40">
+              <div
+                data-motion="item"
+                class="flex min-w-[200px] flex-1 items-center justify-between gap-3 rounded-2xl border border-slate-200/90 bg-slate-50/60 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/40"
+              >
                 <div>
                   <p class="text-xs font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
                     {{ t('settingsGridVisible') }}
@@ -270,7 +292,10 @@ const applyPresetRoomHeight = (m) => {
             </div>
 
             <div class="flex flex-col gap-4 sm:flex-row sm:flex-wrap">
-              <div class="flex min-w-[200px] flex-1 items-center justify-between gap-3 rounded-2xl border border-slate-200/90 bg-slate-50/60 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/40">
+              <div
+                data-motion="item"
+                class="flex min-w-[200px] flex-1 items-center justify-between gap-3 rounded-2xl border border-slate-200/90 bg-slate-50/60 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/40"
+              >
                 <div class="flex items-center gap-2">
                   <Tags class="h-4 w-4 text-slate-400" :stroke-width="2.2" />
                   <p class="text-xs font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
@@ -295,7 +320,10 @@ const applyPresetRoomHeight = (m) => {
                 </button>
               </div>
 
-              <div class="flex min-w-[200px] flex-1 items-center justify-between gap-3 rounded-2xl border border-slate-200/90 bg-slate-50/60 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/40">
+              <div
+                data-motion="item"
+                class="flex min-w-[200px] flex-1 items-center justify-between gap-3 rounded-2xl border border-slate-200/90 bg-slate-50/60 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/40"
+              >
                 <div class="flex items-center gap-2">
                   <Map class="h-4 w-4 text-slate-400" :stroke-width="2.2" />
                   <p class="text-xs font-black uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
@@ -332,6 +360,7 @@ const applyPresetRoomHeight = (m) => {
                   ]"
                   :key="opt.id"
                   type="button"
+                  data-motion="item"
                   class="inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-black uppercase tracking-[0.12em] transition-all duration-200 active:scale-[0.98]"
                   :class="
                     productPreferences.editor.initialView === opt.id
@@ -357,6 +386,7 @@ const applyPresetRoomHeight = (m) => {
                   ]"
                   :key="q.id"
                   type="button"
+                  data-motion="item"
                   class="rounded-2xl border px-3 py-2 text-xs font-black uppercase tracking-[0.12em] transition-all duration-200 active:scale-[0.98]"
                   :class="
                     productPreferences.editor.quality3d === q.id
@@ -413,7 +443,7 @@ const applyPresetRoomHeight = (m) => {
       </button>
 
       <Transition name="pref-accordion">
-        <div v-show="openSections.estimation">
+        <div v-show="openSections.estimation" data-pref-panel="estimation">
           <div class="space-y-5 p-5">
             <div
               class="rounded-2xl border border-slate-200/90 bg-slate-50/80 p-4 dark:border-slate-800/90 dark:bg-slate-900/50"
@@ -436,6 +466,7 @@ const applyPresetRoomHeight = (m) => {
                   v-for="code in ['CLP', 'UF']"
                   :key="code"
                   type="button"
+                  data-motion="item"
                   class="rounded-2xl border px-3 py-2 text-xs font-black uppercase tracking-[0.12em] transition-all duration-200 active:scale-[0.98]"
                   :class="
                     productPreferences.currency === code
@@ -456,6 +487,7 @@ const applyPresetRoomHeight = (m) => {
                   v-for="pct in [0, 5, 10, 15]"
                   :key="pct"
                   type="button"
+                  data-motion="item"
                   class="rounded-2xl border px-3 py-2 text-xs font-black uppercase tracking-[0.12em] transition-all duration-200 active:scale-[0.98]"
                   :class="
                     productPreferences.contingency === pct
@@ -474,6 +506,7 @@ const applyPresetRoomHeight = (m) => {
               <div class="flex flex-wrap gap-2" :aria-label="t('settingsVatIncluded')">
                 <button
                   type="button"
+                  data-motion="item"
                   class="rounded-2xl border px-3 py-2 text-xs font-black uppercase tracking-[0.12em] transition-all duration-200 active:scale-[0.98]"
                   :class="
                     productPreferences.includeTax
@@ -486,6 +519,7 @@ const applyPresetRoomHeight = (m) => {
                 </button>
                 <button
                   type="button"
+                  data-motion="item"
                   class="rounded-2xl border px-3 py-2 text-xs font-black uppercase tracking-[0.12em] transition-all duration-200 active:scale-[0.98]"
                   :class="
                     !productPreferences.includeTax
@@ -506,6 +540,7 @@ const applyPresetRoomHeight = (m) => {
                   v-for="m in materialOptions"
                   :key="m.id"
                   type="button"
+                  data-motion="item"
                   class="flex items-center justify-between gap-2 rounded-2xl border px-3 py-2.5 text-left text-xs font-black uppercase tracking-[0.08em] transition-all duration-200 active:scale-[0.99]"
                   :class="
                     !canUseMaterial(m.id)
@@ -548,6 +583,7 @@ const applyPresetRoomHeight = (m) => {
                   v-for="h in [2.4, 2.6, 2.8]"
                   :key="h"
                   type="button"
+                  data-motion="item"
                   class="rounded-2xl border px-3 py-2 text-xs font-black uppercase tracking-[0.12em] transition-all duration-200 active:scale-[0.98]"
                   :class="
                     !productPreferences.useCustomRoomHeight && productPreferences.defaultRoomHeight === h
@@ -560,6 +596,7 @@ const applyPresetRoomHeight = (m) => {
                 </button>
                 <button
                   type="button"
+                  data-motion="item"
                   class="rounded-2xl border px-3 py-2 text-xs font-black uppercase tracking-[0.12em] transition-all duration-200 active:scale-[0.98]"
                   :class="
                     productPreferences.useCustomRoomHeight

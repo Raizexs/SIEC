@@ -59,6 +59,7 @@ const compliant = computed(() => lastResult.value?.compliant !== false);
 
 <template>
   <section
+    data-motion="card"
     class="rounded-3xl border border-slate-200/90 bg-white/80 shadow-sm dark:border-slate-800/90 dark:bg-slate-950/60"
   >
     <button

@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from '../../composables/useI18n';
 import {
   FolderSync,
@@ -78,6 +78,7 @@ const integrationVariantClass = (variant) => {
       <article
         v-for="card in integrationCards"
         :key="card.id"
+        data-motion="card"
         class="flex flex-col overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30"
       >
         <div class="flex flex-1 flex-col gap-3 p-5">

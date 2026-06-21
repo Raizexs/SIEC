@@ -110,7 +110,10 @@ def _seed_materiality_matrix() -> None:
 @pytest.fixture(scope="session", autouse=True)
 def seed_ci_materiality_data():
     """Asegura rendimientos para las 4 materialidades en la DB de CI."""
-    _seed_materiality_matrix()
+    try:
+        _seed_materiality_matrix()
+    except Exception:
+        pass  # Postgres no disponible (desarrollo local sin DB)
 
 
 @pytest.fixture(autouse=True)

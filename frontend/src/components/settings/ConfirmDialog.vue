@@ -1,7 +1,9 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, watch, nextTick, ref } from 'vue';
+import { gsap } from 'gsap';
 import { X } from 'lucide-vue-next';
 import { useI18n } from '../../composables/useI18n';
+import { prefersReducedMotion, getMotionProfile } from '../../design/motionTokens';
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -15,11 +17,48 @@ const props = defineProps({
 const emit = defineEmits(['confirm', 'cancel', 'dismiss']);
 const { t } = useI18n();
 
+const dialogRef = ref(null);
+const backdropRef = ref(null);
+
 const confirmBtnClass = computed(() => {
   return props.variant === 'danger'
     ? 'border-red-500/80 bg-red-600 shadow-red-500/20 hover:bg-red-500 dark:border-red-500/60 dark:bg-red-600 dark:hover:bg-red-500'
     : 'border-orange-400/70 bg-orange-500 shadow-orange-500/20 hover:bg-orange-400 dark:border-orange-400/60 dark:bg-orange-500';
 });
+
+watch(
+  () => props.open,
+  async (value) => {
+    if (!value || prefersReducedMotion()) return;
+    await nextTick();
+    const profile = getMotionProfile();
+    if (backdropRef.value) {
+      gsap.fromTo(
+        backdropRef.value,
+        { autoAlpha: 0 },
+        {
+          autoAlpha: 1,
+          duration: profile.duration.fast,
+          ease: profile.ease.standardOut,
+        },
+      );
+    }
+    if (dialogRef.value) {
+      gsap.fromTo(
+        dialogRef.value,
+        { autoAlpha: 0, scale: 0.96, y: 14 },
+        {
+          autoAlpha: 1,
+          scale: 1,
+          y: 0,
+          duration: profile.duration.base,
+          ease: profile.ease.entrance,
+          clearProps: 'transform,opacity',
+        },
+      );
+    }
+  },
+);
 
 const dismiss = () => emit('dismiss');
 const onCancel = () => emit('cancel');
@@ -35,10 +74,12 @@ const onCancel = () => emit('cancel');
       aria-labelledby="confirm-dialog-title"
     >
       <div
+        ref="backdropRef"
         class="absolute inset-0 bg-slate-950/55 backdrop-blur-sm dark:bg-black/60"
         @click.self="dismiss"
       ></div>
       <div
+        ref="dialogRef"
         class="relative z-10 w-full max-w-md overflow-hidden rounded-3xl border border-slate-200/90 bg-white/95 p-6 shadow-2xl shadow-slate-950/20 dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/40"
       >
         <div class="flex items-start justify-between gap-3">

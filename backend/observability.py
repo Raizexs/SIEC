@@ -41,6 +41,36 @@ except ImportError:  # pragma: no cover
 # ── Sentry ──────────────────────────────────────────────────────────────────
 SENTRY_DSN = os.getenv("SENTRY_DSN", "")
 
+_PII_KEYS = frozenset({
+    "email",
+    "cliente",
+    "ubicacion",
+    "full_name",
+    "password",
+    "authorization",
+    "token",
+})
+
+
+def _sentry_scrub_event(event, hint):
+    """Remove common PII fields before sending to Sentry."""
+    try:
+        if "request" in event:
+            headers = event["request"].get("headers") or {}
+            for key in list(headers.keys()):
+                if key.lower() in ("authorization", "cookie"):
+                    headers[key] = "[Filtered]"
+            event["request"]["headers"] = headers
+        for section in ("extra", "contexts", "user"):
+            data = event.get(section)
+            if isinstance(data, dict):
+                for key in list(data.keys()):
+                    if key.lower() in _PII_KEYS:
+                        data[key] = "[Filtered]"
+    except Exception:
+        pass
+    return event
+
 
 def init_sentry():
     if not SENTRY_DSN:
@@ -55,6 +85,8 @@ def init_sentry():
             traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE", "0.1")),
             profiles_sample_rate=float(os.getenv("SENTRY_PROFILES_SAMPLE", "0.1")),
             environment=os.getenv("ENVIRONMENT", "development"),
+            send_default_pii=False,
+            before_send=_sentry_scrub_event,
         )
         return True
     except Exception as exc:  # pragma: no cover

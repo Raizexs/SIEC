@@ -1,105 +1,81 @@
 import { onMounted, onUnmounted, nextTick } from "vue";
 import { gsap } from "gsap";
-import { motionTokens, prefersReducedMotion } from "../design/motionTokens";
+import {
+  getMotionProfile,
+  getMotionTier,
+  prefersReducedMotion,
+  waitForRouteEnter,
+  waitForNextFrame,
+} from "../design/motionTokens";
+import { runReveal, setMotionFinalState, filterMotionTargets } from "./useMotionContext";
 
 /**
  * Entrada escalonada para bloques con `data-motion`.
- * No usa matchMedia con solo `(prefers-reduced-motion: reduce)` — ese patrón
- * ejecutaba el callback solo con movimiento reducido y nunca animaba al resto.
+ * Tier premium/standard inferido de preferencias; `mode: 'off'` fuerza skip.
  */
 export function useProMotion(rootRef, options = {}) {
   let ctx;
+  let cancelled = false;
 
   const {
-    y = motionTokens.distance.md + 4,
-    duration = motionTokens.duration.base,
-    ease = motionTokens.ease.entrance,
-    stagger = motionTokens.stagger.tight,
-    delay = 0,
-    /** Auth / shell mínimo: sin timeline `from` (evita formularios no clicables por autoAlpha 0). */
+    delay: extraDelay = 0,
+    /** Espera siec:route-enter-complete antes del stagger (app shell). */
+    delayUntilRoute = false,
+    /** 'off' | 'standard' | 'premium' | 'auto' */
+    mode = "auto",
+    /** Opciones pasadas a runReveal (pace, levels, …). */
+    revealOptions = {},
+    /** @deprecated Usar mode: 'off' */
     skipIntro = false,
   } = options;
+
+  const resolveMode = () => {
+    if (skipIntro || mode === "off") return "off";
+    if (mode === "standard" || mode === "premium") return mode;
+    return getMotionTier() === "premium" ? "premium" : getMotionTier() === "standard" ? "standard" : "off";
+  };
 
   const runIntro = () => {
     if (!rootRef?.value) return;
 
-    const targets = rootRef.value.querySelectorAll("[data-motion]");
+    const targets = filterMotionTargets(
+      rootRef.value.querySelectorAll("[data-motion]"),
+      rootRef.value,
+    );
     if (!targets.length) return;
 
-    if (prefersReducedMotion() || skipIntro) {
-      gsap.set(targets, {
-        autoAlpha: 1,
-        y: 0,
-        x: 0,
-        scale: 1,
-        clearProps: "transform",
-      });
+    const effectiveMode = resolveMode();
+    if (prefersReducedMotion() || effectiveMode === "off") {
+      setMotionFinalState(targets);
       return;
     }
 
-    const hero = rootRef.value.querySelectorAll('[data-motion="hero"]');
-    const sections = rootRef.value.querySelectorAll('[data-motion="section"]');
-    const cards = rootRef.value.querySelectorAll('[data-motion="card"]');
-    const items = rootRef.value.querySelectorAll('[data-motion="item"]');
+    const profile = getMotionProfile();
+    const levels = revealOptions.levels ?? ["hero", "section", "card", "item"];
+    const shellOnly = levels.length === 1 && levels[0] === "hero";
+    const routeDelay =
+      delayUntilRoute && !shellOnly ? profile.routeDelay / 1000 : 0;
 
-    gsap.set([...hero, ...sections, ...cards, ...items], {
-      willChange: "transform, opacity",
-    });
-
-    const tl = gsap.timeline({ defaults: { duration, ease }, delay });
-    if (hero.length)
-      tl.from(hero, {
-        autoAlpha: 0,
-        y: y + motionTokens.distance.xs,
-        stagger: motionTokens.stagger.tight,
+    ctx = gsap.context(() => {
+      runReveal(rootRef.value, {
+        delay: routeDelay + extraDelay,
+        pace: shellOnly ? "snappy" : "smooth",
+        ...revealOptions,
+        levels,
       });
-    if (sections.length) {
-      tl.from(
-        sections,
-        { autoAlpha: 0, y, stagger: motionTokens.stagger.tight },
-        hero.length ? "-=0.28" : 0,
-      );
-    }
-    if (cards.length)
-      tl.from(cards, { autoAlpha: 0, y: y - 2, stagger }, "-=0.2");
-    if (items.length)
-      tl.from(
-        items,
-        {
-          autoAlpha: 0,
-          y: y - motionTokens.distance.xs,
-          stagger: motionTokens.stagger.tight,
-        },
-        "-=0.18",
-      );
-    const allAnimated = [...hero, ...sections, ...cards, ...items];
-    tl.call(() =>
-      gsap.set(allAnimated, {
-        clearProps: "willChange",
-      }),
-    );
-    tl.eventCallback("onComplete", () => {
-      gsap.set(allAnimated, {
-        autoAlpha: 1,
-        y: 0,
-        x: 0,
-        scale: 1,
-      });
-    });
+    }, rootRef.value);
   };
 
-  let cancelled = false;
+  const scheduleIntro = async () => {
+    if (delayUntilRoute) await waitForRouteEnter();
+    await waitForNextFrame();
+    if (cancelled || !rootRef?.value) return;
+    runIntro();
+  };
 
   onMounted(() => {
     nextTick(() => {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          if (cancelled || !rootRef?.value) return;
-          ctx = gsap.context(() => {
-            runIntro();
-          }, rootRef.value);
-        });
-      });
+      scheduleIntro();
     });
   });
 
@@ -107,4 +83,22 @@ export function useProMotion(rootRef, options = {}) {
     cancelled = true;
     ctx?.revert();
   });
+
+  return { replay: scheduleIntro };
+}
+
+/** Reveal bajo demanda (tabs, steps) sin montar hook completo. */
+export function replayMotionReveal(rootEl, options = {}) {
+  if (!rootEl || prefersReducedMotion()) {
+    if (rootEl) {
+      setMotionFinalState(rootEl.querySelectorAll("[data-motion], [data-legal-motion]"));
+    }
+    return;
+  }
+  const targets = filterMotionTargets(
+    rootEl.querySelectorAll("[data-motion]"),
+    rootEl,
+  );
+  gsap.killTweensOf(targets);
+  runReveal(rootEl, options);
 }

@@ -89,11 +89,11 @@ export default {
         "on-tertiary-container": "#774010",
       },
       fontFamily: {
-        sans: ["Plus Jakarta Sans", "Inter", "system-ui", "sans-serif"],
+        sans: ["Plus Jakarta Sans", "system-ui", "sans-serif"],
         manrope: ["Plus Jakarta Sans", "sans-serif"],
         headline: ["Plus Jakarta Sans", "sans-serif"],
-        body: ["Plus Jakarta Sans", "Inter", "sans-serif"],
-        label: ["Plus Jakarta Sans", "Inter", "sans-serif"],
+        body: ["Plus Jakarta Sans", "sans-serif"],
+        label: ["Plus Jakarta Sans", "sans-serif"],
       },
       fontSize: {
         // Tighter scale optimized for data-dense dashboards

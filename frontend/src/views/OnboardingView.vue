@@ -1,6 +1,6 @@
 <script setup>
 import logger from '../utils/logger.js';
-import { ref, computed } from 'vue';
+import { ref, computed, watch, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
@@ -18,7 +18,11 @@ import {
   Coins,
   Loader2,
 } from 'lucide-vue-next';
-import { useProMotion } from '../composables/useProMotion';
+import { useProMotion, replayMotionReveal } from '../composables/useProMotion';
+import { useMotionPreferenceSync } from '../composables/useMotionPreferenceSync';
+import { getMotionProfile, prefersReducedMotion } from '../design/motionTokens';
+import { runCrossfade } from '../composables/useMotionContext';
+import { gsap } from 'gsap';
 import { useProductPreferences } from '../composables/useProductPreferences';
 import '../styles/auth-fields.css';
 
@@ -29,10 +33,10 @@ const { updateProductPreferences, saveProductPreferences } = useProductPreferenc
 const step = ref(1);
 const isSaving = ref(false);
 const motionRoot = ref(null);
+const stepContentRef = ref(null);
 
-useProMotion(motionRoot, {
-  skipIntro: true,
-});
+useProMotion(motionRoot, { mode: 'auto' });
+useMotionPreferenceSync(motionRoot);
 
 const formData = ref({
   fullName: auth.user?.user_metadata?.full_name || '',
@@ -81,9 +85,31 @@ const stepMeta = computed(() => {
 
 const StepIcon = computed(() => stepMeta.value.icon);
 
+const changeStep = async (nextStep) => {
+  if (step.value === nextStep) return;
+  const el = stepContentRef.value;
+  if (!prefersReducedMotion() && el) {
+    const profile = getMotionProfile();
+    await gsap.to(el, {
+      autoAlpha: 0,
+      x: -12,
+      duration: profile.duration.fast,
+      ease: profile.ease.standardOut,
+    });
+  }
+  step.value = nextStep;
+  await nextTick();
+  const incoming = stepContentRef.value;
+  if (!prefersReducedMotion() && incoming) {
+    await runCrossfade(incoming, incoming, { axis: 'x', slide: 12 });
+  } else {
+    replayMotionReveal(incoming);
+  }
+};
+
 const next = async () => {
   if (step.value < 3) {
-    step.value += 1;
+    await changeStep(step.value + 1);
     return;
   }
 
@@ -116,9 +142,9 @@ const next = async () => {
   router.push('/workspace?tour=1');
 };
 
-const back = () => {
+const back = async () => {
   if (step.value > 1) {
-    step.value -= 1;
+    await changeStep(step.value - 1);
   }
 };
 </script>
@@ -181,7 +207,7 @@ const back = () => {
         </div>
       </header>
 
-      <div class="space-y-7 p-5 sm:p-8" data-motion="section">
+      <div ref="stepContentRef" class="space-y-7 p-5 sm:p-8" data-motion="section">
         <!-- Current step heading -->
         <section
           class="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-900/60 sm:flex-row sm:items-start"

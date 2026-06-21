@@ -1,11 +1,16 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppRail from '../components/shell/AppRail.vue';
 import AppTopBar from '../components/shell/AppTopBar.vue';
 import { useSiecPlace } from '../composables/useSiecPlace';
+import { usePrivacy } from '../composables/usePrivacy';
+import ConsentModal from '../components/privacy/ConsentModal.vue';
 import { useBilling } from '../composables/useBilling';
 import { useI18n } from '../composables/useI18n';
+import { useProMotion, replayMotionReveal } from '../composables/useProMotion';
+import { useMotionPreferenceSync } from '../composables/useMotionPreferenceSync';
+import { bindCardHover } from '../composables/useMotionContext';
 import {
   Store,
   MapPin,
@@ -36,9 +41,27 @@ const {
   fetchListing,
   checkoutUnlock,
 } = useSiecPlace();
+const { fetchPolicy, grantConsent, hasConsent } = usePrivacy();
 
 const tab = ref('explore');
 const detailId = ref(null);
+const showUnlockConsent = ref(false);
+const policyVersion = ref('1.0');
+const motionRoot = ref(null);
+let unbindListingHover = null;
+
+useProMotion(motionRoot, { delayUntilRoute: true });
+useMotionPreferenceSync(motionRoot);
+
+const bindListingHover = async () => {
+  await nextTick();
+  unbindListingHover?.();
+  if (!motionRoot.value) return;
+  unbindListingHover = bindCardHover(
+    motionRoot.value.querySelectorAll('[data-motion="item"]'),
+    { lift: -5 },
+  );
+};
 
 const hasMarketplaceAccess = computed(() => true);
 
@@ -73,6 +96,18 @@ const closeDetail = () => {
 
 const handleUnlock = async () => {
   if (!selectedListing.value?.id) return;
+  try {
+    const policy = await fetchPolicy();
+    policyVersion.value = policy.version;
+  } catch {
+    policyVersion.value = '1.0';
+  }
+  showUnlockConsent.value = true;
+};
+
+const confirmUnlock = async () => {
+  await grantConsent('siecplace_contact_share', policyVersion.value);
+  showUnlockConsent.value = false;
   await checkoutUnlock(selectedListing.value.id);
 };
 
@@ -108,16 +143,16 @@ onMounted(async () => {
     await openDetail(String(route.query.listing));
   }
   await loadTab();
-});
-
-watch(tab, () => {
-  closeDetail();
-  loadTab();
+  bindListingHover();
 });
 </script>
 
 <template>
-  <div class="siec-app-canvas flex min-h-screen text-slate-950 dark:text-slate-100">
+  <div
+    ref="motionRoot"
+    data-siec-app-shell
+    class="siec-app-canvas flex min-h-screen text-slate-950 dark:text-slate-100"
+  >
     <AppRail active="siecplace" />
 
     <div class="flex min-w-0 flex-1 flex-col">
@@ -137,6 +172,7 @@ watch(tab, () => {
       <main class="min-h-0 flex-1 overflow-y-auto">
         <div class="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
           <section
+            data-motion="hero"
             class="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white/90 p-6 shadow-lg dark:border-slate-800/90 dark:bg-slate-950/85"
           >
             <div
@@ -158,6 +194,7 @@ watch(tab, () => {
           </section>
 
           <section
+            data-motion="section"
             class="rounded-3xl border border-slate-200/90 bg-slate-50/80 p-6 dark:border-slate-800/90 dark:bg-slate-900/40"
           >
             <h2 class="text-lg font-black text-slate-950 dark:text-slate-50">
@@ -286,11 +323,12 @@ watch(tab, () => {
               </p>
             </div>
 
-            <div v-else class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div v-else class="grid gap-4 md:grid-cols-2 xl:grid-cols-3" data-motion="section">
               <article
                 v-for="item in tab === 'explore' ? listings : myListings"
                 :key="item.id"
-                class="flex flex-col rounded-3xl border border-slate-200/90 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800 dark:bg-slate-950"
+                data-motion="item"
+                class="flex flex-col rounded-3xl border border-slate-200/90 bg-white p-5 shadow-sm transition-[border-color,box-shadow] hover:shadow-md dark:border-slate-800 dark:bg-slate-950"
               >
                 <div class="flex items-start justify-between gap-2">
                   <h3 class="text-base font-black text-slate-950 dark:text-slate-50">
@@ -427,5 +465,16 @@ watch(tab, () => {
         </div>
       </main>
     </div>
+
+    <ConsentModal
+      :show="showUnlockConsent"
+      title="Desbloquear contacto del propietario"
+      description="Al continuar, accederás al nombre y correo del propietario de la obra publicada, conforme a la política de SIEC Place."
+      consent-type="siecplace_contact_share"
+      :policy-version="policyVersion"
+      @confirm="confirmUnlock"
+      @cancel="showUnlockConsent = false"
+      @close="showUnlockConsent = false"
+    />
   </div>
 </template>
