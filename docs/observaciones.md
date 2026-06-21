@@ -1,0 +1,17 @@
+1. Desafíos del Web Scraping y Normalización de Datos
+Extraer datos de tiendas como Sodimac o Easy no es un proceso lineal. El agente debe estar preparado para lidiar con bloqueos de IP, trampas ocultas (honeypots) y cambios constantes en la estructura HTML de los catálogos . Además, el mayor reto será la **normalización de datos**: un mismo material puede tener descripciones o códigos SKU completamente distintos en cada tienda. Para solucionar esto, el sistema no debería depender de reglas de texto rígidas (regex), sino integrar un modelo de lenguaje o algoritmos de coincidencia que estructuren esta información sucia en tablas limpias y comparables .
+
+2. Integración Dinámica de la Unidad de Fomento (UF)
+Gran parte de los topes presupuestarios y normativos en Chile se miden en UF. Por ejemplo, el procedimiento simplificado para ampliaciones de viviendas (Artículo 166 de la LGUC) exige que la tasación de la construcción original no supere las 520 UF . El backend de tu sistema deberá conectarse a una API financiera para actualizar el valor de la UF diariamente, permitiendo que el software valide en tiempo real si el proyecto del usuario califica para los beneficios legales y subsidios .
+
+3. Algoritmos de Optimización de Corte (Nesting)
+Para cuantificar tableros (como OSB, Yeso Cartón o Paneles SIP), aplicar un porcentaje de desperdicio fijo no es exacto en el mundo real. El sistema debería incorporar un algoritmo de "Nesting" (optimización de corte unidimensional o bidimensional, como First Fit Decreasing o Best Fit). Esto le permitirá al motor calcular matemáticamente cómo encajar las piezas de la ampliación en los formatos estándar comerciales, reduciendo el desperdicio proyectado a un rango más eficiente del 4% al 12% y entregando una lista de compras mucho más realista ``.
+
+4. Validación de la "Ley del Mono" (Ley 21.725)
+El sistema debe alertar al usuario sobre los límites legales para que su ampliación sea regularizable. Recientemente, la Ley 21.725 extendió el plazo de regularización de autoconstrucciones hasta el 31 de diciembre de 2027 . El motor de reglas debe bloquear o advertir al usuario si diseña algo que exceda las normativas, verificando que la superficie edificada total (casa original + ampliación) no sobrepase los 90 m² o 140 m² según el avalúo de la propiedad, y alertando que está prohibido construir sobre áreas de riesgo o bienes nacionales de uso público .
+
+5. Arquitectura Orientada a BIM (Formato IFC)
+Dado que tu plataforma contará con un diseño espacial 2D/3D, es altamente recomendable que el sistema permita exportar ese boceto a un archivo de formato estándar IFC (Industry Foundation Classes) . Esto transformaría tu herramienta en un software de presupuesto BIM 5D, permitiendo que la información geométrica (muros, ventanas) y la económica (precios scrapeados) queden vinculadas. Si el usuario luego decide contratar a un arquitecto, podrá entregarle un archivo plenamente compatible con software profesional .
+
+6. Alertas de Seguridad Estructural
+Dado el riesgo inherente a la autoconstrucción, el sistema inteligente debe incluir restricciones paramétricas por seguridad. Por ejemplo, si el usuario selecciona una estructuración en Metalcon e intenta simular una vivienda de cuatro pisos, el sistema debe arrojar una alerta crítica indicando que el límite seguro para ese material sin ingeniería compleja suele ser de dos a tres pisos máximo . Además, debe recomendar de forma automatizada la asesoría de un profesional para evitar accidentes o fallas ante sismos .

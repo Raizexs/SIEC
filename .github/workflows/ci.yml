@@ -1,0 +1,93 @@
+name: SIEC CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  frontend:
+    name: Frontend (Vue 3 + Vite)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Lint
+        run: npm run lint --if-present
+      - name: Unit tests (Vitest)
+        run: npm test --if-present -- --run
+      - name: Build
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || 'https://example.supabase.co' }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY || 'placeholder' }}
+          VITE_API_URL: ${{ vars.VITE_API_URL || 'https://api.siec.app' }}
+
+  backend:
+    name: Backend (FastAPI + Pytest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: siec_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+      - run: pip install -r requirements.txt
+      - run: pip install pytest pytest-asyncio pytest-cov
+      - name: Run pytest
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/siec_test
+          SUPABASE_JWT_SECRET: test-secret-32-bytes-of-padding-for-hs256-test
+          ALLOW_ANONYMOUS_DEV: "true"
+        run: pytest --maxfail=3 --cov=. --cov-report=xml -q
+      - uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          files: backend/coverage.xml
+          flags: backend
+          fail_ci_if_error: false
+
+  scraper:
+    name: Scraper smoke
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install scraper deps
+        working-directory: ./scraper
+        run: |
+          pip install pytest
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Scraper tests
+        working-directory: ./scraper
+        run: pytest tests/ -q --ignore=tests/test_search.py

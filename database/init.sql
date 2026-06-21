@@ -1,0 +1,260 @@
+-- Script de inicialización: Ejecuta todas las migraciones y seeds en orden
+
+-- ========== MIGRACIONES ==========
+
+-- Migración 001: Crear tabla Material_Estructural
+CREATE TABLE IF NOT EXISTS "Material_Estructural" (
+  "ID" SERIAL PRIMARY KEY,
+  "Nombre" TEXT NOT NULL UNIQUE,
+  "Descripcion" TEXT,
+  "Activo" BOOLEAN DEFAULT TRUE,
+  "Fecha_Creacion" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Migración 002: Crear tabla Configuracion_Simulacion
+CREATE TABLE IF NOT EXISTS "Configuracion_Simulacion" (
+  "ID" SERIAL PRIMARY KEY,
+  "M2_Totales" INTEGER NOT NULL,
+  "Material_Estructural_ID" INTEGER NOT NULL REFERENCES "Material_Estructural"("ID"),
+  "Habitaciones" INTEGER NOT NULL DEFAULT 0,
+  "Banios" INTEGER NOT NULL DEFAULT 0,
+  "Areas_Comunes" INTEGER NOT NULL DEFAULT 0,
+  "Fecha_Creacion" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT chk_positive_m2 CHECK ("M2_Totales" > 0)
+);
+
+-- Migración 003: Crear tabla Insumo
+CREATE TABLE IF NOT EXISTS "Insumo" (
+  "ID" SERIAL PRIMARY KEY,
+  "Nombre" TEXT NOT NULL UNIQUE,
+  "Categoria" TEXT NOT NULL CHECK ("Categoria" IN (
+    'Obra Gruesa',
+    'Terminaciones',
+    'Instalaciones',
+    'Mano de Obra'
+  )),
+  "Unidad_Medida" TEXT NOT NULL CHECK ("Unidad_Medida" IN (
+    'saco 25kg',
+    'saco 50kg',
+    'kg',
+    'litro',
+    'metro',
+    'metro lineal',
+    'plancha',
+    'unidad',
+    'caja',
+    'rollo',
+    'rollo 100m',
+    'tubo 3m',
+    'barra 4.71kg',
+    'HH',
+    'hora',
+    'metro cuadrado'
+  )),
+  "Descripcion" TEXT,
+  "Activo" BOOLEAN DEFAULT TRUE,
+  "Fecha_Creacion" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Índices para optimizar queries
+CREATE INDEX IF NOT EXISTS idx_insumo_categoria ON "Insumo"("Categoria");
+CREATE INDEX IF NOT EXISTS idx_insumo_activo ON "Insumo"("Activo");
+
+-- Migración 004: Crear tabla Matriz_Rendimiento
+CREATE TABLE IF NOT EXISTS "Matriz_Rendimiento" (
+  "ID" SERIAL PRIMARY KEY,
+  "Material_Estructural_ID" INTEGER NOT NULL REFERENCES "Material_Estructural"("ID"),
+  "Insumo_ID" INTEGER NOT NULL REFERENCES "Insumo"("ID"),
+  "Factor_Multiplicador" NUMERIC(10, 4) NOT NULL CHECK ("Factor_Multiplicador" > 0),
+  "Unidad_Factor" TEXT DEFAULT 'cantidad por m2',
+  "Activo" BOOLEAN DEFAULT TRUE,
+  "Fecha_Creacion" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE("Material_Estructural_ID", "Insumo_ID")
+);
+
+-- ========== SEEDS ==========
+
+-- Seed 001: Poblar Material_Estructural
+INSERT INTO "Material_Estructural" ("Nombre", "Descripcion", "Activo") VALUES
+  ('Madera', 'Estructura de madera para viviendas', TRUE),
+  ('Metalcom', 'Estructura con perfiles metalcom', TRUE),
+  ('Albañilería', 'Estructura de albañilería y hormigón', TRUE),
+  ('Hormigón Armado', 'Estructura de hormigón con armadura de acero', TRUE),
+  ('Híbrido', 'Sistema mixto madera y metalcon', TRUE)
+ON CONFLICT ("Nombre") DO NOTHING;
+
+-- Seed 002: Poblar Configuracion_Simulacion (ejemplo)
+INSERT INTO "Configuracion_Simulacion" ("M2_Totales", "Material_Estructural_ID", "Habitaciones", "Banios", "Areas_Comunes") VALUES
+  (80, 1, 3, 2, 2),
+  (100, 2, 4, 2, 3),
+  (120, 3, 4, 3, 3)
+ON CONFLICT DO NOTHING;
+
+-- Seed 003: Poblar Insumo con catálogo completo de materiales
+
+-- OBRA GRUESA (5 insumos mínimos)
+INSERT INTO "Insumo" ("Nombre", "Categoria", "Unidad_Medida", "Descripcion", "Activo") VALUES
+  ('Cemento Portland', 'Obra Gruesa', 'saco 25kg', 'Cemento Portland para uso general en albañilería y hormigón', TRUE),
+  ('Cemento Especial', 'Obra Gruesa', 'saco 25kg', 'Cemento especial para refuerzos estructurales', TRUE),
+  ('Fierro A63-42H', 'Obra Gruesa', 'barra 4.71kg', 'Acero laminado en caliente para refuerzo estructural', TRUE),
+  ('Arena Gruesa', 'Obra Gruesa', 'metro cuadrado', 'Arena gruesa para hormigones y morteros', TRUE),
+  ('Ripio', 'Obra Gruesa', 'metro cuadrado', 'Ripio o grava para hormigones', TRUE),
+  ('Agua', 'Obra Gruesa', 'litro', 'Agua para obras civiles', TRUE),
+  ('Perfil C 60x38x0.85', 'Obra Gruesa', 'unidad', 'Perfil estructural C Metalcon 6m', TRUE),
+  ('Perfil U 62x25x0.85', 'Obra Gruesa', 'unidad', 'Perfil canal U Metalcon 6m', TRUE),
+  ('Perfil Omega', 'Obra Gruesa', 'unidad', 'Perfil Omega Metalcon 6m', TRUE),
+  ('Pino Dimensionado 2x3', 'Obra Gruesa', 'unidad', 'Madera pino dimensionado 2x3 3.2m', TRUE),
+  ('Pino Dimensionado 2x4', 'Obra Gruesa', 'unidad', 'Madera pino dimensionado 2x4 3.2m', TRUE),
+  ('Terciado Estructural 12mm', 'Obra Gruesa', 'plancha', 'Placa de terciado estructural 1.22x2.44m', TRUE),
+  ('Tornillo Volcanita', 'Obra Gruesa', 'caja', 'Caja de tornillos para volcanita', TRUE),
+  ('Tornillo Madera', 'Obra Gruesa', 'caja', 'Caja de tornillos para madera', TRUE),
+  ('Tornillo Autoperforante', 'Obra Gruesa', 'caja', 'Caja de tornillos autoperforantes para metal', TRUE)
+ON CONFLICT ("Nombre") DO NOTHING;
+
+-- TERMINACIONES (4+ insumos mínimos)
+INSERT INTO "Insumo" ("Nombre", "Categoria", "Unidad_Medida", "Descripcion", "Activo") VALUES
+  ('Volcanita RH Standard', 'Terminaciones', 'plancha', 'Placa de yeso cartón estándar 1.2x2.4m x 12.5mm', TRUE),
+  ('Volcanita RH Reforzado', 'Terminaciones', 'plancha', 'Placa de yeso cartón reforzado para zonas húmedas', TRUE),
+  ('Pintura Acrílica Blanca', 'Terminaciones', 'litro', 'Pintura acrílica blanca interior', TRUE),
+  ('Pintura Esmalte', 'Terminaciones', 'litro', 'Pintura esmalte para exteriores', TRUE),
+  ('Cerámica Piso', 'Terminaciones', 'metro cuadrado', 'Cerámica para pisos (varios modelos)', TRUE),
+  ('Cerámica Muro', 'Terminaciones', 'metro cuadrado', 'Cerámica para muros interiores', TRUE),
+  ('Piso Flotante', 'Terminaciones', 'metro cuadrado', 'Piso flotante laminado o vinílico', TRUE),
+  ('Adhesivo Cerámico', 'Terminaciones', 'kg', 'Adhesivo para aplicación de cerámica', TRUE),
+  ('Lechada Cerámica', 'Terminaciones', 'kg', 'Lechada o fragua para espacios entre cerámicas', TRUE)
+ON CONFLICT ("Nombre") DO NOTHING;
+
+-- INSTALACIONES (3+ insumos mínimos)
+INSERT INTO "Insumo" ("Nombre", "Categoria", "Unidad_Medida", "Descripcion", "Activo") VALUES
+  ('Cable H07Z1-K 1x2.5mm', 'Instalaciones', 'rollo 100m', 'Cable flexible libre de halógenos 1x2.5mm²', TRUE),
+  ('Cable H07Z1-K 1x4mm', 'Instalaciones', 'metro lineal', 'Cable flexible libre de halógenos 1x4mm²', TRUE),
+  ('Cable H07Z1-K 1x6mm', 'Instalaciones', 'metro lineal', 'Cable flexible libre de halógenos 1x6mm²', TRUE),
+  ('Tubo PVC Agua 110mm', 'Instalaciones', 'tubo 3m', 'Tubo de PVC para agua potable diámetro 110mm', TRUE),
+  ('Tubo PVC Agua 75mm', 'Instalaciones', 'metro lineal', 'Tubo de PVC para agua potable diámetro 75mm', TRUE),
+  ('Tubo PVC Agua 50mm', 'Instalaciones', 'metro lineal', 'Tubo de PVC para agua potable diámetro 50mm', TRUE),
+  ('Tubo Cobre 15mm', 'Instalaciones', 'metro lineal', 'Tubo de cobre rígido 15mm para gas', TRUE),
+  ('Tubo Cobre 22mm', 'Instalaciones', 'metro lineal', 'Tubo de cobre rígido 22mm para gas', TRUE),
+  ('Caja Eléctrica Embutida', 'Instalaciones', 'unidad', 'Caja eléctrica embutida para enchufes', TRUE),
+  ('Disyuntor Termomagnético', 'Instalaciones', 'unidad', 'Disyuntor termomagnético 16-20A', TRUE)
+ON CONFLICT ("Nombre") DO NOTHING;
+
+-- MANO DE OBRA (4 insumos mínimos, medidas en HH = Horas Hombre)
+INSERT INTO "Insumo" ("Nombre", "Categoria", "Unidad_Medida", "Descripcion", "Activo") VALUES
+  ('Albañil', 'Mano de Obra', 'HH', 'Mano de obra de albañil (hora hombre)', TRUE),
+  ('Electricista', 'Mano de Obra', 'HH', 'Mano de obra de electricista (hora hombre)', TRUE),
+  ('Gasfíter', 'Mano de Obra', 'HH', 'Mano de obra de gasfíter/plomero (hora hombre)', TRUE),
+  ('Ayudante General', 'Mano de Obra', 'HH', 'Mano de obra de ayudante general (hora hombre)', TRUE)
+ON CONFLICT ("Nombre") DO NOTHING;
+
+-- Seed 004: Poblar Matriz_Rendimiento (factores de rendimiento por material)
+-- IMPORTANTE: Usa SOLO insumos que el scraper cotiza (IDs 2,3,7,16,19)
+-- para que cada materialidad genere precios reales de mercado.
+INSERT INTO "Matriz_Rendimiento" ("Material_Estructural_ID", "Insumo_ID", "Factor_Multiplicador", "Unidad_Factor", "Activo") VALUES
+  -- MADERA (ID=1)
+  (1, 2,  0.30,   'sacos por m2', TRUE),       -- Cemento Especial (saco 25kg)
+  (1, 3,  0.085,  'barras por m2', TRUE),       -- Fierro (0.40kg / 4.71kg por barra)
+  (1, 7,  0.42,   'planchas por m2', TRUE),     -- Volcanita (1 plancha = 2.88m2, 1/2.88 ~ 0.35 + margen)
+  (1, 16, 0.030,  'rollos por m2', TRUE),       -- Cable (3m lineales / 100m por rollo)
+  (1, 19, 0.050,  'tubos por m2', TRUE),        -- Tubo PVC (0.15m / 3m por tubo)
+  -- METALCON (ID=2)
+  (2, 2,  0.25,   'sacos por m2', TRUE),
+  (2, 3,  0.064,  'barras por m2', TRUE),       -- 0.30 / 4.71
+  (2, 7,  0.70,   'planchas por m2', TRUE),     -- Más volcanita en metalcon
+  (2, 16, 0.035,  'rollos por m2', TRUE),       -- 3.5 / 100
+  (2, 19, 0.050,  'tubos por m2', TRUE),
+  -- ALBAÑILERÍA (ID=3)
+  (3, 2,  0.70,   'sacos por m2', TRUE),
+  (3, 3,  0.170,  'barras por m2', TRUE),       -- 0.80 / 4.71
+  (3, 7,  0.28,   'planchas por m2', TRUE),
+  (3, 16, 0.025,  'rollos por m2', TRUE),       -- 2.5 / 100
+  (3, 19, 0.067,  'tubos por m2', TRUE),        -- 0.20 / 3
+  -- HORMIGÓN ARMADO (ID=4)
+  (4, 2,  0.90,   'sacos por m2', TRUE),
+  (4, 3,  0.318,  'barras por m2', TRUE),       -- 1.50 / 4.71
+  (4, 7,  0.21,   'planchas por m2', TRUE),
+  (4, 16, 0.025,  'rollos por m2', TRUE),       -- 2.5 / 100
+  (4, 19, 0.083,  'tubos por m2', TRUE),        -- 0.25 / 3
+  -- HÍBRIDO (ID=5) — promedio madera + metalcon
+  (5, 2,  0.275,  'sacos por m2', TRUE),
+  (5, 3,  0.075,  'barras por m2', TRUE),
+  (5, 7,  0.56,   'planchas por m2', TRUE),
+  (5, 16, 0.033,  'rollos por m2', TRUE),
+  (5, 19, 0.050,  'tubos por m2', TRUE),
+  -- NUEVOS MATERIALES (Asignaciones aproximadas para cumplir con agregar a matriz)
+  -- MADERA (ID=1)
+  (1, 28, 1.5,    'unidades por m2', TRUE),     -- Pino Dimensionado 2x3
+  (1, 29, 0.5,    'unidades por m2', TRUE),     -- Pino Dimensionado 2x4
+  (1, 30, 0.35,   'planchas por m2', TRUE),     -- Terciado Estructural 12mm
+  (1, 32, 0.1,    'cajas por m2', TRUE),        -- Tornillo Madera
+  -- METALCON (ID=2)
+  (2, 25, 1.2,    'unidades por m2', TRUE),     -- Perfil C
+  (2, 26, 0.4,    'unidades por m2', TRUE),     -- Perfil U
+  (2, 27, 0.8,    'unidades por m2', TRUE),     -- Perfil Omega
+  (2, 31, 0.1,    'cajas por m2', TRUE),        -- Tornillo Volcanita
+  (2, 33, 0.05,   'cajas por m2', TRUE)         -- Tornillo Autoperforante
+ON CONFLICT ("Material_Estructural_ID", "Insumo_ID") DO NOTHING;
+
+-- ========== VERIFICACIONES FINALES ==========
+-- Contar todas las tablas principales
+SELECT 'Material_Estructural' as tabla, COUNT(*) as total FROM "Material_Estructural" 
+UNION ALL
+SELECT 'Insumo' as tabla, COUNT(*) as total FROM "Insumo" 
+UNION ALL
+SELECT 'Matriz_Rendimiento' as tabla, COUNT(*) as total FROM "Matriz_Rendimiento" 
+UNION ALL
+SELECT 'Configuracion_Simulacion' as tabla, COUNT(*) as total FROM "Configuracion_Simulacion";
+
+-- Verificación específica de Insumo por categoría
+SELECT 'INSUMO VERIFICATION' as "VERIFICATION", 'Obra Gruesa' as categoria, COUNT(*) as cantidad FROM "Insumo" WHERE "Categoria" = 'Obra Gruesa'
+UNION ALL
+SELECT 'INSUMO VERIFICATION', 'Terminaciones' as categoria, COUNT(*) as cantidad FROM "Insumo" WHERE "Categoria" = 'Terminaciones'
+UNION ALL
+SELECT 'INSUMO VERIFICATION', 'Instalaciones' as categoria, COUNT(*) as cantidad FROM "Insumo" WHERE "Categoria" = 'Instalaciones'
+UNION ALL
+SELECT 'INSUMO VERIFICATION', 'Mano de Obra' as categoria, COUNT(*) as cantidad FROM "Insumo" WHERE "Categoria" = 'Mano de Obra'
+UNION ALL
+SELECT 'INSUMO VERIFICATION', 'TOTAL' as categoria, COUNT(*) as cantidad FROM "Insumo";
+
+-- ========== MIGRACIÓN 005: precio_mercado ==========
+-- Tabla destino del microservicio scraper (SCRUM-55)
+-- NOTA: sin comillas dobles en el nombre de tabla para que coincida
+-- con el INSERT sin comillas que genera db.py
+
+CREATE TABLE IF NOT EXISTS precio_mercado (
+  "ID"               SERIAL PRIMARY KEY,
+  "Insumo_ID"        INTEGER REFERENCES "Insumo"("ID") ON DELETE SET NULL,
+  "Tienda"           TEXT NOT NULL CHECK ("Tienda" IN ('sodimac', 'easy', 'construmart')),
+  "Nombre_Producto"  TEXT NOT NULL,
+  "Precio"           NUMERIC(12, 2),
+  "Precio_Descuento" NUMERIC(12, 2),
+  "Stock"            TEXT,
+  "Categoria"        TEXT,
+  "URL"              TEXT NOT NULL,
+  "Fecha_Scraping"   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "Exitoso"          BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+CREATE INDEX IF NOT EXISTS idx_pm_tienda       ON precio_mercado("Tienda");
+CREATE INDEX IF NOT EXISTS idx_pm_insumo       ON precio_mercado("Insumo_ID");
+CREATE INDEX IF NOT EXISTS idx_pm_fecha        ON precio_mercado("Fecha_Scraping" DESC);
+CREATE INDEX IF NOT EXISTS idx_pm_tienda_fecha ON precio_mercado("Tienda", "Fecha_Scraping" DESC);
+
+-- ========== MIGRACIÓN 006: indicador_economico ==========
+-- Tabla para almacenar indicadores financieros (UF, etc.)
+CREATE TABLE IF NOT EXISTS indicador_economico (
+  id SERIAL PRIMARY KEY,
+  nombre TEXT NOT NULL,
+  valor NUMERIC(12, 2) NOT NULL,
+  fecha DATE NOT NULL,
+  fecha_captura TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  fuente TEXT DEFAULT 'CMF',
+  UNIQUE(nombre, fecha)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ie_nombre_fecha ON indicador_economico (nombre, fecha DESC);
+
+-- ========== MIGRACIÓN 003 (Phase 1.5): Multi-tenant ==========
+-- Users, projects, collaborators, versions, comments, audit, notifications.
+-- Loaded from migrations/003_create_users_and_projects.sql via psql.
+\i /migrations/003_create_users_and_projects.sql
+

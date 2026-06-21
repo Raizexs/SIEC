@@ -1,0 +1,73 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: siec_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: siec
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./database/migrations:/migrations
+      - ./database/seeds:/seeds
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    image: python:3.11-slim
+    container_name: siec_backend
+    working_dir: /app
+    volumes:
+      - ./backend:/app
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/siec
+      - ALLOW_ANONYMOUS_DEV=true
+      - ENV=development
+    ports:
+      - "8000:8000"
+    command: bash -c "pip install --no-cache-dir -r requirements.txt && (playwright install chromium 2>/dev/null || true) && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    image: node:20-alpine
+    container_name: siec_frontend
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+    ports:
+      - "5173:5173"
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    depends_on:
+      - backend
+
+  scraper:
+    build:
+      context: ./scraper
+      dockerfile: Dockerfile
+    container_name: siec_scraper
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/siec
+      - TZ=America/Santiago
+      - RUN_NOW=${RUN_NOW:-false}
+      - CMF_API_KEY=${CMF_API_KEY:-}
+      - SERPAPI_METALCON_API_KEY=${SERPAPI_METALCON_API_KEY:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

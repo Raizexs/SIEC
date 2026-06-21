@@ -1,0 +1,11 @@
+{
+  "store": "sodimac",
+  "total_urls": 33,
+  "first_url": "https://www.sodimac.cl/sodimac-cl/articulo/110309884/Cemento-Polpaico-25-kilos/110309919",
+  "producto": {
+    "nombre": "Cemento Polpaico 25 kilos",
+    "precio": 5180.0,
+    "exitoso": true
+  },
+  "insumo_id_mapeado": 2
+}

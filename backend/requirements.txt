@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+psycopg2-binary
+python-jose[cryptography]
+httpx
+python-dotenv
+structlog
+slowapi
+sentry-sdk[fastapi]
+redis
+alembic
+stripe>=8.0.0
+playwright>=1.44.0
