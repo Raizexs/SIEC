@@ -654,7 +654,7 @@ onMounted(async () => {
   await nextTick();
   const stepQuery = route.query.step;
   if (stepQuery === 'budget' || stepQuery === 'export' || stepQuery === 'design' || stepQuery === 'configure') {
-    goToStep(String(stepQuery));
+    goToStep(stepQuery === 'export' ? 'budget' : String(stepQuery));
   }
   if (route.query.tour === '1') {
     setTimeout(() => startTutorial(), 600);

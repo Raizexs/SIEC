@@ -117,7 +117,7 @@ export function startWorkspaceTour({ t, prepareTutorialStep }) {
     { selector: '.tour-scene-3d-tools', workspaceStep: 'design' },
     { selector: '.tour-scene-3d-actions', workspaceStep: 'design' },
     { selector: '.tour-budget-step', workspaceStep: 'budget' },
-    { selector: '.tour-export-step', workspaceStep: 'export' },
+    { selector: '.tour-export-step', workspaceStep: 'budget' },
     {},
   ];
 

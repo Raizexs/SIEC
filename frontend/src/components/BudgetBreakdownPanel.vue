@@ -1296,7 +1296,7 @@ onUnmounted(() => {
                   :title="t('budgetExportTitle')"
                   aria-haspopup="menu"
                   :aria-expanded="exportMenuOpen"
-                  class="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-400/30 bg-emerald-500 px-4 py-2.5 text-xs font-bold uppercase tracking-tight text-white shadow-lg shadow-emerald-500/20 transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-400 hover:shadow-emerald-500/30 active:scale-[0.98]"
+                  class="tour-export-step inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-400/30 bg-emerald-500 px-4 py-2.5 text-xs font-bold uppercase tracking-tight text-white shadow-lg shadow-emerald-500/20 transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-400 hover:shadow-emerald-500/30 active:scale-[0.98]"
                   @click.stop="handleToggleExportMenu"
                 >
                   <span class="material-symbols-outlined text-[16px]">
