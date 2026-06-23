@@ -60,7 +60,7 @@ jobs:
           cache: 'pip'
           cache-dependency-path: backend/requirements.txt
       - run: pip install -r requirements.txt
-      - run: pip install pytest pytest-asyncio pytest-cov
+      - run: pip install pytest pytest-asyncio pytest-cov httpx anyio[asyncio]
       - name: Run pytest
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/siec_test
