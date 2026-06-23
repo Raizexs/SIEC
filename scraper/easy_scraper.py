@@ -1,3 +1,10 @@
+# DEPRECATED — SCRUM-125 (2026-06-23)
+# Este scraper NO está integrado al pipeline nocturno (main.py).
+# Requiere Playwright para funcionar (Easy.cl es Next.js con precios dinámicos).
+# El pipeline activo usa SerpAPIScraper que no necesita Playwright.
+# Conservado para referencia; puede reactivarse si se instala Playwright en el contenedor.
+# Para reactivar: agregar ("Easy", EasyScraper()) a la lista scrapers en main.py.
+# ─────────────────────────────────────────────────────────────────────────────
 # scraper/easy_scraper.py
 """
 Scraper Easy — microservicio SIEC.
