@@ -1,4 +1,17 @@
-"""Scrapea los insumos complementarios (IDs 46-51) via SerpAPI y guarda en precio_mercado."""
+# DEPRECATED — SCRUM-125 (2026-06-23)
+# Este script está DESACTIVADO y NO debe ejecutarse ni integrarse al scheduler.
+#
+# Motivo: Los IDs 46-51 referenciados aquí (clavos, zinc, costaneras, lana de vidrio)
+# NO EXISTEN en la tabla Insumo de la DB. El init.sql define insumos hasta ID 38.
+# Ejecutar este script generaría SQL inválido (violación FK en precio_mercado).
+#
+# Alternativa: Los insumos complementarios deben agregarse primero a la tabla Insumo
+# con una migración SQL, y luego registrar sus fallback_prices en fallback_prices.py.
+# Ver SCRUM-125 para el contexto completo.
+#
+# Código original conservado abajo solo para referencia histórica.
+# ─────────────────────────────────────────────────────────────────────────────
+"""DEPRECATED — ver comentario de cabecera. Scrapea insumos complementarios via SerpAPI."""
 import os, sys, json, logging
 from datetime import date
 
