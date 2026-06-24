@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch, nextTick } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppRail from '../components/shell/AppRail.vue';
 import AppTopBar from '../components/shell/AppTopBar.vue';
@@ -8,9 +8,9 @@ import { usePrivacy } from '../composables/usePrivacy';
 import ConsentModal from '../components/privacy/ConsentModal.vue';
 import { useBilling } from '../composables/useBilling';
 import { useI18n } from '../composables/useI18n';
-import { useProMotion, replayMotionReveal } from '../composables/useProMotion';
-import { useMotionPreferenceSync } from '../composables/useMotionPreferenceSync';
 import { bindCardHover } from '../composables/useMotionContext';
+import { gsap } from 'gsap';
+import { prefersReducedMotion, waitForRouteEnter, runBriefEntranceReveal } from '../design/motionTokens';
 import {
   Store,
   MapPin,
@@ -49,16 +49,37 @@ const showUnlockConsent = ref(false);
 const policyVersion = ref('1.0');
 const motionRoot = ref(null);
 let unbindListingHover = null;
+let placeRevealCtx;
 
-useProMotion(motionRoot, { delayUntilRoute: true });
-useMotionPreferenceSync(motionRoot);
+const revealPlaceLayers = async (selector = '[data-siec-place-layer]') => {
+  await waitForRouteEnter();
+  await nextTick();
+
+  const root = motionRoot.value;
+  if (!root) return;
+
+  const layers = root.querySelectorAll(selector);
+  if (!layers.length) return;
+
+  placeRevealCtx?.kill();
+
+  placeRevealCtx = gsap.context(() => {
+    runBriefEntranceReveal(layers, {
+      root,
+      readyClass: 'siecplace-shell--ready',
+      stagger: selector === '[data-siec-place-detail]' ? 0.05 : 0.07,
+      durationScale: selector === '[data-siec-place-detail]' ? 0.92 : 1,
+      distanceScale: selector === '[data-siec-place-detail]' ? 0.85 : 0.72,
+    });
+  }, root);
+};
 
 const bindListingHover = async () => {
   await nextTick();
   unbindListingHover?.();
   if (!motionRoot.value) return;
   unbindListingHover = bindCardHover(
-    motionRoot.value.querySelectorAll('[data-motion="item"]'),
+    motionRoot.value.querySelectorAll('.siecplace-listing-card'),
     { lift: -5 },
   );
 };
@@ -87,11 +108,13 @@ const loadTab = async () => {
 const openDetail = async (listingId) => {
   detailId.value = listingId;
   await fetchListing(listingId);
+  await revealPlaceLayers('[data-siec-place-detail]');
 };
 
 const closeDetail = () => {
   detailId.value = null;
   selectedListing.value = null;
+  nextTick(() => bindListingHover());
 };
 
 const handleUnlock = async () => {
@@ -141,9 +164,17 @@ onMounted(async () => {
   if (route.query.listing) {
     tab.value = 'explore';
     await openDetail(String(route.query.listing));
+    return;
   }
+  const revealPromise = revealPlaceLayers();
   await loadTab();
+  await revealPromise;
   bindListingHover();
+});
+
+onBeforeUnmount(() => {
+  placeRevealCtx?.kill();
+  unbindListingHover?.();
 });
 </script>
 
@@ -151,7 +182,7 @@ onMounted(async () => {
   <div
     ref="motionRoot"
     data-siec-app-shell
-    class="siec-app-canvas flex min-h-screen text-slate-950 dark:text-slate-100"
+    class="siecplace-shell siec-app-canvas flex min-h-screen text-slate-950 dark:text-slate-100"
   >
     <AppRail active="siecplace" />
 
@@ -172,7 +203,7 @@ onMounted(async () => {
       <main class="min-h-0 flex-1 overflow-y-auto">
         <div class="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
           <section
-            data-motion="hero"
+            data-siec-place-layer
             class="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white/90 p-6 shadow-lg dark:border-slate-800/90 dark:bg-slate-950/85"
           >
             <div
@@ -207,7 +238,7 @@ onMounted(async () => {
           </section>
 
           <section
-            data-motion="section"
+            data-siec-place-layer
             class="rounded-3xl border border-slate-200/90 bg-slate-50/80 p-6 dark:border-slate-800/90 dark:bg-slate-900/40"
           >
             <h2 class="text-lg font-black text-slate-950 dark:text-slate-50">
@@ -294,7 +325,7 @@ onMounted(async () => {
             </div>
           </section>
 
-          <div v-if="!detailId" class="space-y-4">
+          <div v-if="!detailId" class="space-y-4" data-siec-place-layer>
             <div class="flex flex-wrap gap-2">
               <button
                 type="button"
@@ -336,12 +367,11 @@ onMounted(async () => {
               </p>
             </div>
 
-            <div v-else class="grid gap-4 md:grid-cols-2 xl:grid-cols-3" data-motion="section">
+            <div v-else class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               <article
                 v-for="item in tab === 'explore' ? listings : myListings"
                 :key="item.id"
-                data-motion="item"
-                class="flex flex-col rounded-3xl border border-slate-200/90 bg-white p-5 shadow-sm transition-[border-color,box-shadow] hover:shadow-md dark:border-slate-800 dark:bg-slate-950"
+                class="siecplace-listing-card flex flex-col rounded-3xl border border-slate-200/90 bg-white p-5 shadow-sm transition-[border-color,box-shadow] hover:shadow-md dark:border-slate-800 dark:bg-slate-950"
               >
                 <div class="flex items-start justify-between gap-2">
                   <h3 class="text-base font-black text-slate-950 dark:text-slate-50">
@@ -393,6 +423,8 @@ onMounted(async () => {
 
           <section
             v-else-if="selectedListing"
+            data-siec-place-layer
+            data-siec-place-detail
             class="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-lg dark:border-slate-800 dark:bg-slate-950"
           >
             <button
@@ -491,3 +523,15 @@ onMounted(async () => {
     />
   </div>
 </template>
+
+<style scoped>
+.siecplace-shell:not(.siecplace-shell--ready) [data-siec-place-layer] {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .siecplace-shell [data-siec-place-layer] {
+    opacity: 1;
+  }
+}
+</style>
