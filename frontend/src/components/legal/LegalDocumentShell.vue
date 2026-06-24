@@ -1,9 +1,8 @@
 <script setup>
 import { ref, onMounted, nextTick } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
-import { gsap } from 'gsap';
 import { ArrowLeft, Shield } from 'lucide-vue-next';
-import { prefersReducedMotion, getMotionProfile } from '../../design/motionTokens';
+import { prefersReducedMotion, runBriefEntranceReveal } from '../../design/motionTokens';
 
 const router = useRouter();
 
@@ -12,7 +11,7 @@ const goBack = () => {
     router.back();
     return;
   }
-  router.push('/login');
+  router.push('/');
 };
 
 defineProps({
@@ -22,29 +21,23 @@ defineProps({
   badge: { type: String, default: 'Documento legal' },
 });
 
+const legalShellRef = ref(null);
 const legalCardRef = ref(null);
 
 onMounted(async () => {
   if (prefersReducedMotion() || !legalCardRef.value) return;
   await nextTick();
-  const profile = getMotionProfile();
-  gsap.fromTo(
-    legalCardRef.value,
-    { autoAlpha: 0, y: profile.distance.sm },
-    {
-      autoAlpha: 1,
-      y: 0,
-      duration: profile.duration.base,
-      ease: profile.ease.entrance,
-      clearProps: 'transform,opacity',
-    },
-  );
+  runBriefEntranceReveal(legalCardRef.value, {
+    root: legalShellRef.value,
+    readyClass: 'legal-shell--ready',
+  });
 });
 </script>
 
 <template>
   <main
-    class="relative min-h-screen overflow-hidden bg-slate-950 text-slate-100"
+    ref="legalShellRef"
+    class="legal-shell relative min-h-screen overflow-hidden bg-slate-950 text-slate-100"
     data-siec-bare-route="true"
   >
     <div
@@ -67,6 +60,7 @@ onMounted(async () => {
 
         <div
           ref="legalCardRef"
+          data-siec-legal-card
           class="mt-8 overflow-hidden rounded-3xl border border-slate-800/90 bg-slate-950/85 shadow-2xl shadow-black/40 backdrop-blur-xl"
         >
           <div class="h-1 bg-gradient-to-r from-orange-400 via-orange-500 to-slate-700" />
@@ -116,6 +110,16 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.legal-shell:not(.legal-shell--ready) [data-siec-legal-card] {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .legal-shell [data-siec-legal-card] {
+    opacity: 1;
+  }
+}
+
 .legal-body :deep(h3) {
   margin-top: 1rem;
   margin-bottom: 0.5rem;
