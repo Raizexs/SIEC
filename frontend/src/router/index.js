@@ -2,6 +2,7 @@
  * Vue Router with auth guards.
  *
  * Routes:
+ *   /                      — public landing page
  *   /login                 — public auth screen (split layout)
  *   /auth/callback         — OAuth/magic-link landing
  *   /auth/reset-password   — password reset (token in URL hash)
@@ -21,14 +22,16 @@ const router = createRouter({
   routes,
   scrollBehavior(to, from, savedPosition) {
     if (savedPosition) return savedPosition;
-    if (to.hash) return { el: to.hash, behavior: "smooth" };
-    return { top: 0, behavior: "auto" };
+    if (to.name === 'landing') return { top: 0, behavior: 'auto' };
+    if (to.hash) return { el: to.hash, behavior: 'smooth' };
+    return { top: 0, behavior: 'auto' };
   },
 });
 
 let authInitialized = false;
 
 const PUBLIC_ROUTES = new Set([
+  "landing",
   "login",
   "auth-callback",
   "reset-password",
@@ -62,6 +65,10 @@ router.beforeEach(async (to) => {
         ? to.query.redirect
         : "/workspace";
     return redirect;
+  }
+
+  if (!requiresAuth && auth.isAuthenticated && to.name === "landing") {
+    return "/dashboard";
   }
 
   if (
