@@ -5,6 +5,7 @@
  */
 
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from "vue";
+import { gsap } from "gsap";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 import { HttpError } from "../composables/useApi";
@@ -31,7 +32,6 @@ import {
 import AppRail from "../components/shell/AppRail.vue";
 import AppTopBar from "../components/shell/AppTopBar.vue";
 import PortfolioAnalyticsPanel from "./PortfolioAnalyticsPanel.vue";
-import { useProMotion } from "../composables/useProMotion";
 import { useMotionPreferenceSync } from "../composables/useMotionPreferenceSync";
 import {
   bindCardHover,
@@ -45,6 +45,8 @@ import {
 import {
   prefersReducedMotion,
   waitForNextFrame,
+  waitForRouteEnter,
+  runBriefEntranceReveal,
 } from "../design/motionTokens";
 import { materialName, usePortfolioAnalytics } from "../composables/usePortfolioAnalytics";
 import { useI18n } from "../composables/useI18n";
@@ -90,17 +92,15 @@ const viewSwapRef = ref(null);
 let unbindSectionHover = null;
 let unbindCardHover = null;
 let unbindItemHover = null;
+let unbindHeroHover = null;
 let viewRevealSeq = 0;
 let viewTransitionSeq = 0;
 let viewTransitioning = false;
 let viewRevealReady = false;
+let dashboardRevealCtx;
 
 const { analytics } = usePortfolioAnalytics(projects, savedLayouts, fetchError);
 
-useProMotion(motionRoot, {
-  delayUntilRoute: true,
-  revealOptions: { levels: ["hero"], pace: "snappy" },
-});
 useMotionPreferenceSync(motionRoot);
 useMotionPreferenceSync(viewContentRef);
 
@@ -120,6 +120,15 @@ const bindDashboardHover = () => {
   unbindSectionHover?.();
   unbindCardHover?.();
   unbindItemHover?.();
+  unbindHeroHover?.();
+
+  const shellRoot = motionRoot.value;
+  if (shellRoot) {
+    const hero = shellRoot.querySelector("[data-siec-dashboard-hero]");
+    if (hero) {
+      unbindHeroHover = bindCardHover([hero], { lift: -5, iconSelector: "svg" });
+    }
+  }
 
   const root = viewContentRef.value;
   if (!root) return;
@@ -287,6 +296,29 @@ const firstName = computed(() => {
   return source.split(" ")[0];
 });
 
+const runDashboardShellReveal = async ({ reentry = false } = {}) => {
+  await waitForRouteEnter();
+  await nextTick();
+
+  const root = motionRoot.value;
+  if (!root) return;
+
+  const layers = root.querySelectorAll("[data-siec-dashboard-layer]");
+  if (!layers.length) return;
+
+  dashboardRevealCtx?.kill();
+  dashboardRevealCtx = gsap.context(() => {
+    runBriefEntranceReveal(layers, {
+      root,
+      readyClass: "siec-dashboard-shell--ready",
+      stagger: reentry ? 0.05 : 0.07,
+      durationScale: reentry ? 0.92 : 1,
+      distanceScale: reentry ? 0.85 : 0.72,
+      onComplete: () => bindDashboardHover(),
+    });
+  }, root);
+};
+
 const dateLocale = computed(() =>
   currentLanguage.value === "en" ? "en-US" : "es-CL",
 );
@@ -298,8 +330,6 @@ const heroSummary = computed(() => {
     date: new Date().toLocaleDateString(dateLocale.value),
   });
 });
-
-const hasRemoteProjects = computed(() => projects.value.length > 0);
 
 let lastProjectsFetch = 0;
 const PROJECTS_STALE_MS = 30_000;
@@ -415,6 +445,7 @@ const onProjectsChanged = () => {
 onMounted(async () => {
   window.addEventListener("siec:projects-changed", onProjectsChanged);
   window.addEventListener("siec:motion-preference", bindDashboardHover);
+  runDashboardShellReveal({ reentry: false });
   await fetchProjects();
   await revealDashboardView();
   viewRevealReady = true;
@@ -442,10 +473,12 @@ watch(
 
 onBeforeUnmount(() => {
   if (gridRevealTimer) clearTimeout(gridRevealTimer);
+  dashboardRevealCtx?.kill();
   window.removeEventListener("siec:motion-preference", bindDashboardHover);
   unbindSectionHover?.();
   unbindCardHover?.();
   unbindItemHover?.();
+  unbindHeroHover?.();
   window.removeEventListener("siec:projects-changed", onProjectsChanged);
 });
 </script>
@@ -454,7 +487,7 @@ onBeforeUnmount(() => {
   <div
     ref="motionRoot"
     data-siec-app-shell
-    class="siec-app-canvas flex min-h-screen text-slate-950 transition-colors duration-300 dark:text-slate-100"
+    class="siec-dashboard-shell siec-app-canvas flex min-h-screen text-slate-950 transition-colors duration-300 dark:text-slate-100"
   >
     <AppRail active="dashboard" />
 
@@ -494,8 +527,9 @@ onBeforeUnmount(() => {
         >
           <!-- Hero -->
           <section
-            data-motion="hero"
-            class="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 p-6 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30 md:p-7"
+            data-siec-dashboard-layer
+            data-siec-dashboard-hero
+            class="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 p-6 shadow-xl shadow-slate-950/5 backdrop-blur-xl transition-shadow duration-200 hover:shadow-2xl hover:shadow-slate-950/10 dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30 dark:hover:shadow-black/40 md:p-7"
           >
             <div
               class="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-orange-500/10 blur-3xl dark:bg-orange-400/10"
@@ -530,7 +564,7 @@ onBeforeUnmount(() => {
               </div>
 
               <div
-                class="rounded-3xl border border-slate-200 bg-slate-50/80 p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900/60 sm:w-auto"
+                class="grid w-full grid-cols-2 gap-3 rounded-3xl border border-slate-200 bg-slate-50/80 p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900/60 sm:w-auto sm:min-w-[14rem]"
               >
                 <div
                   class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950"
@@ -538,12 +572,27 @@ onBeforeUnmount(() => {
                   <p
                     class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500"
                   >
-                    {{ t('dashSource') }}
+                    {{ t('dashProjectsStat') }}
                   </p>
                   <p
                     class="mt-1 text-sm font-black text-slate-950 dark:text-slate-100"
                   >
-                    {{ hasRemoteProjects ? t('dashBackend') : t('dashLocal') }}
+                    {{ stats.count }}
+                  </p>
+                </div>
+
+                <div
+                  class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950"
+                >
+                  <p
+                    class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500"
+                  >
+                    {{ t('dashM2Accumulated') }}
+                  </p>
+                  <p
+                    class="mt-1 text-sm font-black text-slate-950 dark:text-slate-100"
+                  >
+                    {{ formatNumber(stats.totalM2) }}
                   </p>
                 </div>
               </div>
@@ -552,7 +601,7 @@ onBeforeUnmount(() => {
 
           <div ref="viewContentRef" data-no-motion class="space-y-8">
           <!-- View toggle -->
-          <section data-motion="section" class="flex flex-wrap items-center gap-2">
+          <section data-siec-dashboard-layer data-motion="section" class="flex flex-wrap items-center gap-2">
             <button
               type="button"
               class="inline-flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] transition-all duration-200"
@@ -591,7 +640,6 @@ onBeforeUnmount(() => {
                 :snapshot="analytics"
                 :is-loading="isLoadingProjects"
                 :fetch-error="fetchError"
-                :has-remote-projects="hasRemoteProjects"
                 @open-project="openProject"
                 @new-project="newProject"
               />
@@ -973,7 +1021,6 @@ onBeforeUnmount(() => {
 
               <span>
                 {{ t('dashLocalProjectsWarning') }}
-                <strong class="font-black">{{ fetchError }}</strong>
               </span>
             </p>
           </transition>
@@ -987,6 +1034,16 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.siec-dashboard-shell:not(.siec-dashboard-shell--ready) [data-siec-dashboard-layer] {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .siec-dashboard-shell [data-siec-dashboard-layer] {
+    opacity: 1;
+  }
+}
+
 .skeleton-shimmer {
   position: relative;
   overflow: hidden;

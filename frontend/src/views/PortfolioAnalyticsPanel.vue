@@ -50,8 +50,6 @@ const props = defineProps({
 
   fetchError: { type: String, default: null },
 
-  hasRemoteProjects: { type: Boolean, default: false },
-
 });
 
 
@@ -270,7 +268,7 @@ const pct = (ratio) => `${Math.round((ratio || 0) * 100)}%`;
 
             >
 
-              {{ t('dashSource') }}
+              {{ t('analyticsRisksDetected') }}
 
             </p>
 
@@ -280,7 +278,7 @@ const pct = (ratio) => `${Math.round((ratio || 0) * 100)}%`;
 
             >
 
-              {{ hasRemoteProjects ? t('dashBackend') : t('dashLocal') }}
+              {{ snapshot.riskCount ?? 0 }}
 
             </p>
 
@@ -1197,8 +1195,6 @@ const pct = (ratio) => `${Math.round((ratio || 0) * 100)}%`;
         <span>
 
           {{ t('dashLocalProjectsWarning') }}
-
-          <strong class="font-black">{{ fetchError }}</strong>
 
         </span>
 

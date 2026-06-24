@@ -32,9 +32,6 @@ export const pageTranslationsEs = {
   dashHello: "Hola, {name}",
   dashActiveProjectsSummary:
     "{count} proyectos activos · última actualización {date}",
-  dashSource: "Fuente",
-  dashBackend: "Backend",
-  dashLocal: "Local",
   dashRole: "Rol",
   dashProjectsStat: "Proyectos",
   dashActiveInWorkspace: "Activos en tu workspace",
@@ -66,7 +63,8 @@ export const pageTranslationsEs = {
   dashDate: "Fecha",
   dashUntitled: "Sin título",
   dashProjectAlt: "Proyecto",
-  dashLocalProjectsWarning: "Mostrando proyectos locales. El backend respondió:",
+  dashLocalProjectsWarning:
+    "No pudimos actualizar tus proyectos. Estás viendo la copia guardada en este dispositivo.",
   noDate: "Sin fecha",
   materialNone: "Sin material",
 
@@ -223,9 +221,6 @@ export const pageTranslationsEn = {
   dashExecutiveDashboard: "Executive dashboard",
   dashHello: "Hello, {name}",
   dashActiveProjectsSummary: "{count} active projects · last update {date}",
-  dashSource: "Source",
-  dashBackend: "Backend",
-  dashLocal: "Local",
   dashRole: "Role",
   dashProjectsStat: "Projects",
   dashActiveInWorkspace: "Active in your workspace",
@@ -256,7 +251,8 @@ export const pageTranslationsEn = {
   dashDate: "Date",
   dashUntitled: "Untitled",
   dashProjectAlt: "Project",
-  dashLocalProjectsWarning: "Showing local projects. Backend responded:",
+  dashLocalProjectsWarning:
+    "We couldn't refresh your projects. You're viewing the copy saved on this device.",
   noDate: "No date",
   materialNone: "No material",
 
