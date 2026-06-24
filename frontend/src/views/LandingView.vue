@@ -26,9 +26,10 @@ import { useLandingScroll } from '../composables/useLandingScroll';
 import { LANDING } from '../constants/landingContent.js';
 
 const motionRoot = ref(null);
-const { scrollToSection, consumeInitialHash, clearHash } = useLandingScroll();
+const { scrollToSection, scrollToTop, consumeInitialHash, clearHash } = useLandingScroll();
 
 provide('landingScrollTo', scrollToSection);
+provide('landingScrollTop', scrollToTop);
 
 const stepIcons = [FileSearch, CircleDollarSign, ClipboardCheck, HardHat];
 const benefitIcons = [ShieldCheck, Gauge, BadgeCheck, LockKeyhole, BarChart3, LayoutDashboard];
@@ -248,15 +249,19 @@ onActivated(() => {
 
         <!-- Qué es SIEC -->
         <section id="que-es" class="landing-section relative scroll-mt-28 py-20 sm:py-24" data-landing-reveal>
-          <div class="mx-auto grid max-w-7xl gap-10 px-4 sm:px-6 lg:grid-cols-[0.8fr_1.2fr] lg:items-start lg:px-8">
-            <div class="lg:sticky lg:top-28">
-              <p class="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-orange-500">
-                <Sparkles class="h-3.5 w-3.5" />
-                Plataforma centralizada
-              </p>
-              <h2 class="mt-4 max-w-md text-3xl font-black tracking-[-0.035em] text-white sm:text-4xl">
-                {{ LANDING.whatIs.title }}
-              </h2>
+          <div class="mx-auto grid max-w-7xl gap-10 px-4 sm:px-6 lg:grid-cols-[0.8fr_1.2fr] lg:items-stretch lg:px-8">
+            <div class="lg:sticky lg:top-28 lg:flex lg:items-center">
+              <div class="relative w-full">
+                <p
+                  class="mb-3 inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-orange-500 lg:absolute lg:bottom-full lg:left-0 lg:mb-3"
+                >
+                  <Sparkles class="h-3.5 w-3.5" />
+                  Plataforma centralizada
+                </p>
+                <h2 class="max-w-md text-3xl font-black tracking-[-0.035em] text-white sm:text-4xl">
+                  {{ LANDING.whatIs.title }}
+                </h2>
+              </div>
             </div>
 
             <div class="landing-surface-card rounded-[2rem] p-6 sm:p-8 lg:p-10">

@@ -1,8 +1,18 @@
 <script setup>
-import { RouterLink } from 'vue-router';
+import { inject } from 'vue';
+import { RouterLink, useRoute } from 'vue-router';
 import { Building2 } from 'lucide-vue-next';
 import { LEGAL } from '../../constants/legal.js';
 import { LANDING } from '../../constants/landingContent.js';
+
+const route = useRoute();
+const scrollToTop = inject('landingScrollTop', () => {});
+
+const goInicio = (event) => {
+  if (route.path !== '/') return;
+  event.preventDefault();
+  scrollToTop();
+};
 </script>
 
 <template>
@@ -19,9 +29,9 @@ import { LANDING } from '../../constants/landingContent.js';
     <div class="mx-auto flex max-w-7xl flex-col gap-8 px-4 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
       <div data-landing-hover="footer-brand" class="flex items-center gap-3.5">
         <div
-          class="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-navy ring-1 ring-white/15"
+          class="flex h-10 w-10 items-center justify-center rounded-xl border border-orange-300/30 bg-orange-500/20 text-orange-300 ring-1 ring-orange-400/15 backdrop-blur-sm"
         >
-          <Building2 class="h-4 w-4" :stroke-width="2.2" />
+          <Building2 class="h-4 w-4 text-orange-300" :stroke-width="2.2" />
         </div>
         <div>
           <p class="text-sm font-black tracking-tight text-white">{{ LANDING.brand.name }}</p>
@@ -36,6 +46,7 @@ import { LANDING } from '../../constants/landingContent.js';
           to="/"
           data-landing-hover="footer-link"
           class="landing-footer-link rounded-md px-1.5 py-1"
+          @click="goInicio"
         >
           Inicio
         </RouterLink>

@@ -855,10 +855,6 @@ const handleSubmit = async () => {
         data-siec-auth-layer
       >
         <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-          <router-link to="/" class="text-slate-500 hover:text-orange-600 dark:text-slate-400">
-            Inicio
-          </router-link>
-          ·
           <router-link to="/legal/privacidad" class="text-slate-500 hover:text-orange-600 dark:text-slate-400">
             Privacidad
           </router-link>

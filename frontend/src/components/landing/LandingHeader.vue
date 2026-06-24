@@ -1,10 +1,18 @@
 <script setup>
 import { inject } from 'vue';
-import { RouterLink } from 'vue-router';
+import { RouterLink, useRoute } from 'vue-router';
 import { ArrowRight, Building2 } from 'lucide-vue-next';
 import { LANDING } from '../../constants/landingContent.js';
 
+const route = useRoute();
 const scrollToSection = inject('landingScrollTo', () => {});
+const scrollToTop = inject('landingScrollTop', () => {});
+
+const goHome = (event) => {
+  if (route.path !== '/') return;
+  event.preventDefault();
+  scrollToTop();
+};
 
 const navItems = [
   { id: 'que-es', label: 'Qué es' },
@@ -34,11 +42,12 @@ const navItems = [
         to="/"
         data-landing-hover="brand"
         class="group relative z-10 flex min-w-0 items-center gap-3 rounded-xl pr-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#07101d]"
+        @click="goHome"
       >
         <div
-          class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-navy shadow-[0_10px_24px_-12px_rgba(0,0,0,0.45)] ring-1 ring-white/20"
+          class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-orange-300/30 bg-orange-500/20 text-orange-300 shadow-[0_10px_24px_-12px_rgba(249,115,22,0.35)] ring-1 ring-orange-400/15 backdrop-blur-sm"
         >
-          <Building2 class="h-5 w-5" :stroke-width="2.25" />
+          <Building2 class="h-5 w-5 text-orange-300" :stroke-width="2.25" />
         </div>
         <div class="min-w-0">
           <p class="truncate text-sm font-black tracking-[-0.02em] text-white">
