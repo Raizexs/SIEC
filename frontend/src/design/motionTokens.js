@@ -196,3 +196,53 @@ export function dispatchRouteEnterComplete() {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent("siec:route-enter-complete"));
 }
+
+/**
+ * Entrada breve (fade + slide) — misma curva que LegalDocumentShell.
+ * @param {Element | Element[] | NodeList} targets
+ * @param {object} [options]
+ * @returns {import('gsap').core.Tween | null}
+ */
+export function runBriefEntranceReveal(targets, options = {}) {
+  const {
+    root = null,
+    readyClass = null,
+    stagger = 0,
+    durationScale = 1,
+    distanceScale = 1,
+    onComplete = null,
+  } = options;
+
+  const els = gsap.utils.toArray(targets);
+  if (!els.length) {
+    onComplete?.();
+    return null;
+  }
+
+  gsap.killTweensOf(els);
+  if (root && readyClass) root.classList.remove(readyClass);
+
+  if (prefersReducedMotion()) {
+    gsap.set(els, { autoAlpha: 1, y: 0, clearProps: "transform,opacity,visibility" });
+    if (root && readyClass) root.classList.add(readyClass);
+    onComplete?.();
+    return null;
+  }
+
+  const profile = getMotionProfile();
+  gsap.set(els, { autoAlpha: 0, y: profile.distance.sm * distanceScale });
+
+  return gsap.to(els, {
+    autoAlpha: 1,
+    y: 0,
+    duration: profile.duration.base * durationScale,
+    ease: profile.ease.entrance,
+    stagger,
+    clearProps: "transform",
+    onComplete: () => {
+      if (root && readyClass) root.classList.add(readyClass);
+      gsap.set(els, { autoAlpha: 1 });
+      onComplete?.();
+    },
+  });
+}
