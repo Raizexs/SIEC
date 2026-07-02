@@ -9,7 +9,8 @@ import { prefersReducedMotion } from '../../design/motionTokens';
 
 const SLIDES = ['plan', 'scene', 'budget'];
 const AUTO_MS = 4500;
-const TRANSITION_MS = 900;
+const TRANSITION_MS = 820;
+const TRANSITION_EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';
 
 const { presets, createPresetLayout } = useLayoutManager();
 
@@ -19,9 +20,9 @@ const isTransitioning = ref(false);
 const sceneVisited = ref(false);
 const touchStartX = ref(0);
 const reduceMotion = prefersReducedMotion();
+const transitionDirection = ref('next');
 
 let autoTimer = null;
-let transitionTimer = null;
 
 const basicPreset = computed(() =>
   presets.value.find((preset) => preset.id === BASIC_PRESET_ID) ?? presets.value[0],
@@ -33,9 +34,13 @@ const sceneActive = computed(() => activeSlide.value === 'scene');
 
 const trackStyle = computed(() => ({
   transform: `translate3d(-${activeIndex.value * 100}%, 0, 0)`,
-  transition: reduceMotion
-    ? 'transform 0.25s ease'
-    : `transform ${TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.15, 1)`,
+  transition: `transform ${TRANSITION_MS}ms ${TRANSITION_EASE}`,
+}));
+
+const viewportClass = computed(() => ({
+  'is-transitioning': isTransitioning.value,
+  'is-next': transitionDirection.value === 'next',
+  'is-prev': transitionDirection.value === 'prev',
 }));
 
 const slideMeta = {
@@ -45,7 +50,6 @@ const slideMeta = {
 };
 
 const scheduleAuto = () => {
-  if (reduceMotion) return;
   clearTimeout(autoTimer);
   autoTimer = setTimeout(() => goNext(true), AUTO_MS);
 };
@@ -53,6 +57,15 @@ const scheduleAuto = () => {
 const goTo = (index, auto = false) => {
   if (isTransitioning.value || index === activeIndex.value) return;
   if (index < 0 || index >= SLIDES.length) return;
+
+  const prev = activeIndex.value;
+  const wrapsForward = prev === SLIDES.length - 1 && index === 0;
+  const wrapsBackward = prev === 0 && index === SLIDES.length - 1;
+  transitionDirection.value = wrapsForward || index > prev
+    ? 'next'
+    : wrapsBackward || index < prev
+      ? 'prev'
+      : transitionDirection.value;
 
   isTransitioning.value = true;
   activeIndex.value = index;
@@ -62,11 +75,13 @@ const goTo = (index, auto = false) => {
   }
 
   clearTimeout(autoTimer);
-  clearTimeout(transitionTimer);
-  transitionTimer = setTimeout(() => {
-    isTransitioning.value = false;
-    if (!reduceMotion) scheduleAuto();
-  }, TRANSITION_MS);
+};
+
+const onTrackTransitionEnd = (event) => {
+  if (event.propertyName !== 'transform') return;
+  if (!isTransitioning.value) return;
+  isTransitioning.value = false;
+  scheduleAuto();
 };
 
 const goNext = (auto = false) => {
@@ -102,7 +117,6 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   clearTimeout(autoTimer);
-  clearTimeout(transitionTimer);
 });
 </script>
 
@@ -182,80 +196,87 @@ onBeforeUnmount(() => {
 
             <div
               class="hero-carousel-viewport relative h-[280px] overflow-hidden sm:h-[300px]"
-              :class="{ 'is-transitioning': isTransitioning }"
+              :class="viewportClass"
             >
               <div
                 class="hero-carousel-track flex h-full will-change-transform"
                 :style="trackStyle"
+                @transitionend="onTrackTransitionEnd"
               >
                 <!-- Plano 2D -->
                 <div class="hero-carousel-slide flex h-full w-full shrink-0 flex-col bg-[#07101d]">
-                  <img
-                    v-if="planThumbnail"
-                    :src="planThumbnail"
-                    alt="Plano 2D de casa básica"
-                    class="h-full w-full object-contain p-3"
-                    draggable="false"
-                  />
-                  <div
-                    v-else
-                    class="flex h-full items-center justify-center text-[10px] font-semibold text-slate-500"
-                  >
-                    Cargando plano…
+                  <div class="hero-slide-inner h-full w-full">
+                    <img
+                      v-if="planThumbnail"
+                      :src="planThumbnail"
+                      alt="Plano 2D de casa básica"
+                      class="h-full w-full object-contain p-3"
+                      draggable="false"
+                    />
+                    <div
+                      v-else
+                      class="flex h-full items-center justify-center text-[10px] font-semibold text-slate-500"
+                    >
+                      Cargando plano…
+                    </div>
                   </div>
                 </div>
 
                 <!-- Casa 3D -->
                 <div class="hero-carousel-slide relative h-full w-full shrink-0 bg-[#0b1220]">
-                  <AuthScene3D
-                    v-if="sceneVisited"
-                    hero
-                    compact
-                    embedded
-                    auto-start
-                    :paused="!sceneActive || reduceMotion"
-                  />
+                  <div class="hero-slide-inner h-full w-full">
+                    <AuthScene3D
+                      v-if="sceneVisited"
+                      hero
+                      compact
+                      embedded
+                      auto-start
+                      :paused="!sceneActive"
+                    />
+                  </div>
                 </div>
 
                 <!-- Presupuesto -->
                 <div class="hero-carousel-slide flex h-full w-full shrink-0 items-center bg-white p-4 dark:bg-[#07101d] sm:p-5">
-                  <div
-                    class="w-full rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.035]"
-                  >
-                    <div class="flex items-start justify-between gap-3">
-                      <div class="min-w-0">
-                        <div
-                          class="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.14em] text-orange-500"
-                        >
-                          <CircleDollarSign class="h-3 w-3" :stroke-width="2.5" />
-                          Presupuesto estimado
+                  <div class="hero-slide-inner w-full">
+                    <div
+                      class="w-full rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.035]"
+                    >
+                      <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                          <div
+                            class="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.14em] text-orange-500"
+                          >
+                            <CircleDollarSign class="h-3 w-3" :stroke-width="2.5" />
+                            Presupuesto estimado
+                          </div>
+                          <h3 class="mt-1 truncate text-base font-black text-navy dark:text-white">
+                            {{ budget.projectName }}
+                          </h3>
+                          <p class="mt-0.5 text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                            {{ budget.rooms }}
+                          </p>
                         </div>
-                        <h3 class="mt-1 truncate text-base font-black text-navy dark:text-white">
-                          {{ budget.projectName }}
-                        </h3>
-                        <p class="mt-0.5 text-[10px] font-medium text-slate-500 dark:text-slate-400">
-                          {{ budget.rooms }}
-                        </p>
+                        <span
+                          class="shrink-0 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300"
+                        >
+                          {{ budget.status }}
+                        </span>
                       </div>
-                      <span
-                        class="shrink-0 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300"
-                      >
-                        {{ budget.status }}
-                      </span>
-                    </div>
 
-                    <div class="mt-4 grid grid-cols-3 gap-2 text-center">
-                      <div class="rounded-lg bg-slate-50 px-2 py-2.5 dark:bg-white/5">
-                        <p class="text-[8px] font-black uppercase tracking-wider text-slate-400">Subtotal</p>
-                        <p class="mt-1 text-xs font-black text-navy dark:text-white">{{ budget.subtotal }}</p>
-                      </div>
-                      <div class="rounded-lg bg-slate-50 px-2 py-2.5 dark:bg-white/5">
-                        <p class="text-[8px] font-black uppercase tracking-wider text-slate-400">Contingencia</p>
-                        <p class="mt-1 text-xs font-black text-navy dark:text-white">{{ budget.contingency }}</p>
-                      </div>
-                      <div class="rounded-lg bg-orange-50 px-2 py-2.5 dark:bg-orange-950/25">
-                        <p class="text-[8px] font-black uppercase tracking-wider text-orange-500">Total</p>
-                        <p class="mt-1 text-xs font-black text-navy dark:text-white">{{ budget.total }}</p>
+                      <div class="mt-4 grid grid-cols-3 gap-2 text-center">
+                        <div class="rounded-lg bg-slate-50 px-2 py-2.5 dark:bg-white/5">
+                          <p class="text-[8px] font-black uppercase tracking-wider text-slate-400">Subtotal</p>
+                          <p class="mt-1 text-xs font-black text-navy dark:text-white">{{ budget.subtotal }}</p>
+                        </div>
+                        <div class="rounded-lg bg-slate-50 px-2 py-2.5 dark:bg-white/5">
+                          <p class="text-[8px] font-black uppercase tracking-wider text-slate-400">Contingencia</p>
+                          <p class="mt-1 text-xs font-black text-navy dark:text-white">{{ budget.contingency }}</p>
+                        </div>
+                        <div class="rounded-lg bg-orange-50 px-2 py-2.5 dark:bg-orange-950/25">
+                          <p class="text-[8px] font-black uppercase tracking-wider text-orange-500">Total</p>
+                          <p class="mt-1 text-xs font-black text-navy dark:text-white">{{ budget.total }}</p>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -294,7 +315,29 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .hero-carousel-viewport.is-transitioning .hero-carousel-fade {
-  animation: hero-fade-pulse 0.9s cubic-bezier(0.4, 0, 0.15, 1) forwards;
+  animation: hero-fade-pulse 0.82s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.hero-slide-inner {
+  height: 100%;
+  width: 100%;
+  transform: translate3d(0, 0, 0) scale(1);
+  filter: saturate(1);
+  opacity: 1;
+  transition:
+    transform 0.82s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.68s ease,
+    filter 0.68s ease;
+}
+
+.hero-carousel-viewport.is-transitioning.is-next .hero-carousel-slide .hero-slide-inner {
+  transform: translate3d(-14px, 0, 0) scale(0.988);
+  filter: saturate(0.92);
+}
+
+.hero-carousel-viewport.is-transitioning.is-prev .hero-carousel-slide .hero-slide-inner {
+  transform: translate3d(14px, 0, 0) scale(0.988);
+  filter: saturate(0.92);
 }
 
 .hero-carousel-fade {
@@ -322,8 +365,17 @@ onBeforeUnmount(() => {
 
 @media (prefers-reduced-motion: reduce) {
   .hero-carousel-viewport.is-transitioning .hero-carousel-fade {
-    animation: none;
-    opacity: 0;
+    animation: hero-fade-pulse 0.42s ease-out forwards;
+  }
+
+  .hero-slide-inner {
+    transition: opacity 0.32s ease;
+  }
+
+  .hero-carousel-viewport.is-transitioning .hero-carousel-slide .hero-slide-inner {
+    transform: none;
+    filter: none;
+    opacity: 0.97;
   }
 }
 </style>
