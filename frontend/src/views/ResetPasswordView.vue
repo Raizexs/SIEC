@@ -1,7 +1,7 @@
 <script setup>
-import { computed, ref } from 'vue';
-import { useRouter } from 'vue-router';
-import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
+import { computed, ref } from "vue";
+import { useRouter } from "vue-router";
+import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 import {
   LockKeyhole,
   Loader2,
@@ -9,21 +9,21 @@ import {
   AlertCircle,
   CheckCircle2,
   ArrowLeft,
-} from 'lucide-vue-next';
-import PasswordStrength from '../components/auth/PasswordStrength.vue';
-import SiecBrandLogo from '../components/brand/SiecBrandLogo.vue';
-import { useProMotion } from '../composables/useProMotion';
+} from "lucide-vue-next";
+import PasswordStrength from "../components/auth/PasswordStrength.vue";
+import SiecBrandLogo from "../components/brand/SiecBrandLogo.vue";
+import { useProMotion } from "../composables/useProMotion";
 
 const router = useRouter();
 
-const password = ref('');
-const confirm = ref('');
+const password = ref("");
+const confirm = ref("");
 const isSubmitting = ref(false);
-const message = ref('');
-const error = ref('');
+const message = ref("");
+const error = ref("");
 const motionRoot = ref(null);
 
-useProMotion(motionRoot, { mode: 'auto' });
+useProMotion(motionRoot, { mode: "auto" });
 
 const passwordsMatch = computed(() => {
   return password.value && confirm.value && password.value === confirm.value;
@@ -45,22 +45,22 @@ const canSubmit = computed(() => {
 });
 
 const handleSubmit = async () => {
-  error.value = '';
-  message.value = '';
+  error.value = "";
+  message.value = "";
 
   if (!isSupabaseConfigured) {
-    error.value = 'Supabase no está configurado correctamente.';
+    error.value = "Supabase no está configurado correctamente.";
     return;
   }
 
   if (!passwordStrong.value) {
     error.value =
-      'La contraseña debe tener al menos 8 caracteres, una mayúscula, una minúscula y un número.';
+      "La contraseña debe tener al menos 8 caracteres, una mayúscula, una minúscula y un número.";
     return;
   }
 
   if (!passwordsMatch.value) {
-    error.value = 'Las contraseñas no coinciden.';
+    error.value = "Las contraseñas no coinciden.";
     return;
   }
 
@@ -75,20 +75,20 @@ const handleSubmit = async () => {
       throw updateError;
     }
 
-    message.value = 'Contraseña actualizada correctamente. Redirigiendo…';
+    message.value = "Contraseña actualizada correctamente. Redirigiendo…";
 
     setTimeout(() => {
-      router.push('/login');
+      router.push("/login");
     }, 1200);
   } catch (e) {
-    error.value = e?.message || 'No se pudo actualizar la contraseña.';
+    error.value = e?.message || "No se pudo actualizar la contraseña.";
   } finally {
     isSubmitting.value = false;
   }
 };
 
 const goToLogin = () => {
-  router.push('/login');
+  router.push("/login");
 };
 </script>
 
@@ -112,7 +112,9 @@ const goToLogin = () => {
       data-motion="hero"
     >
       <!-- Top accent -->
-      <div class="h-1 w-full bg-gradient-to-r from-orange-400 via-orange-500 to-slate-900 dark:to-orange-300"></div>
+      <div
+        class="h-1 w-full bg-gradient-to-r from-orange-400 via-orange-500 to-slate-900 dark:to-orange-300"
+      ></div>
 
       <div class="space-y-6 p-5 sm:p-8">
         <SiecBrandLogo variant="horizontal" class="h-8 w-auto" />
@@ -134,7 +136,9 @@ const goToLogin = () => {
                   Recuperación de acceso
                 </p>
 
-                <h1 class="mt-1 text-2xl font-black tracking-tight text-slate-950 dark:text-slate-100">
+                <h1
+                  class="mt-1 text-2xl font-black tracking-tight text-slate-950 dark:text-slate-100"
+                >
                   Nueva contraseña
                 </h1>
               </div>
@@ -151,8 +155,11 @@ const goToLogin = () => {
             </button>
           </div>
 
-          <p class="text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400">
-            Define una contraseña segura. La usarás para acceder a SIEC desde cualquier dispositivo.
+          <p
+            class="text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400"
+          >
+            Define una contraseña segura. La usarás para acceder a SIEC desde
+            cualquier dispositivo.
           </p>
         </header>
 
@@ -163,9 +170,7 @@ const goToLogin = () => {
           @submit.prevent="handleSubmit"
         >
           <div>
-            <label class="premium-label">
-              Nueva contraseña
-            </label>
+            <label class="premium-label"> Nueva contraseña </label>
 
             <input
               v-model="password"
@@ -180,9 +185,7 @@ const goToLogin = () => {
           </div>
 
           <div>
-            <label class="premium-label">
-              Confirmar contraseña
-            </label>
+            <label class="premium-label"> Confirmar contraseña </label>
 
             <input
               v-model="confirm"
@@ -252,14 +255,10 @@ const goToLogin = () => {
               :stroke-width="2.2"
             />
 
-            <ShieldCheck
-              v-else
-              class="h-4 w-4"
-              :stroke-width="2.2"
-            />
+            <ShieldCheck v-else class="h-4 w-4" :stroke-width="2.2" />
 
             <span>
-              {{ isSubmitting ? 'Actualizando…' : 'Actualizar contraseña' }}
+              {{ isSubmitting ? "Actualizando…" : "Actualizar contraseña" }}
             </span>
           </button>
         </form>

@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import { useI18n } from '../../composables/useI18n';
+import { useIsCompactStepper } from '../../composables/useViewport';
 import { Check, Map, PenTool, Receipt, FileOutput } from 'lucide-vue-next';
 
 const props = defineProps({
@@ -12,6 +13,7 @@ const props = defineProps({
 const emit = defineEmits(['go']);
 
 const { t } = useI18n();
+const isCompactStepper = useIsCompactStepper();
 
 const stepIndex = (id) => props.steps.findIndex((s) => s.id === id);
 const isComplete = (id) => stepIndex(id) < stepIndex(props.currentStep);
@@ -25,11 +27,28 @@ const activeStepMeta = computed(
 const activeStepIndex = computed(() => Math.max(0, stepIndex(props.currentStep)));
 
 const indicatorStyle = computed(() => {
+  const idx = activeStepIndex.value;
+
+  if (isCompactStepper.value) {
+    const col = idx % 2;
+    const row = Math.floor(idx / 2);
+    return {
+      width: 'calc(50% - 4px)',
+      height: 'calc(50% - 4px)',
+      top: '4px',
+      bottom: 'auto',
+      transform: `translate(calc(${col * 100}% + 2px), calc(${row * 100}% + 2px))`,
+    };
+  }
+
   const count = Math.max(props.steps.length, 1);
   const widthPct = 100 / count;
   return {
     width: `calc(${widthPct}% - 4px)`,
-    transform: `translateX(calc(${activeStepIndex.value * 100}% + 2px))`,
+    height: 'auto',
+    top: '4px',
+    bottom: '4px',
+    transform: `translateX(calc(${idx * 100}% + 2px))`,
   };
 });
 
@@ -95,7 +114,7 @@ const StepIcon = (step) => iconMap[step.icon] || Map;
     >
       <div
         aria-hidden="true"
-        class="pointer-events-none absolute inset-y-1 left-1 rounded-xl shadow-md ring-1 transition-[transform,width,background-color,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+        class="pointer-events-none absolute left-1 rounded-xl shadow-md ring-1 transition-[transform,width,height,background-color,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
         :class="indicatorToneClass"
         :style="indicatorStyle"
       />

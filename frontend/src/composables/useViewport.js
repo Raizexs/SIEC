@@ -37,9 +37,15 @@ export function useIsNarrowEditor() {
   return createMediaRef(NARROW_EDITOR_QUERY);
 }
 
+/** Viewport below Tailwind `sm` (640px) — stepper 2×2 grid. */
+export function useIsCompactStepper() {
+  return createMediaRef('(max-width: 639px)');
+}
+
 export function useViewport() {
   const isMobile = useIsMobile();
   const isNarrowEditor = useIsNarrowEditor();
+  const isCompactStepper = useIsCompactStepper();
 
-  return { isMobile, isNarrowEditor };
+  return { isMobile, isNarrowEditor, isCompactStepper };
 }

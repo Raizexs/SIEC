@@ -48,7 +48,7 @@ const navItems = [
         <SiecBrandLogo
           variant="horizontal"
           :force-dark="true"
-          class="h-8 w-auto sm:h-9"
+          class="h-8 w-auto min-h-[2rem] sm:h-9"
         />
       </RouterLink>
 

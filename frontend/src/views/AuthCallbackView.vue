@@ -1,23 +1,23 @@
 <script setup>
-import { onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
-import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
-import { useAuthStore } from '../stores/auth';
-import { useProMotion } from '../composables/useProMotion';
-import AuthScene3D from '../components/auth/AuthScene3D.vue';
-import SiecBrandLogo from '../components/brand/SiecBrandLogo.vue';
-import { usePrivacy } from '../composables/usePrivacy';
+import { onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
+import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
+import { useAuthStore } from "../stores/auth";
+import { useProMotion } from "../composables/useProMotion";
+import AuthScene3D from "../components/auth/AuthScene3D.vue";
+import SiecBrandLogo from "../components/brand/SiecBrandLogo.vue";
+import { usePrivacy } from "../composables/usePrivacy";
 
 const router = useRouter();
 const authStore = useAuthStore();
 const { hasConsent } = usePrivacy();
 const motionRoot = ref(null);
 
-useProMotion(motionRoot, { mode: 'auto' });
+useProMotion(motionRoot, { mode: "auto" });
 
 onMounted(async () => {
   if (!isSupabaseConfigured) {
-    router.replace('/login');
+    router.replace("/login");
     return;
   }
 
@@ -33,19 +33,19 @@ onMounted(async () => {
       await authStore.loadProfile();
 
       const isFirstLogin = !data.session.user.user_metadata?.full_name;
-      const privacyOk = await hasConsent('privacy_policy').catch(() => false);
+      const privacyOk = await hasConsent("privacy_policy").catch(() => false);
 
       if (!privacyOk) {
         router.replace({
-          path: '/privacy/accept',
-          query: { redirect: isFirstLogin ? '/onboarding' : '/dashboard' },
+          path: "/privacy/accept",
+          query: { redirect: isFirstLogin ? "/onboarding" : "/dashboard" },
         });
         return;
       }
 
-      router.replace(isFirstLogin ? '/onboarding' : '/dashboard');
+      router.replace(isFirstLogin ? "/onboarding" : "/dashboard");
     } else {
-      router.replace('/login?error=Sesi%C3%B3n+no+v%C3%A1lida');
+      router.replace("/login?error=Sesi%C3%B3n+no+v%C3%A1lida");
     }
   } catch (error) {
     router.replace(`/login?error=${encodeURIComponent(error.message)}`);
@@ -63,7 +63,9 @@ onMounted(async () => {
     <AuthScene3D />
 
     <!-- Readability overlay -->
-    <div class="pointer-events-none absolute inset-0 z-10 bg-slate-950/55 backdrop-blur-[1px]"></div>
+    <div
+      class="pointer-events-none absolute inset-0 z-10 bg-slate-950/55 backdrop-blur-[1px]"
+    ></div>
 
     <section
       class="relative z-20 w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-white/10 p-6 text-center shadow-2xl shadow-black/40 backdrop-blur-xl sm:p-8"
@@ -112,15 +114,14 @@ onMounted(async () => {
           <div class="auth-progress h-full rounded-full bg-orange-400"></div>
         </div>
 
-        <span class="material-symbols-outlined animate-spin text-[18px] text-orange-300">
+        <span
+          class="material-symbols-outlined animate-spin text-[18px] text-orange-300"
+        >
           progress_activity
         </span>
       </div>
 
-      <footer
-        class="mt-6 border-t border-white/10 pt-4"
-        data-motion="item"
-      >
+      <footer class="mt-6 border-t border-white/10 pt-4" data-motion="item">
         <p class="text-xs font-medium text-slate-400">
           No cierres esta ventana mientras se completa la autenticación.
         </p>

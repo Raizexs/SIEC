@@ -49,7 +49,7 @@ onActivated(() => {
 <template>
   <div
     ref="motionRoot"
-    class="landing-shell dark min-h-screen overflow-x-hidden bg-[#040a14] text-slate-100 selection:bg-orange-500/30 selection:text-white"
+    class="landing-shell dark min-h-screen overflow-x-hidden bg-[#040a14] font-sans antialiased text-slate-100 selection:bg-orange-500/30 selection:text-white"
     data-siec-bare-route="true"
   >
     <div class="pointer-events-none fixed inset-0 z-0 opacity-55">

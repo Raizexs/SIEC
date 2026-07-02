@@ -729,3 +729,8 @@ html.siec-motion-reduced *::after {
 html.siec-scroll-locked {
   overflow: hidden !important;
 }
+
+html.siec-editor-fs {
+  overflow: hidden !important;
+  height: 100%;
+}

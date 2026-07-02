@@ -1,9 +1,12 @@
 <script setup>
-import { ref, onMounted, nextTick } from 'vue';
-import { RouterLink, useRouter } from 'vue-router';
-import { ArrowLeft, Shield } from 'lucide-vue-next';
-import SiecBrandLogo from '../brand/SiecBrandLogo.vue';
-import { prefersReducedMotion, runBriefEntranceReveal } from '../../design/motionTokens';
+import { ref, onMounted, nextTick } from "vue";
+import { RouterLink, useRouter } from "vue-router";
+import { ArrowLeft, Shield } from "lucide-vue-next";
+import SiecBrandLogo from "../brand/SiecBrandLogo.vue";
+import {
+  prefersReducedMotion,
+  runBriefEntranceReveal,
+} from "../../design/motionTokens";
 
 const router = useRouter();
 
@@ -12,14 +15,14 @@ const goBack = () => {
     router.back();
     return;
   }
-  router.push('/');
+  router.push("/");
 };
 
 defineProps({
   title: { type: String, required: true },
-  version: { type: String, default: '1.0' },
-  effectiveDate: { type: String, default: '' },
-  badge: { type: String, default: 'Documento legal' },
+  version: { type: String, default: "1.0" },
+  effectiveDate: { type: String, default: "" },
+  badge: { type: String, default: "Documento legal" },
 });
 
 const legalShellRef = ref(null);
@@ -30,7 +33,7 @@ onMounted(async () => {
   await nextTick();
   runBriefEntranceReveal(legalCardRef.value, {
     root: legalShellRef.value,
-    readyClass: 'legal-shell--ready',
+    readyClass: "legal-shell--ready",
   });
 });
 </script>
@@ -70,9 +73,13 @@ onMounted(async () => {
           data-siec-legal-card
           class="mt-8 overflow-hidden rounded-3xl border border-slate-800/90 bg-slate-950/85 shadow-2xl shadow-black/40 backdrop-blur-xl"
         >
-          <div class="h-1 bg-gradient-to-r from-orange-400 via-orange-500 to-slate-700" />
+          <div
+            class="h-1 bg-gradient-to-r from-orange-400 via-orange-500 to-slate-700"
+          />
 
-          <div class="border-b border-slate-800/80 bg-slate-900/60 px-6 py-6 sm:px-8">
+          <div
+            class="border-b border-slate-800/80 bg-slate-900/60 px-6 py-6 sm:px-8"
+          >
             <div class="flex items-start gap-4">
               <div
                 class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-orange-900/60 bg-orange-950/30 text-orange-300 shadow-sm"
@@ -81,15 +88,23 @@ onMounted(async () => {
               </div>
 
               <div class="min-w-0">
-                <p class="text-[10px] font-black uppercase tracking-[0.18em] text-orange-300/80">
+                <p
+                  class="text-[10px] font-black uppercase tracking-[0.18em] text-orange-300/80"
+                >
                   {{ badge }}
                 </p>
-                <h1 class="mt-2 text-2xl font-black tracking-tight text-white sm:text-3xl">
+                <h1
+                  class="mt-2 text-2xl font-black tracking-tight text-white sm:text-3xl"
+                >
                   {{ title }}
                 </h1>
-                <p class="mt-3 text-sm font-medium leading-relaxed text-slate-400">
+                <p
+                  class="mt-3 text-sm font-medium leading-relaxed text-slate-400"
+                >
                   Versión {{ version }}
-                  <span v-if="effectiveDate"> · Vigente desde {{ effectiveDate }}</span>
+                  <span v-if="effectiveDate">
+                    · Vigente desde {{ effectiveDate }}</span
+                  >
                 </p>
               </div>
             </div>
@@ -104,11 +119,17 @@ onMounted(async () => {
       <footer
         class="flex flex-wrap items-center justify-center gap-4 border-t border-slate-800/80 pt-8 text-sm font-medium text-slate-500"
       >
-        <RouterLink to="/legal/privacidad" class="text-orange-400 transition-colors hover:text-orange-300">
+        <RouterLink
+          to="/legal/privacidad"
+          class="text-orange-400 transition-colors hover:text-orange-300"
+        >
           Política de privacidad
         </RouterLink>
         <span class="text-slate-700">·</span>
-        <RouterLink to="/legal/terminos" class="text-orange-400 transition-colors hover:text-orange-300">
+        <RouterLink
+          to="/legal/terminos"
+          class="text-orange-400 transition-colors hover:text-orange-300"
+        >
           Términos de servicio
         </RouterLink>
       </footer>

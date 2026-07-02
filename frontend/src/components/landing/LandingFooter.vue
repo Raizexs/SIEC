@@ -16,11 +16,7 @@ const goInicio = (event) => {
 </script>
 
 <template>
-  <footer
-    class="landing-footer relative border-t border-transparent py-10"
-    data-landing-reveal
-    data-landing-hover="chrome"
-  >
+  <footer class="landing-footer relative border-t border-transparent py-10">
     <div
       class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent"
       aria-hidden="true"
@@ -31,14 +27,17 @@ const goInicio = (event) => {
         <SiecBrandLogo
           variant="monochrome"
           :force-dark="true"
-          class="h-7 w-auto sm:h-8"
+          class="h-7 w-auto min-h-[1.75rem] sm:h-8"
         />
         <p class="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">
           {{ LANDING.footer.tagline }}
         </p>
       </div>
 
-      <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
+      <div
+        class="flex flex-wrap items-center gap-x-6 gap-y-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500"
+        data-landing-reveal
+      >
         <RouterLink
           to="/"
           data-landing-hover="footer-link"

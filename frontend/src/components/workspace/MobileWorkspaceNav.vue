@@ -144,8 +144,8 @@ defineExpose({ openDrawer, closeDrawer });
       />
 
       <div
-        class="absolute inset-x-0 bottom-0 max-h-[min(82vh,640px)] overflow-hidden rounded-t-[1.35rem] border border-slate-200/90 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-950"
-        data-scroll-lock-scroll
+        class="absolute inset-x-0 bottom-0 z-10 max-h-[min(82vh,640px)] overflow-hidden rounded-t-[1.35rem] border border-slate-200/90 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-950"
+        data-scroll-lock-panel
       >
         <div class="flex items-center justify-between border-b border-slate-200/80 px-4 py-3 dark:border-slate-800">
           <h2 class="text-sm font-black text-slate-900 dark:text-slate-100">
@@ -160,7 +160,11 @@ defineExpose({ openDrawer, closeDrawer });
           </button>
         </div>
 
-        <div class="overflow-y-auto px-4 py-4" style="max-height: calc(min(82vh, 640px) - 56px)">
+        <div
+          class="overflow-y-auto overscroll-contain px-4 py-4"
+          data-scroll-lock-scroll
+          style="max-height: calc(min(82vh, 640px) - 56px)"
+        >
           <PresetLayoutList
             v-if="drawerOpen === 'layouts'"
             :show-heading="false"

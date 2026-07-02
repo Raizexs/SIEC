@@ -8,8 +8,8 @@ import { LANDING } from '../../constants/landingContent.js';
 import { prefersReducedMotion } from '../../design/motionTokens';
 
 const SLIDES = ['plan', 'scene', 'budget'];
-const AUTO_MS = 4200;
-const TRANSITION_MS = 520;
+const AUTO_MS = 4500;
+const TRANSITION_MS = 900;
 
 const { presets, createPresetLayout } = useLayoutManager();
 
@@ -21,6 +21,7 @@ const touchStartX = ref(0);
 const reduceMotion = prefersReducedMotion();
 
 let autoTimer = null;
+let transitionTimer = null;
 
 const basicPreset = computed(() =>
   presets.value.find((preset) => preset.id === BASIC_PRESET_ID) ?? presets.value[0],
@@ -29,6 +30,13 @@ const basicPreset = computed(() =>
 const budget = computed(() => LANDING.hero.previewBudget);
 const activeSlide = computed(() => SLIDES[activeIndex.value]);
 const sceneActive = computed(() => activeSlide.value === 'scene');
+
+const trackStyle = computed(() => ({
+  transform: `translate3d(-${activeIndex.value * 100}%, 0, 0)`,
+  transition: reduceMotion
+    ? 'transform 0.25s ease'
+    : `transform ${TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.15, 1)`,
+}));
 
 const slideMeta = {
   plan: { label: 'Plano 2D', icon: LayoutGrid, accent: 'text-cyan-400' },
@@ -53,9 +61,11 @@ const goTo = (index, auto = false) => {
     sceneVisited.value = true;
   }
 
-  setTimeout(() => {
+  clearTimeout(autoTimer);
+  clearTimeout(transitionTimer);
+  transitionTimer = setTimeout(() => {
     isTransitioning.value = false;
-    if (auto || !reduceMotion) scheduleAuto();
+    if (!reduceMotion) scheduleAuto();
   }, TRANSITION_MS);
 };
 
@@ -92,6 +102,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   clearTimeout(autoTimer);
+  clearTimeout(transitionTimer);
 });
 </script>
 
@@ -137,7 +148,8 @@ onBeforeUnmount(() => {
               class="flex items-center justify-between border-b border-slate-200/80 px-4 py-2.5 dark:border-white/10"
             >
               <div
-                class="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.14em] text-slate-400"
+                class="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.14em] text-slate-400 transition-opacity duration-500"
+                :class="isTransitioning ? 'opacity-70' : 'opacity-100'"
               >
                 <component
                   :is="slideMeta[activeSlide].icon"
@@ -168,13 +180,16 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <div class="relative h-[280px] overflow-hidden sm:h-[300px]">
-              <Transition name="hero-carousel" mode="out-in">
-                <div
-                  v-if="activeSlide === 'plan'"
-                  key="plan"
-                  class="absolute inset-0 flex flex-col bg-[#07101d]"
-                >
+            <div
+              class="hero-carousel-viewport relative h-[280px] overflow-hidden sm:h-[300px]"
+              :class="{ 'is-transitioning': isTransitioning }"
+            >
+              <div
+                class="hero-carousel-track flex h-full will-change-transform"
+                :style="trackStyle"
+              >
+                <!-- Plano 2D -->
+                <div class="hero-carousel-slide flex h-full w-full shrink-0 flex-col bg-[#07101d]">
                   <img
                     v-if="planThumbnail"
                     :src="planThumbnail"
@@ -190,11 +205,8 @@ onBeforeUnmount(() => {
                   </div>
                 </div>
 
-                <div
-                  v-else-if="activeSlide === 'scene'"
-                  key="scene"
-                  class="absolute inset-0 bg-[#0b1220]"
-                >
+                <!-- Casa 3D -->
+                <div class="hero-carousel-slide relative h-full w-full shrink-0 bg-[#0b1220]">
                   <AuthScene3D
                     v-if="sceneVisited"
                     hero
@@ -205,11 +217,8 @@ onBeforeUnmount(() => {
                   />
                 </div>
 
-                <div
-                  v-else
-                  key="budget"
-                  class="absolute inset-0 flex items-center bg-white p-4 dark:bg-[#07101d] sm:p-5"
-                >
+                <!-- Presupuesto -->
+                <div class="hero-carousel-slide flex h-full w-full shrink-0 items-center bg-white p-4 dark:bg-[#07101d] sm:p-5">
                   <div
                     class="w-full rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.035]"
                   >
@@ -251,7 +260,13 @@ onBeforeUnmount(() => {
                     </div>
                   </div>
                 </div>
-              </Transition>
+              </div>
+
+              <!-- Fade overlay during slide -->
+              <div
+                class="hero-carousel-fade pointer-events-none absolute inset-0 z-10"
+                aria-hidden="true"
+              />
             </div>
 
             <div class="flex items-center justify-center gap-2 border-t border-slate-200/80 px-4 py-3 dark:border-white/10">
@@ -259,7 +274,7 @@ onBeforeUnmount(() => {
                 v-for="(slide, index) in SLIDES"
                 :key="slide"
                 type="button"
-                class="h-2 rounded-full transition-all duration-300"
+                class="h-2 rounded-full transition-all duration-500"
                 :class="
                   index === activeIndex
                     ? 'w-6 bg-orange-500'
@@ -278,32 +293,37 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.hero-carousel-enter-active,
-.hero-carousel-leave-active {
-  transition:
-    opacity 0.52s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.52s cubic-bezier(0.22, 1, 0.36, 1);
+.hero-carousel-viewport.is-transitioning .hero-carousel-fade {
+  animation: hero-fade-pulse 0.9s cubic-bezier(0.4, 0, 0.15, 1) forwards;
 }
 
-.hero-carousel-enter-from {
+.hero-carousel-fade {
   opacity: 0;
-  transform: translateX(28px);
+  background: linear-gradient(
+    90deg,
+    rgba(2, 6, 23, 0.45) 0%,
+    rgba(2, 6, 23, 0.12) 18%,
+    rgba(2, 6, 23, 0.12) 82%,
+    rgba(2, 6, 23, 0.45) 100%
+  );
 }
 
-.hero-carousel-leave-to {
-  opacity: 0;
-  transform: translateX(-28px);
+@keyframes hero-fade-pulse {
+  0% {
+    opacity: 0;
+  }
+  35% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .hero-carousel-enter-active,
-  .hero-carousel-leave-active {
-    transition: opacity 0.2s ease;
-  }
-
-  .hero-carousel-enter-from,
-  .hero-carousel-leave-to {
-    transform: none;
+  .hero-carousel-viewport.is-transitioning .hero-carousel-fade {
+    animation: none;
+    opacity: 0;
   }
 }
 </style>

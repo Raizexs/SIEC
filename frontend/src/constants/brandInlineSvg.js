@@ -2,7 +2,9 @@
 export const prepareInlineSvg = (raw) =>
   raw
     .replace(/<\?xml[^?]*\?>\s*/i, '')
-    .replace(/<style>@import[^<]*<\/style>\s*/i, '');
+    .replace(/<style>@import[^<]*<\/style>\s*/i, '')
+    .replace(/(<svg[^>]*)\s+width="[^"]*"/i, '$1')
+    .replace(/(<svg[^>]*)\s+height="[^"]*"/i, '$1');
 
 const inlineSvgCache = new Map();
 

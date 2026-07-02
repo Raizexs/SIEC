@@ -4,6 +4,7 @@ import { gsap } from "gsap";
 import { motionTokens, syncMotionHtmlClass, resetMotionRevealState, dispatchRouteEnterComplete } from "./design/motionTokens";
 import { installGlobalMicroMotion } from "./lib/installGlobalMicroMotion";
 import { BRAND_ASSETS } from "./constants/brandAssets";
+import { ensurePlusJakartaSans } from "./utils/brandFonts";
 import App from "./App.vue";
 import router from "./router";
 import "./style.css";
@@ -24,6 +25,7 @@ const pinia = createPinia();
 app.use(pinia);
 app.use(router);
 syncMotionHtmlClass();
+ensurePlusJakartaSans();
 app.mount("#app");
 installGlobalMicroMotion();
 window.addEventListener("siec:motion-preference", () => {

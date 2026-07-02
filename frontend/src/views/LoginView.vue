@@ -496,9 +496,9 @@ const handleSubmit = async () => {
     <section
       class="flex h-screen min-h-0 w-full shrink-0 flex-col overflow-hidden bg-slate-50 dark:bg-slate-950 lg:w-[520px]"
     >
-      <div class="flex min-h-0 flex-1 items-center justify-center overflow-hidden px-4 py-4 sm:px-8 sm:py-5">
+      <div class="flex min-h-0 flex-1 items-start justify-center overflow-y-auto overscroll-contain px-4 py-4 sm:items-center sm:px-8 sm:py-5">
         <div
-          class="w-full max-w-md overflow-hidden rounded-3xl border border-slate-200/90 bg-white/90 shadow-2xl shadow-slate-950/10 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/90 dark:shadow-black/35"
+          class="w-full max-w-md overflow-hidden rounded-3xl border border-slate-200/90 bg-white/90 shadow-2xl shadow-slate-950/10 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/90 dark:shadow-black/35 my-auto"
           data-siec-auth-form-stack
           data-siec-auth-layer
           >

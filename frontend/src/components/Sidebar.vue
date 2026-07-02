@@ -255,7 +255,7 @@ const deleteSavedLayout = (id) => {
       v-if="collapsed"
       ref="expandTabRef"
       type="button"
-      class="fixed left-16 top-[4.75rem] z-50 flex h-9 w-6 items-center justify-center rounded-r-lg border border-l-0 border-slate-200 bg-white/95 text-slate-600 shadow-md backdrop-blur-xl transition-colors hover:border-slate-300 hover:text-slate-950 dark:border-slate-800 dark:bg-slate-950/95 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:text-slate-100"
+      class="fixed left-16 top-[4.75rem] z-50 hidden h-9 w-6 items-center justify-center rounded-r-lg border border-l-0 border-slate-200 bg-white/95 text-slate-600 shadow-md backdrop-blur-xl transition-colors hover:border-slate-300 hover:text-slate-950 dark:border-slate-800 dark:bg-slate-950/95 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:text-slate-100 lg:flex"
       :title="t('expandPanel')"
       :aria-label="t('expandPanel')"
       @click="toggleCollapse"

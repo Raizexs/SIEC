@@ -1,16 +1,20 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import AppRail from '../components/shell/AppRail.vue';
-import AppTopBar from '../components/shell/AppTopBar.vue';
-import { useSiecPlace } from '../composables/useSiecPlace';
-import { usePrivacy } from '../composables/usePrivacy';
-import ConsentModal from '../components/privacy/ConsentModal.vue';
-import { useBilling } from '../composables/useBilling';
-import { useI18n } from '../composables/useI18n';
-import { bindCardHover } from '../composables/useMotionContext';
-import { gsap } from 'gsap';
-import { prefersReducedMotion, waitForRouteEnter, runBriefEntranceReveal } from '../design/motionTokens';
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import AppRail from "../components/shell/AppRail.vue";
+import AppTopBar from "../components/shell/AppTopBar.vue";
+import { useSiecPlace } from "../composables/useSiecPlace";
+import { usePrivacy } from "../composables/usePrivacy";
+import ConsentModal from "../components/privacy/ConsentModal.vue";
+import { useBilling } from "../composables/useBilling";
+import { useI18n } from "../composables/useI18n";
+import { bindCardHover } from "../composables/useMotionContext";
+import { gsap } from "gsap";
+import {
+  prefersReducedMotion,
+  waitForRouteEnter,
+  runBriefEntranceReveal,
+} from "../design/motionTokens";
 import {
   Store,
   MapPin,
@@ -25,7 +29,7 @@ import {
   HardHat,
   ShieldCheck,
   ArrowRight,
-} from 'lucide-vue-next';
+} from "lucide-vue-next";
 
 const route = useRoute();
 const router = useRouter();
@@ -43,15 +47,15 @@ const {
 } = useSiecPlace();
 const { fetchPolicy, grantConsent, hasConsent } = usePrivacy();
 
-const tab = ref('explore');
+const tab = ref("explore");
 const detailId = ref(null);
 const showUnlockConsent = ref(false);
-const policyVersion = ref('1.0');
+const policyVersion = ref("1.0");
 const motionRoot = ref(null);
 let unbindListingHover = null;
 let placeRevealCtx;
 
-const revealPlaceLayers = async (selector = '[data-siec-place-layer]') => {
+const revealPlaceLayers = async (selector = "[data-siec-place-layer]") => {
   await waitForRouteEnter();
   await nextTick();
 
@@ -66,10 +70,10 @@ const revealPlaceLayers = async (selector = '[data-siec-place-layer]') => {
   placeRevealCtx = gsap.context(() => {
     runBriefEntranceReveal(layers, {
       root,
-      readyClass: 'siecplace-shell--ready',
-      stagger: selector === '[data-siec-place-detail]' ? 0.05 : 0.07,
-      durationScale: selector === '[data-siec-place-detail]' ? 0.92 : 1,
-      distanceScale: selector === '[data-siec-place-detail]' ? 0.85 : 0.72,
+      readyClass: "siecplace-shell--ready",
+      stagger: selector === "[data-siec-place-detail]" ? 0.05 : 0.07,
+      durationScale: selector === "[data-siec-place-detail]" ? 0.92 : 1,
+      distanceScale: selector === "[data-siec-place-detail]" ? 0.85 : 0.72,
     });
   }, root);
 };
@@ -79,26 +83,30 @@ const bindListingHover = async () => {
   unbindListingHover?.();
   if (!motionRoot.value) return;
   unbindListingHover = bindCardHover(
-    motionRoot.value.querySelectorAll('.siecplace-listing-card'),
+    motionRoot.value.querySelectorAll(".siecplace-listing-card"),
     { lift: -5 },
   );
 };
 
-const hasMarketplaceAccess = computed(() => limits.value.marketplace_access === true);
+const hasMarketplaceAccess = computed(
+  () => limits.value.marketplace_access === true,
+);
 
-const moneyLocale = computed(() => (currentLanguage.value === 'en' ? 'en-US' : 'es-CL'));
+const moneyLocale = computed(() =>
+  currentLanguage.value === "en" ? "en-US" : "es-CL",
+);
 
 const formatMoney = (value) => {
-  if (value == null) return '—';
+  if (value == null) return "—";
   return new Intl.NumberFormat(moneyLocale.value, {
-    style: 'currency',
-    currency: 'CLP',
+    style: "currency",
+    currency: "CLP",
     maximumFractionDigits: 0,
   }).format(value);
 };
 
 const loadTab = async () => {
-  if (tab.value === 'explore') {
+  if (tab.value === "explore") {
     await fetchListings();
   } else if (hasMarketplaceAccess.value) {
     await fetchMyListings();
@@ -108,7 +116,7 @@ const loadTab = async () => {
 const openDetail = async (listingId) => {
   detailId.value = listingId;
   await fetchListing(listingId);
-  await revealPlaceLayers('[data-siec-place-detail]');
+  await revealPlaceLayers("[data-siec-place-detail]");
 };
 
 const closeDetail = () => {
@@ -123,46 +131,46 @@ const handleUnlock = async () => {
     const policy = await fetchPolicy();
     policyVersion.value = policy.version;
   } catch {
-    policyVersion.value = '1.0';
+    policyVersion.value = "1.0";
   }
   showUnlockConsent.value = true;
 };
 
 const confirmUnlock = async () => {
-  await grantConsent('siecplace_contact_share', policyVersion.value);
+  await grantConsent("siecplace_contact_share", policyVersion.value);
   showUnlockConsent.value = false;
   await checkoutUnlock(selectedListing.value.id);
 };
 
 const goUpgrade = () => {
-  router.push('/settings?tab=billing');
+  router.push("/settings?tab=billing");
 };
 
 const goProjects = () => {
-  router.push('/dashboard');
+  router.push("/dashboard");
 };
 
 const clientGuideSteps = [
-  'siecplaceGuideClient1',
-  'siecplaceGuideClient2',
-  'siecplaceGuideClient3',
-  'siecplaceGuideClient4',
+  "siecplaceGuideClient1",
+  "siecplaceGuideClient2",
+  "siecplaceGuideClient3",
+  "siecplaceGuideClient4",
 ];
 
 const contractorGuideSteps = [
-  'siecplaceGuideContractor1',
-  'siecplaceGuideContractor2',
-  'siecplaceGuideContractor3',
-  'siecplaceGuideContractor4',
+  "siecplaceGuideContractor1",
+  "siecplaceGuideContractor2",
+  "siecplaceGuideContractor3",
+  "siecplaceGuideContractor4",
 ];
 
 onMounted(async () => {
   await fetchBilling(true);
-  if (route.query.tab === 'mine' && hasMarketplaceAccess.value) {
-    tab.value = 'mine';
+  if (route.query.tab === "mine" && hasMarketplaceAccess.value) {
+    tab.value = "mine";
   }
   if (route.query.listing) {
-    tab.value = 'explore';
+    tab.value = "explore";
     await openDetail(String(route.query.listing));
     return;
   }
@@ -190,11 +198,13 @@ onBeforeUnmount(() => {
       <AppTopBar>
         <template #title>
           <div class="min-w-0">
-            <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
-              {{ t('siecplaceEyebrow') }}
+            <p
+              class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400"
+            >
+              {{ t("siecplaceEyebrow") }}
             </p>
             <h1 class="mt-0.5 truncate text-base font-black tracking-tight">
-              {{ t('siecplaceTitle') }}
+              {{ t("siecplaceTitle") }}
             </h1>
           </div>
         </template>
@@ -209,29 +219,33 @@ onBeforeUnmount(() => {
             <div
               class="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-orange-400/10 blur-3xl"
             ></div>
-            <div class="relative z-10 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div
+              class="relative z-10 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"
+            >
               <div>
                 <span
                   class="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-orange-700 dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
                 >
                   <Store class="h-3.5 w-3.5" />
-                  {{ t('siecplaceBadge') }}
+                  {{ t("siecplaceBadge") }}
                 </span>
-                <p class="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-                  {{ t('siecplaceHero') }}
+                <p
+                  class="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600 dark:text-slate-300"
+                >
+                  {{ t("siecplaceHero") }}
                 </p>
               </div>
               <div
                 v-if="!hasMarketplaceAccess"
                 class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100"
               >
-                {{ t('siecplaceUpgradeHint') }}
+                {{ t("siecplaceUpgradeHint") }}
                 <button
                   type="button"
                   class="ml-2 font-bold underline underline-offset-2"
                   @click="goUpgrade"
                 >
-                  {{ t('siecplaceUpgradeCta') }}
+                  {{ t("siecplaceUpgradeCta") }}
                 </button>
               </div>
             </div>
@@ -242,10 +256,12 @@ onBeforeUnmount(() => {
             class="rounded-3xl border border-slate-200/90 bg-slate-50/80 p-6 dark:border-slate-800/90 dark:bg-slate-900/40"
           >
             <h2 class="text-lg font-black text-slate-950 dark:text-slate-50">
-              {{ t('siecplaceGuideTitle') }}
+              {{ t("siecplaceGuideTitle") }}
             </h2>
-            <p class="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-              {{ t('siecplaceGuideIntro') }}
+            <p
+              class="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600 dark:text-slate-300"
+            >
+              {{ t("siecplaceGuideIntro") }}
             </p>
 
             <div class="mt-5 grid gap-4 lg:grid-cols-2">
@@ -254,11 +270,15 @@ onBeforeUnmount(() => {
               >
                 <div class="flex items-center gap-2">
                   <Home class="h-4 w-4 text-orange-500" :stroke-width="2.5" />
-                  <h3 class="text-sm font-black text-slate-950 dark:text-slate-50">
-                    {{ t('siecplaceGuideClientTitle') }}
+                  <h3
+                    class="text-sm font-black text-slate-950 dark:text-slate-50"
+                  >
+                    {{ t("siecplaceGuideClientTitle") }}
                   </h3>
                 </div>
-                <ol class="mt-4 space-y-2.5 text-sm text-slate-600 dark:text-slate-300">
+                <ol
+                  class="mt-4 space-y-2.5 text-sm text-slate-600 dark:text-slate-300"
+                >
                   <li
                     v-for="(stepKey, index) in clientGuideSteps"
                     :key="stepKey"
@@ -272,8 +292,10 @@ onBeforeUnmount(() => {
                     <span class="pt-0.5 leading-snug">{{ t(stepKey) }}</span>
                   </li>
                 </ol>
-                <p class="mt-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                  {{ t('siecplaceGuideClientFee') }}
+                <p
+                  class="mt-4 text-xs font-semibold text-slate-500 dark:text-slate-400"
+                >
+                  {{ t("siecplaceGuideClientFee") }}
                 </p>
               </article>
 
@@ -281,12 +303,19 @@ onBeforeUnmount(() => {
                 class="rounded-2xl border border-slate-200/90 bg-white p-5 dark:border-slate-800 dark:bg-slate-950"
               >
                 <div class="flex items-center gap-2">
-                  <HardHat class="h-4 w-4 text-orange-500" :stroke-width="2.5" />
-                  <h3 class="text-sm font-black text-slate-950 dark:text-slate-50">
-                    {{ t('siecplaceGuideContractorTitle') }}
+                  <HardHat
+                    class="h-4 w-4 text-orange-500"
+                    :stroke-width="2.5"
+                  />
+                  <h3
+                    class="text-sm font-black text-slate-950 dark:text-slate-50"
+                  >
+                    {{ t("siecplaceGuideContractorTitle") }}
                   </h3>
                 </div>
-                <ol class="mt-4 space-y-2.5 text-sm text-slate-600 dark:text-slate-300">
+                <ol
+                  class="mt-4 space-y-2.5 text-sm text-slate-600 dark:text-slate-300"
+                >
                   <li
                     v-for="(stepKey, index) in contractorGuideSteps"
                     :key="stepKey"
@@ -300,8 +329,10 @@ onBeforeUnmount(() => {
                     <span class="pt-0.5 leading-snug">{{ t(stepKey) }}</span>
                   </li>
                 </ol>
-                <p class="mt-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                  {{ t('siecplaceGuideContractorFee') }}
+                <p
+                  class="mt-4 text-xs font-semibold text-slate-500 dark:text-slate-400"
+                >
+                  {{ t("siecplaceGuideContractorFee") }}
                 </p>
               </article>
             </div>
@@ -309,9 +340,14 @@ onBeforeUnmount(() => {
             <div
               class="mt-4 flex flex-col gap-4 rounded-2xl border border-emerald-200/80 bg-emerald-50/80 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-emerald-900/50 dark:bg-emerald-950/20"
             >
-              <p class="flex items-start gap-2 text-sm text-emerald-900 dark:text-emerald-100">
-                <ShieldCheck class="mt-0.5 h-4 w-4 shrink-0" :stroke-width="2.5" />
-                <span>{{ t('siecplaceGuideGuarantee') }}</span>
+              <p
+                class="flex items-start gap-2 text-sm text-emerald-900 dark:text-emerald-100"
+              >
+                <ShieldCheck
+                  class="mt-0.5 h-4 w-4 shrink-0"
+                  :stroke-width="2.5"
+                />
+                <span>{{ t("siecplaceGuideGuarantee") }}</span>
               </p>
               <button
                 v-if="hasMarketplaceAccess"
@@ -319,7 +355,7 @@ onBeforeUnmount(() => {
                 class="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-orange-500 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-orange-600"
                 @click="goProjects"
               >
-                {{ t('siecplaceGuideGoProjects') }}
+                {{ t("siecplaceGuideGoProjects") }}
                 <ArrowRight class="h-4 w-4" />
               </button>
             </div>
@@ -337,7 +373,7 @@ onBeforeUnmount(() => {
                 "
                 @click="tab = 'explore'"
               >
-                {{ t('siecplaceTabExplore') }}
+                {{ t("siecplaceTabExplore") }}
               </button>
               <button
                 v-if="hasMarketplaceAccess"
@@ -350,20 +386,29 @@ onBeforeUnmount(() => {
                 "
                 @click="tab = 'mine'"
               >
-                {{ t('siecplaceTabMine') }}
+                {{ t("siecplaceTabMine") }}
               </button>
             </div>
 
-            <div v-if="loading" class="flex items-center justify-center py-16 text-slate-500">
+            <div
+              v-if="loading"
+              class="flex items-center justify-center py-16 text-slate-500"
+            >
               <Loader2 class="h-6 w-6 animate-spin" />
             </div>
 
             <div
-              v-else-if="(tab === 'explore' ? listings : myListings).length === 0"
+              v-else-if="
+                (tab === 'explore' ? listings : myListings).length === 0
+              "
               class="rounded-3xl border border-dashed border-slate-300 px-6 py-14 text-center dark:border-slate-700"
             >
               <p class="text-sm font-medium text-slate-500">
-                {{ tab === 'explore' ? t('siecplaceEmptyExplore') : t('siecplaceEmptyMine') }}
+                {{
+                  tab === "explore"
+                    ? t("siecplaceEmptyExplore")
+                    : t("siecplaceEmptyMine")
+                }}
               </p>
             </div>
 
@@ -374,14 +419,16 @@ onBeforeUnmount(() => {
                 class="siecplace-listing-card flex flex-col rounded-3xl border border-slate-200/90 bg-white p-5 shadow-sm transition-[border-color,box-shadow] hover:shadow-md dark:border-slate-800 dark:bg-slate-950"
               >
                 <div class="flex items-start justify-between gap-2">
-                  <h3 class="text-base font-black text-slate-950 dark:text-slate-50">
+                  <h3
+                    class="text-base font-black text-slate-950 dark:text-slate-50"
+                  >
                     {{ item.title }}
                   </h3>
                   <span
                     v-if="item.status === 'published'"
                     class="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
                   >
-                    {{ t('siecplaceStatusPublished') }}
+                    {{ t("siecplaceStatusPublished") }}
                   </span>
                   <span
                     v-else
@@ -391,7 +438,9 @@ onBeforeUnmount(() => {
                   </span>
                 </div>
 
-                <ul class="mt-4 space-y-2 text-sm text-slate-600 dark:text-slate-400">
+                <ul
+                  class="mt-4 space-y-2 text-sm text-slate-600 dark:text-slate-400"
+                >
                   <li v-if="item.region" class="flex items-center gap-2">
                     <MapPin class="h-4 w-4 shrink-0" />
                     {{ item.region }}
@@ -400,11 +449,17 @@ onBeforeUnmount(() => {
                     <Ruler class="h-4 w-4 shrink-0" />
                     {{ item.m2 }} m²
                   </li>
-                  <li v-if="item.material_label" class="flex items-center gap-2">
+                  <li
+                    v-if="item.material_label"
+                    class="flex items-center gap-2"
+                  >
                     <Layers class="h-4 w-4 shrink-0" />
                     {{ item.material_label }}
                   </li>
-                  <li v-if="item.estimated_total_clp" class="flex items-center gap-2 font-semibold text-slate-800 dark:text-slate-200">
+                  <li
+                    v-if="item.estimated_total_clp"
+                    class="flex items-center gap-2 font-semibold text-slate-800 dark:text-slate-200"
+                  >
                     <Sparkles class="h-4 w-4 shrink-0 text-orange-500" />
                     {{ formatMoney(item.estimated_total_clp) }}
                   </li>
@@ -415,7 +470,7 @@ onBeforeUnmount(() => {
                   class="mt-5 w-full rounded-2xl border border-slate-200 py-2.5 text-sm font-bold text-slate-800 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-900"
                   @click="openDetail(item.id)"
                 >
-                  {{ t('siecplaceViewDetail') }}
+                  {{ t("siecplaceViewDetail") }}
                 </button>
               </article>
             </div>
@@ -433,30 +488,44 @@ onBeforeUnmount(() => {
               @click="closeDetail"
             >
               <ArrowLeft class="h-4 w-4" />
-              {{ t('siecplaceBack') }}
+              {{ t("siecplaceBack") }}
             </button>
 
             <h2 class="text-2xl font-black">{{ selectedListing.title }}</h2>
-            <p class="mt-2 text-sm text-slate-500">{{ selectedListing.region || '—' }}</p>
+            <p class="mt-2 text-sm text-slate-500">
+              {{ selectedListing.region || "—" }}
+            </p>
 
             <dl class="mt-6 grid gap-4 sm:grid-cols-2">
               <div>
-                <dt class="text-[11px] font-bold uppercase tracking-wide text-slate-400">m²</dt>
-                <dd class="mt-1 font-semibold">{{ selectedListing.m2 || '—' }}</dd>
+                <dt
+                  class="text-[11px] font-bold uppercase tracking-wide text-slate-400"
+                >
+                  m²
+                </dt>
+                <dd class="mt-1 font-semibold">
+                  {{ selectedListing.m2 || "—" }}
+                </dd>
               </div>
               <div>
-                <dt class="text-[11px] font-bold uppercase tracking-wide text-slate-400">
-                  {{ t('siecplaceEstimatedCost') }}
+                <dt
+                  class="text-[11px] font-bold uppercase tracking-wide text-slate-400"
+                >
+                  {{ t("siecplaceEstimatedCost") }}
                 </dt>
                 <dd class="mt-1 font-semibold">
                   {{ formatMoney(selectedListing.estimated_total_clp) }}
                 </dd>
               </div>
               <div>
-                <dt class="text-[11px] font-bold uppercase tracking-wide text-slate-400">
-                  {{ t('siecplaceMaterial') }}
+                <dt
+                  class="text-[11px] font-bold uppercase tracking-wide text-slate-400"
+                >
+                  {{ t("siecplaceMaterial") }}
                 </dt>
-                <dd class="mt-1 font-semibold">{{ selectedListing.material_label || '—' }}</dd>
+                <dd class="mt-1 font-semibold">
+                  {{ selectedListing.material_label || "—" }}
+                </dd>
               </div>
             </dl>
 
@@ -464,19 +533,27 @@ onBeforeUnmount(() => {
               v-if="selectedListing.unlocked && selectedListing.contact"
               class="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/30"
             >
-              <p class="text-[11px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
-                {{ t('siecplaceContactUnlocked') }}
+              <p
+                class="text-[11px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300"
+              >
+                {{ t("siecplaceContactUnlocked") }}
               </p>
-              <p class="mt-2 font-semibold">{{ selectedListing.contact.full_name || '—' }}</p>
-              <p class="text-sm text-slate-600 dark:text-slate-300">{{ selectedListing.contact.email }}</p>
+              <p class="mt-2 font-semibold">
+                {{ selectedListing.contact.full_name || "—" }}
+              </p>
+              <p class="text-sm text-slate-600 dark:text-slate-300">
+                {{ selectedListing.contact.email }}
+              </p>
             </div>
 
             <div
-              v-else-if="hasMarketplaceAccess && selectedListing.status === 'published'"
+              v-else-if="
+                hasMarketplaceAccess && selectedListing.status === 'published'
+              "
               class="mt-6 flex flex-col gap-3 rounded-2xl border border-slate-200 p-4 dark:border-slate-800"
             >
               <p class="text-sm text-slate-600 dark:text-slate-300">
-                {{ t('siecplaceUnlockHint') }}
+                {{ t("siecplaceUnlockHint") }}
               </p>
               <button
                 type="button"
@@ -484,7 +561,7 @@ onBeforeUnmount(() => {
                 @click="handleUnlock"
               >
                 <Unlock class="h-4 w-4" />
-                {{ t('siecplaceUnlockCta') }}
+                {{ t("siecplaceUnlockCta") }}
               </button>
             </div>
 
@@ -494,15 +571,17 @@ onBeforeUnmount(() => {
             >
               <Lock class="h-5 w-5 shrink-0 text-amber-600" />
               <div>
-                <p class="text-sm font-medium text-amber-900 dark:text-amber-100">
-                  {{ t('siecplaceLockedPlan') }}
+                <p
+                  class="text-sm font-medium text-amber-900 dark:text-amber-100"
+                >
+                  {{ t("siecplaceLockedPlan") }}
                 </p>
                 <button
                   type="button"
                   class="mt-2 text-sm font-bold text-orange-600 underline underline-offset-2"
                   @click="startCheckout('pro_plus')"
                 >
-                  {{ t('siecplaceUpgradeCta') }}
+                  {{ t("siecplaceUpgradeCta") }}
                 </button>
               </div>
             </div>

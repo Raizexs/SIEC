@@ -6,6 +6,7 @@ import {
   loadHorizontalLogoInline,
   loadMonochromeLogoInline,
 } from '../../constants/brandInlineSvg';
+import { ensurePlusJakartaSans } from '../../utils/brandFonts';
 
 const props = defineProps({
   /** horizontal | isotipo | monochrome */
@@ -40,10 +41,13 @@ watch(
       return;
     }
 
-    inlineSvg.value =
+    const [markup] = await Promise.all([
       props.variant === 'monochrome'
-        ? await loadMonochromeLogoInline(useDark.value)
-        : await loadHorizontalLogoInline(useDark.value);
+        ? loadMonochromeLogoInline(useDark.value)
+        : loadHorizontalLogoInline(useDark.value),
+      ensurePlusJakartaSans(),
+    ]);
+    inlineSvg.value = markup;
   },
   { immediate: true },
 );

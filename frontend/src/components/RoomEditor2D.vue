@@ -26,6 +26,13 @@ import {
 import { MATERIAL_OPTIONS, materialLabel, resolveRecintoMaterial } from "../utils/materialHelpers.js";
 import { useBilling } from "../composables/useBilling";
 import { useWorkspaceStore } from "../stores/workspace";
+import { useIsMobile } from "../composables/useViewport";
+import {
+  bindFullscreenChange,
+  exitAppFullscreen,
+  getFullscreenElement,
+  requestAppFullscreen,
+} from "../utils/fullscreen.js";
 import { downloadBlueprint } from "../utils/blueprintGenerator";
 import { getMaterialLabel } from "../utils/budgetExporter";
 import { toast } from "vue-sonner";
@@ -68,6 +75,7 @@ const svgViewportRef = ref(null);
 /** 0 = aún no medido; no usar aspecto por defecto para no generar franjas */
 const viewportAspect = ref(0);
 const isFullScreen = ref(false);
+const isMobile = useIsMobile();
 const store  = useRecintosStore();
 const workspaceStore = useWorkspaceStore();
 const { canUseMaterial } = useBilling();
@@ -1271,33 +1279,47 @@ const startResize = (e, id) => {
 };
 
 let savedScrollY = 0;
+let unbindFullscreen = null;
 
-const toggleFullScreen = async () => {
-  if (!document.fullscreenElement) {
-    savedScrollY = window.scrollY;
-    if (rootRef.value?.requestFullscreen) {
-      await rootRef.value.requestFullscreen().catch(err => logger.error(err));
-    }
-  } else {
-    if (document.exitFullscreen) {
-      await document.exitFullscreen();
-    }
-  }
-};
-
-const handleFullscreenChange = () => {
-  const isEntering = !!document.fullscreenElement;
-  isFullScreen.value = isEntering;
+const setFullScreenState = (entering) => {
+  isFullScreen.value = entering;
+  document.documentElement.classList.toggle('siec-editor-fs', entering);
 
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       scheduleViewportAspectSync();
-      if (!isEntering) {
+      if (!entering) {
         window.scrollTo({ top: savedScrollY, behavior: 'instant' });
         scheduleViewportAspectSync();
       }
     });
   });
+};
+
+const toggleFullScreen = async () => {
+  if (isFullScreen.value) {
+    if (getFullscreenElement()) {
+      try {
+        await exitAppFullscreen();
+      } catch (error) {
+        logger.error(error);
+      }
+    }
+    setFullScreenState(false);
+    return;
+  }
+
+  savedScrollY = window.scrollY;
+  try {
+    await requestAppFullscreen(rootRef.value);
+  } catch (error) {
+    logger.warn('[editor2d] Fullscreen API no disponible, usando modo fijo', error);
+    setFullScreenState(true);
+  }
+};
+
+const handleFullscreenChange = () => {
+  setFullScreenState(!!getFullscreenElement());
 };
 
 const interactionCapture = { capture: true };
@@ -1671,10 +1693,14 @@ onMounted(() => {
   document.addEventListener('pointermove', onPointerMove, interactionCapture);
   document.addEventListener('pointerup', onPointerUp, interactionCapture);
   document.addEventListener('pointercancel', onPointerUp, interactionCapture);
-  document.addEventListener('fullscreenchange', handleFullscreenChange);
+  unbindFullscreen = bindFullscreenChange(handleFullscreenChange);
 });
 
 onUnmounted(() => {
+  if (isFullScreen.value) {
+    document.documentElement.classList.remove('siec-editor-fs');
+  }
+  unbindFullscreen?.();
   if (inspectorSliderFrame) cancelAnimationFrame(inspectorSliderFrame);
   inspectorSliderSession = false;
   inspectorSliderDirty.width = null;
@@ -1690,7 +1716,6 @@ onUnmounted(() => {
   document.removeEventListener('pointermove', onPointerMove, interactionCapture);
   document.removeEventListener('pointerup', onPointerUp, interactionCapture);
   document.removeEventListener('pointercancel', onPointerUp, interactionCapture);
-  document.removeEventListener('fullscreenchange', handleFullscreenChange);
   viewportResizeObserver?.disconnect();
   viewportResizeObserver = null;
 });
@@ -1879,7 +1904,7 @@ defineExpose({ openAddModal });
 
     <!-- Canvas shell (aligned with Scene3D viewport) -->
     <div
-      class="editor2d-canvas relative flex min-h-0 flex-row overflow-hidden rounded-3xl border border-slate-200 bg-slate-950 shadow-inner dark:border-slate-800"
+      class="editor2d-canvas relative flex min-h-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-slate-950 shadow-inner dark:border-slate-800 lg:flex-row"
       :class="isFullScreen ? 'flex-1' : ''"
       style="perspective: 1000px;"
     >
@@ -2362,7 +2387,7 @@ defineExpose({ openAddModal });
       <transition name="slide-right">
         <aside
           v-if="editor.selectedRecintoId.value"
-          class="w-72 shrink-0 overflow-y-auto border-l border-slate-200/80 bg-white/90 p-4 backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-950/90"
+          class="z-20 overflow-y-auto border-slate-200/80 bg-white/95 p-4 backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-950/95 max-lg:absolute max-lg:inset-x-0 max-lg:bottom-0 max-lg:max-h-[44%] max-lg:rounded-t-2xl max-lg:border-t max-lg:border-l-0 max-lg:shadow-[0_-16px_48px_-12px_rgba(0,0,0,0.45)] lg:relative lg:w-72 lg:max-h-none lg:shrink-0 lg:rounded-none lg:border-l lg:border-t-0 lg:shadow-none"
         >
           <div class="mb-4 flex items-start justify-between gap-3">
             <div class="flex items-start gap-3">
@@ -2719,11 +2744,15 @@ defineExpose({ openAddModal });
 
 .editor2d-root.editor2d-root--fs,
 .editor2d-root:fullscreen {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9999 !important;
   display: flex;
   flex-direction: column;
   height: 100dvh;
   max-height: 100dvh;
   min-height: 0;
+  width: 100vw;
   transition: none !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
