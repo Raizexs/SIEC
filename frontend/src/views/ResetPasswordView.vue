@@ -11,6 +11,7 @@ import {
   ArrowLeft,
 } from 'lucide-vue-next';
 import PasswordStrength from '../components/auth/PasswordStrength.vue';
+import SiecBrandLogo from '../components/brand/SiecBrandLogo.vue';
 import { useProMotion } from '../composables/useProMotion';
 
 const router = useRouter();
@@ -114,6 +115,8 @@ const goToLogin = () => {
       <div class="h-1 w-full bg-gradient-to-r from-orange-400 via-orange-500 to-slate-900 dark:to-orange-300"></div>
 
       <div class="space-y-6 p-5 sm:p-8">
+        <SiecBrandLogo variant="horizontal" class="h-8 w-auto" />
+
         <!-- Header -->
         <header class="space-y-4">
           <div class="flex items-start justify-between gap-4">

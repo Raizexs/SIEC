@@ -8,7 +8,6 @@ import { isSupabaseConfigured } from '../lib/supabaseClient';
 import {
   Mail,
   Lock,
-  Building2,
   Briefcase,
   ArrowRight,
   AlertCircle,
@@ -23,6 +22,7 @@ import {
   Sparkles,
 } from 'lucide-vue-next';
 import AuthScene3D from '../components/auth/AuthScene3D.vue';
+import SiecBrandLogo from '../components/brand/SiecBrandLogo.vue';
 import OAuthButtons from '../components/auth/OAuthButtons.vue';
 import PasswordStrength from '../components/auth/PasswordStrength.vue';
 import { gsap } from 'gsap';
@@ -465,23 +465,11 @@ const handleSubmit = async () => {
         class="pointer-events-none relative z-10 p-10"
         data-siec-auth-layer
       >
-        <div class="flex items-center gap-3">
-          <div
-            class="flex h-12 w-12 items-center justify-center rounded-2xl border border-orange-300/30 bg-orange-500/20 text-orange-200 shadow-lg shadow-orange-500/10 backdrop-blur-xl"
-          >
-            <Building2 class="h-5 w-5" :stroke-width="2.3" />
-          </div>
-
-          <div>
-            <h1 class="text-lg font-black tracking-tight text-white">
-              SIEC
-            </h1>
-
-            <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-              Sistema Inteligente de Estimación
-            </p>
-          </div>
-        </div>
+        <SiecBrandLogo
+          variant="horizontal"
+          :force-dark="true"
+          class="h-9 w-auto"
+        />
       </header>
 
       <!-- Bottom pitch -->
@@ -520,25 +508,10 @@ const handleSubmit = async () => {
           <div class="space-y-4 p-5">
             <!-- Mobile logo -->
             <div class="flex items-center justify-between gap-3 lg:hidden">
-              <div class="flex items-center gap-3">
-                <div
-                  class="flex h-11 w-11 items-center justify-center rounded-2xl border border-orange-200 bg-orange-50 text-orange-600 shadow-sm dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
-                >
-                  <Building2 class="h-5 w-5" :stroke-width="2.2" />
-                </div>
-
-                <div>
-                  <h1 class="text-base font-black tracking-tight text-slate-950 dark:text-slate-100">
-                    SIEC
-                  </h1>
-
-                  <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-                    Plataforma Cloud
-                  </p>
-                </div>
-              </div>
-
-              
+              <SiecBrandLogo
+                variant="horizontal"
+                class="h-8 w-auto"
+              />
             </div>
 
             <!-- Headline -->

@@ -12,8 +12,8 @@ import {
   History,
   FileText,
   LogOut,
-  Building2,
 } from 'lucide-vue-next';
+import SiecBrandLogo from './brand/SiecBrandLogo.vue';
 const { t, currentLanguage } = useI18n();
 const router = useRouter();
 const authStore = useAuthStore();
@@ -115,9 +115,9 @@ const logout = async () => {
     <!-- Left: title -->
     <div class="flex min-w-0 items-center gap-3">
       <div
-        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-700 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
+        class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-1 shadow-sm dark:border-slate-800 dark:bg-slate-900"
       >
-        <Building2 class="h-4.5 w-4.5" :stroke-width="2.2" />
+        <SiecBrandLogo variant="isotipo" class="h-full w-full" />
       </div>
 
       <div class="min-w-0">

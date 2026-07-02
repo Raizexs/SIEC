@@ -5,6 +5,7 @@ import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { useAuthStore } from '../stores/auth';
 import { useProMotion } from '../composables/useProMotion';
 import AuthScene3D from '../components/auth/AuthScene3D.vue';
+import SiecBrandLogo from '../components/brand/SiecBrandLogo.vue';
 import { usePrivacy } from '../composables/usePrivacy';
 
 const router = useRouter();
@@ -74,15 +75,12 @@ onMounted(async () => {
         class="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-orange-400 via-orange-500 to-white/70"
       ></div>
 
-      <!-- Brand mark -->
-      <div
-        class="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-orange-300/30 bg-orange-500/15 text-orange-200 shadow-lg shadow-orange-500/10"
+      <SiecBrandLogo
+        variant="horizontal"
+        :force-dark="true"
+        class="mx-auto mb-5 h-9 w-auto"
         data-motion="item"
-      >
-        <span class="material-symbols-outlined text-[34px]">
-          architecture
-        </span>
-      </div>
+      />
 
       <p
         class="text-[11px] font-black uppercase tracking-[0.18em] text-orange-200/80"

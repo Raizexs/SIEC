@@ -1,7 +1,7 @@
 <script setup>
 import { inject } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
-import { Building2 } from 'lucide-vue-next';
+import SiecBrandLogo from '../brand/SiecBrandLogo.vue';
 import { LEGAL } from '../../constants/legal.js';
 import { LANDING } from '../../constants/landingContent.js';
 
@@ -27,18 +27,15 @@ const goInicio = (event) => {
     />
 
     <div class="mx-auto flex max-w-7xl flex-col gap-8 px-4 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
-      <div data-landing-hover="footer-brand" class="flex items-center gap-3.5">
-        <div
-          class="flex h-10 w-10 items-center justify-center rounded-xl border border-orange-300/30 bg-orange-500/20 text-orange-300 ring-1 ring-orange-400/15 backdrop-blur-sm"
-        >
-          <Building2 class="h-4 w-4 text-orange-300" :stroke-width="2.2" />
-        </div>
-        <div>
-          <p class="text-sm font-black tracking-tight text-white">{{ LANDING.brand.name }}</p>
-          <p class="mt-0.5 text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">
-            {{ LANDING.footer.tagline }}
-          </p>
-        </div>
+      <div data-landing-hover="footer-brand" class="flex min-w-0 flex-col gap-1.5">
+        <SiecBrandLogo
+          variant="monochrome"
+          :force-dark="true"
+          class="h-7 w-auto sm:h-8"
+        />
+        <p class="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">
+          {{ LANDING.footer.tagline }}
+        </p>
       </div>
 
       <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">

@@ -9,6 +9,7 @@ import { useApi } from '../composables/useApi';
 import { useProMotion } from '../composables/useProMotion';
 
 import { useMotionPreferenceSync } from '../composables/useMotionPreferenceSync';
+import SiecBrandLogo from '../components/brand/SiecBrandLogo.vue';
 
 
 
@@ -80,7 +81,9 @@ onMounted(async () => {
 
     >
 
-      <p class="text-xs font-bold uppercase tracking-widest text-orange-600">Vista pública</p>
+      <SiecBrandLogo variant="horizontal" class="h-8 w-auto" />
+
+      <p class="mt-6 text-xs font-bold uppercase tracking-widest text-orange-600">Vista pública</p>
 
 
 

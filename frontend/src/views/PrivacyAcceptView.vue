@@ -17,6 +17,7 @@ import { useAuthStore } from '../stores/auth';
 import { useProMotion } from '../composables/useProMotion';
 import { useMotionPreferenceSync } from '../composables/useMotionPreferenceSync';
 import { LEGAL } from '../constants/legal.js';
+import SiecBrandLogo from '../components/brand/SiecBrandLogo.vue';
 import '../styles/auth-fields.css';
 
 const router = useRouter();
@@ -102,6 +103,12 @@ const submit = async () => {
       <div class="h-1 bg-gradient-to-r from-orange-400 via-orange-500 to-slate-700" />
 
       <div class="border-b border-slate-800/80 bg-slate-900/50 px-6 py-6 sm:px-8">
+        <SiecBrandLogo
+          variant="horizontal"
+          :force-dark="true"
+          class="mb-5 h-8 w-auto"
+        />
+
         <div class="flex items-start gap-4">
           <div
             class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-orange-900/60 bg-orange-950/40 text-orange-300 shadow-sm"

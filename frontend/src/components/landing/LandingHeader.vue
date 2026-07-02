@@ -1,7 +1,8 @@
 <script setup>
 import { inject } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
-import { ArrowRight, Building2 } from 'lucide-vue-next';
+import { ArrowRight } from 'lucide-vue-next';
+import SiecBrandLogo from '../brand/SiecBrandLogo.vue';
 import { LANDING } from '../../constants/landingContent.js';
 
 const route = useRoute();
@@ -41,22 +42,14 @@ const navItems = [
       <RouterLink
         to="/"
         data-landing-hover="brand"
-        class="group relative z-10 flex min-w-0 items-center gap-3 rounded-xl pr-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#07101d]"
+        class="group relative z-10 flex min-w-0 items-center rounded-xl pr-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#07101d]"
         @click="goHome"
       >
-        <div
-          class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-orange-300/30 bg-orange-500/20 text-orange-300 shadow-[0_10px_24px_-12px_rgba(249,115,22,0.35)] ring-1 ring-orange-400/15 backdrop-blur-sm"
-        >
-          <Building2 class="h-5 w-5 text-orange-300" :stroke-width="2.25" />
-        </div>
-        <div class="min-w-0">
-          <p class="truncate text-sm font-black tracking-[-0.02em] text-white">
-            {{ LANDING.brand.name }}
-          </p>
-          <p class="truncate text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">
-            {{ LANDING.brand.tagline }}
-          </p>
-        </div>
+        <SiecBrandLogo
+          variant="horizontal"
+          :force-dark="true"
+          class="h-8 w-auto sm:h-9"
+        />
       </RouterLink>
 
       <nav class="relative z-10 hidden items-center gap-0.5 lg:flex" aria-label="Navegación principal">

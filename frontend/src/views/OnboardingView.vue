@@ -14,7 +14,6 @@ import {
   User2,
   Landmark,
   Ruler,
-  Sparkles,
   Coins,
   Loader2,
 } from 'lucide-vue-next';
@@ -24,6 +23,7 @@ import { getMotionProfile, prefersReducedMotion } from '../design/motionTokens';
 import { runCrossfade } from '../composables/useMotionContext';
 import { gsap } from 'gsap';
 import { useProductPreferences } from '../composables/useProductPreferences';
+import SiecBrandLogo from '../components/brand/SiecBrandLogo.vue';
 import '../styles/auth-fields.css';
 
 const router = useRouter();
@@ -174,23 +174,7 @@ const back = async () => {
       <!-- Stepper header -->
       <header class="border-b border-slate-200/80 bg-slate-50/80 px-5 py-5 dark:border-slate-800/80 dark:bg-slate-900/60 sm:px-8">
         <div class="mb-4 flex items-center justify-between gap-4">
-          <div class="flex items-center gap-3">
-            <div
-              class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-orange-200 bg-orange-50 text-orange-600 shadow-sm dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
-            >
-              <Sparkles class="h-5 w-5" :stroke-width="2.3" />
-            </div>
-
-            <div>
-              <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-                Configuración inicial
-              </p>
-
-              <h1 class="mt-0.5 text-base font-black tracking-tight text-slate-950 dark:text-slate-100">
-                Onboarding SIEC
-              </h1>
-            </div>
-          </div>
+          <SiecBrandLogo variant="horizontal" class="h-8 w-auto" />
 
           <span
             class="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400"

@@ -3,9 +3,15 @@ import { createPinia } from "pinia";
 import { gsap } from "gsap";
 import { motionTokens, syncMotionHtmlClass, resetMotionRevealState, dispatchRouteEnterComplete } from "./design/motionTokens";
 import { installGlobalMicroMotion } from "./lib/installGlobalMicroMotion";
+import { BRAND_ASSETS } from "./constants/brandAssets";
 import App from "./App.vue";
 import router from "./router";
 import "./style.css";
+
+const faviconLink = document.querySelector('link[rel="icon"]');
+if (faviconLink) {
+  faviconLink.href = BRAND_ASSETS.favicon;
+}
 
 gsap.defaults({
   duration: motionTokens.duration.fast,

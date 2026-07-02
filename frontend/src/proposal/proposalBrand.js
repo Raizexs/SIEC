@@ -1,5 +1,5 @@
-/** Logo SIEC (portada, pie) — /public/siec-logo.svg */
-export const SIEC_LOGO_FILE = 'siec-logo.svg';
+import logoHorizontalLightUrl from '../assets/siec-logo-horizontal-light.svg?url';
+import logoHorizontalLightRaw from '../assets/siec-logo-horizontal-light.svg?raw';
 
 /** Firma manuscrita SIEC — /public/firma-siec.svg */
 export const SIEC_SIGNATURE_FILE = 'firma-siec.svg';
@@ -14,7 +14,7 @@ const resolvePublicAssetUrl = (fileName) => {
   return new URL(path, window.location.origin).href;
 };
 
-export const resolveBrandLogoUrl = () => resolvePublicAssetUrl(SIEC_LOGO_FILE);
+export const resolveBrandLogoUrl = () => logoHorizontalLightUrl;
 
 export const resolveBrandSignatureUrl = () =>
   resolvePublicAssetUrl(SIEC_SIGNATURE_FILE);
@@ -44,7 +44,8 @@ let cachedSignatureDataUrl = null;
  */
 export const resolveBrandLogoDataUrl = async () => {
   if (cachedLogoDataUrl) return cachedLogoDataUrl;
-  cachedLogoDataUrl = await fetchSvgDataUrl(SIEC_LOGO_FILE);
+  const encoded = btoa(unescape(encodeURIComponent(logoHorizontalLightRaw)));
+  cachedLogoDataUrl = `data:image/svg+xml;base64,${encoded}`;
   return cachedLogoDataUrl;
 };
 

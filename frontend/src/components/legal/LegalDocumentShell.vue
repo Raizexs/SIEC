@@ -2,6 +2,7 @@
 import { ref, onMounted, nextTick } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
 import { ArrowLeft, Shield } from 'lucide-vue-next';
+import SiecBrandLogo from '../brand/SiecBrandLogo.vue';
 import { prefersReducedMotion, runBriefEntranceReveal } from '../../design/motionTokens';
 
 const router = useRouter();
@@ -49,6 +50,12 @@ onMounted(async () => {
 
     <div class="relative z-10 mx-auto max-w-3xl px-4 py-10 sm:px-6 sm:py-14">
       <header class="mb-10">
+        <SiecBrandLogo
+          variant="horizontal"
+          :force-dark="true"
+          class="mb-6 h-8 w-auto"
+        />
+
         <button
           type="button"
           class="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/80 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em] text-slate-400 transition-colors hover:border-slate-700 hover:text-orange-300"
