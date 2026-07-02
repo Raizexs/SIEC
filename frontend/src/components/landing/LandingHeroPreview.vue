@@ -1,6 +1,5 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
-import { gsap } from 'gsap';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { CircleDollarSign, LayoutGrid, Box, ChevronLeft, ChevronRight } from 'lucide-vue-next';
 import AuthScene3D from '../auth/AuthScene3D.vue';
 import { BASIC_PRESET_ID, useLayoutManager } from '../../composables/useLayoutManager';
@@ -10,13 +9,11 @@ import { prefersReducedMotion } from '../../design/motionTokens';
 
 const SLIDES = ['plan', 'scene', 'budget'];
 const AUTO_MS = 4500;
-const TRANSITION_S = 0.82;
+const TRANSITION_MS = 780;
+const TRANSITION_EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';
+const SLIDE_STEP_PERCENT = 100 / SLIDES.length;
 
 const { presets, createPresetLayout } = useLayoutManager();
-
-const viewportRef = ref(null);
-const trackRef = ref(null);
-const fadeRef = ref(null);
 
 const planThumbnail = ref('');
 const activeIndex = ref(0);
@@ -27,8 +24,6 @@ const reduceMotion = prefersReducedMotion();
 const transitionDirection = ref('next');
 
 let autoTimer = null;
-let slideTween = null;
-let resizeObserver = null;
 
 const basicPreset = computed(() =>
   presets.value.find((preset) => preset.id === BASIC_PRESET_ID) ?? presets.value[0],
@@ -38,25 +33,23 @@ const budget = computed(() => LANDING.hero.previewBudget);
 const activeSlide = computed(() => SLIDES[activeIndex.value]);
 const sceneActive = computed(() => activeSlide.value === 'scene');
 
+const trackStyle = computed(() => ({
+  transform: `translate3d(-${activeIndex.value * SLIDE_STEP_PERCENT}%, 0, 0)`,
+  transition: reduceMotion
+    ? 'transform 320ms ease'
+    : `transform ${TRANSITION_MS}ms ${TRANSITION_EASE}`,
+}));
+
+const viewportClass = computed(() => ({
+  'is-transitioning': isTransitioning.value,
+  'is-next': transitionDirection.value === 'next',
+  'is-prev': transitionDirection.value === 'prev',
+}));
+
 const slideMeta = {
   plan: { label: 'Plano 2D', icon: LayoutGrid, accent: 'text-cyan-400' },
   scene: { label: 'Casa 3D', icon: Box, accent: 'text-orange-400' },
   budget: { label: 'Presupuesto', icon: CircleDollarSign, accent: 'text-emerald-400' },
-};
-
-const getSlideWidth = () => viewportRef.value?.clientWidth ?? 0;
-
-const syncSlideWidth = () => {
-  const width = getSlideWidth();
-  if (!viewportRef.value || !width) return;
-  viewportRef.value.style.setProperty('--hero-slide-width', `${width}px`);
-};
-
-const snapTrack = (index = activeIndex.value) => {
-  const track = trackRef.value;
-  const width = getSlideWidth();
-  if (!track || !width) return;
-  gsap.set(track, { x: -index * width });
 };
 
 const scheduleAuto = () => {
@@ -64,93 +57,7 @@ const scheduleAuto = () => {
   autoTimer = setTimeout(() => goNext(true), AUTO_MS);
 };
 
-const finishTransition = () => {
-  isTransitioning.value = false;
-  scheduleAuto();
-};
-
-const animateToIndex = (index) => {
-  const track = trackRef.value;
-  const fade = fadeRef.value;
-  const width = getSlideWidth();
-
-  if (!track || !width) {
-    snapTrack(index);
-    finishTransition();
-    return;
-  }
-
-  slideTween?.kill();
-
-  const targetX = -index * width;
-  const inners = track.querySelectorAll('.hero-slide-inner');
-  const dir = transitionDirection.value === 'next' ? 1 : -1;
-
-  if (reduceMotion) {
-    slideTween = gsap.timeline({
-      defaults: { ease: 'power2.out' },
-      onComplete: finishTransition,
-    });
-
-    slideTween
-      .to(fade, { opacity: 0.24, duration: 0.12 }, 0)
-      .to(
-        track,
-        {
-          x: targetX,
-          duration: 0.32,
-          ease: 'power2.inOut',
-        },
-        0,
-      )
-      .to(inners, { x: 0, opacity: 1, scale: 1, duration: 0.2 }, 0)
-      .to(fade, { opacity: 0, duration: 0.2 }, 0.16);
-    return;
-  }
-
-  slideTween = gsap.timeline({
-    defaults: { ease: 'power3.inOut' },
-    onComplete: finishTransition,
-  });
-
-  slideTween
-    .set(inners, { transformOrigin: '50% 50%' })
-    .to(fade, { opacity: 0.52, duration: 0.22, ease: 'power2.out' }, 0)
-    .to(
-      inners,
-      {
-        x: dir * -16,
-        opacity: 0.78,
-        scale: 0.985,
-        duration: 0.34,
-        ease: 'power2.in',
-      },
-      0,
-    )
-    .to(
-      track,
-      {
-        x: targetX,
-        duration: TRANSITION_S,
-        ease: 'power3.inOut',
-      },
-      0.06,
-    )
-    .to(fade, { opacity: 0, duration: 0.38, ease: 'power2.inOut' }, 0.42)
-    .to(
-      inners,
-      {
-        x: 0,
-        opacity: 1,
-        scale: 1,
-        duration: 0.42,
-        ease: 'power3.out',
-      },
-      0.48,
-    );
-};
-
-const goTo = (index) => {
+const goTo = (index, auto = false) => {
   if (isTransitioning.value || index === activeIndex.value) return;
   if (index < 0 || index >= SLIDES.length) return;
 
@@ -171,11 +78,17 @@ const goTo = (index) => {
   }
 
   clearTimeout(autoTimer);
-  animateToIndex(index);
 };
 
-const goNext = () => {
-  goTo((activeIndex.value + 1) % SLIDES.length);
+const onTrackTransitionEnd = (event) => {
+  if (event.propertyName !== 'transform') return;
+  if (!isTransitioning.value) return;
+  isTransitioning.value = false;
+  scheduleAuto();
+};
+
+const goNext = (auto = false) => {
+  goTo((activeIndex.value + 1) % SLIDES.length, auto);
 };
 
 const goPrev = () => {
@@ -193,7 +106,7 @@ const onTouchEnd = (event) => {
   else goPrev();
 };
 
-onMounted(async () => {
+onMounted(() => {
   if (basicPreset.value) {
     const layout = createPresetLayout(basicPreset.value);
     planThumbnail.value = generateLayoutThumbnail(layout.recintos, {
@@ -202,27 +115,11 @@ onMounted(async () => {
       bg: '#07101d',
     });
   }
-
-  await nextTick();
-  syncSlideWidth();
-  snapTrack(0);
-  if (fadeRef.value) gsap.set(fadeRef.value, { opacity: 0 });
-
-  if (typeof ResizeObserver !== 'undefined' && viewportRef.value) {
-    resizeObserver = new ResizeObserver(() => {
-      syncSlideWidth();
-      if (!isTransitioning.value) snapTrack();
-    });
-    resizeObserver.observe(viewportRef.value);
-  }
-
   scheduleAuto();
 });
 
 onBeforeUnmount(() => {
   clearTimeout(autoTimer);
-  slideTween?.kill();
-  resizeObserver?.disconnect();
 });
 </script>
 
@@ -293,7 +190,7 @@ onBeforeUnmount(() => {
                   type="button"
                   class="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200/80 text-slate-500 transition hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:text-slate-400 dark:hover:text-white"
                   aria-label="Vista siguiente"
-                  @click="goNext"
+                  @click="goNext()"
                 >
                   <ChevronRight class="h-3.5 w-3.5" />
                 </button>
@@ -301,12 +198,13 @@ onBeforeUnmount(() => {
             </div>
 
             <div
-              ref="viewportRef"
               class="hero-carousel-viewport relative h-[280px] overflow-hidden sm:h-[300px]"
+              :class="viewportClass"
             >
               <div
-                ref="trackRef"
                 class="hero-carousel-track flex h-full will-change-transform"
+                :style="trackStyle"
+                @transitionend="onTrackTransitionEnd"
               >
                 <!-- Plano 2D -->
                 <div class="hero-carousel-slide flex h-full shrink-0 flex-col bg-[#07101d]">
@@ -388,8 +286,8 @@ onBeforeUnmount(() => {
                 </div>
               </div>
 
+              <!-- Fade overlay during slide -->
               <div
-                ref="fadeRef"
                 class="hero-carousel-fade pointer-events-none absolute inset-0 z-10"
                 aria-hidden="true"
               />
@@ -419,30 +317,54 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.hero-carousel-viewport {
+  contain: paint;
+}
+
 .hero-carousel-track {
-  width: max-content;
+  width: 300%;
 }
 
 .hero-carousel-slide {
-  width: var(--hero-slide-width, 100%);
-  min-width: var(--hero-slide-width, 100%);
-  flex: 0 0 var(--hero-slide-width, 100%);
+  flex: 0 0 calc(100% / 3);
+  width: calc(100% / 3);
+}
+
+.hero-carousel-viewport.is-transitioning .hero-carousel-fade {
+  animation: hero-fade-pulse 0.78s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.hero-slide-inner {
+  height: 100%;
+  width: 100%;
 }
 
 .hero-carousel-fade {
   opacity: 0;
   background: linear-gradient(
     90deg,
-    rgba(2, 6, 23, 0.5) 0%,
-    rgba(2, 6, 23, 0.18) 20%,
-    rgba(2, 6, 23, 0.18) 80%,
-    rgba(2, 6, 23, 0.5) 100%
+    rgba(2, 6, 23, 0.45) 0%,
+    rgba(2, 6, 23, 0.12) 18%,
+    rgba(2, 6, 23, 0.12) 82%,
+    rgba(2, 6, 23, 0.45) 100%
   );
 }
 
-.hero-slide-inner {
-  height: 100%;
-  width: 100%;
-  will-change: transform, opacity;
+@keyframes hero-fade-pulse {
+  0% {
+    opacity: 0;
+  }
+  40% {
+    opacity: 0.42;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-carousel-viewport.is-transitioning .hero-carousel-fade {
+    animation: hero-fade-pulse 0.36s ease-out forwards;
+  }
 }
 </style>
