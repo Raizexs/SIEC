@@ -12,6 +12,7 @@ import {
   History,
   FileText,
   LogOut,
+  Menu,
 } from 'lucide-vue-next';
 import SiecBrandLogo from './brand/SiecBrandLogo.vue';
 const { t, currentLanguage } = useI18n();
@@ -24,7 +25,7 @@ defineProps({
   showSave: { type: Boolean, default: true },
 });
 
-defineEmits(['save-layout']);
+defineEmits(['save-layout', 'open-mobile-menu']);
 
 const showProfileMenu = ref(false);
 const topNavRef = ref(null);
@@ -114,6 +115,15 @@ const logout = async () => {
   >
     <!-- Left: title -->
     <div class="flex min-w-0 items-center gap-3">
+      <button
+        type="button"
+        class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-slate-300 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-700 lg:hidden"
+        :aria-label="t('mobileNavMenu')"
+        @click="$emit('open-mobile-menu')"
+      >
+        <Menu class="h-4 w-4" :stroke-width="2.2" />
+      </button>
+
       <div
         class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-1 shadow-sm dark:border-slate-800 dark:bg-slate-900"
       >

@@ -21,6 +21,7 @@ import {
 } from 'lucide-vue-next';
 import LandingHeader from '../components/landing/LandingHeader.vue';
 import LandingFooter from '../components/landing/LandingFooter.vue';
+import LandingHeroPreview from '../components/landing/LandingHeroPreview.vue';
 import { useLandingMotion } from '../composables/useLandingMotion';
 import { useLandingScroll } from '../composables/useLandingScroll';
 import { LANDING } from '../constants/landingContent.js';
@@ -126,124 +127,7 @@ onActivated(() => {
               </div>
             </div>
 
-            <!-- Product preview -->
-            <div
-              class="relative mx-auto w-full max-w-xl lg:max-w-none"
-              data-landing-hover="preview"
-              aria-hidden="true"
-            >
-              <div class="landing-preview-float relative">
-              <div class="absolute -inset-8 rounded-[2.5rem] bg-gradient-to-br from-orange-300/25 via-transparent to-blue-300/25 blur-2xl dark:from-orange-500/10 dark:to-blue-500/10" />
-
-              <div class="relative rounded-[1.7rem] border border-white/90 bg-white/85 p-2 shadow-[0_35px_90px_-35px_rgba(15,23,42,0.42)] backdrop-blur-2xl dark:border-white/10 dark:bg-[#08111f]/90 dark:shadow-[0_40px_100px_-35px_rgba(0,0,0,0.85)]">
-                <div class="overflow-hidden rounded-[1.25rem] border border-slate-200/80 bg-slate-50 dark:border-white/10 dark:bg-[#07101d]">
-                  <div class="flex items-center justify-between border-b border-slate-200/80 bg-white/90 px-4 py-3 dark:border-white/10 dark:bg-white/[0.035]">
-                    <div class="flex items-center gap-2">
-                      <span class="h-2.5 w-2.5 rounded-full bg-rose-400" />
-                      <span class="h-2.5 w-2.5 rounded-full bg-amber-400" />
-                      <span class="h-2.5 w-2.5 rounded-full bg-emerald-400" />
-                    </div>
-                    <div class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[9px] font-black uppercase tracking-[0.16em] text-slate-400 dark:border-white/10 dark:bg-white/5 dark:text-slate-500">
-                      Panel SIEC
-                    </div>
-                    <div class="h-6 w-6 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 shadow-sm" />
-                  </div>
-
-                  <div class="grid min-h-[430px] grid-cols-[68px_1fr] sm:grid-cols-[82px_1fr]">
-                    <aside class="border-r border-slate-200/80 bg-navy px-3 py-5 dark:border-white/10 dark:bg-[#040b15]">
-                      <div class="mx-auto flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-white shadow-lg shadow-orange-950/20">
-                        <HardHat class="h-4 w-4" :stroke-width="2.3" />
-                      </div>
-                      <div class="mt-8 space-y-3">
-                        <div class="mx-auto flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-white">
-                          <LayoutDashboard class="h-4 w-4" />
-                        </div>
-                        <div class="mx-auto h-9 w-9 rounded-xl border border-white/10 bg-white/5" />
-                        <div class="mx-auto h-9 w-9 rounded-xl border border-white/10 bg-white/5" />
-                        <div class="mx-auto h-9 w-9 rounded-xl border border-white/10 bg-white/5" />
-                      </div>
-                    </aside>
-
-                    <div class="min-w-0 p-4 sm:p-6">
-                      <div class="flex items-start justify-between gap-4">
-                        <div>
-                          <p class="text-[9px] font-black uppercase tracking-[0.18em] text-orange-500">Resumen del proyecto</p>
-                          <h2 class="mt-1 text-lg font-black tracking-tight text-navy dark:text-white sm:text-xl">Ampliación de vivienda</h2>
-                        </div>
-                        <span class="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
-                          En evaluación
-                        </span>
-                      </div>
-
-                      <div class="mt-6 grid gap-3 sm:grid-cols-3">
-                        <div class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-white/[0.035]">
-                          <p class="text-[9px] font-black uppercase tracking-wider text-slate-400">Estimación</p>
-                          <p class="mt-2 text-base font-black text-navy dark:text-white">Inicial</p>
-                          <div class="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
-                            <div class="h-full w-3/4 rounded-full bg-orange-500" />
-                          </div>
-                        </div>
-                        <div class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-white/[0.035]">
-                          <p class="text-[9px] font-black uppercase tracking-wider text-slate-400">Etapas</p>
-                          <p class="mt-2 text-base font-black text-navy dark:text-white">4 definidas</p>
-                          <div class="mt-3 flex gap-1">
-                            <span v-for="n in 4" :key="n" class="h-1.5 flex-1 rounded-full" :class="n < 3 ? 'bg-orange-500' : 'bg-slate-100 dark:bg-white/10'" />
-                          </div>
-                        </div>
-                        <div class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-white/[0.035]">
-                          <p class="text-[9px] font-black uppercase tracking-wider text-slate-400">Estado</p>
-                          <p class="mt-2 text-base font-black text-navy dark:text-white">Ordenado</p>
-                          <div class="mt-3 inline-flex items-center gap-1.5 text-[9px] font-bold text-emerald-600 dark:text-emerald-400">
-                            <CheckCircle2 class="h-3.5 w-3.5" />
-                            Sin pendientes
-                          </div>
-                        </div>
-                      </div>
-
-                      <div class="mt-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.035]">
-                        <div class="flex items-center justify-between">
-                          <div>
-                            <p class="text-[9px] font-black uppercase tracking-wider text-slate-400">Progreso del análisis</p>
-                            <p class="mt-1 text-sm font-black text-navy dark:text-white">Información del proyecto</p>
-                          </div>
-                          <span class="text-sm font-black text-orange-500">72%</span>
-                        </div>
-                        <div class="mt-4 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
-                          <div class="h-full w-[72%] rounded-full bg-gradient-to-r from-orange-400 to-orange-600" />
-                        </div>
-                        <div class="mt-4 grid grid-cols-3 gap-2 text-center">
-                          <div class="rounded-xl bg-slate-50 px-2 py-2 dark:bg-white/5">
-                            <p class="text-[8px] font-black uppercase tracking-wider text-slate-400">Datos</p>
-                            <p class="mt-1 text-xs font-black text-navy dark:text-white">Listos</p>
-                          </div>
-                          <div class="rounded-xl bg-orange-50 px-2 py-2 dark:bg-orange-950/25">
-                            <p class="text-[8px] font-black uppercase tracking-wider text-orange-500">Costos</p>
-                            <p class="mt-1 text-xs font-black text-navy dark:text-white">En curso</p>
-                          </div>
-                          <div class="rounded-xl bg-slate-50 px-2 py-2 dark:bg-white/5">
-                            <p class="text-[8px] font-black uppercase tracking-wider text-slate-400">Informe</p>
-                            <p class="mt-1 text-xs font-black text-navy dark:text-white">Siguiente</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div
-                class="absolute -bottom-5 -left-3 hidden items-center gap-3 rounded-2xl border border-white/10 bg-[#0b1524]/90 px-4 py-3 shadow-xl shadow-black/40 backdrop-blur-xl sm:flex"
-              >
-                <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-950/40 text-emerald-400">
-                  <ShieldCheck class="h-4 w-4" />
-                </div>
-                <div>
-                  <p class="text-[9px] font-black uppercase tracking-wider text-slate-500">Experiencia guiada</p>
-                  <p class="text-xs font-black text-white">Información bajo control</p>
-                </div>
-              </div>
-              </div>
-            </div>
+            <LandingHeroPreview />
           </div>
         </section>
 

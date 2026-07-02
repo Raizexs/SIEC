@@ -108,7 +108,11 @@ const translations = {
       "Usa la barra superior para moverte entre configuración, diseño 2D/3D, presupuesto y exportación. Los pasos completados quedan marcados.",
     tourSidebarPresetsTitle: "Layouts prearmados",
     tourSidebarPresetsDesc:
-      "Parte rápido con Departamento (2 pisos), Casa (2 pisos) o Edificio Planta (4 pisos). Puedes editarlos después en el plano 2D.",
+      "Parte rápido con Casa básica (1 piso), Casa (2 pisos) o Edificio Planta (4 pisos). Puedes editarlos después en el plano 2D.",
+    mobileNavLayouts: "Layouts",
+    mobileNavMenu: "Menú",
+    designView2d: "Plano 2D",
+    designView3d: "Vista 3D",
     tourConfigureTitle: "Configurar terreno",
     tourConfigureDesc:
       "Define ancho, largo, material estructural y parámetros del proyecto. Todo lo que diseñes y presupuestes parte de aquí.",
@@ -515,7 +519,11 @@ const translations = {
       "Use the top bar to move between setup, 2D/3D design, budget, and export. Completed steps stay marked.",
     tourSidebarPresetsTitle: "Preset layouts",
     tourSidebarPresetsDesc:
-      "Start quickly with Apartment (2 floors), House (2 floors), or Building Plate (4 floors). You can edit them later on the 2D plan.",
+      "Start quickly with Basic house (1 floor), House (2 floors), or Building Plate (4 floors). You can edit them later on the 2D plan.",
+    mobileNavLayouts: "Layouts",
+    mobileNavMenu: "Menu",
+    designView2d: "2D plan",
+    designView3d: "3D view",
     tourConfigureTitle: "Configure terrain",
     tourConfigureDesc:
       "Set width, length, structural material, and project parameters. Everything you design and budget starts here.",

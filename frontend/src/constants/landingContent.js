@@ -14,6 +14,16 @@ export const LANDING = {
       'Reduce cálculos manuales, evita errores y toma mejores decisiones antes de comenzar tu proyecto.',
     ctaPrimary: 'Comenzar estimación',
     ctaPrimaryHref: '/login?mode=register',
+    previewBudget: {
+      projectName: 'Casa básica',
+      rooms: '3 recintos · 40 m²',
+      subtotal: '$12.450.000',
+      contingency: '$1.245.000',
+      total: '$13.695.000',
+      status: 'Estimación inicial',
+      ariaLabel:
+        'Vista previa: plano 2D, modelo 3D y presupuesto estimado de una casa básica de 40 metros cuadrados',
+    },
   },
   whatIs: {
     title: '¿Qué es SIEC?',

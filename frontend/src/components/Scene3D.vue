@@ -75,6 +75,7 @@ const props = defineProps({
   showMinimap: { type: Boolean, default: true },
   quality3d: { type: String, default: 'medium' },
   wallHeight: { type: Number, default: DEFAULT_WALL_HEIGHT },
+  disableWalkthrough: { type: Boolean, default: false },
 });
 
 const containerRef = ref(null);
@@ -1984,6 +1985,7 @@ onBeforeUnmount(() => {
             </button>
 
             <button
+              v-if="!disableWalkthrough"
               type="button"
               data-editor-hover="tool"
               class="icon-action"
