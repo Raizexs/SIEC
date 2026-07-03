@@ -3,6 +3,7 @@
  *
  * Routes:
  *   /                      — public landing page
+ *   /exposmart             — public ExpoSmart presentation page
  *   /login                 — public auth screen (split layout)
  *   /auth/callback         — OAuth/magic-link landing
  *   /auth/reset-password   — password reset (token in URL hash)
@@ -22,7 +23,7 @@ const router = createRouter({
   routes,
   scrollBehavior(to, from, savedPosition) {
     if (savedPosition) return savedPosition;
-    if (to.name === 'landing') return { top: 0, behavior: 'auto' };
+    if (to.name === 'landing' || to.name === 'exposmart') return { top: 0, behavior: 'auto' };
     if (to.hash) return { el: to.hash, behavior: 'smooth' };
     return { top: 0, behavior: 'auto' };
   },
@@ -32,6 +33,7 @@ let authInitialized = false;
 
 const PUBLIC_ROUTES = new Set([
   "landing",
+  "exposmart",
   "login",
   "auth-callback",
   "reset-password",

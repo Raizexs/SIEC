@@ -39,6 +39,12 @@ export const routes = [
     meta: { requiresAuth: false, hideShell: true },
   },
   {
+    path: "/exposmart",
+    name: "exposmart",
+    component: () => import("../views/ExpoSmartView.vue"),
+    meta: { requiresAuth: false, hideShell: true },
+  },
+  {
     path: "/privacy/accept",
     name: "privacy-accept",
     component: () => import("../views/PrivacyAcceptView.vue"),
