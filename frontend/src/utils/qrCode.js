@@ -1,4 +1,4 @@
-import QRCode from 'qrcode';
+import QRCode from "qrcode";
 
 /**
  * Genera un data URL PNG del código QR para la URL indicada.
@@ -11,9 +11,9 @@ export async function generateQrDataUrl(url, size = 200) {
     width: size,
     margin: 1,
     color: {
-      dark: '#0f2744',
-      light: '#ffffff',
+      dark: "#0f2744",
+      light: "#ffffff",
     },
-    errorCorrectionLevel: 'M',
+    errorCorrectionLevel: "M",
   });
 }
