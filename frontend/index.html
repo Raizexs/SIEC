@@ -4,8 +4,12 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="SIEC transforma la información de tu proyecto en una estimación de costos clara, organizada y fácil de comprender. Reduce cálculos manuales y planifica tu presupuesto con confianza."
+    />
     <meta name="theme-color" content="#102A43" />
-    <title>SIEC · Sistema Inteligente de Estimación de Costos</title>
+    <title>SIEC</title>
     <!-- Plus Jakarta Sans: primary brand typeface -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -19,7 +23,18 @@
       rel="stylesheet"
     />
   </head>
-  <body class="font-sans antialiased bg-rail text-navy-900">
+  <body
+    class="font-sans antialiased bg-slate-50 text-navy-900 dark:bg-slate-950 dark:text-slate-100"
+  >
+    <style>
+      #app {
+        min-height: 100vh;
+        background-color: #f8fafc;
+      }
+      html.dark #app {
+        background-color: #020617;
+      }
+    </style>
     <div id="app"></div>
     <script type="module" src="/src/main.js"></script>
   </body>

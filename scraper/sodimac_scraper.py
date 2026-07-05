@@ -1,3 +1,10 @@
+# DEPRECATED — SCRUM-125 (2026-06-23)
+# Este scraper NO está integrado al pipeline nocturno (main.py).
+# El scraper activo es SerpAPIScraper, que consulta Google Shopping via API.
+# SodimacScraper hace HTTP directo a PDPs específicos y falla frecuentemente
+# por bloqueos de bot detection. Conservado para referencia futura.
+# Para reactivar: agregar ("Sodimac", SodimacScraper()) a la lista scrapers en main.py.
+# ─────────────────────────────────────────────────────────────────────────────
 # scraper/sodimac_scraper.py
 """
 Scraper Sodimac — standalone, sin Playwright.

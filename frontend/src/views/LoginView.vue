@@ -1,14 +1,13 @@
 <script setup>
 defineOptions({ name: 'LoginView' });
 
-import { ref, computed, onMounted, nextTick } from 'vue';
+import { ref, computed, onMounted, onActivated, onBeforeUnmount, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import { isSupabaseConfigured } from '../lib/supabaseClient';
 import {
   Mail,
   Lock,
-  Building2,
   Briefcase,
   ArrowRight,
   AlertCircle,
@@ -23,13 +22,12 @@ import {
   Sparkles,
 } from 'lucide-vue-next';
 import AuthScene3D from '../components/auth/AuthScene3D.vue';
+import SiecBrandLogo from '../components/brand/SiecBrandLogo.vue';
 import OAuthButtons from '../components/auth/OAuthButtons.vue';
 import PasswordStrength from '../components/auth/PasswordStrength.vue';
 import { gsap } from 'gsap';
-import { useProMotion } from '../composables/useProMotion';
-import { useMotionPreferenceSync } from '../composables/useMotionPreferenceSync';
 import { usePrivacy } from '../composables/usePrivacy';
-import { prefersReducedMotion, getMotionProfile, getMotionTier } from '../design/motionTokens';
+import { prefersReducedMotion, getMotionProfile, getMotionTier, waitForRouteEnter, runBriefEntranceReveal } from '../design/motionTokens';
 import '../styles/auth-fields.css';
 
 const router = useRouter();
@@ -78,16 +76,68 @@ const companyValid = computed(() => {
   return company.value.length <= MAX_COMPANY_CHARS;
 });
 
-useProMotion(motionRoot, { mode: 'auto' });
-useMotionPreferenceSync(motionRoot);
+let authRevealCtx;
+/** KeepAlive dispara onActivated tras onMounted — evita cortar la primera animación. */
+let skipActivateReveal = false;
 
-onMounted(async () => {
-  try {
-    const policy = await fetchPolicy();
-    policyVersion.value = policy.version;
-  } catch {
-    policyVersion.value = '1.0';
+const runAuthShellReveal = async ({ reentry = false } = {}) => {
+  await waitForRouteEnter();
+  await nextTick();
+
+  const root = motionRoot.value;
+  if (!root) return;
+
+  const layers = root.querySelectorAll('[data-siec-auth-layer]');
+  if (!layers.length) {
+    root.classList.add('auth-login-shell--ready');
+    return;
   }
+
+  authRevealCtx?.kill();
+
+  authRevealCtx = gsap.context(() => {
+    runBriefEntranceReveal(layers, {
+      root,
+      readyClass: 'auth-login-shell--ready',
+      stagger: reentry ? 0.05 : 0.07,
+      durationScale: reentry ? 0.92 : 1,
+      distanceScale: reentry ? 0.85 : 1,
+    });
+  }, root);
+};
+
+onMounted(() => {
+  skipActivateReveal = true;
+
+  fetchPolicy()
+    .then((policy) => {
+      policyVersion.value = policy.version;
+    })
+    .catch(() => {
+      policyVersion.value = '1.0';
+    });
+
+  if (route.query.error) localError.value = route.query.error;
+  if (route.query.message) localMessage.value = route.query.message;
+
+  const queryMode = route.query.mode;
+  if (queryMode === 'register' || queryMode === 'magic' || queryMode === 'forgot') {
+    mode.value = queryMode;
+  }
+
+  runAuthShellReveal({ reentry: false });
+});
+
+onActivated(() => {
+  if (skipActivateReveal) {
+    skipActivateReveal = false;
+    return;
+  }
+  runAuthShellReveal({ reentry: true });
+});
+
+onBeforeUnmount(() => {
+  authRevealCtx?.kill();
 });
 
 const passwordStrong = computed(() => {
@@ -391,17 +441,12 @@ const handleSubmit = async () => {
     isSubmitting.value = false;
   }
 };
-
-onMounted(() => {
-  if (route.query.error) localError.value = route.query.error;
-  if (route.query.message) localMessage.value = route.query.message;
-});
 </script>
 
 <template>
   <main
     ref="motionRoot"
-    class="flex h-screen w-full overflow-hidden bg-slate-50 text-slate-950 dark:bg-slate-950 dark:text-slate-100"
+    class="auth-login-shell flex h-screen w-full overflow-hidden bg-slate-50 text-slate-950 dark:bg-slate-950 dark:text-slate-100"
     data-siec-bare-route="true"
   >
     <!-- Left: 3D scene + brand pitch -->
@@ -418,31 +463,19 @@ onMounted(() => {
       <!-- Top brand bar -->
       <header
         class="pointer-events-none relative z-10 p-10"
-        data-motion="hero"
+        data-siec-auth-layer
       >
-        <div class="flex items-center gap-3">
-          <div
-            class="flex h-12 w-12 items-center justify-center rounded-2xl border border-orange-300/30 bg-orange-500/20 text-orange-200 shadow-lg shadow-orange-500/10 backdrop-blur-xl"
-          >
-            <Building2 class="h-5 w-5" :stroke-width="2.3" />
-          </div>
-
-          <div>
-            <h1 class="text-lg font-black tracking-tight text-white">
-              SIEC
-            </h1>
-
-            <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-              Sistema Inteligente de Estimación
-            </p>
-          </div>
-        </div>
+        <SiecBrandLogo
+          variant="horizontal"
+          :force-dark="true"
+          class="h-9 w-auto"
+        />
       </header>
 
       <!-- Bottom pitch -->
       <section
         class="relative z-10 max-w-2xl space-y-6 p-10"
-        data-motion="section"
+        data-siec-auth-layer
       >
         <div>
           <h2 class="max-w-xl text-5xl font-black leading-[1.04] tracking-tight text-white">
@@ -456,8 +489,6 @@ onMounted(() => {
             Diseña en 3D, valida normas constructivas y obtén desgloses de insumos con precios reales del mercado.
           </p>
         </div>
-
-        
       </section>
     </aside>
 
@@ -465,11 +496,11 @@ onMounted(() => {
     <section
       class="flex h-screen min-h-0 w-full shrink-0 flex-col overflow-hidden bg-slate-50 dark:bg-slate-950 lg:w-[520px]"
     >
-      <div class="flex min-h-0 flex-1 items-center justify-center overflow-hidden px-4 py-4 sm:px-8 sm:py-5">
+      <div class="flex min-h-0 flex-1 items-start justify-center overflow-y-auto overscroll-contain px-4 py-4 sm:items-center sm:px-8 sm:py-5">
         <div
-          class="w-full max-w-md overflow-hidden rounded-3xl border border-slate-200/90 bg-white/90 shadow-2xl shadow-slate-950/10 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/90 dark:shadow-black/35"
-          data-motion="section"
+          class="w-full max-w-md overflow-hidden rounded-3xl border border-slate-200/90 bg-white/90 shadow-2xl shadow-slate-950/10 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/90 dark:shadow-black/35 my-auto"
           data-siec-auth-form-stack
+          data-siec-auth-layer
           >
           <!-- Top accent -->
           <div class="h-1 w-full bg-gradient-to-r from-orange-400 via-orange-500 to-slate-900 dark:to-orange-300"></div>
@@ -477,25 +508,10 @@ onMounted(() => {
           <div class="space-y-4 p-5">
             <!-- Mobile logo -->
             <div class="flex items-center justify-between gap-3 lg:hidden">
-              <div class="flex items-center gap-3">
-                <div
-                  class="flex h-11 w-11 items-center justify-center rounded-2xl border border-orange-200 bg-orange-50 text-orange-600 shadow-sm dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
-                >
-                  <Building2 class="h-5 w-5" :stroke-width="2.2" />
-                </div>
-
-                <div>
-                  <h1 class="text-base font-black tracking-tight text-slate-950 dark:text-slate-100">
-                    SIEC
-                  </h1>
-
-                  <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-                    Plataforma Cloud
-                  </p>
-                </div>
-              </div>
-
-              
+              <SiecBrandLogo
+                variant="horizontal"
+                class="h-8 w-auto"
+              />
             </div>
 
             <!-- Headline -->
@@ -809,6 +825,7 @@ onMounted(() => {
 
       <footer
         class="shrink-0 border-t border-slate-200/80 bg-white/70 px-8 py-3 text-center backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-950/70"
+        data-siec-auth-layer
       >
         <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
           <router-link to="/legal/privacidad" class="text-slate-500 hover:text-orange-600 dark:text-slate-400">
@@ -829,6 +846,17 @@ onMounted(() => {
 </template>
 
 <style scoped>
+/* Oculto hasta el fade-in coordinado — evita fondo solo y luego contenido */
+.auth-login-shell:not(.auth-login-shell--ready) [data-siec-auth-layer] {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-login-shell [data-siec-auth-layer] {
+    opacity: 1;
+  }
+}
+
 .premium-label {
   margin-bottom: 0.5rem;
   display: block;

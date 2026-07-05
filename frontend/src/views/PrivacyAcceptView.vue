@@ -1,8 +1,8 @@
 <script setup>
-defineOptions({ name: 'PrivacyAcceptView' });
+defineOptions({ name: "PrivacyAcceptView" });
 
-import { ref, onMounted, computed } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
+import { ref, onMounted, computed } from "vue";
+import { useRouter, useRoute } from "vue-router";
 import {
   ShieldCheck,
   Check,
@@ -11,13 +11,14 @@ import {
   ArrowRight,
   FileText,
   Scale,
-} from 'lucide-vue-next';
-import { usePrivacy } from '../composables/usePrivacy';
-import { useAuthStore } from '../stores/auth';
-import { useProMotion } from '../composables/useProMotion';
-import { useMotionPreferenceSync } from '../composables/useMotionPreferenceSync';
-import { LEGAL } from '../constants/legal.js';
-import '../styles/auth-fields.css';
+} from "lucide-vue-next";
+import { usePrivacy } from "../composables/usePrivacy";
+import { useAuthStore } from "../stores/auth";
+import { useProMotion } from "../composables/useProMotion";
+import { useMotionPreferenceSync } from "../composables/useMotionPreferenceSync";
+import { LEGAL } from "../constants/legal.js";
+import SiecBrandLogo from "../components/brand/SiecBrandLogo.vue";
+import "../styles/auth-fields.css";
 
 const router = useRouter();
 const route = useRoute();
@@ -27,16 +28,16 @@ const { fetchPolicy, grantRegistrationConsents } = usePrivacy();
 const policy = ref(null);
 const accepted = ref(false);
 const loading = ref(false);
-const error = ref('');
+const error = ref("");
 const motionRoot = ref(null);
 
-useProMotion(motionRoot, { mode: 'auto' });
+useProMotion(motionRoot, { mode: "auto" });
 useMotionPreferenceSync(motionRoot);
 
 const greeting = computed(() => {
   const email = auth.user?.email;
-  if (!email) return 'Para continuar en SIEC';
-  const name = email.split('@')[0];
+  if (!email) return "Para continuar en SIEC";
+  const name = email.split("@")[0];
   return `Hola, ${name}`;
 });
 
@@ -46,7 +47,7 @@ onMounted(async () => {
   } catch (e) {
     error.value =
       e.message ||
-      'No se pudo cargar la política de privacidad. Revisa la conexión con el servidor.';
+      "No se pudo cargar la política de privacidad. Revisa la conexión con el servidor.";
   }
 });
 
@@ -55,7 +56,7 @@ const toggleAccepted = () => {
 };
 
 const onCheckboxKeydown = (event) => {
-  if (event.key === ' ' || event.key === 'Enter') {
+  if (event.key === " " || event.key === "Enter") {
     event.preventDefault();
     toggleAccepted();
   }
@@ -64,17 +65,19 @@ const onCheckboxKeydown = (event) => {
 const submit = async () => {
   if (!accepted.value || !policy.value) return;
   loading.value = true;
-  error.value = '';
+  error.value = "";
   try {
     await grantRegistrationConsents(policy.value.version);
     const redirect =
-      typeof route.query.redirect === 'string' ? route.query.redirect : '/dashboard';
+      typeof route.query.redirect === "string"
+        ? route.query.redirect
+        : "/dashboard";
     router.replace(redirect);
   } catch (e) {
     const detail =
-      typeof e.payload?.detail === 'string'
+      typeof e.payload?.detail === "string"
         ? e.payload.detail
-        : e.message || 'Error al registrar consentimiento.';
+        : e.message || "Error al registrar consentimiento.";
     error.value = detail;
   } finally {
     loading.value = false;
@@ -99,9 +102,19 @@ const submit = async () => {
       data-motion="hero"
       class="relative z-10 w-full max-w-lg overflow-hidden rounded-3xl border border-slate-800/90 bg-slate-950/85 shadow-2xl shadow-black/45 backdrop-blur-xl"
     >
-      <div class="h-1 bg-gradient-to-r from-orange-400 via-orange-500 to-slate-700" />
+      <div
+        class="h-1 bg-gradient-to-r from-orange-400 via-orange-500 to-slate-700"
+      />
 
-      <div class="border-b border-slate-800/80 bg-slate-900/50 px-6 py-6 sm:px-8">
+      <div
+        class="border-b border-slate-800/80 bg-slate-900/50 px-6 py-6 sm:px-8"
+      >
+        <SiecBrandLogo
+          variant="horizontal"
+          :force-dark="true"
+          class="mb-5 h-8 w-auto"
+        />
+
         <div class="flex items-start gap-4">
           <div
             class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-orange-900/60 bg-orange-950/40 text-orange-300 shadow-sm"
@@ -109,15 +122,22 @@ const submit = async () => {
             <ShieldCheck class="h-6 w-6" :stroke-width="2.2" />
           </div>
           <div class="min-w-0">
-            <p class="text-[10px] font-black uppercase tracking-[0.18em] text-orange-300/85">
+            <p
+              class="text-[10px] font-black uppercase tracking-[0.18em] text-orange-300/85"
+            >
               Protección de datos
             </p>
-            <h1 class="mt-2 text-xl font-black tracking-tight text-white sm:text-2xl">
+            <h1
+              class="mt-2 text-xl font-black tracking-tight text-white sm:text-2xl"
+            >
               {{ greeting }}
             </h1>
-            <p class="mt-2 text-sm font-medium leading-relaxed text-slate-400" data-motion="item">
-              Antes de entrar al workspace necesitamos tu consentimiento para la política de
-              privacidad y los términos vigentes.
+            <p
+              class="mt-2 text-sm font-medium leading-relaxed text-slate-400"
+              data-motion="item"
+            >
+              Antes de entrar al workspace necesitamos tu consentimiento para la
+              política de privacidad y los términos vigentes.
             </p>
           </div>
         </div>
@@ -135,10 +155,14 @@ const submit = async () => {
               <FileText class="h-4 w-4" :stroke-width="2.2" />
             </div>
             <div class="min-w-0">
-              <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
+              <p
+                class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500"
+              >
                 Documento
               </p>
-              <p class="truncate text-sm font-bold text-slate-200">Política de privacidad</p>
+              <p class="truncate text-sm font-bold text-slate-200">
+                Política de privacidad
+              </p>
             </div>
           </router-link>
 
@@ -152,10 +176,14 @@ const submit = async () => {
               <Scale class="h-4 w-4" :stroke-width="2.2" />
             </div>
             <div class="min-w-0">
-              <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
+              <p
+                class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500"
+              >
                 Documento
               </p>
-              <p class="truncate text-sm font-bold text-slate-200">Términos de servicio</p>
+              <p class="truncate text-sm font-bold text-slate-200">
+                Términos de servicio
+              </p>
             </div>
           </router-link>
         </div>
@@ -182,7 +210,10 @@ const submit = async () => {
           </button>
           <p class="auth-legal-consent-copy">
             Acepto la
-            <router-link :to="LEGAL.privacyPolicyPath" class="auth-legal-consent-link">
+            <router-link
+              :to="LEGAL.privacyPolicyPath"
+              class="auth-legal-consent-link"
+            >
               política de privacidad
             </router-link>
             y los
@@ -208,13 +239,21 @@ const submit = async () => {
           :disabled="!accepted || loading || !policy"
           @click="submit"
         >
-          <Loader2 v-if="loading" class="h-4 w-4 animate-spin" :stroke-width="2.2" />
-          <span>{{ loading ? 'Registrando…' : 'Continuar a SIEC' }}</span>
+          <Loader2
+            v-if="loading"
+            class="h-4 w-4 animate-spin"
+            :stroke-width="2.2"
+          />
+          <span>{{ loading ? "Registrando…" : "Continuar a SIEC" }}</span>
           <ArrowRight v-if="!loading" class="h-4 w-4" :stroke-width="2.4" />
         </button>
 
-        <p class="text-center text-[10px] font-medium leading-relaxed text-slate-500" data-motion="item">
-          Ley N° 21.719 · Puedes ejercer tus derechos desde Configuración → Privacidad.
+        <p
+          class="text-center text-[10px] font-medium leading-relaxed text-slate-500"
+          data-motion="item"
+        >
+          Ley N° 21.719 · Puedes ejercer tus derechos desde Configuración →
+          Privacidad.
         </p>
       </div>
     </section>

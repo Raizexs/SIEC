@@ -35,6 +35,12 @@ import {
 
 import MaterialLibrary from '../utils/MaterialLibrary.js';
 import {
+  bindFullscreenChange,
+  exitAppFullscreen,
+  getFullscreenElement,
+  requestAppFullscreen,
+} from '../utils/fullscreen.js';
+import {
   MIN_ROOM_DIM as SPATIAL_MIN_ROOM_DIM,
   MOVE_OVERFLOW_MARGIN,
   OVERLAP_EPS as SPATIAL_OVERLAP_EPS,
@@ -75,6 +81,7 @@ const props = defineProps({
   showMinimap: { type: Boolean, default: true },
   quality3d: { type: String, default: 'medium' },
   wallHeight: { type: Number, default: DEFAULT_WALL_HEIGHT },
+  disableWalkthrough: { type: Boolean, default: false },
 });
 
 const containerRef = ref(null);
@@ -254,6 +261,29 @@ let onDocumentClick = null;
 
 let isManipulating = false;
 let savedScrollY = 0;
+let unbindFullscreen = null;
+
+const applyFullscreenVisualState = (entering) => {
+  isFullScreen.value = entering;
+  document.documentElement.classList.toggle('siec-editor-fs', entering);
+  showLayersMenu.value = false;
+  exportMenuOpen.value = false;
+
+  setTimeout(() => {
+    if (entering) {
+      applyFullscreenLayout();
+      nextTick(() => repositionFloatingMenus());
+      return;
+    }
+
+    restoreNormalLayout();
+
+    window.scrollTo({
+      top: savedScrollY,
+      behavior: 'auto',
+    });
+  }, 80);
+};
 
 const applyFullscreenLayout = () => {
   if (!containerRef.value) return;
@@ -1509,46 +1539,30 @@ const handleDesignPanelVisible = () => {
 const toggleFullScreen = async () => {
   if (typeof document === 'undefined') return;
 
-  if (!document.fullscreenElement) {
-    savedScrollY = window.scrollY;
-
-    try {
-      await rootRef.value?.requestFullscreen?.();
-    } catch (error) {
-      logger.error('No se pudo activar pantalla completa:', error);
+  if (isFullScreen.value) {
+    if (getFullscreenElement()) {
+      try {
+        await exitAppFullscreen();
+      } catch (error) {
+        logger.error('No se pudo salir de pantalla completa:', error);
+      }
     }
-
+    applyFullscreenVisualState(false);
     return;
   }
 
+  savedScrollY = window.scrollY;
+
   try {
-    await document.exitFullscreen?.();
+    await requestAppFullscreen(rootRef.value);
   } catch (error) {
-    logger.error('No se pudo salir de pantalla completa:', error);
+    logger.warn('[scene3d] Fullscreen API no disponible, usando modo fijo', error);
+    applyFullscreenVisualState(true);
   }
 };
 
 const handleFullscreenChange = () => {
-  const entering = !!document.fullscreenElement;
-
-  isFullScreen.value = entering;
-  showLayersMenu.value = false;
-  exportMenuOpen.value = false;
-
-  setTimeout(() => {
-    if (entering) {
-      applyFullscreenLayout();
-      nextTick(() => repositionFloatingMenus());
-      return;
-    }
-
-    restoreNormalLayout();
-
-    window.scrollTo({
-      top: savedScrollY,
-      behavior: 'auto',
-    });
-  }, 80);
+  applyFullscreenVisualState(!!getFullscreenElement());
 };
 
 const handleCanvasPointerDown = (event) => {
@@ -1725,7 +1739,7 @@ onMounted(() => {
   };
 
   document.addEventListener('click', onDocumentClick);
-  document.addEventListener('fullscreenchange', handleFullscreenChange);
+  unbindFullscreen = bindFullscreenChange(handleFullscreenChange);
 
   sceneManager.renderer.domElement.addEventListener(
     'pointerdown',
@@ -1860,7 +1874,10 @@ onBeforeUnmount(() => {
   stopLayoutSyncWatcher?.();
   stopQualityWatcher?.();
 
-  document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  unbindFullscreen?.();
+  if (isFullScreen.value) {
+    document.documentElement.classList.remove('siec-editor-fs');
+  }
   window.removeEventListener('siec:capture-scene', handleSceneCaptureRequest);
   window.removeEventListener('siec:capture-scene-views', handleScenePresetViewsCaptureRequest);
   window.removeEventListener('siec:design-panel-visible', handleDesignPanelVisible);
@@ -1984,6 +2001,7 @@ onBeforeUnmount(() => {
             </button>
 
             <button
+              v-if="!disableWalkthrough"
               type="button"
               data-editor-hover="tool"
               class="icon-action"
@@ -2563,6 +2581,9 @@ onBeforeUnmount(() => {
 .scene3d-root.scene3d-root--fs,
 .scene3d-root:fullscreen,
 .scene3d-root:-webkit-full-screen {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9999 !important;
   transition: none !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;

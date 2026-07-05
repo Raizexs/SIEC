@@ -1,9 +1,9 @@
 <script setup>
-import logger from '../utils/logger.js';
-import { ref, computed, watch, nextTick } from 'vue';
-import { useRouter } from 'vue-router';
-import { useAuthStore } from '../stores/auth';
-import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
+import logger from "../utils/logger.js";
+import { ref, computed, watch, nextTick } from "vue";
+import { useRouter } from "vue-router";
+import { useAuthStore } from "../stores/auth";
+import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 import {
   Building2,
   Settings2,
@@ -14,35 +14,36 @@ import {
   User2,
   Landmark,
   Ruler,
-  Sparkles,
   Coins,
   Loader2,
-} from 'lucide-vue-next';
-import { useProMotion, replayMotionReveal } from '../composables/useProMotion';
-import { useMotionPreferenceSync } from '../composables/useMotionPreferenceSync';
-import { getMotionProfile, prefersReducedMotion } from '../design/motionTokens';
-import { runCrossfade } from '../composables/useMotionContext';
-import { gsap } from 'gsap';
-import { useProductPreferences } from '../composables/useProductPreferences';
-import '../styles/auth-fields.css';
+} from "lucide-vue-next";
+import { useProMotion, replayMotionReveal } from "../composables/useProMotion";
+import { useMotionPreferenceSync } from "../composables/useMotionPreferenceSync";
+import { getMotionProfile, prefersReducedMotion } from "../design/motionTokens";
+import { runCrossfade } from "../composables/useMotionContext";
+import { gsap } from "gsap";
+import { useProductPreferences } from "../composables/useProductPreferences";
+import SiecBrandLogo from "../components/brand/SiecBrandLogo.vue";
+import "../styles/auth-fields.css";
 
 const router = useRouter();
 const auth = useAuthStore();
-const { updateProductPreferences, saveProductPreferences } = useProductPreferences();
+const { updateProductPreferences, saveProductPreferences } =
+  useProductPreferences();
 
 const step = ref(1);
 const isSaving = ref(false);
 const motionRoot = ref(null);
 const stepContentRef = ref(null);
 
-useProMotion(motionRoot, { mode: 'auto' });
+useProMotion(motionRoot, { mode: "auto" });
 useMotionPreferenceSync(motionRoot);
 
 const formData = ref({
-  fullName: auth.user?.user_metadata?.full_name || '',
-  company: auth.user?.user_metadata?.company || '',
-  role: auth.user?.user_metadata?.role || 'user',
-  currency: 'CLP',
+  fullName: auth.user?.user_metadata?.full_name || "",
+  company: auth.user?.user_metadata?.company || "",
+  role: auth.user?.user_metadata?.role || "user",
+  currency: "CLP",
 });
 
 const progressPct = computed(() => `${(step.value / 3) * 100}%`);
@@ -50,35 +51,36 @@ const progressPct = computed(() => `${(step.value / 3) * 100}%`);
 const firstName = computed(() => {
   const name = formData.value.fullName?.trim();
 
-  if (!name) return 'Arquitecto';
+  if (!name) return "Arquitecto";
 
-  return name.split(' ')[0];
+  return name.split(" ")[0];
 });
 
 const stepMeta = computed(() => {
   if (step.value === 1) {
     return {
-      eyebrow: 'Identidad profesional',
-      title: 'Hola',
-      description: 'Cuéntanos quién eres para personalizar tu workspace.',
+      eyebrow: "Identidad profesional",
+      title: "Hola",
+      description: "Cuéntanos quién eres para personalizar tu workspace.",
       icon: Building2,
     };
   }
 
   if (step.value === 2) {
     return {
-      eyebrow: 'Preferencias operativas',
-      title: 'Estándares SIEC',
-      description: 'Medición en m y m². Elige la moneda de referencia para presupuestos.',
+      eyebrow: "Preferencias operativas",
+      title: "Estándares SIEC",
+      description:
+        "Medición en m y m². Elige la moneda de referencia para presupuestos.",
       icon: Settings2,
     };
   }
 
   return {
-    eyebrow: 'Workspace preparado',
+    eyebrow: "Workspace preparado",
     title: `¡Todo listo, ${firstName.value}!`,
     description:
-      'Tu workspace está preparado. Te llevaremos a un breve tour para que veas cómo SIEC puede ahorrarte horas en cada estimación.',
+      "Tu workspace está preparado. Te llevaremos a un breve tour para que veas cómo SIEC puede ahorrarte horas en cada estimación.",
     icon: Rocket,
   };
 });
@@ -101,7 +103,7 @@ const changeStep = async (nextStep) => {
   await nextTick();
   const incoming = stepContentRef.value;
   if (!prefersReducedMotion() && incoming) {
-    await runCrossfade(incoming, incoming, { axis: 'x', slide: 12 });
+    await runCrossfade(incoming, incoming, { axis: "x", slide: 12 });
   } else {
     replayMotionReveal(incoming);
   }
@@ -122,24 +124,24 @@ const next = async () => {
           full_name: formData.value.fullName,
           company: formData.value.company,
           role: formData.value.role,
-          units: 'metric',
+          units: "metric",
           currency: formData.value.currency,
           onboarded: true,
         },
       });
     } catch (error) {
-      logger.warn('No se pudo guardar onboarding:', error);
+      logger.warn("No se pudo guardar onboarding:", error);
     }
   }
 
   updateProductPreferences({
     currency: formData.value.currency,
-    unit: 'metric',
+    unit: "metric",
   });
   saveProductPreferences();
 
   isSaving.value = false;
-  router.push('/workspace?tour=1');
+  router.push("/workspace?tour=1");
 };
 
 const back = async () => {
@@ -169,28 +171,16 @@ const back = async () => {
       data-motion="hero"
     >
       <!-- Top accent -->
-      <div class="h-1 w-full bg-gradient-to-r from-orange-400 via-orange-500 to-slate-900 dark:to-orange-300"></div>
+      <div
+        class="h-1 w-full bg-gradient-to-r from-orange-400 via-orange-500 to-slate-900 dark:to-orange-300"
+      ></div>
 
       <!-- Stepper header -->
-      <header class="border-b border-slate-200/80 bg-slate-50/80 px-5 py-5 dark:border-slate-800/80 dark:bg-slate-900/60 sm:px-8">
+      <header
+        class="border-b border-slate-200/80 bg-slate-50/80 px-5 py-5 dark:border-slate-800/80 dark:bg-slate-900/60 sm:px-8"
+      >
         <div class="mb-4 flex items-center justify-between gap-4">
-          <div class="flex items-center gap-3">
-            <div
-              class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-orange-200 bg-orange-50 text-orange-600 shadow-sm dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
-            >
-              <Sparkles class="h-5 w-5" :stroke-width="2.3" />
-            </div>
-
-            <div>
-              <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-                Configuración inicial
-              </p>
-
-              <h1 class="mt-0.5 text-base font-black tracking-tight text-slate-950 dark:text-slate-100">
-                Onboarding SIEC
-              </h1>
-            </div>
-          </div>
+          <SiecBrandLogo variant="horizontal" class="h-8 w-auto" />
 
           <span
             class="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400"
@@ -199,7 +189,9 @@ const back = async () => {
           </span>
         </div>
 
-        <div class="h-2 overflow-hidden rounded-full bg-slate-200 shadow-inner dark:bg-slate-800">
+        <div
+          class="h-2 overflow-hidden rounded-full bg-slate-200 shadow-inner dark:bg-slate-800"
+        >
           <div
             class="h-full rounded-full bg-orange-500 transition-all duration-300 ease-out dark:bg-orange-400"
             :style="{ width: progressPct }"
@@ -207,28 +199,42 @@ const back = async () => {
         </div>
       </header>
 
-      <div ref="stepContentRef" class="space-y-7 p-5 sm:p-8" data-motion="section">
+      <div
+        ref="stepContentRef"
+        class="space-y-7 p-5 sm:p-8"
+        data-motion="section"
+      >
         <!-- Current step heading -->
         <section
           class="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-900/60 sm:flex-row sm:items-start"
         >
           <div
             class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-orange-200 bg-orange-50 text-orange-600 shadow-sm dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
-            :class="step === 3 ? 'bg-orange-500 text-white dark:bg-orange-400 dark:text-orange-950' : ''"
+            :class="
+              step === 3
+                ? 'bg-orange-500 text-white dark:bg-orange-400 dark:text-orange-950'
+                : ''
+            "
           >
             <component :is="StepIcon" class="h-5 w-5" :stroke-width="2.3" />
           </div>
 
           <div>
-            <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+            <p
+              class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
+            >
               {{ stepMeta.eyebrow }}
             </p>
 
-            <h2 class="mt-1 text-3xl font-black tracking-tight text-slate-950 dark:text-slate-100">
+            <h2
+              class="mt-1 text-3xl font-black tracking-tight text-slate-950 dark:text-slate-100"
+            >
               {{ stepMeta.title }}
             </h2>
 
-            <p class="mt-2 max-w-xl text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400">
+            <p
+              class="mt-2 max-w-xl text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400"
+            >
               {{ stepMeta.description }}
             </p>
           </div>
@@ -238,9 +244,7 @@ const back = async () => {
         <section v-if="step === 1" class="space-y-5">
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div class="sm:col-span-2">
-              <label class="premium-label">
-                Nombre completo
-              </label>
+              <label class="premium-label"> Nombre completo </label>
 
               <div class="auth-field">
                 <span class="auth-field-icon" aria-hidden="true">
@@ -257,9 +261,7 @@ const back = async () => {
             </div>
 
             <div>
-              <label class="premium-label">
-                Empresa
-              </label>
+              <label class="premium-label"> Empresa </label>
 
               <div class="auth-field">
                 <span class="auth-field-icon" aria-hidden="true">
@@ -274,7 +276,6 @@ const back = async () => {
                 />
               </div>
             </div>
-
           </div>
         </section>
 
@@ -290,20 +291,23 @@ const back = async () => {
                 <Ruler class="h-4.5 w-4.5" :stroke-width="2.2" />
               </div>
               <div>
-                <p class="text-sm font-black text-slate-950 dark:text-slate-100">
+                <p
+                  class="text-sm font-black text-slate-950 dark:text-slate-100"
+                >
                   Medición SIEC
                 </p>
-                <p class="mt-1 text-xs font-medium leading-relaxed text-slate-500 dark:text-slate-400">
-                  Metros (m), metros cuadrados (m²) y alturas en m. El editor 2D/3D y los presupuestos usan el sistema métrico chileno.
+                <p
+                  class="mt-1 text-xs font-medium leading-relaxed text-slate-500 dark:text-slate-400"
+                >
+                  Metros (m), metros cuadrados (m²) y alturas en m. El editor
+                  2D/3D y los presupuestos usan el sistema métrico chileno.
                 </p>
               </div>
             </div>
           </div>
 
           <div>
-            <label class="premium-label">
-              Moneda de presupuesto
-            </label>
+            <label class="premium-label"> Moneda de presupuesto </label>
 
             <div class="auth-field">
               <span class="auth-field-icon" aria-hidden="true">
@@ -318,7 +322,9 @@ const back = async () => {
               </select>
             </div>
 
-            <p class="mt-2 text-xs font-medium leading-relaxed text-slate-500 dark:text-slate-400">
+            <p
+              class="mt-2 text-xs font-medium leading-relaxed text-slate-500 dark:text-slate-400"
+            >
               Define cómo se muestran totales en presupuesto y exportación PDF.
             </p>
           </div>
@@ -333,30 +339,47 @@ const back = async () => {
           </div>
 
           <div class="mx-auto mt-6 max-w-md">
-            <h2 class="text-3xl font-black tracking-tight text-slate-950 dark:text-slate-100">
+            <h2
+              class="text-3xl font-black tracking-tight text-slate-950 dark:text-slate-100"
+            >
               ¡Todo listo, {{ firstName }}!
             </h2>
 
-            <p class="mt-3 text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400">
-              Tu workspace está preparado. El tour inicial te mostrará cómo crear una estimación, editar en 3D y exportar resultados.
+            <p
+              class="mt-3 text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400"
+            >
+              Tu workspace está preparado. El tour inicial te mostrará cómo
+              crear una estimación, editar en 3D y exportar resultados.
             </p>
           </div>
 
           <div class="mx-auto mt-6 grid max-w-md grid-cols-3 gap-3">
-            <div class="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/60">
-              <p class="text-[10px] font-black uppercase tracking-tight text-slate-400 dark:text-slate-500">
+            <div
+              class="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/60"
+            >
+              <p
+                class="text-[10px] font-black uppercase tracking-tight text-slate-400 dark:text-slate-500"
+              >
                 Unidad
               </p>
-              <p class="mt-1 truncate text-xs font-black text-slate-950 dark:text-slate-100">
-                {{ formData.units === 'metric' ? 'Métrico' : 'Imperial' }}
+              <p
+                class="mt-1 truncate text-xs font-black text-slate-950 dark:text-slate-100"
+              >
+                {{ formData.units === "metric" ? "Métrico" : "Imperial" }}
               </p>
             </div>
 
-            <div class="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/60">
-              <p class="text-[10px] font-black uppercase tracking-tight text-slate-400 dark:text-slate-500">
+            <div
+              class="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/60"
+            >
+              <p
+                class="text-[10px] font-black uppercase tracking-tight text-slate-400 dark:text-slate-500"
+              >
                 Moneda
               </p>
-              <p class="mt-1 truncate text-xs font-black text-slate-950 dark:text-slate-100">
+              <p
+                class="mt-1 truncate text-xs font-black text-slate-950 dark:text-slate-100"
+              >
                 {{ formData.currency }}
               </p>
             </div>
@@ -364,7 +387,9 @@ const back = async () => {
         </section>
 
         <!-- Footer controls -->
-        <footer class="flex flex-col-reverse gap-3 border-t border-slate-200/80 pt-5 dark:border-slate-800/80 sm:flex-row sm:items-center sm:justify-between">
+        <footer
+          class="flex flex-col-reverse gap-3 border-t border-slate-200/80 pt-5 dark:border-slate-800/80 sm:flex-row sm:items-center sm:justify-between"
+        >
           <button
             type="button"
             class="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-slate-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 hover:shadow-md active:scale-[0.98] disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-30 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200 dark:hover:border-slate-700 dark:hover:bg-slate-900"
@@ -394,7 +419,7 @@ const back = async () => {
             />
 
             <span>
-              {{ step === 3 ? 'Empezar el tour' : 'Continuar' }}
+              {{ step === 3 ? "Empezar el tour" : "Continuar" }}
             </span>
 
             <ArrowRight

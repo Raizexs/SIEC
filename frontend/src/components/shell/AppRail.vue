@@ -22,6 +22,7 @@ import {
   getMotionTier,
   prefersReducedMotion,
 } from '../../design/motionTokens';
+import SiecBrandLogo from '../brand/SiecBrandLogo.vue';
 import {
   LayoutDashboard,
   Building2,
@@ -255,13 +256,12 @@ const isActive = (link) => {
       to="/dashboard"
       title="Inicio"
       aria-label="Ir al inicio"
-      class="group mb-6 flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200/80 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700"
+      class="group mb-6 flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border border-slate-200/80 bg-white p-1 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700"
     >
-      <div
-        class="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-navy-800 to-navy-950 shadow-sm transition-transform duration-200 group-hover:scale-105"
-      >
-        <Building2 class="h-4.5 w-4.5 text-white" :stroke-width="2.2" />
-      </div>
+      <SiecBrandLogo
+        variant="isotipo"
+        class="h-full w-full transition-transform duration-200 group-hover:scale-105"
+      />
     </router-link>
 
     <!-- Primary navigation -->

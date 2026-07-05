@@ -23,6 +23,7 @@ import MetricsPanel from './MetricsPanel.vue';
 import MetricsBar from './workspace/MetricsBar.vue';
 import WorkspaceStepper from './workspace/WorkspaceStepper.vue';
 import FlowGuide from './workspace/FlowGuide.vue';
+import MobileWorkspaceNav from './workspace/MobileWorkspaceNav.vue';
 import RoomEditor2D from './RoomEditor2D.vue';
 import Scene3D from './Scene3D.vue';
 import BudgetBreakdownPanel from './BudgetBreakdownPanel.vue';
@@ -73,6 +74,7 @@ import {
 import { useProjectsApi } from '../composables/useProjectsApi';
 import { useWorkspaceFlow } from '../composables/useWorkspaceFlow';
 import { useBilling } from '../composables/useBilling';
+import { useViewport } from '../composables/useViewport';
 import {
   createWorkspaceBudgetSession,
   resetWorkspaceBudgetSession,
@@ -98,8 +100,12 @@ const projectsApi = useProjectsApi();
 const { t, currentLanguage } = useI18n();
 
 const { productPreferences } = useProductPreferences();
+const { isMobile } = useViewport();
 const route = useRoute();
 const router = useRouter();
+
+const mobileDrawer = ref(null);
+const mobileDesignView = ref('3d');
 
 /** Altura de muro alineada con preferencias (2.4 / 2.6 / 2.8 m). */
 const alturaMuroM = computed(() => {
@@ -117,22 +123,35 @@ const workspaceFeatures = computed(
 const editorInitialView = computed(
   () => productPreferences.value.editor.initialView || 'split',
 );
-const showEditor2dPanel = computed(
-  () => editorInitialView.value === '2d' || editorInitialView.value === 'split',
-);
+const useSingleDesignView = computed(() => isMobile.value);
+const showEditor2dPanel = computed(() => {
+  if (force3dForCapture.value) return false;
+  if (useSingleDesignView.value) return mobileDesignView.value === '2d';
+  return editorInitialView.value === '2d' || editorInitialView.value === 'split';
+});
 const forceDesignForCapture = ref(false);
 const force3dForCapture = ref(false);
 
 const showEditor3dPanel = computed(
-  () =>
-    force3dForCapture.value ||
-    editorInitialView.value === '3d' ||
-    editorInitialView.value === 'split',
+  () => {
+    if (force3dForCapture.value) return true;
+    if (useSingleDesignView.value) return mobileDesignView.value === '3d';
+    return editorInitialView.value === '3d' || editorInitialView.value === 'split';
+  },
 );
 const editorGridClass = computed(() =>
-  editorInitialView.value === 'split'
-    ? 'grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-stretch'
-    : 'grid grid-cols-1 gap-4',
+  useSingleDesignView.value || editorInitialView.value !== 'split'
+    ? 'grid grid-cols-1 gap-4'
+    : 'grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-stretch',
+);
+const editorPanelMinHeight = computed(() =>
+  isMobile.value ? 'min-h-[280px]' : 'min-h-[420px] xl:min-h-[520px]',
+);
+const sceneQuality3d = computed(() =>
+  isMobile.value ? 'low' : productPreferences.value.editor.quality3d,
+);
+const disableSceneWalkthrough = computed(
+  () => isMobile.value || (typeof window !== 'undefined' && 'ontouchstart' in window),
 );
 
 const sidebarCollapsed = ref(false);
@@ -1166,10 +1185,11 @@ const startTutorial = () => {
   >
 
     <!-- Primary navigation -->
-    <AppRail active="workspace" />
+    <AppRail active="workspace" class="hidden lg:flex" />
 
     <!-- Contextual sidebar -->
     <Sidebar
+      class="hidden lg:flex"
       @load-layout="loadLayout"
       @apply-preset="handleApplyPreset"
       @collapse-change="(val) => (sidebarCollapsed = val)"
@@ -1181,9 +1201,14 @@ const startTutorial = () => {
       <TopNavBar
         :activeTab="activeTab"
         @save-layout="showSaveDialog = true"
+        @open-mobile-menu="mobileDrawer = 'menu'"
       />
 
-      <div class="flex-1 overflow-y-auto" data-workspace-scroll>
+      <div
+        class="flex-1 overflow-y-auto"
+        :class="isMobile ? 'pb-20' : ''"
+        data-workspace-scroll
+      >
         <div class="mx-auto w-full max-w-[1600px] px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
           <!-- Workspace header strip -->
           <section
@@ -1323,10 +1348,39 @@ const startTutorial = () => {
               Puede asignar un material distinto a cada recinto desde el inspector 2D o 3D (pantalla completa).
               El material de Configurar se aplica solo a recintos nuevos.
             </div>
+            <div
+              v-if="useSingleDesignView"
+              class="inline-flex w-full max-w-md items-center gap-1 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm dark:border-slate-800 dark:bg-slate-950"
+            >
+              <button
+                type="button"
+                class="flex-1 rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-[0.1em] transition"
+                :class="
+                  mobileDesignView === '2d'
+                    ? 'bg-orange-500 text-white shadow-sm'
+                    : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
+                "
+                @click="mobileDesignView = '2d'"
+              >
+                {{ t('designView2d') }}
+              </button>
+              <button
+                type="button"
+                class="flex-1 rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-[0.1em] transition"
+                :class="
+                  mobileDesignView === '3d'
+                    ? 'bg-orange-500 text-white shadow-sm'
+                    : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
+                "
+                @click="mobileDesignView = '3d'"
+              >
+                {{ t('designView3d') }}
+              </button>
+            </div>
             <div :class="editorGridClass">
               <RoomEditor2D
                 v-show="showEditor2dPanel"
-                class="tour-editor-2d min-h-[420px] xl:min-h-[520px]"
+                :class="['tour-editor-2d', editorPanelMinHeight]"
                 :editor-visible="showDesignPanel && showEditor2dPanel"
                 :m2-totales="terrainM2FromDimensions"
                 v-model:terrenoAncho="formData.terrenoAncho"
@@ -1341,7 +1395,8 @@ const startTutorial = () => {
               <Scene3D
                 v-show="showEditor3dPanel"
                 :class="[
-                  'tour-scene-3d min-h-[420px] xl:min-h-[520px]',
+                  'tour-scene-3d',
+                  editorPanelMinHeight,
                   force3dForCapture
                     ? 'pointer-events-none fixed -left-[120vw] top-0 z-0 h-[720px] w-[1280px] max-w-none opacity-0'
                     : '',
@@ -1349,9 +1404,10 @@ const startTutorial = () => {
                 :materialEstructuralId="formData.materialEstructuralId"
                 :terreno-ancho="formData.terrenoAncho"
                 :terreno-largo="formData.terrenoLargo"
-                :show-minimap="productPreferences.editor.showMinimap"
+                :show-minimap="productPreferences.editor.showMinimap && !isMobile"
                 :wall-height="alturaMuroM"
-                :quality-3d="productPreferences.editor.quality3d"
+                :quality-3d="sceneQuality3d"
+                :disable-walkthrough="disableSceneWalkthrough"
               />
             </div>
 
@@ -1477,6 +1533,14 @@ const startTutorial = () => {
       :show="showLey21725Modal"
       :resultado="ley21725Alert"
       @close="showLey21725Modal = false"
+    />
+
+    <MobileWorkspaceNav
+      v-if="isMobile"
+      v-model:drawer="mobileDrawer"
+      :current-step="currentStep"
+      @apply-preset="handleApplyPreset"
+      @go-step="goToStep"
     />
 
   </div>

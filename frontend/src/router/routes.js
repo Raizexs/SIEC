@@ -1,12 +1,17 @@
+import LandingView from "../views/LandingView.vue";
+import LoginView from "../views/LoginView.vue";
+
 export const routes = [
   {
     path: "/",
-    redirect: "/dashboard",
+    name: "landing",
+    component: LandingView,
+    meta: { requiresAuth: false, hideShell: true },
   },
   {
     path: "/login",
     name: "login",
-    component: () => import("../views/LoginView.vue"),
+    component: LoginView,
     meta: { requiresAuth: false, hideShell: true },
   },
   {
@@ -31,6 +36,12 @@ export const routes = [
     path: "/legal/terminos",
     name: "legal-terms",
     component: () => import("../views/legal/TermsView.vue"),
+    meta: { requiresAuth: false, hideShell: true },
+  },
+  {
+    path: "/exposmart",
+    name: "exposmart",
+    component: () => import("../views/ExpoSmartView.vue"),
     meta: { requiresAuth: false, hideShell: true },
   },
   {

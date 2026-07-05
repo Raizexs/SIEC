@@ -263,20 +263,23 @@ const normalizeLayoutGeometry = (layout = {}) => {
   };
 };
 
+/** Preset id used for quick demo / landing hero thumbnail. */
+export const BASIC_PRESET_ID = 1;
+
 // Preset configurations
 const presets = ref([
   {
-    id: 1,
-    name: "Departamento",
-    nameEn: "Apartment",
-    m2Totales: 65,
-    materialEstructuralId: 4,
-    habitacionesSimples: 2,
+    id: BASIC_PRESET_ID,
+    name: "Casa básica",
+    nameEn: "Basic house",
+    m2Totales: 40,
+    materialEstructuralId: 1,
+    habitacionesSimples: 1,
     habitacionesDobles: 0,
     habitacionesTriples: 0,
     banios: 1,
     areasComunes: 1,
-    floors: 2,
+    floors: 1,
   },
   {
     id: 2,
@@ -382,31 +385,6 @@ const resolveFloorPlans = (preset) => {
     return [{ floor: 1, counts: preset }];
   }
 
-  if (preset.id === 1) {
-    return [
-      {
-        floor: 1,
-        counts: {
-          habitacionesSimples: 1,
-          habitacionesDobles: 0,
-          habitacionesTriples: 0,
-          banios: 1,
-          areasComunes: 1,
-        },
-      },
-      {
-        floor: 2,
-        counts: {
-          habitacionesSimples: 1,
-          habitacionesDobles: 0,
-          habitacionesTriples: 0,
-          banios: 0,
-          areasComunes: 0,
-        },
-      },
-    ];
-  }
-
   if (preset.id === 2) {
     return [
       {
@@ -489,7 +467,43 @@ const resolveFloorPlans = (preset) => {
   }));
 };
 
+/** Static single-floor layout for the basic demo preset. */
+const buildBasicHouseRooms = (presetId) => {
+  const suffix = Math.random().toString(36).slice(2, 8);
+
+  return [
+    {
+      id: `preset-${presetId}-hab-${suffix}`,
+      tipo: "habitacion",
+      nombre: "Habitación simple",
+      piso: 1,
+      coords: { x: 0, z: 0 },
+      dimensions: { w: 3.0, l: 3.0, h: RECINTO_BASE_DIMS.habitacion.h },
+    },
+    {
+      id: `preset-${presetId}-ban-${suffix}`,
+      tipo: "banio",
+      nombre: RECINTO_NOMBRES_POR_TIPO.banio,
+      piso: 1,
+      coords: { x: 3.0, z: 0 },
+      dimensions: { ...RECINTO_BASE_DIMS.banio },
+    },
+    {
+      id: `preset-${presetId}-com-${suffix}`,
+      tipo: "areaComun",
+      nombre: RECINTO_NOMBRES_POR_TIPO.areaComun,
+      piso: 1,
+      coords: { x: 5.2, z: 0 },
+      dimensions: { ...RECINTO_BASE_DIMS.areaComun },
+    },
+  ];
+};
+
 const buildPresetRooms = (preset) => {
+  if (preset.id === BASIC_PRESET_ID) {
+    return buildBasicHouseRooms(preset.id);
+  }
+
   const floorPlans = resolveFloorPlans(preset);
 
   return floorPlans.flatMap(({ floor, counts }) =>

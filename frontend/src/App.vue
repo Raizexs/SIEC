@@ -20,11 +20,12 @@ const routeViewKey = computed(() => {
   if (route.name === 'workspace') return 'workspace';
   // Clave estable: KeepAlive reutiliza LoginView (AuthScene3D) al volver desde legal.
   if (route.name === 'login') return 'login';
+  if (route.name === 'landing') return 'landing';
   return route.fullPath;
 });
 
-/** Login en caché al leer términos/privacidad — evita reiniciar Three.js. */
-const KEEP_ALIVE_VIEWS = ['LoginView'];
+/** Login y landing en caché al leer términos/privacidad — evita reiniciar Three.js y replay pesado. */
+const KEEP_ALIVE_VIEWS = ['LoginView', 'LandingView'];
 const theme = useTheme();
 const showShortcuts = ref(false);
 

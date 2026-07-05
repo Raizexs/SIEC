@@ -9,8 +9,17 @@
  * - Proper Three.js cleanup before unmount.
  */
 
-import { onMounted, onBeforeUnmount, onActivated, onDeactivated, ref } from 'vue';
+import { onMounted, onBeforeUnmount, onActivated, onDeactivated, ref, watch } from 'vue';
 import * as THREE from 'three';
+import { prefersReducedMotion } from '../../design/motionTokens';
+
+const props = defineProps({
+  compact: { type: Boolean, default: false },
+  hero: { type: Boolean, default: false },
+  autoStart: { type: Boolean, default: true },
+  paused: { type: Boolean, default: false },
+  embedded: { type: Boolean, default: false },
+});
 
 const containerRef = ref(null);
 
@@ -20,9 +29,10 @@ let camera;
 let frameId = null;
 let houseGroup;
 let resizeObserver;
+let intersectionObserver;
 let orbitAngle = 0;
-const ORBIT_CENTER = new THREE.Vector3(0, 1.7, 0);
-const ORBIT_RADIUS = 22;
+let isVisible = true;
+const ORBIT_CENTER = new THREE.Vector3(0, 1.6, 0);
 
 const HOUSE = [
   {
@@ -142,75 +152,115 @@ const addWarmWindow = ({ x, y, z, w = 1.1, h = 0.75, rotationY = 0 }) => {
   houseGroup.add(windowMesh);
 };
 
+const getOrbitRadius = () => {
+  if (props.hero) return 11.5;
+  if (props.compact) return 14;
+  return 22;
+};
+
+const getCameraHeight = () => {
+  if (props.hero) return 6.8;
+  if (props.compact) return 8.5;
+  return 10.5;
+};
+
 const setup = () => {
-  if (!containerRef.value) return;
+  if (!containerRef.value || renderer) return;
 
   const width = containerRef.value.clientWidth || window.innerWidth;
   const height = containerRef.value.clientHeight || window.innerHeight;
 
   scene = new THREE.Scene();
-  scene.background = new THREE.Color('#020617');
-  scene.fog = new THREE.FogExp2('#020617', 0.019);
+  scene.background = new THREE.Color(props.hero ? '#0b1220' : '#020617');
+  scene.fog = props.hero
+    ? null
+    : new THREE.FogExp2('#020617', props.compact ? 0.024 : 0.019);
 
-  camera = new THREE.PerspectiveCamera(42, width / Math.max(height, 1), 0.1, 220);
-  camera.position.set(18, 12, 18);
-  camera.lookAt(5, 1.4, 5);
+  camera = new THREE.PerspectiveCamera(
+    props.hero ? 48 : 42,
+    width / Math.max(height, 1),
+    0.1,
+    220,
+  );
+  const initialRadius = getOrbitRadius();
+  camera.position.set(initialRadius, getCameraHeight(), initialRadius);
+  camera.lookAt(ORBIT_CENTER);
 
   renderer = new THREE.WebGLRenderer({
-    antialias: true,
-    alpha: true,
-    powerPreference: 'high-performance',
+    antialias: !props.compact || props.hero,
+    alpha: props.hero,
+    powerPreference: props.compact || props.hero ? 'default' : 'high-performance',
   });
 
   renderer.setSize(width, height);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.setPixelRatio(
+    Math.min(window.devicePixelRatio || 1, props.hero ? 1.5 : props.compact ? 1.25 : 2),
+  );
+  renderer.shadowMap.enabled = !props.compact && !props.hero;
+  if (!props.compact) {
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  }
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.08;
+  renderer.toneMappingExposure = props.hero ? 1.22 : 1.08;
 
   containerRef.value.appendChild(renderer.domElement);
 
-  const ambient = new THREE.HemisphereLight('#dbeafe', '#020617', 0.58);
+  const ambient = new THREE.HemisphereLight('#e2e8f0', '#0f172a', props.hero ? 0.82 : 0.58);
   scene.add(ambient);
 
-  const sun = new THREE.DirectionalLight('#fff1d6', 1.28);
-  sun.position.set(18, 24, 12);
-  sun.castShadow = true;
-  sun.shadow.mapSize.set(1536, 1536);
-  sun.shadow.camera.left = -28;
-  sun.shadow.camera.right = 28;
-  sun.shadow.camera.top = 28;
-  sun.shadow.camera.bottom = -28;
-  sun.shadow.camera.near = 0.5;
-  sun.shadow.camera.far = 80;
+  const sun = new THREE.DirectionalLight('#fff7ed', props.hero ? 1.55 : 1.28);
+  sun.position.set(props.hero ? 10 : 18, props.hero ? 16 : 24, props.hero ? 8 : 12);
+  if (!props.compact) {
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(1536, 1536);
+    sun.shadow.camera.left = -28;
+    sun.shadow.camera.right = 28;
+    sun.shadow.camera.top = 28;
+    sun.shadow.camera.bottom = -28;
+    sun.shadow.camera.near = 0.5;
+    sun.shadow.camera.far = 80;
+  }
   scene.add(sun);
 
-  const orangeAccent = new THREE.PointLight('#fb923c', 1.8, 36);
-  orangeAccent.position.set(-6, 5.5, -5);
+  const orangeAccent = new THREE.PointLight('#fb923c', props.hero ? 2.4 : 1.8, props.hero ? 24 : 36);
+  orangeAccent.position.set(-4, props.hero ? 4 : 5.5, -4);
   scene.add(orangeAccent);
 
-  const blueFill = new THREE.PointLight('#38bdf8', 0.45, 42);
-  blueFill.position.set(18, 5, 18);
+  const blueFill = new THREE.PointLight('#38bdf8', props.hero ? 0.7 : 0.45, props.hero ? 28 : 42);
+  blueFill.position.set(10, 4, 10);
   scene.add(blueFill);
 
-  const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(90, 90),
-    new THREE.MeshStandardMaterial({
-      color: '#0f172a',
-      roughness: 0.95,
-      metalness: 0.08,
-    }),
-  );
+  if (!props.hero) {
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(90, 90),
+      new THREE.MeshStandardMaterial({
+        color: '#0f172a',
+        roughness: 0.95,
+        metalness: 0.08,
+      }),
+    );
 
-  ground.rotation.x = -Math.PI / 2;
-  ground.receiveShadow = true;
-  scene.add(ground);
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
 
-  const grid = new THREE.GridHelper(90, 45, '#334155', '#1e293b');
-  grid.material.opacity = 0.28;
-  grid.material.transparent = true;
-  scene.add(grid);
+    const grid = new THREE.GridHelper(90, 45, '#334155', '#1e293b');
+    grid.material.opacity = 0.28;
+    grid.material.transparent = true;
+    scene.add(grid);
+  } else {
+    const ground = new THREE.Mesh(
+      new THREE.CircleGeometry(14, 48),
+      new THREE.MeshStandardMaterial({
+        color: '#1e293b',
+        roughness: 0.88,
+        metalness: 0.05,
+      }),
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -0.02;
+    scene.add(ground);
+  }
 
   houseGroup = new THREE.Group();
 
@@ -231,16 +281,19 @@ const setup = () => {
 };
 
 const renderFrame = () => {
-  if (!renderer || !camera || !scene) return;
+  if (!renderer || !camera || !scene || props.paused || !isVisible) return;
 
-  orbitAngle += 0.00135;
+  if (!prefersReducedMotion()) {
+    orbitAngle += props.compact ? 0.0011 : 0.00135;
+  }
 
-  camera.position.x = ORBIT_CENTER.x + Math.cos(orbitAngle) * ORBIT_RADIUS;
-  camera.position.z = ORBIT_CENTER.z + Math.sin(orbitAngle) * ORBIT_RADIUS;
-  camera.position.y = 10.5 + Math.sin(orbitAngle * 0.75) * 1.6;
+  const orbitRadius = getOrbitRadius();
+  camera.position.x = ORBIT_CENTER.x + Math.cos(orbitAngle) * orbitRadius;
+  camera.position.z = ORBIT_CENTER.z + Math.sin(orbitAngle) * orbitRadius;
+  camera.position.y = getCameraHeight() + Math.sin(orbitAngle * 0.75) * (props.hero ? 0.8 : 1.6);
   camera.lookAt(ORBIT_CENTER);
 
-  if (houseGroup) {
+  if (houseGroup && !prefersReducedMotion()) {
     houseGroup.rotation.y = Math.sin(orbitAngle * 0.35) * 0.015;
   }
 
@@ -294,31 +347,13 @@ const disposeObject = (object) => {
   });
 };
 
-onMounted(() => {
-  setup();
-
-  if (typeof ResizeObserver !== 'undefined' && containerRef.value) {
-    resizeObserver = new ResizeObserver(onResize);
-    resizeObserver.observe(containerRef.value);
-  }
-
-  window.addEventListener('resize', onResize);
-});
-
-onActivated(() => {
-  onResize();
-  startRenderLoop();
-});
-
-onDeactivated(() => {
-  stopRenderLoop();
-});
-
-onBeforeUnmount(() => {
+const teardown = () => {
   stopRenderLoop();
   window.removeEventListener('resize', onResize);
-
   resizeObserver?.disconnect();
+  resizeObserver = null;
+  intersectionObserver?.disconnect();
+  intersectionObserver = null;
 
   disposeObject(scene);
 
@@ -332,6 +367,72 @@ onBeforeUnmount(() => {
   scene = null;
   camera = null;
   houseGroup = null;
+};
+
+const ensureStarted = () => {
+  if (!renderer) setup();
+  else onResize();
+  if (!props.paused && isVisible) startRenderLoop();
+};
+
+const bindVisibilityObserver = () => {
+  if (!props.autoStart || typeof IntersectionObserver === 'undefined' || !containerRef.value) {
+    return;
+  }
+
+  intersectionObserver = new IntersectionObserver(
+    (entries) => {
+      isVisible = entries.some((entry) => entry.isIntersecting);
+      if (isVisible) {
+        ensureStarted();
+      } else {
+        stopRenderLoop();
+      }
+    },
+    { rootMargin: '80px', threshold: 0.08 },
+  );
+
+  intersectionObserver.observe(containerRef.value);
+};
+
+watch(
+  () => props.paused,
+  (paused) => {
+    if (paused) stopRenderLoop();
+    else if (isVisible) startRenderLoop();
+  },
+);
+
+onMounted(() => {
+  if (props.autoStart) {
+    ensureStarted();
+  } else {
+    bindVisibilityObserver();
+  }
+
+  if (typeof ResizeObserver !== 'undefined' && containerRef.value) {
+    resizeObserver = new ResizeObserver(onResize);
+    resizeObserver.observe(containerRef.value);
+  }
+
+  window.addEventListener('resize', onResize);
+});
+
+onActivated(() => {
+  onResize();
+  if (renderer) {
+    if (!props.paused && isVisible) startRenderLoop();
+  } else if (props.autoStart) {
+    ensureStarted();
+  }
+});
+
+onDeactivated(() => {
+  stopRenderLoop();
+});
+
+onBeforeUnmount(() => {
+  teardown();
 });
 </script>
 
@@ -339,13 +440,19 @@ onBeforeUnmount(() => {
   <div
     ref="containerRef"
     class="auth-scene-3d"
-    aria-hidden="true"
+    :class="{
+      'auth-scene-3d--embedded': embedded,
+      'auth-scene-3d--hero': hero,
+    }"
+    :aria-hidden="embedded ? undefined : 'true'"
   >
-    <!-- Premium atmospheric overlays -->
-    <div class="auth-scene-vignette"></div>
-    <div class="auth-scene-grid"></div>
-    <div class="auth-scene-glow auth-scene-glow-orange"></div>
-    <div class="auth-scene-glow auth-scene-glow-slate"></div>
+    <!-- Premium atmospheric overlays (hidden in hero embed for clarity) -->
+    <template v-if="!hero">
+      <div class="auth-scene-vignette"></div>
+      <div class="auth-scene-grid"></div>
+      <div class="auth-scene-glow auth-scene-glow-orange"></div>
+      <div class="auth-scene-glow auth-scene-glow-slate"></div>
+    </template>
   </div>
 </template>
 
@@ -359,6 +466,22 @@ onBeforeUnmount(() => {
     radial-gradient(circle at 20% 20%, rgba(249, 115, 22, 0.16), transparent 30%),
     radial-gradient(circle at 80% 75%, rgba(148, 163, 184, 0.14), transparent 34%),
     #020617;
+}
+
+.auth-scene-3d--embedded {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 180px;
+  border-radius: 0.75rem;
+}
+
+.auth-scene-3d--hero {
+  background: linear-gradient(180deg, #0f172a 0%, #0b1220 100%);
+}
+
+.auth-scene-3d--hero.auth-scene-3d--embedded {
+  min-height: 100%;
 }
 
 .auth-scene-3d :deep(canvas) {

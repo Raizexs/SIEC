@@ -4,7 +4,15 @@
  * Layout: AppRail at the left + premium content shell at right.
  */
 
-import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from "vue";
+import {
+  ref,
+  computed,
+  onMounted,
+  onBeforeUnmount,
+  nextTick,
+  watch,
+} from "vue";
+import { gsap } from "gsap";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 import { HttpError } from "../composables/useApi";
@@ -31,7 +39,6 @@ import {
 import AppRail from "../components/shell/AppRail.vue";
 import AppTopBar from "../components/shell/AppTopBar.vue";
 import PortfolioAnalyticsPanel from "./PortfolioAnalyticsPanel.vue";
-import { useProMotion } from "../composables/useProMotion";
 import { useMotionPreferenceSync } from "../composables/useMotionPreferenceSync";
 import {
   bindCardHover,
@@ -45,8 +52,13 @@ import {
 import {
   prefersReducedMotion,
   waitForNextFrame,
+  waitForRouteEnter,
+  runBriefEntranceReveal,
 } from "../design/motionTokens";
-import { materialName, usePortfolioAnalytics } from "../composables/usePortfolioAnalytics";
+import {
+  materialName,
+  usePortfolioAnalytics,
+} from "../composables/usePortfolioAnalytics";
 import { useI18n } from "../composables/useI18n";
 import {
   getProjectPreviewHero,
@@ -90,23 +102,24 @@ const viewSwapRef = ref(null);
 let unbindSectionHover = null;
 let unbindCardHover = null;
 let unbindItemHover = null;
+let unbindHeroHover = null;
 let viewRevealSeq = 0;
 let viewTransitionSeq = 0;
 let viewTransitioning = false;
 let viewRevealReady = false;
+let dashboardRevealCtx;
 
 const { analytics } = usePortfolioAnalytics(projects, savedLayouts, fetchError);
 
-useProMotion(motionRoot, {
-  delayUntilRoute: true,
-  revealOptions: { levels: ["hero"], pace: "snappy" },
-});
 useMotionPreferenceSync(motionRoot);
 useMotionPreferenceSync(viewContentRef);
 
 const isDashboardViewVisible = (view) => {
   if (dashboardSwapPair.value) {
-    return dashboardSwapPair.value.from === view || dashboardSwapPair.value.to === view;
+    return (
+      dashboardSwapPair.value.from === view ||
+      dashboardSwapPair.value.to === view
+    );
   }
   return displayedView.value === view;
 };
@@ -120,6 +133,18 @@ const bindDashboardHover = () => {
   unbindSectionHover?.();
   unbindCardHover?.();
   unbindItemHover?.();
+  unbindHeroHover?.();
+
+  const shellRoot = motionRoot.value;
+  if (shellRoot) {
+    const hero = shellRoot.querySelector("[data-siec-dashboard-hero]");
+    if (hero) {
+      unbindHeroHover = bindCardHover([hero], {
+        lift: -5,
+        iconSelector: "svg",
+      });
+    }
+  }
 
   const root = viewContentRef.value;
   if (!root) return;
@@ -287,6 +312,29 @@ const firstName = computed(() => {
   return source.split(" ")[0];
 });
 
+const runDashboardShellReveal = async ({ reentry = false } = {}) => {
+  await waitForRouteEnter();
+  await nextTick();
+
+  const root = motionRoot.value;
+  if (!root) return;
+
+  const layers = root.querySelectorAll("[data-siec-dashboard-layer]");
+  if (!layers.length) return;
+
+  dashboardRevealCtx?.kill();
+  dashboardRevealCtx = gsap.context(() => {
+    runBriefEntranceReveal(layers, {
+      root,
+      readyClass: "siec-dashboard-shell--ready",
+      stagger: reentry ? 0.05 : 0.07,
+      durationScale: reentry ? 0.92 : 1,
+      distanceScale: reentry ? 0.85 : 0.72,
+      onComplete: () => bindDashboardHover(),
+    });
+  }, root);
+};
+
 const dateLocale = computed(() =>
   currentLanguage.value === "en" ? "en-US" : "es-CL",
 );
@@ -298,8 +346,6 @@ const heroSummary = computed(() => {
     date: new Date().toLocaleDateString(dateLocale.value),
   });
 });
-
-const hasRemoteProjects = computed(() => projects.value.length > 0);
 
 let lastProjectsFetch = 0;
 const PROJECTS_STALE_MS = 30_000;
@@ -361,7 +407,9 @@ const projectMaterialName = (id) =>
 
 const projectDate = (project) => {
   const payload =
-    project?.payload && typeof project.payload === "object" ? project.payload : null;
+    project?.payload && typeof project.payload === "object"
+      ? project.payload
+      : null;
   const rawDate =
     project?.updated_at ||
     project?.updatedAt ||
@@ -415,6 +463,7 @@ const onProjectsChanged = () => {
 onMounted(async () => {
   window.addEventListener("siec:projects-changed", onProjectsChanged);
   window.addEventListener("siec:motion-preference", bindDashboardHover);
+  runDashboardShellReveal({ reentry: false });
   await fetchProjects();
   await revealDashboardView();
   viewRevealReady = true;
@@ -442,10 +491,12 @@ watch(
 
 onBeforeUnmount(() => {
   if (gridRevealTimer) clearTimeout(gridRevealTimer);
+  dashboardRevealCtx?.kill();
   window.removeEventListener("siec:motion-preference", bindDashboardHover);
   unbindSectionHover?.();
   unbindCardHover?.();
   unbindItemHover?.();
+  unbindHeroHover?.();
   window.removeEventListener("siec:projects-changed", onProjectsChanged);
 });
 </script>
@@ -454,7 +505,7 @@ onBeforeUnmount(() => {
   <div
     ref="motionRoot"
     data-siec-app-shell
-    class="siec-app-canvas flex min-h-screen text-slate-950 transition-colors duration-300 dark:text-slate-100"
+    class="siec-dashboard-shell siec-app-canvas flex min-h-screen text-slate-950 transition-colors duration-300 dark:text-slate-100"
   >
     <AppRail active="dashboard" />
 
@@ -465,13 +516,13 @@ onBeforeUnmount(() => {
             <p
               class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
             >
-              {{ t('dashWorkspace') }}
+              {{ t("dashWorkspace") }}
             </p>
 
             <h1
               class="mt-0.5 truncate text-base font-black tracking-tight text-slate-950 dark:text-slate-100"
             >
-              {{ t('dashProjects') }}
+              {{ t("dashProjects") }}
             </h1>
           </div>
         </template>
@@ -483,7 +534,7 @@ onBeforeUnmount(() => {
             @click="newProject"
           >
             <Plus class="h-4 w-4" :stroke-width="2.4" />
-            {{ t('dashNewEstimate') }}
+            {{ t("dashNewEstimate") }}
           </button>
         </template>
       </AppTopBar>
@@ -494,8 +545,9 @@ onBeforeUnmount(() => {
         >
           <!-- Hero -->
           <section
-            data-motion="hero"
-            class="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 p-6 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30 md:p-7"
+            data-siec-dashboard-layer
+            data-siec-dashboard-hero
+            class="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 p-6 shadow-xl shadow-slate-950/5 backdrop-blur-xl transition-shadow duration-200 hover:shadow-2xl hover:shadow-slate-950/10 dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30 dark:hover:shadow-black/40 md:p-7"
           >
             <div
               class="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-orange-500/10 blur-3xl dark:bg-orange-400/10"
@@ -513,13 +565,13 @@ onBeforeUnmount(() => {
                   class="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-orange-700 shadow-sm dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
                 >
                   <Sparkles class="h-3.5 w-3.5" :stroke-width="2.4" />
-                  {{ t('dashExecutiveDashboard') }}
+                  {{ t("dashExecutiveDashboard") }}
                 </span>
 
                 <h2
                   class="mt-4 text-3xl font-black tracking-tight text-slate-950 dark:text-slate-100 md:text-5xl"
                 >
-                  {{ t('dashHello', { name: firstName }) }}
+                  {{ t("dashHello", { name: firstName }) }}
                 </h2>
 
                 <p
@@ -530,7 +582,7 @@ onBeforeUnmount(() => {
               </div>
 
               <div
-                class="rounded-3xl border border-slate-200 bg-slate-50/80 p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900/60 sm:w-auto"
+                class="grid w-full grid-cols-2 gap-3 rounded-3xl border border-slate-200 bg-slate-50/80 p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900/60 sm:w-auto sm:min-w-[14rem]"
               >
                 <div
                   class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950"
@@ -538,12 +590,27 @@ onBeforeUnmount(() => {
                   <p
                     class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500"
                   >
-                    {{ t('dashSource') }}
+                    {{ t("dashProjectsStat") }}
                   </p>
                   <p
                     class="mt-1 text-sm font-black text-slate-950 dark:text-slate-100"
                   >
-                    {{ hasRemoteProjects ? t('dashBackend') : t('dashLocal') }}
+                    {{ stats.count }}
+                  </p>
+                </div>
+
+                <div
+                  class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950"
+                >
+                  <p
+                    class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500"
+                  >
+                    {{ t("dashM2Accumulated") }}
+                  </p>
+                  <p
+                    class="mt-1 text-sm font-black text-slate-950 dark:text-slate-100"
+                  >
+                    {{ formatNumber(stats.totalM2) }}
                   </p>
                 </div>
               </div>
@@ -551,434 +618,451 @@ onBeforeUnmount(() => {
           </section>
 
           <div ref="viewContentRef" data-no-motion class="space-y-8">
-          <!-- View toggle -->
-          <section data-motion="section" class="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              class="inline-flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] transition-all duration-200"
-              :class="
-                dashboardView === 'projects'
-                  ? 'border-orange-300 bg-orange-50 text-orange-800 shadow-sm dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-200'
-                  : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300'
-              "
-              @click="requestDashboardView('projects')"
+            <!-- View toggle -->
+            <section
+              data-siec-dashboard-layer
+              data-motion="section"
+              class="flex flex-wrap items-center gap-2"
             >
-              <LayoutGrid class="h-3.5 w-3.5" :stroke-width="2.2" />
-              {{ t('dashProjects') }}
-            </button>
-            <button
-              type="button"
-              class="inline-flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] transition-all duration-200"
-              :class="
-                dashboardView === 'analytics'
-                  ? 'border-orange-300 bg-orange-50 text-orange-800 shadow-sm dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-200'
-                  : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300'
-              "
-              @click="requestDashboardView('analytics')"
-            >
-              <TrendingUp class="h-3.5 w-3.5" :stroke-width="2.2" />
-              {{ t('dashAnalytics') }}
-            </button>
-          </section>
-
-          <div ref="viewSwapRef" class="dashboard-view-stack relative">
-            <div
-              v-show="isDashboardViewVisible('analytics')"
-              data-dashboard-view="analytics"
-              class="dashboard-view-panel"
-            >
-              <PortfolioAnalyticsPanel
-                :snapshot="analytics"
-                :is-loading="isLoadingProjects"
-                :fetch-error="fetchError"
-                :has-remote-projects="hasRemoteProjects"
-                @open-project="openProject"
-                @new-project="newProject"
-              />
-            </div>
-
-            <div
-              v-show="isDashboardViewVisible('projects')"
-              data-dashboard-view="projects"
-              class="dashboard-view-panel space-y-8"
-            >
-          <section
-            data-motion="section"
-            class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
-          >
-            <article
-              data-motion="card"
-              class="rounded-3xl border border-slate-200/90 bg-white/85 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30 dark:hover:border-slate-700"
-            >
-              <div class="flex items-center justify-between gap-3">
-                <span
-                  class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
-                >
-                  {{ t('dashProjectsStat') }}
-                </span>
-
-                <span
-                  class="flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400"
-                >
-                  <Boxes class="h-4 w-4" :stroke-width="2" />
-                </span>
-              </div>
-
-              <p
-                class="mt-4 font-mono text-4xl font-black tracking-tight text-slate-950 dark:text-slate-100"
-              >
-                {{ stats.count }}
-              </p>
-
-              <p
-                class="mt-1 text-xs font-medium text-slate-400 dark:text-slate-500"
-              >
-                {{ t('dashActiveInWorkspace') }}
-              </p>
-            </article>
-
-            <article
-              data-motion="card"
-              class="rounded-3xl border border-slate-200/90 bg-white/85 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30 dark:hover:border-slate-700"
-            >
-              <div class="flex items-center justify-between gap-3">
-                <span
-                  class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
-                >
-                  {{ t('dashM2Accumulated') }}
-                </span>
-
-                <span
-                  class="flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400"
-                >
-                  <Building2 class="h-4 w-4" :stroke-width="2" />
-                </span>
-              </div>
-
-              <p
-                class="mt-4 font-mono text-4xl font-black tracking-tight text-slate-950 dark:text-slate-100"
-              >
-                {{ formatNumber(stats.totalM2) }}
-              </p>
-
-              <p
-                class="mt-1 text-xs font-medium text-slate-400 dark:text-slate-500"
-              >
-                {{ t('dashTotalSurface') }}
-              </p>
-            </article>
-
-            <article
-              data-motion="card"
-              class="relative overflow-hidden rounded-3xl border border-orange-200 bg-orange-50/70 p-5 shadow-xl shadow-orange-500/5 backdrop-blur-xl dark:border-orange-900/60 dark:bg-orange-950/20 dark:shadow-black/30"
-            >
-              <div
-                class="pointer-events-none absolute -right-12 -top-12 h-32 w-32 rounded-full bg-orange-400/20 blur-2xl"
-              ></div>
-
-              <div class="relative z-10">
-                <div class="flex items-center justify-between gap-3">
-                  <span
-                    class="text-[10px] font-black uppercase tracking-[0.16em] text-orange-700 dark:text-orange-300"
-                  >
-                    {{ t('dashEstimatedClp') }}
-                  </span>
-
-                  <span
-                    class="flex h-9 w-9 items-center justify-center rounded-2xl border border-orange-200 bg-white text-orange-600 shadow-sm dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-300"
-                  >
-                    <TrendingUp class="h-4 w-4" :stroke-width="2" />
-                  </span>
-                </div>
-
-                <p
-                  class="mt-4 font-mono text-4xl font-black tracking-tight text-orange-700 dark:text-orange-300"
-                >
-                  {{ formatCurrencyCompact(stats.totalCost) }}
-                </p>
-
-                <p
-                  class="mt-1 text-xs font-medium text-orange-700/70 dark:text-orange-300/75"
-                >
-                  {{ t('dashTotalCost') }}
-                </p>
-              </div>
-            </article>
-
-            <article
-              data-motion="card"
-              class="rounded-3xl border border-slate-200/90 bg-white/85 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30 dark:hover:border-slate-700"
-            >
-              <div class="flex items-center justify-between gap-3">
-                <span
-                  class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
-                >
-                  {{ t('dashPlan') }}
-                </span>
-
-                <span
-                  class="flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400"
-                >
-                  <Layers class="h-4 w-4" :stroke-width="2" />
-                </span>
-              </div>
-
-              <p
-                class="mt-4 truncate text-3xl font-black capitalize tracking-tight text-slate-950 dark:text-slate-100"
-              >
-                {{ auth.role }}
-              </p>
-
-              <p
-                class="mt-1 text-xs font-medium text-slate-400 dark:text-slate-500"
-              >
-                {{ t('dashActiveRole') }}
-              </p>
-            </article>
-          </section>
-
-          <!-- Toolbar -->
-          <section
-            data-motion="section"
-            class="flex flex-col gap-3 rounded-3xl border border-slate-200/90 bg-white/85 p-4 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30 md:flex-row md:items-center"
-          >
-            <div class="dashboard-filter-shell">
               <button
-                v-for="item in filters"
-                :key="item.id"
                 type="button"
-                class="dashboard-filter-btn"
-                :class="{ 'is-active': filter === item.id }"
-                @click="filter = item.id"
+                class="inline-flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] transition-all duration-200"
+                :class="
+                  dashboardView === 'projects'
+                    ? 'border-orange-300 bg-orange-50 text-orange-800 shadow-sm dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-200'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300'
+                "
+                @click="requestDashboardView('projects')"
               >
-                <component
-                  :is="item.icon"
-                  class="h-3.5 w-3.5"
-                  :stroke-width="2.2"
-                />
-                {{ item.label }}
+                <LayoutGrid class="h-3.5 w-3.5" :stroke-width="2.2" />
+                {{ t("dashProjects") }}
               </button>
-            </div>
-
-            <div class="relative min-w-0 flex-1">
-              <Search
-                class="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500"
-                :stroke-width="2"
-              />
-
-              <input
-                v-model="search"
-                type="search"
-                :placeholder="t('dashSearchPlaceholder')"
-                class="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50/80 pl-11 pr-4 text-sm font-semibold text-slate-950 outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-orange-400 focus:bg-white focus:ring-4 focus:ring-orange-500/10 dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-orange-500 dark:focus:bg-slate-900 dark:focus:ring-orange-500/15"
-              />
-            </div>
-          </section>
-
-          <!-- Loading -->
-          <section
-            v-if="isLoadingProjects && filtered.length === 0"
-            data-motion="section"
-            class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
-          >
-            <article
-              v-for="i in 6"
-              :key="i"
-              class="overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30"
-            >
-              <div
-                class="skeleton-shimmer aspect-video border-b border-slate-200/80 dark:border-slate-800/80"
-              ></div>
-              <div class="space-y-3 p-4">
-                <div class="skeleton-shimmer h-3.5 w-3/4 rounded-full"></div>
-                <div class="skeleton-shimmer h-2.5 w-1/2 rounded-full"></div>
-              </div>
-            </article>
-          </section>
-
-          <!-- Empty state -->
-          <section
-            v-else-if="filtered.length === 0"
-            data-motion="section"
-            class="rounded-3xl border border-dashed border-slate-300 bg-white/85 p-10 text-center shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-700 dark:bg-slate-950/85 dark:shadow-black/30 sm:p-16"
-          >
-            <div
-              class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl border border-slate-200 bg-slate-50 text-slate-400 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-500"
-            >
-              <Boxes class="h-7 w-7" :stroke-width="1.8" />
-            </div>
-
-            <h3
-              class="text-xl font-black tracking-tight text-slate-950 dark:text-slate-100"
-            >
-              {{
-                search || filter !== "all"
-                  ? t('dashNoResults')
-                  : t('dashNoProjects')
-              }}
-            </h3>
-
-            <p
-              class="mx-auto mt-2 max-w-md text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400"
-            >
-              {{
-                search || filter !== "all"
-                  ? t('dashEmptySearchHint')
-                  : t('dashEmptyProjectsHint')
-              }}
-            </p>
-
-            <button
-              v-if="!search && filter === 'all'"
-              type="button"
-              class="mt-6 dashboard-secondary-btn"
-              @click="newProject"
-            >
-              <Plus class="h-4 w-4" :stroke-width="2.4" />
-              {{ t('dashCreateFirst') }}
-            </button>
-          </section>
-
-          <!-- Grid -->
-          <section
-            v-else
-            data-motion="section"
-            class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
-          >
-            <article
-              v-for="project in filtered"
-              :key="project.id || project.name || project.nombre"
-              data-motion="item"
-              class="group cursor-pointer overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 shadow-xl shadow-slate-950/5 backdrop-blur-xl transition-[border-color,box-shadow] duration-200 hover:border-slate-300 hover:shadow-2xl hover:shadow-slate-950/10 dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30 dark:hover:border-slate-700"
-              @click="openProject(project)"
-            >
-              <div
-                class="relative aspect-video overflow-hidden bg-slate-100 dark:bg-slate-900"
+              <button
+                type="button"
+                class="inline-flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] transition-all duration-200"
+                :class="
+                  dashboardView === 'analytics'
+                    ? 'border-orange-300 bg-orange-50 text-orange-800 shadow-sm dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-200'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300'
+                "
+                @click="requestDashboardView('analytics')"
               >
-                <img
-                  v-if="previewWorks(project)"
-                  :src="projectPreviewHero(project)"
-                  :alt="project.name || project.nombre || t('dashProjectAlt')"
-                  class="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                  loading="lazy"
-                  decoding="async"
-                  @error="markPreviewBroken(project)"
+                <TrendingUp class="h-3.5 w-3.5" :stroke-width="2.2" />
+                {{ t("dashAnalytics") }}
+              </button>
+            </section>
+
+            <div ref="viewSwapRef" class="dashboard-view-stack relative">
+              <div
+                v-show="isDashboardViewVisible('analytics')"
+                data-dashboard-view="analytics"
+                class="dashboard-view-panel"
+              >
+                <PortfolioAnalyticsPanel
+                  :snapshot="analytics"
+                  :is-loading="isLoadingProjects"
+                  :fetch-error="fetchError"
+                  @open-project="openProject"
+                  @new-project="newProject"
                 />
-
-                <div
-                  v-else
-                  class="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 text-slate-300 dark:from-slate-900 dark:to-slate-950 dark:text-slate-700"
-                >
-                  <Building2 class="h-14 w-14" :stroke-width="1.2" />
-                </div>
-
-                <div
-                  class="absolute inset-0 bg-gradient-to-t from-slate-950/55 via-transparent to-transparent opacity-80"
-                ></div>
-
-                <span
-                  class="absolute right-3 top-3 inline-flex items-center rounded-full border border-white/20 bg-white/90 px-2.5 py-1 text-[10px] font-black uppercase tracking-tight text-slate-700 shadow-sm backdrop-blur-md dark:bg-slate-950/80 dark:text-slate-200"
-                >
-                  {{ projectMaterialName(resolveProjectMaterialId(project)) }}
-                </span>
-
-                <span
-                  v-if="project.shared"
-                  class="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-tight text-emerald-700 shadow-sm dark:border-emerald-900/70 dark:bg-emerald-950/70 dark:text-emerald-300"
-                >
-                  <Users2 class="h-3 w-3" :stroke-width="2.4" />
-                  {{ t('dashShared') }}
-                </span>
               </div>
 
-              <div class="space-y-4 p-4">
-                <div class="flex items-start justify-between gap-3">
-                  <div class="min-w-0">
-                    <h4
-                      class="truncate text-base font-black tracking-tight text-slate-950 dark:text-slate-100"
+              <div
+                v-show="isDashboardViewVisible('projects')"
+                data-dashboard-view="projects"
+                class="dashboard-view-panel space-y-8"
+              >
+                <section
+                  data-motion="section"
+                  class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
+                >
+                  <article
+                    data-motion="card"
+                    class="rounded-3xl border border-slate-200/90 bg-white/85 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30 dark:hover:border-slate-700"
+                  >
+                    <div class="flex items-center justify-between gap-3">
+                      <span
+                        class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
+                      >
+                        {{ t("dashProjectsStat") }}
+                      </span>
+
+                      <span
+                        class="flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400"
+                      >
+                        <Boxes class="h-4 w-4" :stroke-width="2" />
+                      </span>
+                    </div>
+
+                    <p
+                      class="mt-4 font-mono text-4xl font-black tracking-tight text-slate-950 dark:text-slate-100"
                     >
-                      {{ project.name || project.nombre || t('dashUntitled') }}
-                    </h4>
+                      {{ stats.count }}
+                    </p>
 
                     <p
                       class="mt-1 text-xs font-medium text-slate-400 dark:text-slate-500"
                     >
-                      {{ t('dashProjectType') }}
+                      {{ t("dashActiveInWorkspace") }}
                     </p>
-                  </div>
+                  </article>
 
-                  <span
-                    class="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-500 shadow-sm transition-all duration-200 group-hover:border-orange-200 group-hover:bg-orange-50 group-hover:text-orange-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:group-hover:border-orange-900/60 dark:group-hover:bg-orange-950/30 dark:group-hover:text-orange-300"
+                  <article
+                    data-motion="card"
+                    class="rounded-3xl border border-slate-200/90 bg-white/85 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30 dark:hover:border-slate-700"
                   >
-                    <ArrowUpRight class="h-4 w-4" :stroke-width="2.4" />
-                  </span>
-                </div>
+                    <div class="flex items-center justify-between gap-3">
+                      <span
+                        class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
+                      >
+                        {{ t("dashM2Accumulated") }}
+                      </span>
 
-                <div class="grid grid-cols-2 gap-2">
-                  <div
-                    class="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/60"
+                      <span
+                        class="flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400"
+                      >
+                        <Building2 class="h-4 w-4" :stroke-width="2" />
+                      </span>
+                    </div>
+
+                    <p
+                      class="mt-4 font-mono text-4xl font-black tracking-tight text-slate-950 dark:text-slate-100"
+                    >
+                      {{ formatNumber(stats.totalM2) }}
+                    </p>
+
+                    <p
+                      class="mt-1 text-xs font-medium text-slate-400 dark:text-slate-500"
+                    >
+                      {{ t("dashTotalSurface") }}
+                    </p>
+                  </article>
+
+                  <article
+                    data-motion="card"
+                    class="relative overflow-hidden rounded-3xl border border-orange-200 bg-orange-50/70 p-5 shadow-xl shadow-orange-500/5 backdrop-blur-xl dark:border-orange-900/60 dark:bg-orange-950/20 dark:shadow-black/30"
                   >
-                    <p
-                      class="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-tight text-slate-400 dark:text-slate-500"
-                    >
-                      <SquareStack class="h-3.5 w-3.5" :stroke-width="2.2" />
-                      {{ t('dashArea') }}
-                    </p>
-                    <p
-                      class="mt-1 font-mono text-sm font-black text-slate-950 dark:text-slate-100"
-                    >
-                      {{ projectM2(project) }} m²
-                    </p>
-                  </div>
+                    <div
+                      class="pointer-events-none absolute -right-12 -top-12 h-32 w-32 rounded-full bg-orange-400/20 blur-2xl"
+                    ></div>
 
-                  <div
-                    class="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/60"
+                    <div class="relative z-10">
+                      <div class="flex items-center justify-between gap-3">
+                        <span
+                          class="text-[10px] font-black uppercase tracking-[0.16em] text-orange-700 dark:text-orange-300"
+                        >
+                          {{ t("dashEstimatedClp") }}
+                        </span>
+
+                        <span
+                          class="flex h-9 w-9 items-center justify-center rounded-2xl border border-orange-200 bg-white text-orange-600 shadow-sm dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-300"
+                        >
+                          <TrendingUp class="h-4 w-4" :stroke-width="2" />
+                        </span>
+                      </div>
+
+                      <p
+                        class="mt-4 font-mono text-4xl font-black tracking-tight text-orange-700 dark:text-orange-300"
+                      >
+                        {{ formatCurrencyCompact(stats.totalCost) }}
+                      </p>
+
+                      <p
+                        class="mt-1 text-xs font-medium text-orange-700/70 dark:text-orange-300/75"
+                      >
+                        {{ t("dashTotalCost") }}
+                      </p>
+                    </div>
+                  </article>
+
+                  <article
+                    data-motion="card"
+                    class="rounded-3xl border border-slate-200/90 bg-white/85 p-5 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30 dark:hover:border-slate-700"
                   >
-                    <p
-                      class="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-tight text-slate-400 dark:text-slate-500"
-                    >
-                      <Calendar class="h-3.5 w-3.5" :stroke-width="2.2" />
-                      {{ t('dashDate') }}
-                    </p>
-                    <p
-                      class="mt-1 font-mono text-sm font-black text-slate-950 dark:text-slate-100"
-                    >
-                      {{ projectDate(project) }}
-                    </p>
-                  </div>
-                </div>
+                    <div class="flex items-center justify-between gap-3">
+                      <span
+                        class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
+                      >
+                        {{ t("dashPlan") }}
+                      </span>
 
-                <button
-                  type="button"
-                  class="w-full rounded-2xl border border-orange-200 bg-orange-50 py-2 text-xs font-black uppercase tracking-wide text-orange-800 transition hover:bg-orange-100 dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-200"
-                  @click.stop="quoteProject(project)"
+                      <span
+                        class="flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400"
+                      >
+                        <Layers class="h-4 w-4" :stroke-width="2" />
+                      </span>
+                    </div>
+
+                    <p
+                      class="mt-4 truncate text-3xl font-black capitalize tracking-tight text-slate-950 dark:text-slate-100"
+                    >
+                      {{ auth.role }}
+                    </p>
+
+                    <p
+                      class="mt-1 text-xs font-medium text-slate-400 dark:text-slate-500"
+                    >
+                      {{ t("dashActiveRole") }}
+                    </p>
+                  </article>
+                </section>
+
+                <!-- Toolbar -->
+                <section
+                  data-motion="section"
+                  class="flex flex-col gap-3 rounded-3xl border border-slate-200/90 bg-white/85 p-4 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30 md:flex-row md:items-center"
                 >
-                  Cotizar
-                </button>
+                  <div class="dashboard-filter-shell">
+                    <button
+                      v-for="item in filters"
+                      :key="item.id"
+                      type="button"
+                      class="dashboard-filter-btn"
+                      :class="{ 'is-active': filter === item.id }"
+                      @click="filter = item.id"
+                    >
+                      <component
+                        :is="item.icon"
+                        class="h-3.5 w-3.5"
+                        :stroke-width="2.2"
+                      />
+                      {{ item.label }}
+                    </button>
+                  </div>
+
+                  <div class="relative min-w-0 flex-1">
+                    <Search
+                      class="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500"
+                      :stroke-width="2"
+                    />
+
+                    <input
+                      v-model="search"
+                      type="search"
+                      :placeholder="t('dashSearchPlaceholder')"
+                      class="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50/80 pl-11 pr-4 text-sm font-semibold text-slate-950 outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-orange-400 focus:bg-white focus:ring-4 focus:ring-orange-500/10 dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-orange-500 dark:focus:bg-slate-900 dark:focus:ring-orange-500/15"
+                    />
+                  </div>
+                </section>
+
+                <!-- Loading -->
+                <section
+                  v-if="isLoadingProjects && filtered.length === 0"
+                  data-motion="section"
+                  class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
+                >
+                  <article
+                    v-for="i in 6"
+                    :key="i"
+                    class="overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30"
+                  >
+                    <div
+                      class="skeleton-shimmer aspect-video border-b border-slate-200/80 dark:border-slate-800/80"
+                    ></div>
+                    <div class="space-y-3 p-4">
+                      <div
+                        class="skeleton-shimmer h-3.5 w-3/4 rounded-full"
+                      ></div>
+                      <div
+                        class="skeleton-shimmer h-2.5 w-1/2 rounded-full"
+                      ></div>
+                    </div>
+                  </article>
+                </section>
+
+                <!-- Empty state -->
+                <section
+                  v-else-if="filtered.length === 0"
+                  data-motion="section"
+                  class="rounded-3xl border border-dashed border-slate-300 bg-white/85 p-10 text-center shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-700 dark:bg-slate-950/85 dark:shadow-black/30 sm:p-16"
+                >
+                  <div
+                    class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl border border-slate-200 bg-slate-50 text-slate-400 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-500"
+                  >
+                    <Boxes class="h-7 w-7" :stroke-width="1.8" />
+                  </div>
+
+                  <h3
+                    class="text-xl font-black tracking-tight text-slate-950 dark:text-slate-100"
+                  >
+                    {{
+                      search || filter !== "all"
+                        ? t("dashNoResults")
+                        : t("dashNoProjects")
+                    }}
+                  </h3>
+
+                  <p
+                    class="mx-auto mt-2 max-w-md text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400"
+                  >
+                    {{
+                      search || filter !== "all"
+                        ? t("dashEmptySearchHint")
+                        : t("dashEmptyProjectsHint")
+                    }}
+                  </p>
+
+                  <button
+                    v-if="!search && filter === 'all'"
+                    type="button"
+                    class="mt-6 dashboard-secondary-btn"
+                    @click="newProject"
+                  >
+                    <Plus class="h-4 w-4" :stroke-width="2.4" />
+                    {{ t("dashCreateFirst") }}
+                  </button>
+                </section>
+
+                <!-- Grid -->
+                <section
+                  v-else
+                  data-motion="section"
+                  class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
+                >
+                  <article
+                    v-for="project in filtered"
+                    :key="project.id || project.name || project.nombre"
+                    data-motion="item"
+                    class="group cursor-pointer overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 shadow-xl shadow-slate-950/5 backdrop-blur-xl transition-[border-color,box-shadow] duration-200 hover:border-slate-300 hover:shadow-2xl hover:shadow-slate-950/10 dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30 dark:hover:border-slate-700"
+                    @click="openProject(project)"
+                  >
+                    <div
+                      class="relative aspect-video overflow-hidden bg-slate-100 dark:bg-slate-900"
+                    >
+                      <img
+                        v-if="previewWorks(project)"
+                        :src="projectPreviewHero(project)"
+                        :alt="
+                          project.name || project.nombre || t('dashProjectAlt')
+                        "
+                        class="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                        loading="lazy"
+                        decoding="async"
+                        @error="markPreviewBroken(project)"
+                      />
+
+                      <div
+                        v-else
+                        class="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 text-slate-300 dark:from-slate-900 dark:to-slate-950 dark:text-slate-700"
+                      >
+                        <Building2 class="h-14 w-14" :stroke-width="1.2" />
+                      </div>
+
+                      <div
+                        class="absolute inset-0 bg-gradient-to-t from-slate-950/55 via-transparent to-transparent opacity-80"
+                      ></div>
+
+                      <span
+                        class="absolute right-3 top-3 inline-flex items-center rounded-full border border-white/20 bg-white/90 px-2.5 py-1 text-[10px] font-black uppercase tracking-tight text-slate-700 shadow-sm backdrop-blur-md dark:bg-slate-950/80 dark:text-slate-200"
+                      >
+                        {{
+                          projectMaterialName(resolveProjectMaterialId(project))
+                        }}
+                      </span>
+
+                      <span
+                        v-if="project.shared"
+                        class="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-tight text-emerald-700 shadow-sm dark:border-emerald-900/70 dark:bg-emerald-950/70 dark:text-emerald-300"
+                      >
+                        <Users2 class="h-3 w-3" :stroke-width="2.4" />
+                        {{ t("dashShared") }}
+                      </span>
+                    </div>
+
+                    <div class="space-y-4 p-4">
+                      <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                          <h4
+                            class="truncate text-base font-black tracking-tight text-slate-950 dark:text-slate-100"
+                          >
+                            {{
+                              project.name ||
+                              project.nombre ||
+                              t("dashUntitled")
+                            }}
+                          </h4>
+
+                          <p
+                            class="mt-1 text-xs font-medium text-slate-400 dark:text-slate-500"
+                          >
+                            {{ t("dashProjectType") }}
+                          </p>
+                        </div>
+
+                        <span
+                          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-500 shadow-sm transition-all duration-200 group-hover:border-orange-200 group-hover:bg-orange-50 group-hover:text-orange-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:group-hover:border-orange-900/60 dark:group-hover:bg-orange-950/30 dark:group-hover:text-orange-300"
+                        >
+                          <ArrowUpRight class="h-4 w-4" :stroke-width="2.4" />
+                        </span>
+                      </div>
+
+                      <div class="grid grid-cols-2 gap-2">
+                        <div
+                          class="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/60"
+                        >
+                          <p
+                            class="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-tight text-slate-400 dark:text-slate-500"
+                          >
+                            <SquareStack
+                              class="h-3.5 w-3.5"
+                              :stroke-width="2.2"
+                            />
+                            {{ t("dashArea") }}
+                          </p>
+                          <p
+                            class="mt-1 font-mono text-sm font-black text-slate-950 dark:text-slate-100"
+                          >
+                            {{ projectM2(project) }} m²
+                          </p>
+                        </div>
+
+                        <div
+                          class="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/60"
+                        >
+                          <p
+                            class="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-tight text-slate-400 dark:text-slate-500"
+                          >
+                            <Calendar class="h-3.5 w-3.5" :stroke-width="2.2" />
+                            {{ t("dashDate") }}
+                          </p>
+                          <p
+                            class="mt-1 font-mono text-sm font-black text-slate-950 dark:text-slate-100"
+                          >
+                            {{ projectDate(project) }}
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        class="w-full rounded-2xl border border-orange-200 bg-orange-50 py-2 text-xs font-black uppercase tracking-wide text-orange-800 transition hover:bg-orange-100 dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-200"
+                        @click.stop="quoteProject(project)"
+                      >
+                        Cotizar
+                      </button>
+                    </div>
+                  </article>
+                </section>
+
+                <!-- Fetch warning -->
+                <transition name="dashboard-alert">
+                  <p
+                    v-if="fetchError"
+                    class="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-xs font-semibold leading-relaxed text-amber-700 shadow-sm dark:border-amber-900/70 dark:bg-amber-950/25 dark:text-amber-300"
+                  >
+                    <span
+                      class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-amber-200 bg-white text-amber-600 shadow-sm dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+                    >
+                      <AlertTriangle class="h-4 w-4" :stroke-width="2.4" />
+                    </span>
+
+                    <span>
+                      {{ t("dashLocalProjectsWarning") }}
+                    </span>
+                  </p>
+                </transition>
               </div>
-            </article>
-          </section>
-
-          <!-- Fetch warning -->
-          <transition name="dashboard-alert">
-            <p
-              v-if="fetchError"
-              class="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-xs font-semibold leading-relaxed text-amber-700 shadow-sm dark:border-amber-900/70 dark:bg-amber-950/25 dark:text-amber-300"
-            >
-              <span
-                class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-amber-200 bg-white text-amber-600 shadow-sm dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
-              >
-                <AlertTriangle class="h-4 w-4" :stroke-width="2.4" />
-              </span>
-
-              <span>
-                {{ t('dashLocalProjectsWarning') }}
-                <strong class="font-black">{{ fetchError }}</strong>
-              </span>
-            </p>
-          </transition>
             </div>
-          </div>
           </div>
         </div>
       </main>
@@ -987,6 +1071,17 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.siec-dashboard-shell:not(.siec-dashboard-shell--ready)
+  [data-siec-dashboard-layer] {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .siec-dashboard-shell [data-siec-dashboard-layer] {
+    opacity: 1;
+  }
+}
+
 .skeleton-shimmer {
   position: relative;
   overflow: hidden;

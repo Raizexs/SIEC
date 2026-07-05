@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from 'vue';
 import { useAuthStore } from '../stores/auth';
+import SiecBrandLogo from './brand/SiecBrandLogo.vue';
 
 const authStore = useAuthStore();
 
@@ -59,23 +60,16 @@ const handleLogin = async () => {
 
           <!-- Brand -->
           <header class="mb-8 flex flex-col items-center text-center">
-            <div
-              class="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-slate-200 bg-slate-950 text-white shadow-lg shadow-slate-950/15 dark:border-slate-700 dark:bg-white dark:text-slate-950 dark:shadow-black/30"
-            >
-              <span class="material-symbols-outlined text-[32px]">
-                architecture
-              </span>
-            </div>
+            <SiecBrandLogo
+              variant="horizontal"
+              class="mb-5 h-10 w-auto"
+            />
 
             <p
               class="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500"
             >
               Inteligencia constructiva
             </p>
-
-            <h1 class="mt-2 text-3xl font-black tracking-tight text-slate-950 dark:text-slate-100">
-              SIEC Cloud
-            </h1>
 
             <p class="mt-2 max-w-xs text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400">
               Accede a tu workspace para simular, diseñar y presupuestar proyectos constructivos.

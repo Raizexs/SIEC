@@ -1,38 +1,46 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch, provide, nextTick } from 'vue';
-import { useRouter, useRoute, onBeforeRouteLeave } from 'vue-router';
-import { gsap } from 'gsap';
-import { useAuthStore } from '../stores/auth';
-import { useProMotion } from '../composables/useProMotion';
-import { useMotionPreferenceSync } from '../composables/useMotionPreferenceSync';
+import {
+  ref,
+  computed,
+  onMounted,
+  onBeforeUnmount,
+  watch,
+  provide,
+  nextTick,
+} from "vue";
+import { useRouter, useRoute, onBeforeRouteLeave } from "vue-router";
+import { gsap } from "gsap";
+import { useAuthStore } from "../stores/auth";
+import { useProMotion } from "../composables/useProMotion";
+import { useMotionPreferenceSync } from "../composables/useMotionPreferenceSync";
 import {
   bindCardHover,
   filterMotionTargets,
   setMotionFinalState,
   SETTINGS_TAB_REVEAL,
   introMotionReveal,
-} from '../composables/useMotionContext';
+} from "../composables/useMotionContext";
 import {
   prefersReducedMotion,
   getMotionProfile,
   waitForNextFrame,
-} from '../design/motionTokens';
-import { useLayoutManager } from '../composables/useLayoutManager';
-import { useBilling } from '../composables/useBilling';
-import { isSupabaseConfigured } from '../lib/supabaseClient';
+} from "../design/motionTokens";
+import { useLayoutManager } from "../composables/useLayoutManager";
+import { useBilling } from "../composables/useBilling";
+import { isSupabaseConfigured } from "../lib/supabaseClient";
 import {
   usePreferencesDraft,
   PREFERENCES_DRAFT_KEY,
-} from '../composables/usePreferencesDraft';
-import ConfirmDialog from '../components/settings/ConfirmDialog.vue';
-import SettingsAppearancePanel from '../components/settings/SettingsAppearancePanel.vue';
-import SettingsPreferencesPanel from '../components/settings/SettingsPreferencesPanel.vue';
-import SettingsExportSection from '../components/settings/SettingsExportSection.vue';
-import SettingsPreferencesSaveBar from '../components/settings/SettingsPreferencesSaveBar.vue';
-import SettingsIntegrationsCards from '../components/settings/SettingsIntegrationsCards.vue';
-import SettingsProfileCard from '../components/settings/SettingsProfileCard.vue';
-import SettingsSecuritySection from '../components/settings/SettingsSecuritySection.vue';
-import SettingsPrivacySection from '../components/settings/SettingsPrivacySection.vue';
+} from "../composables/usePreferencesDraft";
+import ConfirmDialog from "../components/settings/ConfirmDialog.vue";
+import SettingsAppearancePanel from "../components/settings/SettingsAppearancePanel.vue";
+import SettingsPreferencesPanel from "../components/settings/SettingsPreferencesPanel.vue";
+import SettingsExportSection from "../components/settings/SettingsExportSection.vue";
+import SettingsPreferencesSaveBar from "../components/settings/SettingsPreferencesSaveBar.vue";
+import SettingsIntegrationsCards from "../components/settings/SettingsIntegrationsCards.vue";
+import SettingsProfileCard from "../components/settings/SettingsProfileCard.vue";
+import SettingsSecuritySection from "../components/settings/SettingsSecuritySection.vue";
+import SettingsPrivacySection from "../components/settings/SettingsPrivacySection.vue";
 import {
   ArrowLeft,
   User2,
@@ -41,10 +49,10 @@ import {
   Plug2,
   CreditCard,
   CheckCircle2,
-} from 'lucide-vue-next';
-import AppRail from '../components/shell/AppRail.vue';
-import BillingPlansSection from '../components/billing/BillingPlansSection.vue';
-import { useI18n } from '../composables/useI18n';
+} from "lucide-vue-next";
+import AppRail from "../components/shell/AppRail.vue";
+import BillingPlansSection from "../components/billing/BillingPlansSection.vue";
+import { useI18n } from "../composables/useI18n";
 
 const preferencesDraft = usePreferencesDraft();
 provide(PREFERENCES_DRAFT_KEY, preferencesDraft);
@@ -66,16 +74,18 @@ const {
 } = useBilling();
 
 const SETTINGS_TAB_IDS = [
-  'profile',
-  'security',
-  'privacy',
-  'preferences',
-  'integrations',
-  'billing',
+  "profile",
+  "security",
+  "privacy",
+  "preferences",
+  "integrations",
+  "billing",
 ];
 
 const resolveTab = (value) =>
-  typeof value === 'string' && SETTINGS_TAB_IDS.includes(value) ? value : 'profile';
+  typeof value === "string" && SETTINGS_TAB_IDS.includes(value)
+    ? value
+    : "profile";
 
 const tab = ref(resolveTab(route.query.tab));
 const motionRoot = ref(null);
@@ -89,39 +99,39 @@ const tabs = computed(() => {
   void currentLanguage.value;
   return [
     {
-      id: 'profile',
-      label: t('settingsTabProfile'),
-      description: t('settingsTabProfileSub'),
+      id: "profile",
+      label: t("settingsTabProfile"),
+      description: t("settingsTabProfileSub"),
       icon: User2,
     },
     {
-      id: 'security',
-      label: t('settingsTabSecurity'),
-      description: t('settingsTabSecuritySub'),
+      id: "security",
+      label: t("settingsTabSecurity"),
+      description: t("settingsTabSecuritySub"),
       icon: ShieldCheck,
     },
     {
-      id: 'privacy',
-      label: 'Privacidad',
-      description: 'Datos personales y derechos',
+      id: "privacy",
+      label: "Privacidad",
+      description: "Datos personales y derechos",
       icon: ShieldCheck,
     },
     {
-      id: 'preferences',
-      label: t('settingsTabPreferences'),
-      description: t('settingsTabPreferencesSub'),
+      id: "preferences",
+      label: t("settingsTabPreferences"),
+      description: t("settingsTabPreferencesSub"),
       icon: SlidersHorizontal,
     },
     {
-      id: 'integrations',
-      label: t('settingsTabIntegrations'),
-      description: t('settingsTabIntegrationsSub'),
+      id: "integrations",
+      label: t("settingsTabIntegrations"),
+      description: t("settingsTabIntegrationsSub"),
       icon: Plug2,
     },
     {
-      id: 'billing',
-      label: t('settingsTabPlan'),
-      description: t('settingsTabPlanSub'),
+      id: "billing",
+      label: t("settingsTabPlan"),
+      description: t("settingsTabPlanSub"),
       icon: CreditCard,
     },
   ];
@@ -133,12 +143,13 @@ const activeTabMeta = computed(() => {
 
 const tabHeroDescription = computed(() => {
   void currentLanguage.value;
-  if (tab.value === 'profile') return t('settingsTabProfileDesc');
-  if (tab.value === 'security') return t('settingsTabSecurityHero');
-  if (tab.value === 'privacy') return 'Gestiona consentimientos, exporta tus datos o elimina tu cuenta.';
-  if (tab.value === 'preferences') return t('settingsTabPreferencesDesc');
-  if (tab.value === 'integrations') return t('settingsTabIntegrationsDesc');
-  return t('settingsTabBillingDesc');
+  if (tab.value === "profile") return t("settingsTabProfileDesc");
+  if (tab.value === "security") return t("settingsTabSecurityHero");
+  if (tab.value === "privacy")
+    return "Gestiona consentimientos, exporta tus datos o elimina tu cuenta.";
+  if (tab.value === "preferences") return t("settingsTabPreferencesDesc");
+  if (tab.value === "integrations") return t("settingsTabIntegrationsDesc");
+  return t("settingsTabBillingDesc");
 });
 
 const planModeBadges = computed(() => {
@@ -146,38 +157,38 @@ const planModeBadges = computed(() => {
   const badges = [];
 
   if (isProPlus.value) {
-    badges.push({ id: 'pro_plus', label: t('settingsPlanBadgeProPlus') });
+    badges.push({ id: "pro_plus", label: t("settingsPlanBadgeProPlus") });
   } else if (isPro.value) {
-    badges.push({ id: 'pro', label: t('settingsPlanBadgePro') });
+    badges.push({ id: "pro", label: t("settingsPlanBadgePro") });
   } else {
-    badges.push({ id: 'free', label: t('settingsPlanBadgeFree') });
+    badges.push({ id: "free", label: t("settingsPlanBadgeFree") });
   }
 
   if (!isSupabaseConfigured || !auth.session) {
-    badges.push({ id: 'local', label: t('settingsLocalMode') });
+    badges.push({ id: "local", label: t("settingsLocalMode") });
   }
 
-  badges.push({ id: 'beta', label: t('settingsPlanBadgeBeta') });
+  badges.push({ id: "beta", label: t("settingsPlanBadgeBeta") });
 
   return badges;
 });
 
 const activePlanTitle = computed(() => {
   void currentLanguage.value;
-  if (isProPlus.value) return t('settingsPlanProPlus');
-  if (isPro.value) return t('settingsPlanPro');
-  return t('settingsPlanFree');
+  if (isProPlus.value) return t("settingsPlanProPlus");
+  if (isPro.value) return t("settingsPlanPro");
+  return t("settingsPlanFree");
 });
 
 const activePlanDescription = computed(() => {
   void currentLanguage.value;
-  if (isProPlus.value) return t('settingsPlanProPlusDesc');
-  if (isPro.value) return t('settingsPlanProDesc');
-  return t('settingsPlanLocal');
+  if (isProPlus.value) return t("settingsPlanProPlusDesc");
+  if (isPro.value) return t("settingsPlanProDesc");
+  return t("settingsPlanLocal");
 });
 
 const formatUsageLimit = (used, max) => {
-  if (max == null) return `${used ?? 0} · ${t('settingsPlanUnlimited')}`;
+  if (max == null) return `${used ?? 0} · ${t("settingsPlanUnlimited")}`;
   return `${used ?? 0} / ${max}`;
 };
 
@@ -191,26 +202,26 @@ const usageCardRows = computed(() => {
   if (showLocalFreeCard) {
     return [
       {
-        label: t('settingsLocalProjects'),
-        value: t('settingsPlanLocalSession'),
+        label: t("settingsLocalProjects"),
+        value: t("settingsPlanLocalSession"),
       },
       {
-        label: t('settingsSavedLayouts'),
-        value: t('settingsPlanLayouts', { count: savedLayoutsCount.value }),
+        label: t("settingsSavedLayouts"),
+        value: t("settingsPlanLayouts", { count: savedLayoutsCount.value }),
       },
       {
-        label: t('settingsExports'),
-        value: t('settingsPlanExports'),
+        label: t("settingsExports"),
+        value: t("settingsPlanExports"),
       },
       {
-        label: t('settingsCollaborators'),
-        value: t('settingsNotAvailableFree'),
+        label: t("settingsCollaborators"),
+        value: t("settingsNotAvailableFree"),
       },
       {
-        label: t('settingsLastSync'),
+        label: t("settingsLastSync"),
         value: auth.session
-          ? t('settingsSessionSupabase')
-          : t('settingsSessionLocal'),
+          ? t("settingsSessionSupabase")
+          : t("settingsSessionLocal"),
         span: 2,
       },
     ];
@@ -218,21 +229,21 @@ const usageCardRows = computed(() => {
 
   const rows = [
     {
-      label: t('settingsPlanActiveProjects'),
+      label: t("settingsPlanActiveProjects"),
       value: formatUsageLimit(
         usage.value.active_projects,
         limits.value.max_active_projects,
       ),
     },
     {
-      label: t('settingsPlanSavedProjects'),
+      label: t("settingsPlanSavedProjects"),
       value: formatUsageLimit(
         usage.value.saved_projects,
         limits.value.max_saved_projects,
       ),
     },
     {
-      label: t('settingsPlanExportsMonth'),
+      label: t("settingsPlanExportsMonth"),
       value: formatUsageLimit(
         usage.value.exports_this_month,
         limits.value.max_exports_per_month,
@@ -242,23 +253,23 @@ const usageCardRows = computed(() => {
 
   if (hasMarketplaceAccess.value) {
     rows.push({
-      label: t('settingsPlanMarketplace'),
-      value: t('settingsPlanMarketplaceActive'),
+      label: t("settingsPlanMarketplace"),
+      value: t("settingsPlanMarketplaceActive"),
     });
   } else {
     rows.push({
-      label: t('settingsCollaborators'),
-      value: t('settingsCollabNotAvailable', {
-        plan: isPro.value ? 'Pro' : 'Free',
+      label: t("settingsCollaborators"),
+      value: t("settingsCollabNotAvailable", {
+        plan: isPro.value ? "Pro" : "Free",
       }),
     });
   }
 
   rows.push({
-    label: t('settingsLastSync'),
+    label: t("settingsLastSync"),
     value: auth.session
-      ? t('settingsSessionSupabase')
-      : t('settingsSessionLocal'),
+      ? t("settingsSessionSupabase")
+      : t("settingsSessionLocal"),
     span: 2,
   });
 
@@ -270,17 +281,17 @@ const savedLayoutsCount = computed(() => savedLayouts.value?.length ?? 0);
 const proPlusRoadmapItems = computed(() => {
   void currentLanguage.value;
   return [
-    t('settingsProPlusMarketplace'),
-    t('settingsProPlusIntegrations'),
-    t('settingsProPlusBim'),
-    t('settingsProPlusCollab'),
-    t('settingsProPlusPricing'),
+    t("settingsProPlusMarketplace"),
+    t("settingsProPlusIntegrations"),
+    t("settingsProPlusBim"),
+    t("settingsProPlusCollab"),
+    t("settingsProPlusPricing"),
   ];
 });
 
 useProMotion(motionRoot, {
   delayUntilRoute: true,
-  revealOptions: { levels: ['hero'], pace: 'snappy' },
+  revealOptions: { levels: ["hero"], pace: "snappy" },
 });
 useMotionPreferenceSync(motionRoot);
 useMotionPreferenceSync(tabContentRef);
@@ -317,7 +328,7 @@ const refreshSettingsHover = () => bindSettingsHover();
 
 const pulseTabHeader = () => {
   if (prefersReducedMotion() || !tabPanelRef.value) return;
-  const header = tabPanelRef.value.querySelector('header');
+  const header = tabPanelRef.value.querySelector("header");
   if (!header) return;
   const profile = getMotionProfile();
   gsap.killTweensOf(header);
@@ -329,7 +340,7 @@ const pulseTabHeader = () => {
       x: 0,
       duration: profile.duration.fast * 0.85,
       ease: profile.ease.emphasizedOut,
-      clearProps: 'transform,opacity,filter',
+      clearProps: "transform,opacity,filter",
     },
   );
 };
@@ -344,7 +355,7 @@ const revealTabContent = async ({ pulseHeader = false } = {}) => {
   if (!root) return;
 
   const targets = filterMotionTargets(
-    root.querySelectorAll('[data-motion]'),
+    root.querySelectorAll("[data-motion]"),
     root,
   );
 
@@ -352,7 +363,9 @@ const revealTabContent = async ({ pulseHeader = false } = {}) => {
     setMotionFinalState(targets);
     bindSettingsHover();
     window.dispatchEvent(
-      new CustomEvent('siec:settings-tab-revealed', { detail: { tab: tab.value } }),
+      new CustomEvent("siec:settings-tab-revealed", {
+        detail: { tab: tab.value },
+      }),
     );
     if (pulseHeader) pulseTabHeader();
     return;
@@ -362,7 +375,9 @@ const revealTabContent = async ({ pulseHeader = false } = {}) => {
   bindSettingsHover();
 
   window.dispatchEvent(
-    new CustomEvent('siec:settings-tab-revealed', { detail: { tab: tab.value } }),
+    new CustomEvent("siec:settings-tab-revealed", {
+      detail: { tab: tab.value },
+    }),
   );
 
   if (pulseHeader) pulseTabHeader();
@@ -375,8 +390,8 @@ watch(tab, () => {
 
 const requestTab = (nextTab) => {
   if (
-    tab.value === 'preferences' &&
-    nextTab !== 'preferences' &&
+    tab.value === "preferences" &&
+    nextTab !== "preferences" &&
     preferencesDraft.isDirty.value
   ) {
     pendingTab.value = nextTab;
@@ -406,7 +421,7 @@ const confirmUnsavedSave = () => {
     finishUnsavedNavigation();
   } catch (error) {
     preferencesDraft.markErrorMessage(
-      t('settingsSaveFailed', { message: error.message }),
+      t("settingsSaveFailed", { message: error.message }),
     );
     showUnsavedDialog.value = false;
   }
@@ -427,14 +442,14 @@ const cancelUnsavedDialog = () => {
 onMounted(async () => {
   preferencesDraft.syncFromSaved();
   void auth.refreshFactors();
-  window.addEventListener('siec:settings-hover-refresh', refreshSettingsHover);
+  window.addEventListener("siec:settings-hover-refresh", refreshSettingsHover);
   await nextTick();
   await revealTabContent({ pulseHeader: false });
   tabRevealReady = true;
 });
 
 onBeforeRouteLeave((_to, _from, next) => {
-  if (tab.value !== 'preferences' || !preferencesDraft.isDirty.value) {
+  if (tab.value !== "preferences" || !preferencesDraft.isDirty.value) {
     next();
     return;
   }
@@ -444,7 +459,10 @@ onBeforeRouteLeave((_to, _from, next) => {
 });
 
 onBeforeUnmount(() => {
-  window.removeEventListener('siec:settings-hover-refresh', refreshSettingsHover);
+  window.removeEventListener(
+    "siec:settings-hover-refresh",
+    refreshSettingsHover,
+  );
   unbindSectionHover?.();
   unbindCardHover?.();
   unbindItemHover?.();
@@ -459,7 +477,7 @@ watch(
 );
 
 watch(tab, (value) => {
-  if (value === 'billing') fetchBilling(true);
+  if (value === "billing") fetchBilling(true);
 });
 </script>
 
@@ -477,25 +495,29 @@ watch(tab, (value) => {
         class="sticky top-0 z-40 border-b border-slate-200/80 bg-white/80 shadow-sm shadow-slate-950/[0.03] backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-950/80 dark:shadow-black/20"
         data-motion="hero"
       >
-        <div class="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 sm:px-6 lg:px-8">
+        <div
+          class="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 sm:px-6 lg:px-8"
+        >
           <button
             type="button"
             class="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-black uppercase tracking-[0.12em] text-slate-600 shadow-sm transition-colors duration-200 hover:border-orange-300 hover:bg-orange-50 hover:text-orange-700 active:scale-[0.98] dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-orange-900/70 dark:hover:bg-orange-950/30 dark:hover:text-orange-300"
             @click="router.back()"
           >
             <ArrowLeft class="h-4 w-4" :stroke-width="2.2" />
-            {{ t('settingsBack') }}
+            {{ t("settingsBack") }}
           </button>
 
           <div class="min-w-0">
             <p
               class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
             >
-              {{ t('settingsControlCenter') }}
+              {{ t("settingsControlCenter") }}
             </p>
 
-            <h1 class="mt-0.5 truncate text-base font-black tracking-tight text-slate-950 dark:text-slate-100">
-              {{ t('settingsTitle') }}
+            <h1
+              class="mt-0.5 truncate text-base font-black tracking-tight text-slate-950 dark:text-slate-100"
+            >
+              {{ t("settingsTitle") }}
             </h1>
           </div>
         </div>
@@ -539,7 +561,9 @@ watch(tab, (value) => {
                     />
                   </span>
                   <span class="min-w-0 flex-1">
-                    <span class="block truncate text-sm font-black tracking-tight">
+                    <span
+                      class="block truncate text-sm font-black tracking-tight"
+                    >
                       {{ item.label }}
                     </span>
                     <span
@@ -572,21 +596,29 @@ watch(tab, (value) => {
                 <div
                   class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-orange-200 bg-orange-50 text-orange-600 shadow-sm dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
                 >
-                  <component :is="activeTabMeta.icon" class="h-5 w-5" :stroke-width="2.3" />
+                  <component
+                    :is="activeTabMeta.icon"
+                    class="h-5 w-5"
+                    :stroke-width="2.3"
+                  />
                 </div>
 
                 <div>
                   <p
                     class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500"
                   >
-                    {{ t('settingsSectionPanel') }}
+                    {{ t("settingsSectionPanel") }}
                   </p>
 
-                  <h2 class="mt-1 text-3xl font-black tracking-tight text-slate-950 dark:text-slate-100">
+                  <h2
+                    class="mt-1 text-3xl font-black tracking-tight text-slate-950 dark:text-slate-100"
+                  >
                     {{ activeTabMeta.label }}
                   </h2>
 
-                  <p class="mt-2 max-w-2xl text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400">
+                  <p
+                    class="mt-2 max-w-2xl text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400"
+                  >
                     {{ tabHeroDescription }}
                   </p>
                 </div>
@@ -595,97 +627,113 @@ watch(tab, (value) => {
 
             <!-- Lazy-loaded tab components -->
             <div ref="tabContentRef" data-no-motion class="space-y-6">
-            <SettingsProfileCard v-if="tab === 'profile'" />
-            <SettingsSecuritySection v-if="tab === 'security'" />
-            <SettingsPrivacySection v-else-if="tab === 'privacy'" />
-            <div v-if="tab === 'preferences'" class="space-y-4">
-              <SettingsAppearancePanel />
-              <SettingsPreferencesPanel />
-              <SettingsExportSection />
-              <SettingsPreferencesSaveBar />
-            </div>
-            <SettingsIntegrationsCards v-if="tab === 'integrations'" />
+              <SettingsProfileCard v-if="tab === 'profile'" />
+              <SettingsSecuritySection v-if="tab === 'security'" />
+              <SettingsPrivacySection v-else-if="tab === 'privacy'" />
+              <div v-if="tab === 'preferences'" class="space-y-4">
+                <SettingsAppearancePanel />
+                <SettingsPreferencesPanel />
+                <SettingsExportSection />
+                <SettingsPreferencesSaveBar />
+              </div>
+              <SettingsIntegrationsCards v-if="tab === 'integrations'" />
 
-            <!-- Billing / Plan (inline) -->
-            <div v-if="tab === 'billing'" class="space-y-6">
-              <article
-                class="relative overflow-hidden rounded-3xl border border-orange-200/90 bg-orange-50/80 p-6 shadow-xl shadow-orange-500/10 backdrop-blur-xl dark:border-orange-900/50 dark:bg-orange-950/25 dark:shadow-black/30"
-              >
-                <div
-                  class="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-orange-400/25 blur-3xl"
-                ></div>
-                <div class="relative z-10">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <p
-                      class="text-[10px] font-black uppercase tracking-[0.16em] text-orange-800 dark:text-orange-200"
-                    >
-                      {{ t('settingsUsageSystem') }}
-                    </p>
-                    <span
-                      v-for="b in planModeBadges"
-                      :key="b.id"
-                      class="inline-flex items-center rounded-full border border-orange-300/80 bg-white/90 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-tight text-orange-800 shadow-sm dark:border-orange-800/80 dark:bg-orange-950/50 dark:text-orange-200"
-                    >
-                      {{ b.label }}
-                    </span>
-                  </div>
-                  <h2 class="mt-2 text-3xl font-black tracking-tight text-orange-950 dark:text-orange-50">
-                    {{ activePlanTitle }}
-                  </h2>
-                  <p class="mt-2 max-w-2xl text-sm font-medium leading-relaxed text-orange-900/85 dark:text-orange-100/85">
-                    {{ activePlanDescription }}
-                  </p>
-
-                  <dl class="mt-6 grid gap-3 sm:grid-cols-2">
-                    <div
-                      v-for="row in usageCardRows"
-                      :key="row.label"
-                      class="rounded-2xl border border-orange-200/80 bg-white/90 p-4 dark:border-orange-900/60 dark:bg-slate-950/40"
-                      :class="row.span === 2 ? 'sm:col-span-2' : ''"
-                    >
-                      <dt class="text-[10px] font-black uppercase tracking-[0.14em] text-orange-800/80 dark:text-orange-200/80">
-                        {{ row.label }}
-                      </dt>
-                      <dd class="mt-1 text-sm font-black text-orange-950 dark:text-orange-50">
-                        {{ row.value }}
-                      </dd>
-                    </div>
-                  </dl>
-                </div>
-              </article>
-
-              <BillingPlansSection />
-
-              <article
-                class="overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30"
-              >
-                <header
-                  class="border-b border-slate-200/80 bg-slate-50/80 px-5 py-4 dark:border-slate-800/80 dark:bg-slate-900/60"
+              <!-- Billing / Plan (inline) -->
+              <div v-if="tab === 'billing'" class="space-y-6">
+                <article
+                  class="relative overflow-hidden rounded-3xl border border-orange-200/90 bg-orange-50/80 p-6 shadow-xl shadow-orange-500/10 backdrop-blur-xl dark:border-orange-900/50 dark:bg-orange-950/25 dark:shadow-black/30"
                 >
-                  <h3 class="text-lg font-black tracking-tight text-slate-950 dark:text-slate-100">
-                    {{ t('settingsProPlusLimits') }}
-                  </h3>
-                  <p class="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-                    {{ t('settingsProPlusRoadmap') }}
-                  </p>
-                </header>
-                <ul class="divide-y divide-slate-200/80 dark:divide-slate-800/80">
-                  <li
-                    v-for="item in proPlusRoadmapItems"
-                    :key="item"
-                    class="flex items-start gap-3 px-5 py-3.5"
+                  <div
+                    class="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-orange-400/25 blur-3xl"
+                  ></div>
+                  <div class="relative z-10">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <p
+                        class="text-[10px] font-black uppercase tracking-[0.16em] text-orange-800 dark:text-orange-200"
+                      >
+                        {{ t("settingsUsageSystem") }}
+                      </p>
+                      <span
+                        v-for="b in planModeBadges"
+                        :key="b.id"
+                        class="inline-flex items-center rounded-full border border-orange-300/80 bg-white/90 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-tight text-orange-800 shadow-sm dark:border-orange-800/80 dark:bg-orange-950/50 dark:text-orange-200"
+                      >
+                        {{ b.label }}
+                      </span>
+                    </div>
+                    <h2
+                      class="mt-2 text-3xl font-black tracking-tight text-orange-950 dark:text-orange-50"
+                    >
+                      {{ activePlanTitle }}
+                    </h2>
+                    <p
+                      class="mt-2 max-w-2xl text-sm font-medium leading-relaxed text-orange-900/85 dark:text-orange-100/85"
+                    >
+                      {{ activePlanDescription }}
+                    </p>
+
+                    <dl class="mt-6 grid gap-3 sm:grid-cols-2">
+                      <div
+                        v-for="row in usageCardRows"
+                        :key="row.label"
+                        class="rounded-2xl border border-orange-200/80 bg-white/90 p-4 dark:border-orange-900/60 dark:bg-slate-950/40"
+                        :class="row.span === 2 ? 'sm:col-span-2' : ''"
+                      >
+                        <dt
+                          class="text-[10px] font-black uppercase tracking-[0.14em] text-orange-800/80 dark:text-orange-200/80"
+                        >
+                          {{ row.label }}
+                        </dt>
+                        <dd
+                          class="mt-1 text-sm font-black text-orange-950 dark:text-orange-50"
+                        >
+                          {{ row.value }}
+                        </dd>
+                      </div>
+                    </dl>
+                  </div>
+                </article>
+
+                <BillingPlansSection />
+
+                <article
+                  class="overflow-hidden rounded-3xl border border-slate-200/90 bg-white/85 shadow-xl shadow-slate-950/5 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/85 dark:shadow-black/30"
+                >
+                  <header
+                    class="border-b border-slate-200/80 bg-slate-50/80 px-5 py-4 dark:border-slate-800/80 dark:bg-slate-900/60"
                   >
-                    <CheckCircle2
-                      class="mt-0.5 h-4 w-4 shrink-0 text-orange-500 dark:text-orange-300"
-                      :stroke-width="2.2"
-                    />
-                    <span class="text-sm font-semibold leading-relaxed text-slate-600 dark:text-slate-300">
-                      {{ item }}
-                    </span>
-                  </li>
-                </ul>
-              </article>
-            </div>
+                    <h3
+                      class="text-lg font-black tracking-tight text-slate-950 dark:text-slate-100"
+                    >
+                      {{ t("settingsProPlusLimits") }}
+                    </h3>
+                    <p
+                      class="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400"
+                    >
+                      {{ t("settingsProPlusRoadmap") }}
+                    </p>
+                  </header>
+                  <ul
+                    class="divide-y divide-slate-200/80 dark:divide-slate-800/80"
+                  >
+                    <li
+                      v-for="item in proPlusRoadmapItems"
+                      :key="item"
+                      class="flex items-start gap-3 px-5 py-3.5"
+                    >
+                      <CheckCircle2
+                        class="mt-0.5 h-4 w-4 shrink-0 text-orange-500 dark:text-orange-300"
+                        :stroke-width="2.2"
+                      />
+                      <span
+                        class="text-sm font-semibold leading-relaxed text-slate-600 dark:text-slate-300"
+                      >
+                        {{ item }}
+                      </span>
+                    </li>
+                  </ul>
+                </article>
+              </div>
             </div>
           </section>
         </div>

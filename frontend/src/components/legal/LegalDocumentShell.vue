@@ -1,9 +1,12 @@
 <script setup>
-import { ref, onMounted, nextTick } from 'vue';
-import { RouterLink, useRouter } from 'vue-router';
-import { gsap } from 'gsap';
-import { ArrowLeft, Shield } from 'lucide-vue-next';
-import { prefersReducedMotion, getMotionProfile } from '../../design/motionTokens';
+import { ref, onMounted, nextTick } from "vue";
+import { RouterLink, useRouter } from "vue-router";
+import { ArrowLeft, Shield } from "lucide-vue-next";
+import SiecBrandLogo from "../brand/SiecBrandLogo.vue";
+import {
+  prefersReducedMotion,
+  runBriefEntranceReveal,
+} from "../../design/motionTokens";
 
 const router = useRouter();
 
@@ -12,39 +15,33 @@ const goBack = () => {
     router.back();
     return;
   }
-  router.push('/login');
+  router.push("/");
 };
 
 defineProps({
   title: { type: String, required: true },
-  version: { type: String, default: '1.0' },
-  effectiveDate: { type: String, default: '' },
-  badge: { type: String, default: 'Documento legal' },
+  version: { type: String, default: "1.0" },
+  effectiveDate: { type: String, default: "" },
+  badge: { type: String, default: "Documento legal" },
 });
 
+const legalShellRef = ref(null);
 const legalCardRef = ref(null);
 
 onMounted(async () => {
   if (prefersReducedMotion() || !legalCardRef.value) return;
   await nextTick();
-  const profile = getMotionProfile();
-  gsap.fromTo(
-    legalCardRef.value,
-    { autoAlpha: 0, y: profile.distance.sm },
-    {
-      autoAlpha: 1,
-      y: 0,
-      duration: profile.duration.base,
-      ease: profile.ease.entrance,
-      clearProps: 'transform,opacity',
-    },
-  );
+  runBriefEntranceReveal(legalCardRef.value, {
+    root: legalShellRef.value,
+    readyClass: "legal-shell--ready",
+  });
 });
 </script>
 
 <template>
   <main
-    class="relative min-h-screen overflow-hidden bg-slate-950 text-slate-100"
+    ref="legalShellRef"
+    class="legal-shell relative min-h-screen overflow-hidden bg-slate-950 text-slate-100"
     data-siec-bare-route="true"
   >
     <div
@@ -56,6 +53,12 @@ onMounted(async () => {
 
     <div class="relative z-10 mx-auto max-w-3xl px-4 py-10 sm:px-6 sm:py-14">
       <header class="mb-10">
+        <SiecBrandLogo
+          variant="horizontal"
+          :force-dark="true"
+          class="mb-6 h-8 w-auto"
+        />
+
         <button
           type="button"
           class="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/80 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em] text-slate-400 transition-colors hover:border-slate-700 hover:text-orange-300"
@@ -67,11 +70,16 @@ onMounted(async () => {
 
         <div
           ref="legalCardRef"
+          data-siec-legal-card
           class="mt-8 overflow-hidden rounded-3xl border border-slate-800/90 bg-slate-950/85 shadow-2xl shadow-black/40 backdrop-blur-xl"
         >
-          <div class="h-1 bg-gradient-to-r from-orange-400 via-orange-500 to-slate-700" />
+          <div
+            class="h-1 bg-gradient-to-r from-orange-400 via-orange-500 to-slate-700"
+          />
 
-          <div class="border-b border-slate-800/80 bg-slate-900/60 px-6 py-6 sm:px-8">
+          <div
+            class="border-b border-slate-800/80 bg-slate-900/60 px-6 py-6 sm:px-8"
+          >
             <div class="flex items-start gap-4">
               <div
                 class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-orange-900/60 bg-orange-950/30 text-orange-300 shadow-sm"
@@ -80,15 +88,23 @@ onMounted(async () => {
               </div>
 
               <div class="min-w-0">
-                <p class="text-[10px] font-black uppercase tracking-[0.18em] text-orange-300/80">
+                <p
+                  class="text-[10px] font-black uppercase tracking-[0.18em] text-orange-300/80"
+                >
                   {{ badge }}
                 </p>
-                <h1 class="mt-2 text-2xl font-black tracking-tight text-white sm:text-3xl">
+                <h1
+                  class="mt-2 text-2xl font-black tracking-tight text-white sm:text-3xl"
+                >
                   {{ title }}
                 </h1>
-                <p class="mt-3 text-sm font-medium leading-relaxed text-slate-400">
+                <p
+                  class="mt-3 text-sm font-medium leading-relaxed text-slate-400"
+                >
                   Versión {{ version }}
-                  <span v-if="effectiveDate"> · Vigente desde {{ effectiveDate }}</span>
+                  <span v-if="effectiveDate">
+                    · Vigente desde {{ effectiveDate }}</span
+                  >
                 </p>
               </div>
             </div>
@@ -103,11 +119,17 @@ onMounted(async () => {
       <footer
         class="flex flex-wrap items-center justify-center gap-4 border-t border-slate-800/80 pt-8 text-sm font-medium text-slate-500"
       >
-        <RouterLink to="/legal/privacidad" class="text-orange-400 transition-colors hover:text-orange-300">
+        <RouterLink
+          to="/legal/privacidad"
+          class="text-orange-400 transition-colors hover:text-orange-300"
+        >
           Política de privacidad
         </RouterLink>
         <span class="text-slate-700">·</span>
-        <RouterLink to="/legal/terminos" class="text-orange-400 transition-colors hover:text-orange-300">
+        <RouterLink
+          to="/legal/terminos"
+          class="text-orange-400 transition-colors hover:text-orange-300"
+        >
           Términos de servicio
         </RouterLink>
       </footer>
@@ -116,6 +138,16 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.legal-shell:not(.legal-shell--ready) [data-siec-legal-card] {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .legal-shell [data-siec-legal-card] {
+    opacity: 1;
+  }
+}
+
 .legal-body :deep(h3) {
   margin-top: 1rem;
   margin-bottom: 0.5rem;

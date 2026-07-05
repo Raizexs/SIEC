@@ -7,8 +7,7 @@
 import { computed, ref, onMounted, onBeforeUnmount, nextTick, watch } from 'vue';
 import { useLayoutManager } from '../composables/useLayoutManager';
 import { useI18n } from '../composables/useI18n';
-import { generateLayoutThumbnail } from '../utils/thumbnailGenerator';
-import { formatFloorCountLabel } from '../utils/floorLabels';
+import PresetLayoutList from './workspace/PresetLayoutList.vue';
 import { bindCardHover } from '../composables/useMotionContext';
 import { prefersReducedMotion, getMotionProfile } from '../design/motionTokens';
 import gsap from 'gsap';
@@ -19,12 +18,11 @@ import {
   Trash2,
   ExternalLink,
   Plus,
-  LayoutTemplate,
 } from 'lucide-vue-next';
 
 const { t, currentLanguage } = useI18n();
 
-const { savedLayouts, deleteLayout, presets, createPresetLayout } = useLayoutManager();
+const { savedLayouts, deleteLayout } = useLayoutManager();
 
 const emit = defineEmits([
   'loadLayout',
@@ -237,27 +235,11 @@ const formatDate = (value) => {
   });
 };
 
-const presetCards = computed(() =>
-  presets.value.map((preset) => {
-    const layout = createPresetLayout(preset);
-    const floorCount = preset.floors || 1;
-
-    return {
-      preset,
-      thumbnail: generateLayoutThumbnail(layout.recintos),
-      label: currentLanguage.value === 'en' ? preset.nameEn : preset.name,
-      recintoCount: layout.recintos?.length ?? 0,
-      floorsLabel: formatFloorCountLabel(floorCount, t),
-    };
-  }),
-);
-
 const loadSavedLayout = (layout) => {
   emit('loadLayout', layout);
 };
 
-const applyPreset = (preset) => {
-  const layout = createPresetLayout(preset);
+const onApplyPreset = (layout) => {
   emit('apply-preset', layout);
 };
 
@@ -273,7 +255,7 @@ const deleteSavedLayout = (id) => {
       v-if="collapsed"
       ref="expandTabRef"
       type="button"
-      class="fixed left-16 top-[4.75rem] z-50 flex h-9 w-6 items-center justify-center rounded-r-lg border border-l-0 border-slate-200 bg-white/95 text-slate-600 shadow-md backdrop-blur-xl transition-colors hover:border-slate-300 hover:text-slate-950 dark:border-slate-800 dark:bg-slate-950/95 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:text-slate-100"
+      class="fixed left-16 top-[4.75rem] z-50 hidden h-9 w-6 items-center justify-center rounded-r-lg border border-l-0 border-slate-200 bg-white/95 text-slate-600 shadow-md backdrop-blur-xl transition-colors hover:border-slate-300 hover:text-slate-950 dark:border-slate-800 dark:bg-slate-950/95 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:text-slate-100 lg:flex"
       :title="t('expandPanel')"
       :aria-label="t('expandPanel')"
       @click="toggleCollapse"
@@ -319,49 +301,7 @@ const deleteSavedLayout = (id) => {
     </header>
 
     <nav class="min-h-0 flex-1 space-y-5 overflow-y-auto px-2.5 py-3">
-      <section class="tour-sidebar-presets">
-        <div class="mb-2 flex items-center justify-between px-1">
-          <h3
-            class="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500"
-          >
-            <LayoutTemplate class="h-3 w-3" :stroke-width="2.2" />
-            {{ t('presetLayouts') }}
-          </h3>
-        </div>
-
-        <div class="space-y-1.5">
-          <button
-            v-for="card in presetCards"
-            :key="card.preset.id"
-            type="button"
-            data-motion="card"
-            class="group w-full overflow-hidden rounded-xl border border-slate-200/90 bg-white/80 text-left transition hover:border-orange-200 hover:shadow-sm dark:border-slate-800 dark:bg-slate-900/50 dark:hover:border-orange-900/50"
-            @click="applyPreset(card.preset)"
-          >
-            <div class="relative aspect-[16/10] overflow-hidden bg-slate-950">
-              <img
-                :src="card.thumbnail"
-                :alt="card.label"
-                draggable="false"
-                class="pointer-events-none h-full w-full object-cover transition group-hover:scale-[1.02]"
-              />
-              <span
-                class="absolute bottom-1.5 right-1.5 rounded-md bg-black/55 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white"
-              >
-                {{ card.floorsLabel }}
-              </span>
-            </div>
-            <div class="px-2.5 py-2">
-              <span class="block truncate text-[11px] font-bold text-slate-900 dark:text-slate-100">
-                {{ card.label }}
-              </span>
-              <span class="mt-0.5 block text-[10px] font-medium text-slate-500 dark:text-slate-400">
-                {{ card.preset.m2Totales }} m²
-              </span>
-            </div>
-          </button>
-        </div>
-      </section>
+      <PresetLayoutList @apply-preset="onApplyPreset" />
 
       <section>
         <div class="mb-2 flex items-center justify-between px-1">

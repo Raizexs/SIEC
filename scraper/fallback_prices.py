@@ -182,6 +182,23 @@ FALLBACK_PRICES = {
         "easy": {"nombre_producto": "Disyuntor 16A", "precio": 5790, "url": ""},
         "construmart": {"nombre_producto": "Disyuntor 16A", "precio": 5690, "url": ""},
     },
+    # === Mano de Obra ===
+    # Tarifas de referencia mercado chileno (CLP por HH = hora hombre).
+    # Cálculo: tarifa diaria / 8 horas. Fuente: promedio mercado 2025.
+    # Stock marcado como "Referencia MO" para distinguirlo en reportes.
+    # Tienda "construmart" usada para cumplir el CHECK constraint de precio_mercado.
+    35: {  # Albañil — ~35.000 CLP/día → 4.375 CLP/HH
+        "construmart": {"nombre_producto": "Mano de Obra Albañil (HH referencia)", "precio": 4375, "url": ""},
+    },
+    36: {  # Electricista — ~40.000 CLP/día → 5.000 CLP/HH
+        "construmart": {"nombre_producto": "Mano de Obra Electricista (HH referencia)", "precio": 5000, "url": ""},
+    },
+    37: {  # Gasfíter — ~35.000 CLP/día → 4.375 CLP/HH
+        "construmart": {"nombre_producto": "Mano de Obra Gasfíter (HH referencia)", "precio": 4375, "url": ""},
+    },
+    38: {  # Ayudante General — ~25.000 CLP/día → 3.125 CLP/HH
+        "construmart": {"nombre_producto": "Mano de Obra Ayudante General (HH referencia)", "precio": 3125, "url": ""},
+    },
 }
 
 
@@ -244,15 +261,25 @@ def lookup_reference_offer(query: str, tienda: str, insumo_id: Optional[int] = N
 
 
 def get_fallback_results(insumos: list[dict]) -> list[dict]:
-    """Genera resultados de respaldo para insumos sin precio scrapeado."""
+    """Genera resultados de respaldo para insumos sin precio scrapeado.
+
+    Para Mano de Obra (IDs 35-38) el stock se marca 'Referencia MO'
+    para distinguir tarifas HH de precios de materiales en reportes.
+    """
     import logging
     log = logging.getLogger(__name__)
     results = []
+
+    # IDs de Mano de Obra — marcar stock distinto para facilitar filtros
+    MANO_DE_OBRA_IDS = {35, 36, 37, 38}
 
     for insumo in insumos:
         insumo_id = insumo.get("id")
         if insumo_id not in FALLBACK_PRICES:
             continue
+
+        es_mano_de_obra = insumo_id in MANO_DE_OBRA_IDS
+        stock_label = "Referencia MO" if es_mano_de_obra else "Disponible"
 
         stores = FALLBACK_PRICES[insumo_id]
         for store_key, data in stores.items():
@@ -264,7 +291,7 @@ def get_fallback_results(insumos: list[dict]) -> list[dict]:
                 "precio": data["precio"],
                 "precio_descuento": None,
                 "insumo_id": insumo_id,
-                "stock": "Disponible",
+                "stock": stock_label,
                 "categoria": insumo.get("categoria", "Obra Gruesa"),
                 "url": data.get("url", ""),
                 "exitoso": True,
@@ -272,3 +299,4 @@ def get_fallback_results(insumos: list[dict]) -> list[dict]:
         log.info(f"[Fallback] {insumo.get('nombre', '?')} (ID={insumo_id}) -> precios de respaldo")
 
     return results
+

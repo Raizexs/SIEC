@@ -37,13 +37,12 @@ function unlockScrollables() {
 }
 
 function preventBackgroundScroll(event) {
-  const scrollRoot = event.target?.closest?.("[data-scroll-lock-scroll]");
-  if (scrollRoot) {
-    const { scrollTop, scrollHeight, clientHeight } = scrollRoot;
-    const delta = event.deltaY ?? 0;
-    const atTop = scrollTop <= 0 && delta < 0;
-    const atBottom = scrollTop + clientHeight >= scrollHeight - 1 && delta > 0;
-    if (!atTop && !atBottom) return;
+  if (
+    event.target?.closest?.(
+      '[data-scroll-lock-scroll], [data-scroll-lock-panel], [data-scroll-lock-ignore]',
+    )
+  ) {
+    return;
   }
   event.preventDefault();
 }

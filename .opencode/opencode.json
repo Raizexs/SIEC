@@ -1,0 +1,207 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "deepseek/deepseek-v4-flash",
+  "small_model": "deepseek/deepseek-v4-flash",
+  "default_agent": "build",
+  "instructions": [
+    "AGENTS.md",
+    "docs/context.md",
+    "docs/reglas_negocio_siec.md",
+    "docs/observaciones.md",
+    ".opencode/instructions/INSTRUCTIONS.md",
+    ".agents/skills/caveman/SKILL.md",
+    ".agents/skills/find-skills/SKILL.md"
+  ],
+  "plugin": [
+    "ecc-universal"
+  ],
+  "skills": {
+    "paths": [
+      ".agents/skills"
+    ]
+  },
+  "agent": {
+    "build": {
+      "description": "Primary coding agent for SIECres development work",
+      "mode": "primary",
+      "model": "deepseek/deepseek-v4-flash",
+      "tools": {
+        "write": true,
+        "edit": true,
+        "bash": true,
+        "read": true
+      }
+    },
+    "planner": {
+      "description": "Expert planning specialist for complex features and refactoring",
+      "mode": "subagent",
+      "model": "deepseek/deepseek-v4-pro",
+      "prompt": "{file:.opencode/prompts/agents/planner.txt}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": false,
+        "edit": false
+      }
+    },
+    "architect": {
+      "description": "Software architecture specialist for system design and scalability",
+      "mode": "subagent",
+      "model": "deepseek/deepseek-v4-pro",
+      "prompt": "{file:.opencode/prompts/agents/planner.txt}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": false,
+        "edit": false
+      }
+    },
+    "code-reviewer": {
+      "description": "Expert code review specialist for quality, security, and maintainability",
+      "mode": "subagent",
+      "model": "deepseek/deepseek-v4-pro",
+      "prompt": "{file:.opencode/prompts/agents/code-reviewer.txt}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": false,
+        "edit": false
+      }
+    },
+    "security-reviewer": {
+      "description": "Security vulnerability detection and remediation specialist",
+      "mode": "subagent",
+      "model": "deepseek/deepseek-v4-pro",
+      "prompt": "{file:.opencode/prompts/agents/security-reviewer.txt}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": true,
+        "edit": true
+      }
+    },
+    "tdd-guide": {
+      "description": "TDD specialist enforcing write-tests-first methodology with 80%+ coverage",
+      "mode": "subagent",
+      "model": "deepseek/deepseek-v4-pro",
+      "prompt": "{file:.opencode/prompts/agents/tdd-guide.txt}",
+      "tools": {
+        "read": true,
+        "write": true,
+        "edit": true,
+        "bash": true
+      }
+    },
+    "python-reviewer": {
+      "description": "Expert Python code reviewer for PEP 8, FastAPI, SQLAlchemy patterns",
+      "mode": "subagent",
+      "model": "deepseek/deepseek-v4-pro",
+      "prompt": "{file:.opencode/prompts/agents/python-reviewer.txt}",
+      "tools": {
+        "read": true,
+        "bash": true,
+        "write": false,
+        "edit": false
+      }
+    },
+    "database-reviewer": {
+      "description": "PostgreSQL specialist for query optimization, schema design, and RLS",
+      "mode": "subagent",
+      "model": "deepseek/deepseek-v4-pro",
+      "prompt": "{file:.opencode/prompts/agents/database-reviewer.txt}",
+      "tools": {
+        "read": true,
+        "write": true,
+        "edit": true,
+        "bash": true
+      }
+    },
+    "doc-updater": {
+      "description": "Documentation specialist for updating codemaps and docs",
+      "mode": "subagent",
+      "model": "deepseek/deepseek-v4-flash",
+      "prompt": "{file:.opencode/prompts/agents/planner.txt}",
+      "tools": {
+        "read": true,
+        "write": true,
+        "edit": true,
+        "bash": true
+      }
+    },
+    "refactor-cleaner": {
+      "description": "Dead code cleanup and consolidation specialist",
+      "mode": "subagent",
+      "model": "deepseek/deepseek-v4-flash",
+      "prompt": "{file:.opencode/prompts/agents/planner.txt}",
+      "tools": {
+        "read": true,
+        "write": true,
+        "edit": true,
+        "bash": true
+      }
+    }
+  },
+  "command": {
+    "plan": {
+      "description": "Create a detailed implementation plan for complex features",
+      "template": "$ARGUMENTS",
+      "agent": "planner",
+      "subtask": true
+    },
+    "tdd": {
+      "description": "Enforce TDD workflow with 80%+ test coverage",
+      "template": "$ARGUMENTS",
+      "agent": "tdd-guide",
+      "subtask": true
+    },
+    "code-review": {
+      "description": "Review code for quality, security, and maintainability",
+      "template": "$ARGUMENTS",
+      "agent": "code-reviewer",
+      "subtask": true
+    },
+    "security": {
+      "description": "Run comprehensive security review",
+      "template": "$ARGUMENTS",
+      "agent": "security-reviewer",
+      "subtask": true
+    },
+    "python-review": {
+      "description": "Review Python/FastAPI code for best practices",
+      "template": "$ARGUMENTS",
+      "agent": "python-reviewer",
+      "subtask": true
+    },
+    "db-review": {
+      "description": "Review database schemas, queries, and migrations",
+      "template": "$ARGUMENTS",
+      "agent": "database-reviewer",
+      "subtask": true
+    },
+    "refactor-clean": {
+      "description": "Remove dead code and consolidate duplicates",
+      "template": "$ARGUMENTS",
+      "agent": "refactor-cleaner",
+      "subtask": true
+    },
+    "verify": {
+      "description": "Run verification loop",
+      "template": "$ARGUMENTS"
+    },
+    "test-coverage": {
+      "description": "Analyze test coverage",
+      "template": "$ARGUMENTS",
+      "agent": "tdd-guide",
+      "subtask": true
+    },
+    "update-docs": {
+      "description": "Update documentation and codemaps",
+      "template": "$ARGUMENTS",
+      "agent": "doc-updater",
+      "subtask": true
+    }
+  },
+  "permission": {
+    "mcp_*": "ask"
+  }
+}
