@@ -1,11 +1,10 @@
-import LandingView from "../views/LandingView.vue";
 import LoginView from "../views/LoginView.vue";
 
 export const routes = [
   {
     path: "/",
     name: "landing",
-    component: LandingView,
+    component: () => import("../views/ExpoSmartView.vue"),
     meta: { requiresAuth: false, hideShell: true },
   },
   {
@@ -40,9 +39,7 @@ export const routes = [
   },
   {
     path: "/exposmart",
-    name: "exposmart",
-    component: () => import("../views/ExpoSmartView.vue"),
-    meta: { requiresAuth: false, hideShell: true },
+    redirect: "/",
   },
   {
     path: "/privacy/accept",

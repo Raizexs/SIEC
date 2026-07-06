@@ -2194,27 +2194,27 @@ defineExpose({ openAddModal });
               class="editor-hit-pointer"
               @pointerdown.stop.prevent="(e) => onToggleBudget(e, recinto.id)"
             >
-              <!-- Invisible hit area 40×40 for easy tapping -->
+              <!-- Invisible hit area for easy tapping -->
               <rect
-                :x="toSX(recinto.coords.x + recinto.dimensions.w) - 36"
-                :y="toSZ(recinto.coords.z) - 4"
-                width="40"
-                height="40"
+                :x="toSX(recinto.coords.x + recinto.dimensions.w) - 42"
+                :y="toSZ(recinto.coords.z) - 6"
+                width="48"
+                height="48"
                 fill="transparent"
               />
               <circle
-                :cx="toSX(recinto.coords.x + recinto.dimensions.w) - 16"
-                :cy="toSZ(recinto.coords.z) + 16"
-                r="16"
+                :cx="toSX(recinto.coords.x + recinto.dimensions.w) - 18"
+                :cy="toSZ(recinto.coords.z) + 18"
+                r="19"
                 :fill="isBudgeted(recinto.id) ? '#22c55e' : 'rgba(15,23,42,0.80)'"
                 :stroke="isBudgeted(recinto.id) ? '#86efac' : 'rgba(255,255,255,0.50)'"
                 stroke-width="2"
               />
               <text
-                :x="toSX(recinto.coords.x + recinto.dimensions.w) - 16"
-                :y="toSZ(recinto.coords.z) + 16"
+                :x="toSX(recinto.coords.x + recinto.dimensions.w) - 18"
+                :y="toSZ(recinto.coords.z) + 18"
                 fill="white"
-                font-size="13"
+                font-size="15"
                 font-weight="900"
                 text-anchor="middle"
                 dominant-baseline="central"

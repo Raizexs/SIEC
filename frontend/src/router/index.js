@@ -2,8 +2,8 @@
  * Vue Router with auth guards.
  *
  * Routes:
- *   /                      — public landing page
- *   /exposmart             — public ExpoSmart presentation page
+ *   /                      — public ExpoSmart landing page
+ *   /exposmart             — redirects to /
  *   /login                 — public auth screen (split layout)
  *   /auth/callback         — OAuth/magic-link landing
  *   /auth/reset-password   — password reset (token in URL hash)
@@ -23,7 +23,7 @@ const router = createRouter({
   routes,
   scrollBehavior(to, from, savedPosition) {
     if (savedPosition) return savedPosition;
-    if (to.name === 'landing' || to.name === 'exposmart') return { top: 0, behavior: 'auto' };
+    if (to.name === 'landing') return { top: 0, behavior: 'auto' };
     if (to.hash) return { el: to.hash, behavior: 'smooth' };
     return { top: 0, behavior: 'auto' };
   },
@@ -33,7 +33,6 @@ let authInitialized = false;
 
 const PUBLIC_ROUTES = new Set([
   "landing",
-  "exposmart",
   "login",
   "auth-callback",
   "reset-password",
@@ -50,6 +49,12 @@ const CONSENT_EXEMPT_ROUTES = new Set([
 
 router.beforeEach(async (to) => {
   const auth = useAuthStore();
+
+  // PKCE OAuth: el callback intercambia el ?code= antes de inicializar sesión global.
+  if (to.name === "auth-callback") {
+    return true;
+  }
+
   if (!authInitialized) {
     await auth.initializeAuth();
     authInitialized = true;

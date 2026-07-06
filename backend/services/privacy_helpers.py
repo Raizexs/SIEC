@@ -22,6 +22,26 @@ def get_client_ip(request: Request) -> Optional[str]:
     return None
 
 
+ALLOWED_APP_ROLES = frozenset(
+    {"architect", "engineer", "contractor", "client_viewer", "admin"}
+)
+
+
+def resolve_app_role(
+    meta: Optional[dict] = None,
+    raw_claims: Optional[dict] = None,
+) -> str:
+    """Mapea metadata de Supabase a rol de app_user.
+
+    No usar claims['role']: en JWT de Supabase suele ser 'authenticated' o 'anon'.
+    """
+    meta = meta or {}
+    candidate = meta.get("role")
+    if candidate in ALLOWED_APP_ROLES:
+        return candidate
+    return "architect"
+
+
 def ensure_app_user(
     db: Session,
     user_id: str,
@@ -49,7 +69,7 @@ def ensure_app_user(
         full_name=meta.get("full_name"),
         company=meta.get("company"),
         avatar_url=meta.get("avatar_url"),
-        role=(meta.get("role") or claims.get("role") or "architect"),
+        role=resolve_app_role(meta, claims),
         preferences=meta.get("preferences") or {},
     )
     db.add(row)

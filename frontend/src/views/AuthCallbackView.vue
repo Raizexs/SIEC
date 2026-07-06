@@ -22,6 +22,19 @@ onMounted(async () => {
   }
 
   try {
+    const query = new URLSearchParams(window.location.search);
+    const oauthError = query.get("error_description") || query.get("error");
+    if (oauthError) throw new Error(oauthError);
+
+    const code = query.get("code");
+    if (code) {
+      const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+      if (exchangeError) throw exchangeError;
+      window.history.replaceState({}, document.title, "/auth/callback");
+    }
+
+    await authStore.initializeAuth();
+
     const { data, error } = await supabase.auth.getSession();
 
     if (error) throw error;

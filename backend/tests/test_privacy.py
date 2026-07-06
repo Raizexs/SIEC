@@ -10,12 +10,12 @@ import pytest
 try:
     from database import SessionLocal, engine, check_database_connection
     import models
-    from services.privacy_helpers import has_active_consent, record_consent
+    from services.privacy_helpers import has_active_consent, record_consent, resolve_app_role
     from schemas_privacy import CONSENT_TYPES
 except ModuleNotFoundError:
     from backend.database import SessionLocal, engine, check_database_connection  # type: ignore
     from backend import models  # type: ignore
-    from backend.services.privacy_helpers import has_active_consent, record_consent  # type: ignore
+    from backend.services.privacy_helpers import has_active_consent, record_consent, resolve_app_role  # type: ignore
     from backend.schemas_privacy import CONSENT_TYPES  # type: ignore
 
 try:
@@ -37,6 +37,12 @@ pytestmark_db = pytest.mark.skipif(not _db_ok, reason="Postgres no disponible pa
 def test_consent_types_defined():
     assert "privacy_policy" in CONSENT_TYPES
     assert "public_share" in CONSENT_TYPES
+
+
+def test_resolve_app_role_ignores_supabase_authenticated_claim():
+    assert resolve_app_role({}, {"role": "authenticated"}) == "architect"
+    assert resolve_app_role({"role": "user"}, {"role": "authenticated"}) == "architect"
+    assert resolve_app_role({"role": "engineer"}, {"role": "authenticated"}) == "engineer"
 
 
 @pytest.mark.usefixtures("ensure_privacy_tables")

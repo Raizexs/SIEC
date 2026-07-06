@@ -24,11 +24,6 @@ export const useConstructionLayersStore = defineStore(
         icon: "account_tree",
       },
       {
-        id: "interior",
-        labelKey: "interiorLayer",
-        icon: "home",
-      },
-      {
         id: "structure",
         labelKey: "structureLayer",
         icon: "foundation",
@@ -87,7 +82,6 @@ export const useConstructionLayersStore = defineStore(
 
     const allLayerDefinitions = [
       ...layers,
-      { id: "insulation", labelKey: "insulationLayer", icon: "layers" },
       { id: "installations", labelKey: "installationsLayer", icon: "plumbing" },
     ];
 

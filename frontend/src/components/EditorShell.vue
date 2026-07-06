@@ -1438,10 +1438,10 @@ const startTutorial = () => {
               </div>
               <button
                 type="button"
-                class="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-emerald-900/15 transition hover:bg-emerald-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500 dark:bg-emerald-500 dark:hover:bg-emerald-400"
+                class="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-6 py-3 text-base font-bold text-white shadow-md shadow-emerald-900/15 transition hover:bg-emerald-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500 dark:bg-emerald-500 dark:hover:bg-emerald-400"
                 @click="goToStep('budget')"
               >
-                <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+                <span class="material-symbols-outlined text-[20px]">arrow_forward</span>
                 {{ t('designBudgetCtaBtn') }}
               </button>
             </div>

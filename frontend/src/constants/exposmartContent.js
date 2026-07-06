@@ -1,5 +1,17 @@
 import { LEGAL } from './legal.js';
 
+/** URL pública de la app (login). En producción: https://siec.live */
+const PUBLIC_APP_URL = (import.meta.env.VITE_PUBLIC_APP_URL || '').replace(/\/$/, '');
+
+/** Enlace de demo/QR: siec.live en prod, mismo origen en dev. */
+export function getExpoDemoUrl() {
+  if (PUBLIC_APP_URL) return `${PUBLIC_APP_URL}/login`;
+  if (typeof window !== 'undefined') {
+    return `${window.location.origin}/login`;
+  }
+  return '/login';
+}
+
 /**
  * Copy de la página /exposmart — editar aquí sin tocar markup.
  */
@@ -133,7 +145,7 @@ export const EXPOSMART = {
   demo: {
     title: 'Demo en vivo',
     subtitle: 'Escanea el código QR o abre la demo para probar SIEC.',
-    url: 'https://proyectsiec.vercel.app/login',
+    url: PUBLIC_APP_URL ? `${PUBLIC_APP_URL}/login` : '/login',
     cta: 'Abrir demo',
   },
   contact: {

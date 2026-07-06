@@ -16,10 +16,7 @@ from datetime import date
 
 # ═══ CONFIGURACIÓN ═══
 # Cambia esto si tu Supabase tiene otra URL
-SUPABASE_URL = os.getenv(
-    "SUPABASE_DATABASE_URL",
-    "postgresql://postgres.lkerizeqxnmdlsqfhnrv:gOGTXO1EHHmctlu5@aws-1-us-west-2.pooler.supabase.com:5432/postgres",
-)
+SUPABASE_URL = os.getenv("SUPABASE_DATABASE_URL") or os.getenv("DATABASE_URL", "")
 
 
 def run_sql(conn, sql, label=""):
@@ -33,10 +30,31 @@ def run_sql(conn, sql, label=""):
         print(f"  [SKIP] {label}: {e}")
 
 
+def run_matriz_fix(conn) -> None:
+    migration = os.path.join(
+        os.path.dirname(__file__), "..", "database", "migrations", "018_fix_matriz_madera_metalcon.sql"
+    )
+    if not os.path.exists(migration):
+        print("  [SKIP] migración 018 no encontrada")
+        return
+    with open(migration, "r", encoding="utf-8") as f:
+        sql = f.read()
+    with conn.cursor() as cur:
+        cur.execute(sql)
+    conn.commit()
+    print("  [OK] Matriz madera/metalcon (018)")
+
+
 def main():
+    if not SUPABASE_URL:
+        print("ERROR: define SUPABASE_DATABASE_URL o DATABASE_URL.")
+        return
     print("Conectando a Supabase...")
     conn = psycopg2.connect(SUPABASE_URL)
     conn.autocommit = False
+
+    print("\n0. Migración 018 - Matriz Madera/Metalcon")
+    run_matriz_fix(conn)
 
     # 1. Migración 013: permitir categoría Techumbre
     print("\n1. Migración 013 - Categoría Techumbre")

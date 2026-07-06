@@ -57,7 +57,11 @@ onMounted(async () => {
   theme.apply(false);
   window.addEventListener('siec:show-shortcuts', onShowShortcutsEvent);
   window.addEventListener('keydown', onGlobalKeyDown);
-  await auth.initializeAuth();
+  // OAuth PKCE: el callback intercambia ?code= en AuthCallbackView; no tocar sesión aquí.
+  const skipAuthInit = ['auth-callback', 'reset-password'].includes(route.name);
+  if (!skipAuthInit) {
+    await auth.initializeAuth();
+  }
 });
 
 onBeforeUnmount(() => {

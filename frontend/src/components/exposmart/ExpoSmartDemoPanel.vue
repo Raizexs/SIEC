@@ -1,14 +1,16 @@
 <script setup>
 import { onMounted, ref } from 'vue';
 import { ArrowRight, QrCode } from 'lucide-vue-next';
-import { EXPOSMART } from '../../constants/exposmartContent.js';
+import { EXPOSMART, getExpoDemoUrl } from '../../constants/exposmartContent.js';
 import { generateQrDataUrl } from '../../utils/qrCode.js';
 
 const qrDataUrl = ref('');
+const demoUrl = ref(EXPOSMART.demo.url);
 
 onMounted(async () => {
+  demoUrl.value = getExpoDemoUrl();
   try {
-    qrDataUrl.value = await generateQrDataUrl(EXPOSMART.demo.url, 220);
+    qrDataUrl.value = await generateQrDataUrl(demoUrl.value, 220);
   } catch {
     qrDataUrl.value = '';
   }
@@ -28,7 +30,7 @@ onMounted(async () => {
         <div
           class="flex h-[240px] w-[240px] items-center justify-center rounded-2xl border border-white/10 bg-white p-4 shadow-[0_24px_60px_-20px_rgba(0,0,0,0.5)]"
           role="img"
-          :aria-label="`Código QR para ${EXPOSMART.demo.url}`"
+          :aria-label="`Código QR para ${demoUrl}`"
         >
           <img
             v-if="qrDataUrl"
@@ -58,7 +60,7 @@ onMounted(async () => {
         </p>
 
         <a
-          :href="EXPOSMART.demo.url"
+          :href="demoUrl"
           target="_blank"
           rel="noopener noreferrer"
           data-landing-hover="nav-action"

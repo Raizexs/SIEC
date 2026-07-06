@@ -10,7 +10,7 @@ const scrollToSection = inject('expoSmartScrollTo', () => {});
 const scrollToTop = inject('expoSmartScrollTop', () => {});
 
 const goHome = (event) => {
-  if (route.path !== '/exposmart') return;
+  if (route.path !== '/' && route.path !== '/exposmart') return;
   event.preventDefault();
   scrollToTop();
 };
@@ -34,7 +34,7 @@ const goHome = (event) => {
       />
 
       <RouterLink
-        to="/exposmart"
+        to="/"
         data-landing-hover="brand"
         class="group relative z-10 flex min-w-0 items-center gap-3 rounded-xl pr-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#07101d]"
         @click="goHome"
