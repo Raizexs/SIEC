@@ -31,7 +31,7 @@ const emit = defineEmits([
   'new-estimate',
 ]);
 
-const collapsed = ref(false);
+const collapsed = ref(true);
 const isSidebarAnimating = ref(false);
 const sidebarRootRef = ref(null);
 const sidebarInnerRef = ref(null);
@@ -193,6 +193,14 @@ const refreshSidebarHover = () => {
 };
 
 onMounted(() => {
+  if (collapsed.value) {
+    const el = sidebarRootRef.value;
+    const inner = sidebarInnerRef.value;
+    if (el && inner) {
+      gsap.set(el, { width: 0, opacity: 0.35, x: -8, pointerEvents: 'none' });
+      gsap.set(inner, { autoAlpha: 0, x: -10 });
+    }
+  }
   refreshSidebarHover();
   window.addEventListener('siec:motion-preference', refreshSidebarHover);
 });

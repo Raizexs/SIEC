@@ -269,9 +269,21 @@ const toggleCategoria = (catLabel) => {
 
 const isCategoriaDisabled = (catLabel) => disabledCategories.value.has(catLabel);
 
-const storeSelections = ref({});
+const localStoreSelections = ref({});
+const storeSelections = sharedSession?.storeSelections ?? localStoreSelections;
 
-const selectStore = (item, store) => {
+const localTiendaRecomendada = ref(null);
+const tiendaRecomendada = sharedSession?.tiendaRecomendada ?? localTiendaRecomendada;
+
+const localTiendasConsolidadas = ref([]);
+const tiendasConsolidadas = sharedSession?.tiendasConsolidadas ?? localTiendasConsolidadas;
+
+// Modal de compra consolidada "Todo en el mismo lugar"
+const showConsolidatedModal = ref(false);
+const pendingItem = ref(null);
+const pendingStore = ref(null);
+
+const applyStoreSelection = (item, store) => {
   const key = item.insumo;
   const next = { ...storeSelections.value };
   if (store) {
@@ -280,16 +292,106 @@ const selectStore = (item, store) => {
     delete next[key];
   }
   storeSelections.value = next;
+  
+  if (sharedSession) {
+    persistWorkspaceBudgetSession(
+      props.projectId,
+      props.m2Totales,
+      props.materialEstructuralId,
+      sharedSession,
+    );
+  }
+};
+
+const selectStore = (item, store) => {
+  if (store && store.tag === "todo_mismo_lugar") {
+    // Si elige "Todo en el mismo lugar", abrir el modal de confirmación
+    pendingItem.value = item;
+    pendingStore.value = store;
+    showConsolidatedModal.value = true;
+  } else {
+    applyStoreSelection(item, store);
+  }
+};
+
+const applyStoreToAll = (storeName) => {
+  const next = { ...storeSelections.value };
+  effectiveDesglose.value.forEach((cat) => {
+    if (cat.categoria.toLowerCase() !== "mano de obra") {
+      cat.items.forEach((item) => {
+        if (item.tiendas_alternativas) {
+          const match = item.tiendas_alternativas.find(
+            (s) => s.tienda.toLowerCase() === storeName.toLowerCase()
+          );
+          if (match) {
+            next[item.insumo] = { tienda: match.tienda, precio: match.precio, url: match.url };
+          }
+        }
+      });
+    }
+  });
+  storeSelections.value = next;
+  
+  if (sharedSession) {
+    persistWorkspaceBudgetSession(
+      props.projectId,
+      props.m2Totales,
+      props.materialEstructuralId,
+      sharedSession,
+    );
+  }
+  
+  toast.success(`Se aplicó ${formatStoreName(storeName)} a todos los materiales compatibles.`);
+};
+
+const applyRecommendedStore = () => {
+  if (tiendaRecomendada.value && tiendaRecomendada.value.tienda) {
+    applyStoreToAll(tiendaRecomendada.value.tienda);
+  }
+};
+
+const confirmConsolidatedSelection = (applyToAll) => {
+  if (!pendingItem.value || !pendingStore.value) return;
+  
+  if (applyToAll) {
+    applyStoreToAll(pendingStore.value.tienda);
+  } else {
+    applyStoreSelection(pendingItem.value, pendingStore.value);
+  }
+  
+  showConsolidatedModal.value = false;
+  pendingItem.value = null;
+  pendingStore.value = null;
+};
+
+const getStoreTagLabel = (tag) => {
+  if (tag === 'todo_mismo_lugar') return 'Todo en el mismo lugar';
+  if (tag === 'mas_barato') return 'Más barato';
+  if (tag === 'alternativa') return 'Alternativa';
+  return '';
+};
+
+const getStoreTagClass = (tag) => {
+  if (tag === 'todo_mismo_lugar') return 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 border border-indigo-200/50 dark:border-indigo-800/30';
+  if (tag === 'mas_barato') return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/50 dark:border-emerald-800/30';
+  return 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400';
 };
 
 const isStoreSelected = (item, store) => {
   const sel = storeSelections.value[item.insumo];
-  return sel && sel.tienda === store.tienda;
+  if (sel) {
+    return sel.tienda.toLowerCase() === store.tienda.toLowerCase();
+  }
+  return item.tienda && item.tienda.toLowerCase() === store.tienda.toLowerCase();
 };
 
 const effectiveDesglose = computed(() => {
   const selections = storeSelections.value;
-  return desglose.value.map((cat) => {
+  // Excluir la categoría Mano de Obra del desglose del presupuesto
+  const filteredDesglose = desglose.value.filter(
+    (cat) => (cat.categoria || "").trim().toLowerCase() !== "mano de obra"
+  );
+  return filteredDesglose.map((cat) => {
     const items = cat.items.map((item) => {
       const override = selections[item.insumo];
       if (!override) return item;
@@ -616,6 +718,8 @@ const fetchBudget = async () => {
     desglose.value = reorganizeDesglose(data.desglose || []);
     costoTotal.value = data.costo_total;
     fechaPrecios.value = data.fecha_precios;
+    tiendaRecomendada.value = data.tienda_recomendada || null;
+    tiendasConsolidadas.value = data.tiendas_consolidadas || [];
 
     if (data.costo_total != null && Number.isFinite(data.costo_total)) {
       emit("budget-calculated", {
@@ -1450,6 +1554,34 @@ onUnmounted(() => {
             </span>
           </div>
 
+          <div
+            v-if="tiendaRecomendada && tiendaRecomendada.tienda"
+            class="relative overflow-hidden rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4 dark:border-indigo-900/30 dark:bg-indigo-950/10 shadow-sm"
+          >
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div class="flex items-start gap-3">
+                <span class="material-symbols-outlined text-indigo-600 dark:text-indigo-400 mt-0.5">local_mall</span>
+                <div>
+                  <h4 class="text-xs font-bold text-indigo-950 dark:text-indigo-300">
+                    Recomendación de compra consolidada
+                  </h4>
+                  <p class="mt-1 text-xs text-indigo-700 dark:text-indigo-400 leading-normal">
+                    Puedes comprar la gran mayoría de tus materiales en <strong class="font-extrabold text-indigo-900 dark:text-indigo-300">{{ formatStoreName(tiendaRecomendada.tienda) }}</strong> 
+                    (cubre <strong class="font-extrabold text-indigo-900 dark:text-indigo-300">{{ tiendaRecomendada.cobertura }}</strong> de {{ tiendaRecomendada.total_materiales }} materiales por un total estimado de <strong class="font-extrabold text-indigo-900 dark:text-indigo-300">{{ formatCurrencyCell(tiendaRecomendada.costo_total) }}</strong>).
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                class="inline-flex items-center gap-1.5 shrink-0 rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white shadow transition-all hover:bg-indigo-700 cursor-pointer active:scale-95"
+                @click="applyRecommendedStore"
+              >
+                <span class="material-symbols-outlined text-[14px]">checklist</span>
+                Aplicar a todo el lote
+              </button>
+            </div>
+          </div>
+
           <transition-group name="budget-list" tag="div" class="space-y-4">
             <article
               v-for="cat in effectiveDesglose"
@@ -1565,18 +1697,28 @@ onUnmounted(() => {
                         v-if="item.tienda"
                         class="inline-flex items-center gap-1 store-selector"
                       >
-                        <button
-                          type="button"
-                          class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors"
+                        <!-- Badge estático si no hay alternativas -->
+                        <span
+                          v-if="!item.tiendas_alternativas || item.tiendas_alternativas.length <= 1"
+                          class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium"
                           :class="item.tienda === 'Referencia'
                             ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-                            : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50'"
-                          :disabled="!item.tiendas_alternativas || item.tiendas_alternativas.length === 0"
-                          @click.stop="item.tiendas_alternativas?.length && (item._showStores = !item._showStores)"
+                            : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'"
+                        >
+                          {{ formatStoreName(item.tienda) }}
+                        </span>
+                        <!-- Botón interactivo si hay alternativas -->
+                        <button
+                          v-else
+                          type="button"
+                          class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors hover:bg-emerald-200 dark:hover:bg-emerald-900/50 cursor-pointer"
+                          :class="item.tienda === 'Referencia'
+                            ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                            : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'"
+                          @click.stop="item._showStores = !item._showStores"
                         >
                           {{ formatStoreName(item.tienda) }}
                           <span
-                            v-if="item.tiendas_alternativas && item.tiendas_alternativas.length > 0"
                             class="material-symbols-outlined text-[12px] leading-none"
                           >expand_more</span>
                         </button>
@@ -1589,20 +1731,28 @@ onUnmounted(() => {
                           title="Ir a la tienda"
                         >open_in_new</a>
                       </div>
+                      <!-- Dropdown de alternativas con etiquetas -->
                       <div
                         v-if="item._showStores && item.tiendas_alternativas"
-                        class="absolute right-0 top-full z-50 mt-1 min-w-[180px] rounded-2xl border border-slate-200/90 bg-white/95 p-1.5 shadow-xl shadow-slate-950/10 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/30"
+                        class="absolute right-0 top-full z-50 mt-1 min-w-[240px] rounded-2xl border border-slate-200/90 bg-white/95 p-1.5 shadow-xl shadow-slate-950/10 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/30"
                       >
                         <button
                           v-for="store in item.tiendas_alternativas"
                           :key="store.tienda"
                           type="button"
-                          class="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-xs transition-colors hover:bg-slate-50 dark:hover:bg-slate-900"
+                          class="flex w-full flex-col gap-1 rounded-xl px-3 py-2 text-xs transition-colors hover:bg-slate-50 dark:hover:bg-slate-900 text-left"
                           :class="isStoreSelected(item, store) ? 'bg-emerald-50 dark:bg-emerald-950/30' : ''"
                           @click.stop="selectStore(item, store); item._showStores = false"
                         >
-                          <span class="font-semibold text-slate-700 dark:text-slate-300">{{ formatStoreName(store.tienda) }}</span>
-                          <span class="font-mono font-bold text-slate-500 dark:text-slate-400">{{ formatCurrencyCell(store.precio) }}</span>
+                          <div class="flex items-center justify-between w-full">
+                            <span class="font-semibold text-slate-700 dark:text-slate-300">{{ formatStoreName(store.tienda) }}</span>
+                            <span class="font-mono font-bold text-slate-500 dark:text-slate-400">{{ formatCurrencyCell(store.precio) }}</span>
+                          </div>
+                          <div v-if="store.tag" class="self-start mt-0.5">
+                            <span class="text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded" :class="getStoreTagClass(store.tag)">
+                              {{ getStoreTagLabel(store.tag) }}
+                            </span>
+                          </div>
                         </button>
                       </div>
                     </div>
@@ -1662,33 +1812,50 @@ onUnmounted(() => {
                     </div>
                   </div>
 
-                  <div v-if="item.tienda" class="mt-2 flex items-center gap-2 text-xs border-t border-slate-200 dark:border-slate-800 pt-2 relative">
+                  <div v-if="item.tienda" class="mt-2 flex items-center gap-2 text-xs border-t border-slate-200 dark:border-slate-800 pt-2 relative store-selector">
                     <span class="text-[10px] font-bold uppercase text-slate-400">{{ t("budgetStore") }}</span>
-                    <button
-                      type="button"
+                    <!-- Badge estático si no hay alternativas -->
+                    <span
+                      v-if="!item.tiendas_alternativas || item.tiendas_alternativas.length <= 1"
                       class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium"
                       :class="item.tienda === 'Referencia' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'"
-                      :disabled="!item.tiendas_alternativas || item.tiendas_alternativas.length === 0"
-                      @click.stop="item.tiendas_alternativas?.length && (item._showStores = !item._showStores)"
                     >
                       {{ formatStoreName(item.tienda) }}
-                      <span v-if="item.tiendas_alternativas && item.tiendas_alternativas.length > 0" class="material-symbols-outlined text-[12px] leading-none">expand_more</span>
+                    </span>
+                    <!-- Botón interactivo si hay alternativas -->
+                    <button
+                      v-else
+                      type="button"
+                      class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors hover:bg-emerald-200 dark:hover:bg-emerald-900/50 cursor-pointer"
+                      :class="item.tienda === 'Referencia' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'"
+                      @click.stop="item._showStores = !item._showStores"
+                    >
+                      {{ formatStoreName(item.tienda) }}
+                      <span class="material-symbols-outlined text-[12px] leading-none">expand_more</span>
                     </button>
                     <span class="font-mono font-semibold text-slate-600 dark:text-slate-400">{{ formatCurrencyCell(item.precio_unitario) }}</span>
+                    <!-- Dropdown de alternativas con etiquetas -->
                     <div
                       v-if="item._showStores && item.tiendas_alternativas"
-                      class="absolute right-0 top-full z-50 mt-1 min-w-[180px] rounded-2xl border border-slate-200/90 bg-white/95 p-1.5 shadow-xl shadow-slate-950/10 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/30"
+                      class="absolute right-0 top-full z-50 mt-1 min-w-[240px] rounded-2xl border border-slate-200/90 bg-white/95 p-1.5 shadow-xl shadow-slate-950/10 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/30"
                     >
                       <button
                         v-for="store in item.tiendas_alternativas"
                         :key="store.tienda"
                         type="button"
-                        class="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-xs transition-colors hover:bg-slate-50 dark:hover:bg-slate-900"
+                        class="flex w-full flex-col gap-1 rounded-xl px-3 py-2 text-xs transition-colors hover:bg-slate-50 dark:hover:bg-slate-900 text-left"
                         :class="isStoreSelected(item, store) ? 'bg-emerald-50 dark:bg-emerald-950/30' : ''"
                         @click.stop="selectStore(item, store); item._showStores = false"
                       >
-                        <span class="font-semibold text-slate-700 dark:text-slate-300">{{ formatStoreName(store.tienda) }}</span>
-                        <span class="font-mono font-bold text-slate-500 dark:text-slate-400">{{ formatCurrencyCell(store.precio) }}</span>
+                        <div class="flex items-center justify-between w-full">
+                          <span class="font-semibold text-slate-700 dark:text-slate-300">{{ formatStoreName(store.tienda) }}</span>
+                          <span class="font-mono font-bold text-slate-500 dark:text-slate-400">{{ formatCurrencyCell(store.precio) }}</span>
+                        </div>
+                        <div v-if="store.tag" class="self-start mt-0.5">
+                          <span class="text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded" :class="getStoreTagClass(store.tag)">
+                            {{ getStoreTagLabel(store.tag) }}
+                          </span>
+                        </div>
                       </button>
                     </div>
                   </div>
@@ -1852,6 +2019,76 @@ onUnmounted(() => {
       @cancel="showPlaceConsent = false"
       @close="showPlaceConsent = false"
     />
+
+    <!-- Modal "Todo en el mismo lugar" -->
+    <div
+      v-if="showConsolidatedModal && pendingStore"
+      class="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div class="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900 transition-all duration-200 scale-100">
+        <div class="flex items-center gap-3">
+          <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400">
+            <span class="material-symbols-outlined">shopping_basket</span>
+          </div>
+          <div>
+            <h3 class="text-sm font-black text-slate-900 dark:text-slate-100">
+              Compra Consolidada
+            </h3>
+            <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+              {{ formatStoreName(pendingStore.tienda) }}
+            </p>
+          </div>
+        </div>
+
+        <p class="mt-4 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+          Has seleccionado la opción <strong class="text-indigo-600 dark:text-indigo-400">"Todo en el mismo lugar"</strong> para este material. ¿Deseas aplicar <strong class="font-bold text-slate-800 dark:text-slate-100">{{ formatStoreName(pendingStore.tienda) }}</strong> a todos los materiales que tengan disponibilidad en esta tienda?
+        </p>
+
+        <!-- Optional swap to other consolidated stores if multiple exist -->
+        <div
+          v-if="tiendasConsolidadas.length > 1"
+          class="mt-4 rounded-2xl bg-slate-50 p-3 dark:bg-slate-950/50 border border-slate-200/50 dark:border-slate-800/50"
+        >
+          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
+            Otras tiendas con alta cobertura:
+          </p>
+          <div class="mt-2 space-y-1">
+            <button
+              v-for="altStore in tiendasConsolidadas"
+              v-show="altStore.tienda.toLowerCase() !== pendingStore.tienda.toLowerCase()"
+              :key="altStore.tienda"
+              type="button"
+              class="flex w-full items-center justify-between rounded-xl px-2 py-1.5 text-xs text-left hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium transition-colors cursor-pointer"
+              @click="pendingStore = { tienda: altStore.tienda, tag: 'todo_mismo_lugar' }"
+            >
+              <span>Cambiar a lote completo de <strong>{{ formatStoreName(altStore.tienda) }}</strong></span>
+              <span class="text-[10px] font-bold bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded dark:bg-slate-800 dark:text-slate-400">
+                Cubre {{ altStore.cobertura }}/{{ altStore.total_materiales }}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        <div class="mt-6 flex flex-col sm:flex-row gap-2">
+          <button
+            type="button"
+            class="flex-1 rounded-2xl border border-slate-200 py-3 text-xs font-bold text-slate-600 dark:border-slate-700 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors"
+            @click="confirmConsolidatedSelection(false)"
+          >
+            Solo a esta fila
+          </button>
+          <button
+            type="button"
+            class="flex-1 rounded-2xl bg-indigo-600 py-3 text-xs font-bold text-white hover:bg-indigo-500 cursor-pointer shadow-lg shadow-indigo-600/10 active:scale-[0.98] transition-all"
+            @click="confirmConsolidatedSelection(true)"
+          >
+            Aplicar a todo el lote
+          </button>
+        </div>
+      </div>
+    </div>
   </section>
 </template>
 

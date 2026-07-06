@@ -37,6 +37,8 @@ class DesgloseResponse(BaseModel):
     desglose: List[CategoriaDesglose]
     costo_total: Optional[float] = None
     fecha_precios: Optional[str] = None
+    tienda_recomendada: Optional[dict] = None
+    tiendas_consolidadas: Optional[List[dict]] = None
     # Tarifa pura local calculada para Mano de Obra: (salario_diario_maestro + salario_diario_ayudante) * rendimiento_jornadas_por_m2
     tarifa_pura_local: Optional[float] = None
     area_bruta_m2: Optional[float] = None

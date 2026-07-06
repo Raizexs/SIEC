@@ -12,6 +12,9 @@ export function createWorkspaceBudgetSession() {
     error: ref(null),
     disabledCategories: ref(new Set()),
     isLoading: ref(false),
+    storeSelections: ref({}),
+    tiendaRecomendada: ref(null),
+    tiendasConsolidadas: ref([]),
   };
 }
 
@@ -44,6 +47,9 @@ export function persistWorkspaceBudgetSession(
     costoTotal: session.costoTotal.value,
     fechaPrecios: session.fechaPrecios.value,
     disabledCategories: [...(session.disabledCategories.value || [])],
+    storeSelections: session.storeSelections?.value || {},
+    tiendaRecomendada: session.tiendaRecomendada?.value || null,
+    tiendasConsolidadas: session.tiendasConsolidadas?.value || [],
   };
 
   try {
@@ -84,6 +90,15 @@ export function restoreWorkspaceBudgetSession(
     session.fechaPrecios.value = data.fechaPrecios ?? null;
     session.error.value = null;
     session.disabledCategories.value = new Set(data.disabledCategories || []);
+    if (session.storeSelections) {
+      session.storeSelections.value = data.storeSelections || {};
+    }
+    if (session.tiendaRecomendada) {
+      session.tiendaRecomendada.value = data.tiendaRecomendada || null;
+    }
+    if (session.tiendasConsolidadas) {
+      session.tiendasConsolidadas.value = data.tiendasConsolidadas || [];
+    }
     session.isLoading.value = false;
 
     return true;
@@ -100,6 +115,15 @@ export function resetWorkspaceBudgetSession(session) {
   session.fechaPrecios.value = null;
   session.error.value = null;
   session.disabledCategories.value = new Set();
+  if (session.storeSelections) {
+    session.storeSelections.value = {};
+  }
+  if (session.tiendaRecomendada) {
+    session.tiendaRecomendada.value = null;
+  }
+  if (session.tiendasConsolidadas) {
+    session.tiendasConsolidadas.value = [];
+  }
   session.isLoading.value = false;
   clearWorkspaceBudgetCache();
 }

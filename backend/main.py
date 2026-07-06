@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 import math
 import unicodedata
 import os
+import re
 from urllib.parse import quote_plus
 from dotenv import load_dotenv
 load_dotenv()
@@ -630,6 +631,309 @@ def _fusionar_desglose_responses(
     )
 
 
+    return DesgloseResponse(
+        simulacion_id=simulacion_id,
+        m2_totales=m2_totales,
+        material=" + ".join(materiales) if materiales else "Mixto",
+        desglose=desglose_list,
+        costo_total=costo_total,
+        fecha_precios=min(fechas) if fechas else None,
+        tarifa_pura_local=tarifa,
+        area_bruta_m2=area_bruta,
+        area_vanos_m2=area_vanos,
+        area_neta_m2=area_neta,
+        volumen_neto_previo=vol_neto,
+        volumen_compensado_pre_cotizacion=vol_comp,
+        items_optimizados=items_opt,
+        perdida_promedio_porcentual=perdida_prom,
+        perimetro_ml=perimetro if perimetro and perimetro > 0 else None,
+        altura_muro_m=alturas[0] if alturas else None,
+        area_muro_neta_m2=area_muro if area_muro and area_muro > 0 else None,
+        incluir_techumbre=any(p.incluir_techumbre for p in partials),
+        espesor_muro_m=espesores[0] if espesores else None,
+    )
+
+
+def get_insumo_target_qty_and_unit(insumo) -> tuple[float | None, str | None]:
+    name = getattr(insumo, 'nombre', '') or ''
+    if not isinstance(name, str):
+        name = str(name)
+    name_lower = name.lower()
+    matches = re.findall(r"(\d+(?:\.\d+)?)\s*(kg|kilo|kilos|l|litro|litros|m2|m²|unidades|unidad|un|pieza|rollo|tubo|barra|m|mt|mts|metro|metros)", name_lower)
+    unit_map = {
+        "kg": "kg", "kilo": "kg", "kilos": "kg",
+        "unidades": "un", "unidad": "un", "un": "un", "pieza": "un",
+        "l": "l", "litro": "l", "litros": "l",
+        "m2": "m2", "m²": "m2",
+        "m": "m", "mt": "m", "mts": "m", "metro": "m", "metros": "m", "tubo": "m", "barra": "m", "rollo": "m"
+    }
+    for val_str, u in matches:
+        u_norm = unit_map.get(u)
+        if u_norm:
+            return float(val_str), u_norm
+
+    um = getattr(insumo, 'unidad_medida', '') or ''
+    if not isinstance(um, str):
+        um = str(um)
+    um_lower = um.lower()
+    um_matches = re.findall(r"(\d+(?:\.\d+)?)\s*(kg|kilo|kilos|l|litro|litros|m2|m²|unidades|unidad|un|pieza|rollo|tubo|barra|m|mt|mts|metro|metros)", um_lower)
+    for val_str, u in um_matches:
+        u_norm = unit_map.get(u)
+        if u_norm:
+            return float(val_str), u_norm
+
+    if "caja" in um_lower:
+        caja_match = re.search(r"caja\s*(\d+)", name_lower)
+        if caja_match:
+            return float(caja_match.group(1)), "un"
+        return 100.0, "un"
+    if "rollo" in um_lower:
+        return 100.0, "m"
+    if "tubo" in um_lower or "barra" in um_lower:
+        return 6.0 if "6m" in name_lower else 3.0, "m"
+    if "plancha" in um_lower:
+        return 1.0, "un"
+    if "saco" in um_lower:
+        return 25.0, "kg"
+    if "galon" in um_lower or "galón" in name_lower:
+        return 4.0, "l"
+
+    return 1.0, "un"
+
+
+def get_candidate_qty_and_unit(product_name: str, target_unit: str) -> tuple[float | None, str | None]:
+    if not isinstance(product_name, str):
+        product_name = str(product_name)
+    name_lower = product_name.lower()
+    unit_map = {
+        "kg": "kg", "kilo": "kg", "kilos": "kg",
+        "unidades": "un", "unidad": "un", "un": "un", "pieza": "un",
+        "l": "l", "litro": "l", "litros": "l",
+        "m2": "m2", "m²": "m2",
+        "m": "m", "mt": "m", "mts": "m", "metro": "m", "metros": "m", "tubo": "m", "barra": "m", "rollo": "m"
+    }
+    matches = re.findall(r"(\d+(?:\.\d+)?)\s*(kg|kilo|kilos|l|litro|litros|m2|m²|unidades|unidad|un|pieza|rollo|tubo|barra|m|mt|mts|metro|metros)", name_lower)
+    for val_str, u in matches:
+        u_norm = unit_map.get(u)
+        if u_norm == target_unit:
+            return float(val_str), u_norm
+    return None, None
+
+
+def normalize_and_filter_insumo_prices(insumo, records) -> list[dict]:
+    target_qty, target_unit = get_insumo_target_qty_and_unit(insumo)
+    
+    # Agrupar registros por tienda (case-insensitive)
+    by_store = defaultdict(list)
+    for r in records:
+        store_key = (r.tienda or "").strip().lower()
+        if store_key:
+            by_store[store_key].append(r)
+            
+    candidates = []
+    for store_key, store_records in by_store.items():
+        # 1. Intentar coincidencia estricta (±10% de cantidad de empaque)
+        strict_candidates = []
+        for r in store_records:
+            precio_val = r.precio_descuento if r.precio_descuento is not None else r.precio
+            if precio_val is None:
+                continue
+            price_float = float(precio_val)
+            cand_qty, cand_unit = get_candidate_qty_and_unit(r.nombre_producto, target_unit)
+            
+            if cand_qty and target_qty and cand_unit == target_unit:
+                diff_ratio = abs(cand_qty - target_qty) / target_qty
+                if diff_ratio <= 0.10:
+                    url_val = getattr(r, 'url', None) or ""
+                    if not isinstance(url_val, str):
+                        url_val = ""
+                    strict_candidates.append({
+                        "tienda": r.tienda or "",
+                        "precio": price_float,
+                        "url": url_val,
+                        "nombre_producto": r.nombre_producto or "",
+                        "precio_original": price_float
+                    })
+        
+        if strict_candidates:
+            strict_candidates.sort(key=lambda x: x["precio"])
+            candidates.append(strict_candidates[0])
+            continue
+            
+        # 2. Si no hay estricto, intentar coincidencia escalada (cualquier cantidad con misma unidad)
+        scaled_candidates = []
+        for r in store_records:
+            precio_val = r.precio_descuento if r.precio_descuento is not None else r.precio
+            if precio_val is None:
+                continue
+            price_float = float(precio_val)
+            cand_qty, cand_unit = get_candidate_qty_and_unit(r.nombre_producto, target_unit)
+            
+            if cand_qty and target_qty and cand_unit == target_unit and cand_qty > 0:
+                factor = target_qty / cand_qty
+                normalized_price = price_float * factor
+                url_val = getattr(r, 'url', None) or ""
+                if not isinstance(url_val, str):
+                    url_val = ""
+                scaled_candidates.append({
+                    "tienda": r.tienda or "",
+                    "precio": normalized_price,
+                    "url": url_val,
+                    "nombre_producto": f"{r.nombre_producto or ''} (Escalado)",
+                    "precio_original": price_float
+                })
+                
+        if scaled_candidates:
+            scaled_candidates.sort(key=lambda x: x["precio"])
+            candidates.append(scaled_candidates[0])
+            continue
+            
+        # 3. Fallback: usar cualquier registro de esa tienda como fallback
+        fallback_candidates = []
+        for r in store_records:
+            precio_val = r.precio_descuento if r.precio_descuento is not None else r.precio
+            if precio_val is None:
+                continue
+            price_float = float(precio_val)
+            url_val = getattr(r, 'url', None) or ""
+            if not isinstance(url_val, str):
+                url_val = ""
+            fallback_candidates.append({
+                "tienda": r.tienda or "",
+                "precio": price_float,
+                "url": url_val,
+                "nombre_producto": r.nombre_producto or "",
+                "precio_original": price_float
+            })
+            
+        if fallback_candidates:
+            fallback_candidates.sort(key=lambda x: x["precio"])
+            candidates.append(fallback_candidates[0])
+            
+    if not candidates:
+        return []
+        
+    avg_price = sum(c["precio"] for c in candidates) / len(candidates)
+    lower_bound = avg_price * 0.4
+    upper_bound = avg_price * 2.5
+    
+    filtered = [
+        c for c in candidates
+        if lower_bound <= c["precio"] <= upper_bound
+    ]
+    
+    if not filtered:
+        sorted_by_diff = sorted(candidates, key=lambda c: abs(c["precio"] - avg_price))
+        filtered = [sorted_by_diff[0]]
+        
+    filtered.sort(key=lambda c: c["precio"])
+    return filtered
+
+
+def select_three_options(filtered_prices, recommended_store_name, other_consolidated_names) -> list[dict]:
+    if not filtered_prices:
+        return []
+        
+    options = []
+    
+    consolidated_opt = None
+    for p in filtered_prices:
+        if p["tienda"].lower() == recommended_store_name.lower():
+            consolidated_opt = dict(p)
+            consolidated_opt["tag"] = "todo_mismo_lugar"
+            break
+    if not consolidated_opt:
+        for p in filtered_prices:
+            if p["tienda"].lower() in [s.lower() for s in other_consolidated_names]:
+                consolidated_opt = dict(p)
+                consolidated_opt["tag"] = "todo_mismo_lugar"
+                break
+                
+    cheapest_opt = dict(filtered_prices[0])
+    cheapest_opt["tag"] = "mas_barato"
+    
+    alternative_opt = None
+    for p in filtered_prices:
+        if p["tienda"].lower() != cheapest_opt["tienda"].lower() and (not consolidated_opt or p["tienda"].lower() != consolidated_opt["tienda"].lower()):
+            alternative_opt = dict(p)
+            alternative_opt["tag"] = "alternativa"
+            break
+    if not alternative_opt and len(filtered_prices) > 1:
+        for p in filtered_prices:
+            if p["tienda"].lower() != cheapest_opt["tienda"].lower():
+                alternative_opt = dict(p)
+                alternative_opt["tag"] = "alternativa"
+                break
+    if not alternative_opt and len(filtered_prices) > 2:
+        alternative_opt = dict(filtered_prices[2])
+        alternative_opt["tag"] = "alternativa"
+        
+    selected = []
+    seen_stores = set()
+    
+    if consolidated_opt:
+        selected.append(consolidated_opt)
+        seen_stores.add(consolidated_opt["tienda"].lower())
+        
+    if cheapest_opt["tienda"].lower() not in seen_stores:
+        selected.append(cheapest_opt)
+        seen_stores.add(cheapest_opt["tienda"].lower())
+    else:
+        for s in selected:
+            if s["tienda"].lower() == cheapest_opt["tienda"].lower():
+                s["tag"] = "todo_mismo_lugar"
+                
+    if alternative_opt and alternative_opt["tienda"].lower() not in seen_stores:
+        selected.append(alternative_opt)
+        seen_stores.add(alternative_opt["tienda"].lower())
+        
+    for p in filtered_prices:
+        if len(selected) >= 3:
+            break
+        if p["tienda"].lower() not in seen_stores:
+            p_copy = dict(p)
+            p_copy["tag"] = "alternativa"
+            selected.append(p_copy)
+            seen_stores.add(p_copy["tienda"].lower())
+            
+    def sort_tag(x):
+        t = x.get("tag", "alternativa")
+        if t == "mas_barato":
+            return 0
+        if t == "todo_mismo_lugar":
+            return 1
+        return 2
+    selected.sort(key=sort_tag)
+    return selected
+
+
+def make_safe_url(url, product_name, store_name="") -> str:
+    url_str = url or ""
+    if not isinstance(url_str, str):
+        url_str = str(url_str)
+    url_str = url_str.strip()
+    
+    prod_name = product_name or ""
+    if not isinstance(prod_name, str):
+        prod_name = str(prod_name)
+        
+    st_name = (store_name or "").strip().lower()
+    
+    if not url_str or "fallback://" in url_str or "/product/123" in url_str or "dummy" in url_str.lower() or "example" in url_str.lower() or "google.com/search" in url_str:
+        if prod_name:
+            query = prod_name
+            if "sodimac" in st_name:
+                query += " site:sodimac.cl"
+            elif "easy" in st_name:
+                query += " site:easy.cl"
+            elif "construmart" in st_name:
+                query += " site:construmart.cl"
+            elif st_name and st_name != "referencia":
+                query += f" {st_name}"
+            return f"https://www.google.com/search?tbm=shop&q={quote_plus(query)}"
+    return url_str
+
+
 def _calcular_insumos_material(
     simulacion_id: int,
     payload: Optional[DeduccionMermasPayload],
@@ -721,57 +1025,167 @@ def _calcular_insumos_material(
         models.PrecioMercado.fecha_scraping.desc()
     ).all()
 
-    precios_x_insumo = defaultdict(list)
-    all_stores_map = {}
-    latest_precio_record = {}
-    fechas_usadas = []
+    is_wood_material = material_id in (1, 5)
 
-    for pm in precios_records:
-        precio_val = pm.precio_descuento if pm.precio_descuento is not None else pm.precio
-        if precio_val is not None:
-            precio_float = float(precio_val)
-            precios_x_insumo[pm.insumo_id].append(precio_float)
+    if is_wood_material:
+        # Lógica optimizada para Madera (Normalización de empaque, outliers y consolidación de tiendas)
+        db_insumos_map = {insumo.id: insumo for r, insumo in datos_rendimiento}
+        missing_ids = [i_id for i_id in insumo_ids if i_id not in db_insumos_map]
+        if missing_ids:
+            try:
+                extra_insumos = db.query(models.Insumo).filter(models.Insumo.id.in_(missing_ids)).all()
+                if isinstance(extra_insumos, list):
+                    for ins in extra_insumos:
+                        db_insumos_map[ins.id] = ins
+            except Exception:
+                pass
 
-            if pm.insumo_id not in all_stores_map:
-                all_stores_map[pm.insumo_id] = []
-            tienda_key = pm.tienda.strip().lower() if pm.tienda else ""
-            url_val = getattr(pm, 'url', None)
-            if url_val is not None and not isinstance(url_val, str):
-                url_val = None
-            if not any(s.get("tienda", "").lower() == tienda_key for s in all_stores_map[pm.insumo_id]):
-                if len(all_stores_map[pm.insumo_id]) < 5:
-                    nombre_prod = getattr(pm, 'nombre_producto', '') or ''
-                    all_stores_map[pm.insumo_id].append({
-                        "tienda": pm.tienda or "",
-                        "precio": precio_float,
-                        "url": url_val or "",
-                        "nombre_producto": nombre_prod,
+        material_insumo_ids = []
+        for i_id, ins in db_insumos_map.items():
+            if ins:
+                cat_l = (ins.categoria or "").strip().lower()
+                if cat_l != "mano de obra":
+                    material_insumo_ids.append(i_id)
+
+        all_insumos_filtered_prices = {}
+        store_coverage = defaultdict(int)
+        store_totals = defaultdict(float)
+
+        for i_id in material_insumo_ids:
+            ins = db_insumos_map.get(i_id)
+            if ins:
+                ins_records = [pm for pm in precios_records if pm.insumo_id == i_id]
+                filtered_prices = normalize_and_filter_insumo_prices(ins, ins_records)
+                all_insumos_filtered_prices[i_id] = filtered_prices
+                
+                for p in filtered_prices:
+                    store_coverage[p["tienda"].lower()] += 1
+                    store_totals[p["tienda"].lower()] += p["precio"]
+
+        total_materials = len(material_insumo_ids)
+        recommended_store_name = "Referencia"
+        tiendas_consolidadas = []
+
+        if store_coverage:
+            sorted_stores = sorted(
+                store_coverage.items(),
+                key=lambda x: (-x[1], store_totals[x[0]])
+            )
+            recommended_store_name = sorted_stores[0][0]
+            
+            for store_name, count in store_coverage.items():
+                if count >= total_materials * 0.5 and total_materials > 0:
+                    tiendas_consolidadas.append({
+                        "tienda": store_name,
+                        "cobertura": count,
+                        "total_materiales": total_materials,
+                        "costo_total": store_totals[store_name]
                     })
+            tiendas_consolidadas.sort(key=lambda x: -x["cobertura"])
 
+        tienda_recomendada = None
+        if recommended_store_name != "Referencia" and store_coverage:
+            tienda_recomendada = {
+                "tienda": recommended_store_name,
+                "cobertura": store_coverage[recommended_store_name],
+                "total_materiales": total_materials,
+                "costo_total": store_totals[recommended_store_name]
+            }
+
+        precios_x_insumo = defaultdict(list)
+        all_stores_map = {}
+        latest_precio_record = {}
+        fechas_usadas = []
+
+        for pm in precios_records:
+            if pm.fecha_scraping:
+                fechas_usadas.append(pm.fecha_scraping.isoformat() if hasattr(pm.fecha_scraping, 'isoformat') else str(pm.fecha_scraping))
             if pm.insumo_id not in latest_precio_record:
                 latest_precio_record[pm.insumo_id] = pm
             else:
                 if pm.fecha_scraping and latest_precio_record[pm.insumo_id].fecha_scraping:
                     if pm.fecha_scraping > latest_precio_record[pm.insumo_id].fecha_scraping:
                         latest_precio_record[pm.insumo_id] = pm
-            if pm.fecha_scraping:
-                fechas_usadas.append(pm.fecha_scraping.isoformat() if hasattr(pm.fecha_scraping, 'isoformat') else str(pm.fecha_scraping))
 
-    for stores in all_stores_map.values():
-        stores.sort(key=lambda s: s["precio"])
-        for s in stores:
-            url = s.get("url", "")
-            if not url or "google.com/search" in url:
-                term = s.get("nombre_producto", "")
-                if term:
-                    s["url"] = f"https://www.google.com/search?tbm=shop&q={quote_plus(term)}"
+        for i_id in insumo_ids:
+            ins = db_insumos_map.get(i_id)
+            if not ins:
+                continue
+                
+            if i_id in all_insumos_filtered_prices:
+                filtered_prices = all_insumos_filtered_prices[i_id]
+            else:
+                ins_records = [pm for pm in precios_records if pm.insumo_id == i_id]
+                filtered_prices = normalize_and_filter_insumo_prices(ins, ins_records)
+                
+            options = select_three_options(
+                filtered_prices, 
+                recommended_store_name, 
+                [t["tienda"] for t in tiendas_consolidadas if t["tienda"].lower() != recommended_store_name.lower()]
+            )
+            all_stores_map[i_id] = options
+            
+            for opt in options:
+                precios_x_insumo[i_id].append(opt["precio"])
+                opt["url"] = make_safe_url(opt.get("url", ""), opt.get("nombre_producto", ""), opt.get("tienda", ""))
 
-    precio_promedio_map = {}
-    for i_id, lista_precios in precios_x_insumo.items():
-        if lista_precios:
-            precio_promedio_map[i_id] = sum(lista_precios) / len(lista_precios)
+        precio_promedio_map = {}
+        for i_id, lista_precios in precios_x_insumo.items():
+            if lista_precios:
+                precio_promedio_map[i_id] = sum(lista_precios) / len(lista_precios)
 
-    fecha_precios = min(fechas_usadas) if fechas_usadas else None
+        fecha_precios = min(fechas_usadas) if fechas_usadas else None
+    else:
+        # Lógica original para otros materiales (Metalcon, Hormigón, etc.)
+        precios_x_insumo = defaultdict(list)
+        all_stores_map = {}
+        latest_precio_record = {}
+        fechas_usadas = []
+
+        for pm in precios_records:
+            precio_val = pm.precio_descuento if pm.precio_descuento is not None else pm.precio
+            if precio_val is not None:
+                precio_float = float(precio_val)
+                precios_x_insumo[pm.insumo_id].append(precio_float)
+
+                if pm.insumo_id not in all_stores_map:
+                    all_stores_map[pm.insumo_id] = []
+                tienda_key = pm.tienda.strip().lower() if pm.tienda else ""
+                url_val = getattr(pm, 'url', None)
+                if url_val is not None and not isinstance(url_val, str):
+                    url_val = None
+                if not any(s.get("tienda", "").lower() == tienda_key for s in all_stores_map[pm.insumo_id]):
+                    if len(all_stores_map[pm.insumo_id]) < 5:
+                        nombre_prod = getattr(pm, 'nombre_producto', '') or ''
+                        all_stores_map[pm.insumo_id].append({
+                            "tienda": pm.tienda or "",
+                            "precio": precio_float,
+                            "url": url_val or "",
+                            "nombre_producto": nombre_prod,
+                        })
+
+                if pm.insumo_id not in latest_precio_record:
+                    latest_precio_record[pm.insumo_id] = pm
+                else:
+                    if pm.fecha_scraping and latest_precio_record[pm.insumo_id].fecha_scraping:
+                        if pm.fecha_scraping > latest_precio_record[pm.insumo_id].fecha_scraping:
+                            latest_precio_record[pm.insumo_id] = pm
+                if pm.fecha_scraping:
+                    fechas_usadas.append(pm.fecha_scraping.isoformat() if hasattr(pm.fecha_scraping, 'isoformat') else str(pm.fecha_scraping))
+
+        for stores in all_stores_map.values():
+            stores.sort(key=lambda s: s["precio"])
+            for s in stores:
+                s["url"] = make_safe_url(s.get("url", ""), s.get("nombre_producto", ""), s.get("tienda", ""))
+
+        precio_promedio_map = {}
+        for i_id, lista_precios in precios_x_insumo.items():
+            if lista_precios:
+                precio_promedio_map[i_id] = sum(lista_precios) / len(lista_precios)
+
+        fecha_precios = min(fechas_usadas) if fechas_usadas else None
+        tienda_recomendada = None
+        tiendas_consolidadas = None
 
     # 4. Agrupar por categoria y calcular subtotales
     categorias_dict = defaultdict(list)
@@ -1326,6 +1740,8 @@ def _calcular_insumos_material(
         desglose=desglose_list,
         costo_total=costo_total_simulacion,
         fecha_precios=fecha_precios,
+        tienda_recomendada=tienda_recomendada,
+        tiendas_consolidadas=tiendas_consolidadas if tiendas_consolidadas else None,
         tarifa_pura_local=tarifa_pura_local,
         area_bruta_m2=area_bruta,
         area_vanos_m2=area_vanos,

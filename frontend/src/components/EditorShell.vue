@@ -154,7 +154,7 @@ const disableSceneWalkthrough = computed(
   () => isMobile.value || (typeof window !== 'undefined' && 'ontouchstart' in window),
 );
 
-const sidebarCollapsed = ref(false);
+const sidebarCollapsed = ref(true);
 const motionRoot = ref(null);
 const stepContentRef = ref(null);
 const workspaceFooterRef = ref(null);
