@@ -2089,15 +2089,6 @@ onBeforeUnmount(() => {
               >
                 +
               </button>
-              <button
-                type="button"
-                data-editor-hover="tool"
-                class="flex h-8 items-center justify-center rounded-xl px-2 text-[10px] font-black uppercase tracking-[0.08em] text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800"
-                title="Clonar piso completo"
-                @click="handleCloneFloor"
-              >
-                <span class="material-symbols-outlined text-[16px]">content_copy</span>
-              </button>
             </div>
             <div
               class="tour-scene-3d-actions scene3d-labeled-actions inline-flex items-stretch overflow-visible rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950"

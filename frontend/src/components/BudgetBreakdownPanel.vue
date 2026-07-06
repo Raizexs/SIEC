@@ -282,6 +282,7 @@ const tiendasConsolidadas = sharedSession?.tiendasConsolidadas ?? localTiendasCo
 const showConsolidatedModal = ref(false);
 const pendingItem = ref(null);
 const pendingStore = ref(null);
+const activeStoreSelectorInsumo = ref(null);
 
 const applyStoreSelection = (item, store) => {
   const key = item.insumo;
@@ -889,11 +890,7 @@ const onDocumentClick = (event) => {
     exportMenuOpen.value = false;
   }
   if (!event.target.closest?.(".store-selector")) {
-    effectiveDesglose.value.forEach((cat) =>
-      cat.items.forEach((item) => {
-        if (item._showStores) item._showStores = false;
-      }),
-    );
+    activeStoreSelectorInsumo.value = null;
   }
 };
 
@@ -1692,7 +1689,10 @@ onUnmounted(() => {
                       {{ formatCurrencyCell(item.precio_unitario) }}
                     </div>
 
-                    <div class="col-span-2 text-right relative store-selector">
+                    <div
+                      class="col-span-2 text-right relative store-selector"
+                      :class="activeStoreSelectorInsumo === item.insumo ? 'z-50' : 'z-10'"
+                    >
                       <div
                         v-if="item.tienda"
                         class="inline-flex items-center gap-1 store-selector"
@@ -1715,7 +1715,7 @@ onUnmounted(() => {
                           :class="item.tienda === 'Referencia'
                             ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
                             : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'"
-                          @click.stop="item._showStores = !item._showStores"
+                          @click.stop="activeStoreSelectorInsumo = activeStoreSelectorInsumo === item.insumo ? null : item.insumo"
                         >
                           {{ formatStoreName(item.tienda) }}
                           <span
@@ -1733,7 +1733,7 @@ onUnmounted(() => {
                       </div>
                       <!-- Dropdown de alternativas con etiquetas -->
                       <div
-                        v-if="item._showStores && item.tiendas_alternativas"
+                        v-if="activeStoreSelectorInsumo === item.insumo && item.tiendas_alternativas"
                         class="absolute right-0 top-full z-50 mt-1 min-w-[240px] rounded-2xl border border-slate-200/90 bg-white/95 p-1.5 shadow-xl shadow-slate-950/10 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/30"
                       >
                         <button
@@ -1742,7 +1742,7 @@ onUnmounted(() => {
                           type="button"
                           class="flex w-full flex-col gap-1 rounded-xl px-3 py-2 text-xs transition-colors hover:bg-slate-50 dark:hover:bg-slate-900 text-left"
                           :class="isStoreSelected(item, store) ? 'bg-emerald-50 dark:bg-emerald-950/30' : ''"
-                          @click.stop="selectStore(item, store); item._showStores = false"
+                          @click.stop="selectStore(item, store); activeStoreSelectorInsumo = null"
                         >
                           <div class="flex items-center justify-between w-full">
                             <span class="font-semibold text-slate-700 dark:text-slate-300">{{ formatStoreName(store.tienda) }}</span>
@@ -1812,7 +1812,11 @@ onUnmounted(() => {
                     </div>
                   </div>
 
-                  <div v-if="item.tienda" class="mt-2 flex items-center gap-2 text-xs border-t border-slate-200 dark:border-slate-800 pt-2 relative store-selector">
+                  <div
+                    v-if="item.tienda"
+                    class="mt-2 flex items-center gap-2 text-xs border-t border-slate-200 dark:border-slate-800 pt-2 relative store-selector"
+                    :class="activeStoreSelectorInsumo === item.insumo ? 'z-50' : 'z-10'"
+                  >
                     <span class="text-[10px] font-bold uppercase text-slate-400">{{ t("budgetStore") }}</span>
                     <!-- Badge estático si no hay alternativas -->
                     <span
@@ -1828,7 +1832,7 @@ onUnmounted(() => {
                       type="button"
                       class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors hover:bg-emerald-200 dark:hover:bg-emerald-900/50 cursor-pointer"
                       :class="item.tienda === 'Referencia' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'"
-                      @click.stop="item._showStores = !item._showStores"
+                      @click.stop="activeStoreSelectorInsumo = activeStoreSelectorInsumo === item.insumo ? null : item.insumo"
                     >
                       {{ formatStoreName(item.tienda) }}
                       <span class="material-symbols-outlined text-[12px] leading-none">expand_more</span>
@@ -1836,7 +1840,7 @@ onUnmounted(() => {
                     <span class="font-mono font-semibold text-slate-600 dark:text-slate-400">{{ formatCurrencyCell(item.precio_unitario) }}</span>
                     <!-- Dropdown de alternativas con etiquetas -->
                     <div
-                      v-if="item._showStores && item.tiendas_alternativas"
+                      v-if="activeStoreSelectorInsumo === item.insumo && item.tiendas_alternativas"
                       class="absolute right-0 top-full z-50 mt-1 min-w-[240px] rounded-2xl border border-slate-200/90 bg-white/95 p-1.5 shadow-xl shadow-slate-950/10 backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-950/95 dark:shadow-black/30"
                     >
                       <button
@@ -1845,7 +1849,7 @@ onUnmounted(() => {
                         type="button"
                         class="flex w-full flex-col gap-1 rounded-xl px-3 py-2 text-xs transition-colors hover:bg-slate-50 dark:hover:bg-slate-900 text-left"
                         :class="isStoreSelected(item, store) ? 'bg-emerald-50 dark:bg-emerald-950/30' : ''"
-                        @click.stop="selectStore(item, store); item._showStores = false"
+                        @click.stop="selectStore(item, store); activeStoreSelectorInsumo = null"
                       >
                         <div class="flex items-center justify-between w-full">
                           <span class="font-semibold text-slate-700 dark:text-slate-300">{{ formatStoreName(store.tienda) }}</span>

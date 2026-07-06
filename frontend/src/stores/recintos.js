@@ -600,11 +600,29 @@ export const useRecintosStore = defineStore("recintos", () => {
       return true;
     }
 
-      if (hasDims) {
-        const stackSnapshot = recintos.value
-          .filter((r) => (r.stackId || r.id) === stackId)
-          .map((r) => ({ id: r.id, dimensions: { ...r.dimensions } }));
+      // Snapshot the entire stack's dimensions and coordinates for rollback
+      const stack = recintos.value.filter((r) => (r.stackId || r.id) === stackId);
+      const stackSnapshot = stack.map((r) => ({
+        id: r.id,
+        dimensions: { ...r.dimensions },
+        coords: { ...r.coords },
+      }));
 
+      // 1. Calculate and apply coordinates update (if any) to target and stack
+      if (hasCoords) {
+        const newX = updates.coords?.x ?? updates.x ?? target.coords.x;
+        const newZ = updates.coords?.z ?? updates.z ?? target.coords.z;
+        const proposedCoords = {
+          x: round3(newX),
+          z: round3(newZ),
+        };
+        stack.forEach((r) => {
+          r.coords = { ...proposedCoords };
+        });
+      }
+
+      // 2. Calculate and apply dimensions update (if any) to target and cascade up stack
+      if (hasDims) {
         const newW = updates.dimensions?.w ?? updates.w ?? target.dimensions.w;
         const newL = updates.dimensions?.l ?? updates.l ?? target.dimensions.l;
         const newH =
@@ -632,10 +650,8 @@ export const useRecintosStore = defineStore("recintos", () => {
 
         target.dimensions = { ...proposedDims };
 
-        const stack = recintos.value
-          .filter((r) => (r.stackId || r.id) === stackId)
-          .sort((a, b) => a.piso - b.piso);
-
+        // Cascade dimension constraints upward (upper floors cannot exceed lower floors in size)
+        stack.sort((a, b) => a.piso - b.piso);
         for (let i = 1; i < stack.length; i++) {
           const lower = stack[i - 1];
           const upper = stack[i];
@@ -656,50 +672,34 @@ export const useRecintosStore = defineStore("recintos", () => {
             };
           }
         }
-
-        const stackSupported = stack.every((member) => roomHasVerticalSupport(member));
-        if (!stackSupported) {
-          stackSnapshot.forEach((snap) => {
-            const member = recintos.value.find((r) => r.id === snap.id);
-            if (member) member.dimensions = { ...snap.dimensions };
-          });
-          return false;
-        }
       }
 
-      if (hasCoords) {
-        const newX = updates.coords?.x ?? updates.x ?? target.coords.x;
-        const newZ = updates.coords?.z ?? updates.z ?? target.coords.z;
-        const proposedCoords = {
-          x: round3(newX),
-          z: round3(newZ),
-        };
+      // 3. Validate structural support for the entire stack with the new coords and dimensions
+      const stackSupported = stack.every((member) => {
+        const piso = member.piso || 1;
+        if (piso <= 1) return true;
+        const lowerRooms = getSupportRoomsBelow(recintos.value, piso);
+        return isRoomStructurallyValid(
+          {
+            id: member.id,
+            piso,
+            coords: member.coords,
+            dimensions: member.dimensions,
+          },
+          lowerRooms,
+          member.materialEstructuralId ?? configMetadata.value.materialEstructuralId ?? 1,
+        );
+      });
 
-        const stack = recintos.value.filter(r => (r.stackId || r.id) === stackId);
-        const stackSupported = stack.every((member) => {
-          const piso = member.piso || 1;
-          if (piso <= 1) return true;
-          const lowerRooms = getSupportRoomsBelow(recintos.value, piso);
-          return isRoomStructurallyValid(
-            {
-              id: member.id,
-              piso,
-              coords: proposedCoords,
-              dimensions: member.dimensions,
-            },
-            lowerRooms,
-            member.materialEstructuralId ?? configMetadata.value.materialEstructuralId ?? 1,
-          );
+      if (!stackSupported) {
+        stackSnapshot.forEach((snap) => {
+          const member = recintos.value.find((r) => r.id === snap.id);
+          if (member) {
+            member.dimensions = { ...snap.dimensions };
+            member.coords = { ...snap.coords };
+          }
         });
-
-        if (!stackSupported) {
-          target.coords = previousCoords;
-          return false;
-        }
-
-        stack.forEach(r => {
-          r.coords = { ...proposedCoords };
-        });
+        return false;
       }
 
       if ('nombre' in updates && updates.nombre != null) {

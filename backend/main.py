@@ -908,6 +908,9 @@ def select_three_options(filtered_prices, recommended_store_name, other_consolid
 
 
 def make_safe_url(url, product_name, store_name="") -> str:
+    import urllib.parse
+    import re
+    
     url_str = url or ""
     if not isinstance(url_str, str):
         url_str = str(url_str)
@@ -919,18 +922,61 @@ def make_safe_url(url, product_name, store_name="") -> str:
         
     st_name = (store_name or "").strip().lower()
     
-    if not url_str or "fallback://" in url_str or "/product/123" in url_str or "dummy" in url_str.lower() or "example" in url_str.lower() or "google.com/search" in url_str:
+    is_fallback = (
+        not url_str or 
+        "fallback://" in url_str or 
+        "/product/123" in url_str or 
+        "dummy" in url_str.lower() or 
+        "example" in url_str.lower() or
+        "google.com/search" in url_str
+    )
+    
+    if is_fallback:
         if prod_name:
-            query = prod_name
+            query = prod_name.replace(" (Escalado)", "")
             if "sodimac" in st_name:
-                query += " site:sodimac.cl"
+                query += " sodimac"
             elif "easy" in st_name:
-                query += " site:easy.cl"
+                query += " easy"
             elif "construmart" in st_name:
-                query += " site:construmart.cl"
+                query += " construmart"
             elif st_name and st_name != "referencia":
                 query += f" {st_name}"
-            return f"https://www.google.com/search?tbm=shop&q={quote_plus(query)}"
+            url_str = f"https://www.google.com/search?q={urllib.parse.quote_plus(query)}"
+            
+    # Clean the final URL of "site:..." and "udm=" parameters
+    try:
+        parsed = urllib.parse.urlparse(url_str)
+        params = urllib.parse.parse_qs(parsed.query, keep_blank_values=True)
+        
+        # 1. Clean query parameter 'q'
+        if 'q' in params and params['q']:
+            q_val = params['q'][0]
+            # Remove "site:xxx.xx" (case-insensitive, optionally with preceding space/plus)
+            q_val = re.sub(r'\+?site:[a-zA-Z0-9.-]+', '', q_val, flags=re.IGNORECASE)
+            # Remove "(Escalado)" tags
+            q_val = q_val.replace(" (Escalado)", "").replace("(Escalado)", "")
+            q_val = re.sub(r'\s+', ' ', q_val).strip()
+            params['q'] = [q_val]
+            
+        # 2. Remove 'udm' parameter
+        if 'udm' in params:
+            del params['udm']
+            
+        new_query = urllib.parse.urlencode(params, doseq=True)
+        url_str = urllib.parse.urlunparse((
+            parsed.scheme,
+            parsed.netloc,
+            parsed.path,
+            parsed.params,
+            new_query,
+            parsed.fragment
+        ))
+    except Exception:
+        # Simple regex fallback
+        url_str = re.sub(r'[&?]udm=\d+', '', url_str)
+        url_str = re.sub(r'(?:%2B|%20|\+)?site(?:%3A|:)[a-zA-Z0-9.-]+', '', url_str, flags=re.IGNORECASE)
+        
     return url_str
 
 

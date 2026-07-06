@@ -89,7 +89,7 @@ const materials = computed(() => [
   },
 ]);
 
-const isMaterialAllowed = (id) => props.allowedMaterialIds.includes(Number(id));
+const isMaterialAllowed = (id) => true;
 
 const selectableMaterials = computed(() =>
   materials.value.filter((m) => isMaterialAllowed(m.id)),
