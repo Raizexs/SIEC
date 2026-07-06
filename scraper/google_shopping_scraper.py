@@ -137,6 +137,24 @@ def _extract_shopping_results(page: Page) -> list[dict]:
             price = None
             store = "sodimac"
             url_p = ""
+            try:
+                from urllib.parse import urlparse, parse_qs
+                link_el = card.locator("a").first
+                if link_el and link_el.count() > 0:
+                    href = link_el.get_attribute("href")
+                    if href:
+                        if href.startswith("/"):
+                            href = "https://www.google.com" + href
+                        parsed = urlparse(href)
+                        qs = parse_qs(parsed.query)
+                        if "q" in qs and qs["q"]:
+                            url_p = qs["q"][0]
+                        elif "url" in qs and qs["url"]:
+                            url_p = qs["url"][0]
+                        else:
+                            url_p = href
+            except Exception:
+                pass
 
             for line in lines:
                 p = _parse_clp(line)

@@ -12,6 +12,10 @@ const excelBrowser = path.resolve(
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [vue()],
+  server: {
+    host: "0.0.0.0",
+    allowedHosts: true,
+  },
   resolve: {
     alias: {
       // Build de navegador; evita pre-bundle roto del entry Node en dev.
